@@ -74,7 +74,7 @@ export default function Login() {
             }}
             disabled={loading}
           >
-            {loading ? '// authenticating…' : '$ sign_in →'}
+            {loading ? '// AUTHENTICATING…' : 'SIGN IN →'}
           </button>
         </form>
 
