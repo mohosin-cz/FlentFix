@@ -122,18 +122,3 @@ input[type=range]::-webkit-slider-thumb:active { transform: scale(1.2); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #3a3d52; border-radius: 2px; }
 
-/* Safe area insets — iOS notch + Android cutout */
-body {
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-}
-
-.top-bar, header, nav, [class*="header"] {
-  padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
-}
-
-.bottom-bar, [class*="bottom"] {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
-}

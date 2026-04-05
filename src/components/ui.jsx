@@ -20,7 +20,9 @@ export function NavBar({ title, subtitle, onBack, right }) {
   return (
     <header style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '0 20px', height: 56,
+      padding: '0 20px',
+      paddingTop: 'calc(env(safe-area-inset-top) + 0px)',
+      minHeight: 56,
       background: 'var(--bg-panel, #1e2028)',
       borderBottom: '1px solid var(--border, #2e3040)',
       position: 'sticky', top: 0, zIndex: 100,
@@ -545,7 +547,7 @@ export function TabBar({ tabs, active, onChange, counts }) {
       display: 'flex',
       background: 'var(--bg-panel, #1e2028)',
       borderBottom: '1px solid var(--border, #2e3040)',
-      position: 'sticky', top: 56, zIndex: 90,
+      position: 'sticky', top: 'calc(env(safe-area-inset-top) + 56px)', zIndex: 90,
       overflowX: 'auto',
     }}>
       {tabs.map((tab, i) => (
