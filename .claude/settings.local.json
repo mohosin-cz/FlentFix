@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(/Users/mohosinchoudhury/Documents/flentfix/src/App.jsx:*)",
+      "Bash(/Users/mohosinchoudhury/Documents/flentfix/vite.config.js:*)",
+      "Bash(/Users/mohosinchoudhury/Documents/flentfix/index.html:*)"
+    ]
+  }
+}

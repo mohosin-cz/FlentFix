@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 130" fill="none">
+  <!-- arch background -->
+  <path d="M8 130 L8 58 Q8 8 60 8 Q112 8 112 58 L112 130 Z" fill="#0D0D0D" rx="6"/>
+  <!-- f — white, left side -->
+  <path d="M32 95 L32 54 Q32 40 44 38" stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <line x1="28" y1="66" x2="52" y2="66" stroke="white" stroke-width="6" stroke-linecap="round"/>
+  <!-- a — arch shape, lighter white, right side -->
+  <path d="M62 95 L62 60 Q62 44 76 44 Q90 44 90 60 L90 95" stroke="rgba(255,255,255,0.55)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <line x1="62" y1="79" x2="90" y2="79" stroke="rgba(255,255,255,0.55)" stroke-width="6" stroke-linecap="round"/>
+</svg>

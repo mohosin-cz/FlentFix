@@ -1,0 +1,123 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Airbnb-inspired palette */
+  --brand:       #FF385C;
+  --brand-dark:  #E31C5F;
+  --brand-light: #FFF1F3;
+  --black:       #222222;
+  --gray-1:      #484848;
+  --gray-2:      #717171;
+  --gray-3:      #B0B0B0;
+  --gray-4:      #DDDDDD;
+  --gray-5:      #F7F7F7;
+  --white:       #FFFFFF;
+  --success:     #008A05;
+  --success-bg:  #EBFAEB;
+  --warning:     #C47500;
+  --warning-bg:  #FFF4CC;
+  --danger:      #C13515;
+  --danger-bg:   #FFF0EC;
+
+  /* spacing & shape */
+  --radius-xs:  6px;
+  --radius-sm:  10px;
+  --radius-md:  14px;
+  --radius-lg:  20px;
+  --radius-xl:  28px;
+  --radius-full:9999px;
+
+  /* elevation */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.10);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+  --shadow-xl: 0 16px 48px rgba(0,0,0,0.16);
+
+  /* nav */
+  --nav-h: 60px;
+}
+
+html, body {
+  background: #16171f;
+  color: #e8e8f0;
+  font-family: 'Poppins', system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+}
+
+#root {
+  width: 100%;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Global button reset */
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+input, textarea, select { font-family: inherit; }
+
+/* Animations */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.animate-fadeUp  { animation: fadeUp  0.32s cubic-bezier(0.16,1,0.3,1) both; }
+.animate-fadeIn  { animation: fadeIn  0.2s ease both; }
+.animate-scaleIn { animation: scaleIn 0.24s cubic-bezier(0.16,1,0.3,1) both; }
+
+/* Stagger delays for card lists */
+.stagger-1 { animation-delay: 0.04s; }
+.stagger-2 { animation-delay: 0.08s; }
+.stagger-3 { animation-delay: 0.12s; }
+.stagger-4 { animation-delay: 0.16s; }
+
+/* Login brand panel */
+.login-brand { display: none; }
+@media (min-width: 768px) { .login-brand { display: flex; } }
+
+/* Range slider */
+input[type=range] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: #2e3040;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #c8963e;
+  border: 2px solid #1e2028;
+  box-shadow: 0 0 0 2px #c8963e;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+input[type=range]::-webkit-slider-thumb:active { transform: scale(1.2); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #3a3d52; border-radius: 2px; }
