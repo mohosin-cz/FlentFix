@@ -13,6 +13,7 @@ import Properties from './pages/Properties'
 import PropertyDetail from './pages/PropertyDetail'
 import RateCard from './pages/RateCard'
 import WorkOrder from './pages/WorkOrder'
+import ResetPassword from './pages/ResetPassword'
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route
             path="/"
             element={
