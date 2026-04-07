@@ -3,10 +3,10 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const BAND_COLORS = {
-  green: { bg: '#e8f5ee', text: '#1a6b3c', dot: '#1a6b3c', label: 'Good' },
-  amber: { bg: '#fff4e0', text: '#a05c00', dot: '#a05c00', label: 'Needs Attention' },
-  red:   { bg: '#fdeaed', text: '#9b1f35', dot: '#9b1f35', label: 'Critical' },
+const BAND = {
+  green: { text: '#1a5c38', dot: '#1a5c38', label: 'Good',             shortLabel: 'Good' },
+  amber: { text: '#7a4a00', dot: '#7a4a00', label: 'Needs Attention',  shortLabel: 'Att.' },
+  red:   { text: '#8b1a2a', dot: '#8b1a2a', label: 'Critical',         shortLabel: 'Poor' },
 }
 
 function band(displayScore) {
@@ -19,264 +19,422 @@ function band(displayScore) {
 
 function fmtDate(str) {
   if (!str) return '—'
-  return new Date(str).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+  return new Date(str).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function addDays(str, days) {
   if (!str) return '—'
   const d = new Date(str)
   d.setDate(d.getDate() + days)
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function fmt(n) { return (n || 0).toLocaleString('en-IN') }
 
-// ─── Injected styles ──────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Inter:wght@300;400;500;600;700&display=swap');
 
-  .ep-wrap {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  .er-wrap {
     min-height: 100dvh;
-    background: #f0f0f0;
-    font-family: 'Poppins', sans-serif;
-    padding: 0 0 100px;
+    background: #f4f4f4;
+    padding: 0 0 80px;
+    font-family: 'Inter', sans-serif;
+    color: #111;
+    -webkit-font-smoothing: antialiased;
   }
 
-  .ep-doc {
-    max-width: 860px;
+  .er-topbar {
+    max-width: 760px;
     margin: 0 auto;
-    background: #fff;
-    box-shadow: 0 2px 24px rgba(0,0,0,0.10);
+    padding: 16px 48px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .er-back {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    color: #666;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .er-pdf-link {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    color: #111;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    padding: 0;
   }
 
-  /* ── Block 1: Header ── */
-  .ep-header {
-    background: #0d0d0d;
-    padding: 28px 36px;
+  .er-doc {
+    max-width: 760px;
+    margin: 12px auto 0;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+  }
+
+  /* ── HEADER ── */
+  .er-header {
+    background: #111;
+    padding: 28px 48px 0;
+  }
+  .er-header-top {
     display: flex;
-    align-items: flex-start;
     justify-content: space-between;
+    align-items: flex-start;
     gap: 24px;
+    padding-bottom: 22px;
+  }
+  .er-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .er-logo-box {
+    width: 38px; height: 38px;
+    background: #fff;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; overflow: hidden; padding: 3px;
+  }
+  .er-logo-box img { width: 100%; height: 100%; object-fit: contain; }
+  .er-brand-name {
+    font-family: 'Inter', sans-serif;
+    font-size: 15px; font-weight: 700;
+    color: #fff; line-height: 1.1;
+    letter-spacing: -0.2px;
+  }
+  .er-brand-tag {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px; color: rgba(255,255,255,0.35);
+    font-style: italic; margin-top: 3px;
+  }
+  .er-doc-right { text-align: right; }
+  .er-doc-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px; font-weight: 600;
+    color: #fff; line-height: 1.2;
+    letter-spacing: -0.3px;
+  }
+  .er-doc-pid {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; color: rgba(255,255,255,0.38);
+    margin-top: 5px; letter-spacing: 0.04em;
+  }
+
+  .er-meta-strip {
+    border-top: 1px solid rgba(255,255,255,0.12);
+    padding: 11px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+  }
+  .er-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 20px 0 0;
+    margin-right: 20px;
+    border-right: 1px solid rgba(255,255,255,0.12);
+  }
+  .er-meta-item:last-child { border-right: none; margin-right: 0; padding-right: 0; }
+  .er-meta-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 8px; font-weight: 600;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(255,255,255,0.3);
+  }
+  .er-meta-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; color: rgba(255,255,255,0.7);
+  }
+
+  /* ── SECTIONS ── */
+  .er-section {
+    padding: 32px 48px;
+    border-top: 1px solid #e0e0e0;
+  }
+  .er-section:first-of-type { border-top: none; }
+  .er-section-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    color: #666; margin-bottom: 20px;
+  }
+
+  /* ── EXECUTIVE SUMMARY ── */
+  .er-stats-row {
+    display: flex;
+    gap: 40px;
+    margin-bottom: 28px;
+  }
+  .er-stat {}
+  .er-stat-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 28px; font-weight: 500;
+    color: #111; line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .er-stat-lbl {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: #888; margin-top: 5px;
+  }
+  .er-stat-sep {
+    width: 1px; background: #e0e0e0; align-self: stretch; flex-shrink: 0;
+  }
+  .er-health-line {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px; color: #444; margin-bottom: 8px;
+    display: flex; gap: 6px; align-items: center;
+  }
+  .er-health-score-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px; font-weight: 500;
+  }
+  .er-bar-track {
+    height: 4px; background: #e8e8e8; border-radius: 2px;
+    overflow: hidden; margin-bottom: 12px;
+  }
+  .er-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+  .er-verdict {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px; color: #555; line-height: 1.6;
+    font-style: italic;
+  }
+
+  /* ── TRADE TABLE ── */
+  .er-trade-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+  }
+  .er-trade-table thead tr {
+    border-bottom: 1px solid #111;
+  }
+  .er-trade-table th {
+    font-size: 9px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: #666; padding: 0 0 8px; text-align: left;
+  }
+  .er-trade-table th.r { text-align: right; }
+  .er-trade-table td {
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+    color: #111; vertical-align: middle;
+  }
+  .er-trade-table td.r {
+    text-align: right;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px; font-variant-numeric: tabular-nums;
+  }
+  .er-trade-table td.muted { color: #888; font-family: 'DM Mono', monospace; font-size: 11px; }
+  .er-trade-table tfoot tr {
+    border-top: 1px solid #111;
+  }
+  .er-trade-table tfoot td {
+    padding: 10px 0 0;
+    font-weight: 700; border-bottom: none;
+  }
+  .er-score-dot {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: 'Inter', sans-serif; font-size: 11px;
+  }
+
+  /* ── ITEMISED SECTIONS ── */
+  .er-trade-section {
+    border-top: 1px solid #e0e0e0;
+    padding: 28px 48px;
+    page-break-inside: avoid;
+  }
+  .er-trade-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .er-trade-head-name {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: #111; white-space: nowrap;
+  }
+  .er-leader {
+    flex: 1; height: 0;
+    border-bottom: 1px dotted #ccc;
+    margin: 0 6px; position: relative; top: -4px;
+  }
+  .er-trade-head-right {
+    display: flex; align-items: center; gap: 10px;
+    white-space: nowrap;
+  }
+  .er-trade-head-total {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px; font-weight: 500; color: #111;
+  }
+
+  .er-item { padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+  .er-item:last-of-type { border-bottom: none; }
+  .er-item-row1 {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px;
+  }
+  .er-item-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; color: #aaa; flex-shrink: 0; width: 18px;
+  }
+  .er-item-area {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px; color: #555;
+    background: #f4f4f4; border-radius: 2px;
+    padding: 1px 5px; flex-shrink: 0;
+  }
+  .er-item-desc {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px; color: #111; line-height: 1.5; flex: 1;
+  }
+  .er-item-total {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px; font-weight: 500; color: #111;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .er-item-row2 {
+    display: flex; align-items: center; gap: 8px;
+    padding-left: 28px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px; color: #888;
     flex-wrap: wrap;
   }
-  .ep-brand { display: flex; align-items: center; gap: 12px; }
-  .ep-logo-box {
-    width: 42px; height: 42px; border-radius: 9px;
-    background: #fff; display: flex; align-items: center;
-    justify-content: center; flex-shrink: 0; overflow: hidden; padding: 4px;
-  }
-  .ep-logo-box img { width: 100%; height: 100%; object-fit: contain; }
-  .ep-brand-text {}
-  .ep-brand-name { font-size: 17px; font-weight: 700; color: #fff; line-height: 1.1; }
-  .ep-brand-tag  { font-size: 10px; color: rgba(255,255,255,0.38); font-style: italic; margin-top: 2px; }
-  .ep-doc-meta   { text-align: right; }
-  .ep-doc-title  { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.3px; line-height: 1.2; }
-  .ep-doc-pid    { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.45); margin-top: 5px; font-family: monospace; }
-
-  .ep-info-strip {
-    background: #1e1e1e;
-    padding: 11px 36px;
-    display: flex; flex-wrap: wrap; gap: 6px 20px;
-  }
-  .ep-info-item { display: flex; gap: 6px; align-items: center; }
-  .ep-info-label { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(255,255,255,0.3); }
-  .ep-info-val   { font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.65); }
-  .ep-info-sep   { width: 1px; height: 14px; background: rgba(255,255,255,0.1); align-self: center; }
-
-  /* ── Block 2: Executive Summary ── */
-  .ep-summary {
-    background: #f7f7f7;
-    border-bottom: 1px solid #e8e8e8;
-    padding: 28px 36px;
-  }
-  .ep-block-title {
-    font-size: 13px; font-weight: 700; color: #0d0d0d;
+  .er-fix-type {
+    font-size: 10px; font-weight: 600; color: #555;
     text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .er-cost-detail {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; color: #888;
+  }
+
+  .er-section-subtotal {
+    display: flex; justify-content: flex-end;
+    padding-top: 12px; margin-top: 4px;
+    border-top: 1px solid #e0e0e0;
+  }
+  .er-subtotal-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px; color: #666; margin-right: 8px;
+  }
+  .er-subtotal-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px; font-weight: 500; color: #111;
+  }
+
+  /* ── COST SUMMARY ── */
+  .er-cost-block {
+    background: #111;
+    padding: 32px 48px;
+  }
+  .er-cs-head {
+    display: flex; justify-content: space-between; align-items: baseline;
     margin-bottom: 20px;
   }
-  .ep-stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin-bottom: 22px;
+  .er-cs-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px; font-weight: 600; color: #fff;
   }
-  .ep-stat-box {
-    background: #fff; border: 1px solid #e8e8e8;
-    border-radius: 10px; padding: 16px;
+  .er-cs-pid {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; color: rgba(255,255,255,0.28);
   }
-  .ep-stat-val { font-size: 28px; font-weight: 800; line-height: 1; }
-  .ep-stat-label { font-size: 11px; color: #888; margin-top: 5px; }
-  .ep-health-bar-wrap {}
-  .ep-health-row {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 8px;
+  .er-cs-row {
+    display: flex; justify-content: space-between;
+    padding: 8px 0; font-family: 'Inter', sans-serif; font-size: 12px;
   }
-  .ep-health-label { font-size: 12px; font-weight: 600; color: #444; }
-  .ep-health-score { font-size: 12px; font-weight: 700; }
-  .ep-bar-track {
-    height: 8px; background: #e8e8e8; border-radius: 4px;
-    overflow: hidden; margin-bottom: 10px;
+  .er-cs-lbl { color: rgba(255,255,255,0.45); }
+  .er-cs-val {
+    font-family: 'DM Mono', monospace;
+    color: rgba(255,255,255,0.7);
+    font-variant-numeric: tabular-nums;
   }
-  .ep-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
-  .ep-verdict { font-size: 12px; color: #555; line-height: 1.5; }
-
-  /* ── Block 3: Trade Impact ── */
-  .ep-trades {
-    padding: 28px 36px;
-    border-bottom: 1px solid #e8e8e8;
-  }
-  .ep-trade-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  .ep-trade-row {
-    background: #fafafa;
-    border: 1px solid #efefef;
-    border-radius: 8px;
-    padding: 12px 14px;
-  }
-  .ep-trade-top {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 8px;
-  }
-  .ep-trade-name { font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #0d0d0d; }
-  .ep-trade-right { display: flex; align-items: center; gap: 8px; }
-  .ep-trade-cost { font-size: 12px; font-weight: 600; color: #0d0d0d; }
-  .ep-score-pill {
-    display: inline-flex; align-items: center; gap: 4px;
-    font-size: 10px; font-weight: 600;
-    border-radius: 3px; padding: 2px 7px;
-  }
-  .ep-bar-thin { height: 5px; background: #e8e8e8; border-radius: 3px; overflow: hidden; }
-
-  /* ── Block 4: Itemised Detail ── */
-  .ep-section { border-bottom: 1px solid #ebebeb; page-break-inside: avoid; }
-  .ep-section-head {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 16px 36px 12px;
-    border-bottom: 2px solid #0d0d0d;
-  }
-  .ep-section-left { display: flex; align-items: center; gap: 8px; }
-  .ep-section-name { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #0d0d0d; }
-  .ep-section-total { font-size: 13px; font-weight: 700; color: #0d0d0d; }
-  .ep-item { padding: 14px 36px; }
-  .ep-item-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
-  .ep-area-pill {
-    font-size: 10px; font-weight: 500; color: #555;
-    background: #f2f2f2; border-radius: 3px; padding: 2px 7px;
-  }
-  .ep-fix-pill {
-    font-size: 10px; font-weight: 500; color: #333;
-    border: 1px solid #d8d8d8; border-radius: 3px; padding: 2px 7px;
-  }
-  .ep-issue { font-size: 13px; color: #1c1c1e; line-height: 1.5; margin-bottom: 7px; }
-  .ep-costs { display: flex; align-items: center; gap: 10px; font-size: 11px; color: #888; flex-wrap: wrap; }
-  .ep-cost-total { margin-left: auto; font-size: 12px; font-weight: 700; color: #0d0d0d; }
-  .ep-item-rule { height: 1px; background: #f0f0f0; margin: 0 36px; }
-  .ep-subtotal {
-    display: flex; justify-content: flex-end;
-    padding: 10px 36px 16px;
-    font-size: 12px; color: #444;
-    border-top: 1px solid #ebebeb;
-    margin-top: 4px;
-  }
-  .ep-subtotal strong {
-    text-decoration: underline; text-underline-offset: 2px;
-    color: #0d0d0d; margin-left: 6px;
-  }
-
-  /* ── Block 5: Cost Summary ── */
-  .ep-cost-summary {
-    background: #0d0d0d;
-    padding: 28px 36px;
-  }
-  .ep-cs-head {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 18px;
-  }
-  .ep-cs-title { font-size: 14px; font-weight: 700; color: #fff; }
-  .ep-cs-pid   { font-size: 10px; color: rgba(255,255,255,0.3); font-family: monospace; }
-  .ep-cs-row {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 7px 0; font-size: 12px;
-  }
-  .ep-cs-row-label { color: rgba(255,255,255,0.5); }
-  .ep-cs-row-val   { color: rgba(255,255,255,0.75); font-weight: 500; }
-  .ep-cs-rule { height: 1px; background: rgba(255,255,255,0.12); margin: 8px 0; }
-  .ep-grand-row {
+  .er-cs-rule { border: none; border-top: 1px solid rgba(255,255,255,0.12); margin: 8px 0; }
+  .er-grand-row {
     display: flex; justify-content: space-between; align-items: baseline;
-    padding-top: 4px;
+    padding-top: 6px;
   }
-  .ep-grand-label { font-size: 14px; font-weight: 600; color: #fff; }
-  .ep-grand-val   { font-size: 26px; font-weight: 800; color: #fff; }
-
-  /* ── Block 6: Footer ── */
-  .ep-footer { padding: 24px 36px 28px; }
-  .ep-disclaimer {
-    font-size: 11px; color: #888; line-height: 1.75;
-    margin-bottom: 18px;
+  .er-grand-lbl {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px; font-weight: 600; color: #fff;
   }
-  .ep-rate-btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 8px 16px; font-size: 11px; font-weight: 600;
-    background: none; border: 1.5px solid #0d0d0d;
-    border-radius: 6px; cursor: pointer; color: #0d0d0d;
-    font-family: 'Poppins', sans-serif; margin-bottom: 20px;
-    text-decoration: none;
-  }
-  .ep-prepared { font-size: 11px; color: #aaa; margin-bottom: 4px; }
-  .ep-flent-sig { font-size: 10px; color: #ccc; text-align: center; padding-top: 12px; border-top: 1px solid #f0f0f0; }
-
-  /* ── PDF Download button ── */
-  .ep-pdf-btn {
-    position: fixed; bottom: 24px; right: 20px;
-    display: flex; align-items: center; gap: 8px;
-    padding: 13px 22px; font-size: 13px; font-weight: 600;
-    background: #0d0d0d; color: #fff; border: none;
-    border-radius: 30px; cursor: pointer;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.22);
-    font-family: 'Poppins', sans-serif; z-index: 999;
+  .er-grand-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 28px; font-weight: 500; color: #fff;
+    font-variant-numeric: tabular-nums;
   }
 
-  /* ── Back button ── */
-  .ep-back {
-    max-width: 860px; margin: 0 auto;
-    padding: 14px 36px 0;
-    background: #f0f0f0;
+  /* ── FOOTER ── */
+  .er-footer {
+    padding: 24px 48px 32px;
+    border-top: 1px solid #e0e0e0;
   }
-  .ep-back button {
-    background: none; border: none; cursor: pointer;
-    font-size: 12px; color: #666; font-family: 'Poppins', sans-serif;
-    display: flex; align-items: center; gap: 4px; padding: 0;
+  .er-disclaimer {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px; color: #666; line-height: 1.75;
+    margin-bottom: 16px;
+  }
+  .er-rate-link {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px; color: #111;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    background: none; border: none;
+    cursor: pointer; padding: 0; margin-bottom: 16px;
+    display: inline-block;
+  }
+  .er-prepared {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px; color: #aaa; line-height: 1.6;
   }
 
-  /* ── Responsive ── */
+  /* ── RESPONSIVE ── */
   @media (max-width: 600px) {
-    .ep-header  { padding: 22px 20px; }
-    .ep-doc-title { font-size: 16px; }
-    .ep-info-strip { padding: 10px 20px; }
-    .ep-summary { padding: 22px 20px; }
-    .ep-stats   { grid-template-columns: 1fr; gap: 8px; }
-    .ep-stat-val { font-size: 24px; }
-    .ep-trades  { padding: 22px 20px; }
-    .ep-trade-grid { grid-template-columns: 1fr; }
-    .ep-section-head { padding: 14px 20px 10px; }
-    .ep-item    { padding: 14px 20px; }
-    .ep-item-rule { margin: 0 20px; }
-    .ep-subtotal { padding: 10px 20px 14px; }
-    .ep-cost-summary { padding: 24px 20px; }
-    .ep-footer  { padding: 22px 20px 24px; }
-    .ep-back    { padding: 12px 20px 0; }
+    .er-topbar { padding: 12px 20px 0; }
+    .er-doc    { margin: 10px auto 0; }
+    .er-header { padding: 22px 20px 0; }
+    .er-section { padding: 24px 20px; }
+    .er-trade-section { padding: 22px 20px; }
+    .er-cost-block    { padding: 26px 20px; }
+    .er-footer        { padding: 22px 20px 24px; }
+    .er-stats-row { gap: 20px; }
+    .er-stat-num  { font-size: 22px; }
+    .er-doc-title { font-size: 18px; }
+    .er-grand-val { font-size: 22px; }
+    .er-trade-table td.hide-mobile { display: none; }
+    .er-trade-table th.hide-mobile { display: none; }
+    .er-item-row1 { flex-wrap: wrap; }
+    .er-item-total { margin-left: auto; }
+    .er-meta-strip { gap: 8px 0; }
+    .er-meta-item { padding: 2px 14px 2px 0; margin-right: 14px; }
   }
 
-  /* ── Print ── */
+  /* ── PRINT ── */
   @media print {
     .no-print { display: none !important; }
     body, #root { background: #fff !important; padding: 0 !important; }
-    .ep-wrap { background: #fff !important; padding: 0 !important; }
-    .ep-doc  { box-shadow: none !important; max-width: 100% !important; }
-    .ep-section { page-break-inside: avoid; }
+    .er-wrap  { background: #fff !important; padding: 0 !important; }
+    .er-doc   { border: none !important; margin: 0 !important; max-width: 100% !important; }
+    .er-trade-section { page-break-inside: avoid; }
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -290,11 +448,10 @@ export default function Estimate() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Set page background
   useEffect(() => {
     const prev = document.body.style.background
     const prevPad = document.body.style.padding
-    document.body.style.background = '#f0f0f0'
+    document.body.style.background = '#f4f4f4'
     document.body.style.padding = '0'
     return () => {
       document.body.style.background = prev
@@ -302,7 +459,6 @@ export default function Estimate() {
     }
   }, [])
 
-  // Set page title from PID once inspection loads
   useEffect(() => {
     if (!inspection?.pid) return
     const prev = document.title
@@ -324,20 +480,20 @@ export default function Estimate() {
   }, [id])
 
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: 'Poppins, sans-serif', color: '#888', fontSize: 14 }}>
-      Loading estimate…
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: 'Inter, sans-serif', color: '#888', fontSize: 14 }}>
+      Loading…
     </div>
   )
 
   if (error || !inspection) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: 'Poppins, sans-serif', color: '#9b1f35', fontSize: 14 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: 'Inter, sans-serif', color: '#8b1a2a', fontSize: 14 }}>
       {error || 'Inspection not found'}
     </div>
   )
 
-  // ── Derived data ──
+  // ── Derived data ─────────────────────────────────────────────────────────────
   const items = inspection.inspection_line_items || []
-  const pid = inspection.pid || ''
+  const pid   = inspection.pid || ''
 
   const sectionMap = {}
   items.forEach(item => {
@@ -358,34 +514,29 @@ export default function Estimate() {
     sectionList.map(([name, rows]) => [name, sectionScore(rows)])
   )
 
-  const validScores = Object.values(sectionScores).filter(v => v != null)
-  const overallScore = validScores.length
-    ? Math.round(validScores.reduce((s, v) => s + v, 0) / validScores.length)
-    : null
-  const overallBand = band(overallScore)
-  const overallColors = BAND_COLORS[overallBand]
+  const validScores   = Object.values(sectionScores).filter(v => v != null)
+  const overallScore  = validScores.length ? Math.round(validScores.reduce((s, v) => s + v, 0) / validScores.length) : null
+  const overallBand   = band(overallScore)
+  const overallColors = BAND[overallBand]
 
   const totalMaterial = items.reduce((s, r) => s + (r.material_cost || 0), 0)
   const totalLabour   = items.reduce((s, r) => s + (r.labour_cost   || 0), 0)
   const grandTotal    = totalMaterial + totalLabour
 
   function secTotal(rows) { return rows.reduce((s, r) => s + (r.material_cost || 0) + (r.labour_cost || 0), 0) }
-  function secMat(rows)   { return rows.reduce((s, r) => s + (r.material_cost || 0), 0) }
-  function secLab(rows)   { return rows.reduce((s, r) => s + (r.labour_cost   || 0), 0) }
 
-  const issueCount    = items.filter(r => r.availability_status !== 'not_available').length
-  const issueStatBand = issueCount > 5 ? 'red' : issueCount > 1 ? 'amber' : 'green'
+  const issueCount     = items.filter(r => r.availability_status !== 'not_available').length
   const tradesAffected = sectionList.filter(([, rows]) =>
     rows.some(r => r.availability_status !== 'not_available' && ((r.material_cost || 0) + (r.labour_cost || 0)) > 0)
   ).length
 
-  // Verdict line
-  const verdictBand = band(overallScore)
-  const verdictText = verdictBand === 'green'
-    ? `Property is in good condition across ${sectionList.length} trade${sectionList.length > 1 ? 's' : ''}.`
-    : verdictBand === 'amber'
-    ? `Property requires attention across ${tradesAffected} trade${tradesAffected > 1 ? 's' : ''} before move-in.`
-    : `Property has critical issues across ${tradesAffected} trade${tradesAffected > 1 ? 's' : ''} — immediate action required.`
+  const issueNumColor = issueCount > 5 ? BAND.red.text : issueCount > 1 ? BAND.amber.text : BAND.green.text
+
+  const verdictText = overallBand === 'green'
+    ? `This property is in good condition across all inspected trades.`
+    : overallBand === 'amber'
+    ? `This property requires remedial work across ${tradesAffected} trade${tradesAffected !== 1 ? 's' : ''} prior to tenant move-in.`
+    : `This property has critical maintenance requirements across ${tradesAffected} trade${tradesAffected !== 1 ? 's' : ''} — immediate action required.`
 
   function handlePrint() {
     const prev = document.title
@@ -395,231 +546,226 @@ export default function Estimate() {
   }
 
   return (
-    <div className="ep-wrap">
+    <div className="er-wrap">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      {/* Back button */}
-      <div className="ep-back no-print">
-        <button onClick={() => navigate(-1)}>← back</button>
+      {/* Top controls */}
+      <div className="er-topbar no-print">
+        <button className="er-back" onClick={() => navigate(-1)}>← Back</button>
+        <button className="er-pdf-link" onClick={handlePrint}>Download PDF</button>
       </div>
 
-      <div className="ep-doc">
+      <div className="er-doc">
 
-        {/* ── BLOCK 1: DOCUMENT HEADER ── */}
-        <div className="ep-header">
-          <div className="ep-brand">
-            <div className="ep-logo-box">
-              <img src="/logo.svg" alt="Flent" />
-            </div>
-            <div className="ep-brand-text">
-              <div className="ep-brand-name">Flent</div>
-              <div className="ep-brand-tag">why rent, when you can flent?</div>
-            </div>
-          </div>
-          <div className="ep-doc-meta">
-            <div className="ep-doc-title">Estimate &amp; Health Report</div>
-            {pid && <div className="ep-doc-pid">PID {pid}</div>}
-          </div>
-        </div>
-
-        {/* Info strip */}
-        <div className="ep-info-strip">
-          {[
-            { label: 'Property ID',      val: pid || '—' },
-            { label: 'Date',             val: fmtDate(inspection.inspection_date) },
-            { label: 'Inspection Type',  val: inspection.house_type || '—' },
-            { label: 'Valid Until',      val: addDays(inspection.inspection_date, 30) },
-          ].map(({ label, val }, i, arr) => (
-            <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="ep-info-item">
-                <span className="ep-info-label">{label}</span>
-                <span className="ep-info-val">{val}</span>
-              </span>
-              {i < arr.length - 1 && <span className="ep-info-sep" />}
-            </span>
-          ))}
-        </div>
-
-        {/* ── BLOCK 2: EXECUTIVE SUMMARY ── */}
-        <div className="ep-summary">
-          <div className="ep-block-title">Property Condition Summary</div>
-
-          <div className="ep-stats">
-            {/* Issues found */}
-            <div className="ep-stat-box">
-              <div className="ep-stat-val" style={{ color: BAND_COLORS[issueStatBand].text }}>
-                {issueCount}
+        {/* ── HEADER ── */}
+        <div className="er-header">
+          <div className="er-header-top">
+            <div className="er-brand">
+              <div className="er-logo-box">
+                <img src="/logo.svg" alt="Flent" />
               </div>
-              <div className="ep-stat-label">Issues Found</div>
+              <div>
+                <div className="er-brand-name">Flent</div>
+                <div className="er-brand-tag">why rent, when you can flent?</div>
+              </div>
             </div>
-            {/* Trades affected */}
-            <div className="ep-stat-box">
-              <div className="ep-stat-val" style={{ color: '#0d0d0d' }}>{tradesAffected}</div>
-              <div className="ep-stat-label">Trades Affected</div>
-            </div>
-            {/* Grand total */}
-            <div className="ep-stat-box">
-              <div className="ep-stat-val" style={{ color: '#0d0d0d', fontSize: 22 }}>₹{fmt(grandTotal)}</div>
-              <div className="ep-stat-label">Total Estimate</div>
+            <div className="er-doc-right">
+              <div className="er-doc-title">Estimate &amp; Health Report</div>
+              {pid && <div className="er-doc-pid">PID {pid}</div>}
             </div>
           </div>
 
-          {/* Health bar */}
-          <div className="ep-health-bar-wrap">
-            <div className="ep-health-row">
-              <span className="ep-health-label">Overall Health</span>
-              <span className="ep-health-score" style={{ color: overallColors.text }}>
-                {overallScore ?? '—'}% · {overallColors.label}
-              </span>
-            </div>
-            <div className="ep-bar-track">
-              <div className="ep-bar-fill" style={{ width: `${overallScore ?? 0}%`, background: overallColors.dot }} />
-            </div>
-            <div className="ep-verdict">{verdictText}</div>
+          <div className="er-meta-strip">
+            {[
+              { label: 'Property ID',     val: pid || '—' },
+              { label: 'Date',            val: fmtDate(inspection.inspection_date) },
+              { label: 'Type',            val: inspection.house_type || '—' },
+              { label: 'Valid Until',     val: addDays(inspection.inspection_date, 30) },
+              { label: 'Prepared By',     val: 'Flent Operations' },
+            ].map(({ label, val }) => (
+              <div key={label} className="er-meta-item">
+                <span className="er-meta-label">{label}</span>
+                <span className="er-meta-val">{val}</span>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* ── BLOCK 3: TRADE IMPACT OVERVIEW ── */}
-        <div className="ep-trades">
-          <div className="ep-block-title">Trade Breakdown</div>
-          <div className="ep-trade-grid">
-            {sectionList.map(([name, rows]) => {
-              const sc      = sectionScores[name]
-              const b       = band(sc)
-              const c       = BAND_COLORS[b]
-              const cost    = secTotal(rows)
-              const pct     = grandTotal > 0 ? Math.round((cost / grandTotal) * 100) : 0
-              return (
-                <div key={name} className="ep-trade-row">
-                  <div className="ep-trade-top">
-                    <span className="ep-trade-name">{name}</span>
-                    <div className="ep-trade-right">
-                      <span className="ep-trade-cost">₹{fmt(cost)}</span>
-                      <span className="ep-score-pill" style={{ background: c.bg, color: c.text }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.dot, display: 'inline-block' }} />
-                        {c.label}
+        {/* ── EXECUTIVE SUMMARY ── */}
+        <div className="er-section">
+          <div className="er-section-label">Property Condition Summary</div>
+
+          <div className="er-stats-row">
+            <div className="er-stat">
+              <div className="er-stat-num" style={{ color: issueNumColor }}>{issueCount}</div>
+              <div className="er-stat-lbl">Issues Found</div>
+            </div>
+            <div className="er-stat-sep" />
+            <div className="er-stat">
+              <div className="er-stat-num">{tradesAffected}</div>
+              <div className="er-stat-lbl">Trades Affected</div>
+            </div>
+            <div className="er-stat-sep" />
+            <div className="er-stat">
+              <div className="er-stat-num" style={{ fontSize: 24 }}>₹{fmt(grandTotal)}</div>
+              <div className="er-stat-lbl">Total Estimate</div>
+            </div>
+          </div>
+
+          <div className="er-health-line">
+            <span>Overall Health Score:</span>
+            <span className="er-health-score-val" style={{ color: overallColors.text }}>
+              {overallScore ?? '—'}/100 — {overallColors.label}
+            </span>
+          </div>
+          <div className="er-bar-track">
+            <div className="er-bar-fill" style={{ width: `${overallScore ?? 0}%`, background: overallColors.dot }} />
+          </div>
+          <div className="er-verdict">{verdictText}</div>
+        </div>
+
+        {/* ── TRADE BREAKDOWN TABLE ── */}
+        <div className="er-section">
+          <div className="er-section-label">Trade Breakdown</div>
+          <table className="er-trade-table">
+            <thead>
+              <tr>
+                <th style={{ width: '40%' }}>Trade</th>
+                <th className="hide-mobile" style={{ width: '12%' }}>Items</th>
+                <th style={{ width: '28%' }}>Score</th>
+                <th className="r" style={{ width: '20%' }}>Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sectionList.map(([name, rows]) => {
+                const sc   = sectionScores[name]
+                const b    = band(sc)
+                const c    = BAND[b]
+                const cost = secTotal(rows)
+                return (
+                  <tr key={name}>
+                    <td style={{ fontWeight: 500 }}>{name}</td>
+                    <td className="muted hide-mobile">{rows.length}</td>
+                    <td>
+                      <span className="er-score-dot">
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.dot, display: 'inline-block', flexShrink: 0 }} />
+                        <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, color: c.text }}>{sc ?? '—'}</span>
+                        <span style={{ color: '#aaa', fontSize: 11 }}>·</span>
+                        <span style={{ color: c.text, fontSize: 11 }}>{c.shortLabel}</span>
                       </span>
-                    </div>
-                  </div>
-                  <div className="ep-bar-thin">
-                    <div style={{ height: '100%', width: `${pct}%`, background: c.dot, borderRadius: 3 }} />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                    </td>
+                    <td className="r">₹{fmt(cost)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={2} style={{ color: '#888', fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Total</td>
+                <td className="hide-mobile" />
+                <td className="r" style={{ color: '#111' }}>₹{fmt(grandTotal)}</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
 
-        {/* ── BLOCK 4: ITEMISED DETAIL ── */}
+        {/* ── ITEMISED SECTIONS ── */}
         {sectionList.map(([name, rows]) => {
           const sc   = sectionScores[name]
           const b    = band(sc)
-          const c    = BAND_COLORS[b]
-          const mat  = secMat(rows)
-          const lab  = secLab(rows)
-          const tot  = mat + lab
+          const c    = BAND[b]
+          const tot  = secTotal(rows)
 
           return (
-            <div key={name} className="ep-section">
-              <div className="ep-section-head">
-                <div className="ep-section-left">
-                  <span className="ep-section-name">{name}</span>
+            <div key={name} className="er-trade-section">
+              <div className="er-trade-head">
+                <span className="er-trade-head-name">{name}</span>
+                <span className="er-leader" />
+                <div className="er-trade-head-right">
                   {sc != null && (
-                    <span className="ep-score-pill" style={{ background: c.bg, color: c.text }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.dot, display: 'inline-block' }} />
-                      {sc}% · {c.label}
+                    <span className="er-score-dot">
+                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: c.dot, display: 'inline-block' }} />
+                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: c.text }}>{sc}/100 · {c.label}</span>
                     </span>
                   )}
+                  <span className="er-trade-head-total">₹{fmt(tot)}</span>
                 </div>
-                <span className="ep-section-total">₹{fmt(tot)}</span>
               </div>
 
               {rows.map((item, idx) => {
-                const itemTotal = (item.material_cost || 0) + (item.labour_cost || 0)
-                const isNA = item.availability_status === 'not_available'
+                const itemMat   = item.material_cost || 0
+                const itemLab   = item.labour_cost   || 0
+                const itemTotal = itemMat + itemLab
+                const isNA      = item.availability_status === 'not_available'
 
-                // Derive fix type from issue_description
-                const fixType = item.issue_description?.startsWith('Install') ? 'Install'
-                  : item.issue_description?.startsWith('Replace') ? 'Replace'
-                  : item.issue_description?.startsWith('Repair') ? 'Repair'
-                  : null
+                const fixType = item.issue_description?.match(/^(Install|Replace|Repair)/i)?.[1] ?? null
 
                 return (
-                  <div key={item.id || idx}>
-                    <div className="ep-item">
-                      <div className="ep-item-tags">
-                        {item.area && <span className="ep-area-pill">{item.area}</span>}
-                        {fixType  && <span className="ep-fix-pill">{fixType}</span>}
-                        {isNA     && <span className="ep-fix-pill" style={{ color: '#999', borderColor: '#ddd' }}>Not Available</span>}
-                      </div>
-                      <div className="ep-issue">{item.issue_description || '—'}</div>
+                  <div key={item.id || idx} className="er-item">
+                    <div className="er-item-row1">
+                      <span className="er-item-num">{String(idx + 1).padStart(2, '0')}</span>
+                      {item.area && <span className="er-item-area">{item.area}</span>}
+                      <span className="er-item-desc">{item.issue_description || '—'}</span>
                       {!isNA && itemTotal > 0 && (
-                        <div className="ep-costs">
-                          {item.material_cost > 0 && <span>Material ₹{fmt(item.material_cost)}</span>}
-                          {item.material_cost > 0 && item.labour_cost > 0 && <span style={{ color: '#ccc' }}>+</span>}
-                          {item.labour_cost   > 0 && <span>Labour ₹{fmt(item.labour_cost)}</span>}
-                          <span className="ep-cost-total">= ₹{fmt(itemTotal)}</span>
-                        </div>
+                        <span className="er-item-total">₹{fmt(itemTotal)}</span>
                       )}
                     </div>
-                    {idx < rows.length - 1 && <div className="ep-item-rule" />}
+                    {!isNA && (
+                      <div className="er-item-row2">
+                        {fixType && <span className="er-fix-type">{fixType}</span>}
+                        {fixType && (itemMat > 0 || itemLab > 0) && <span style={{ color: '#ddd' }}>·</span>}
+                        {itemMat > 0 && <span className="er-cost-detail">Material: ₹{fmt(itemMat)}</span>}
+                        {itemMat > 0 && itemLab > 0 && <span style={{ color: '#ddd' }}>·</span>}
+                        {itemLab > 0 && <span className="er-cost-detail">Labour: ₹{fmt(itemLab)}</span>}
+                      </div>
+                    )}
                   </div>
                 )
               })}
 
-              <div className="ep-subtotal">
-                Section total <strong>₹{fmt(tot)}</strong>
+              <div className="er-section-subtotal">
+                <span className="er-subtotal-label">Section total</span>
+                <span className="er-subtotal-val">₹{fmt(tot)}</span>
               </div>
             </div>
           )
         })}
 
-        {/* ── BLOCK 5: COST SUMMARY ── */}
-        <div className="ep-cost-summary">
-          <div className="ep-cs-head">
-            <span className="ep-cs-title">Cost Summary</span>
-            {pid && <span className="ep-cs-pid">PID {pid}</span>}
+        {/* ── COST SUMMARY ── */}
+        <div className="er-cost-block">
+          <div className="er-cs-head">
+            <span className="er-cs-title">Cost Summary</span>
+            {pid && <span className="er-cs-pid">PID {pid}</span>}
           </div>
-          <div className="ep-cs-row">
-            <span className="ep-cs-row-label">Material</span>
-            <span className="ep-cs-row-val">₹{fmt(totalMaterial)}</span>
+          <div className="er-cs-row">
+            <span className="er-cs-lbl">Material</span>
+            <span className="er-cs-val">₹{fmt(totalMaterial)}</span>
           </div>
-          <div className="ep-cs-row">
-            <span className="ep-cs-row-label">Labour</span>
-            <span className="ep-cs-row-val">₹{fmt(totalLabour)}</span>
+          <div className="er-cs-row">
+            <span className="er-cs-lbl">Labour</span>
+            <span className="er-cs-val">₹{fmt(totalLabour)}</span>
           </div>
-          <div className="ep-cs-rule" />
-          <div className="ep-grand-row">
-            <span className="ep-grand-label">Grand Total</span>
-            <span className="ep-grand-val">₹{fmt(grandTotal)}</span>
+          <hr className="er-cs-rule" />
+          <div className="er-grand-row">
+            <span className="er-grand-lbl">Grand Total</span>
+            <span className="er-grand-val">₹{fmt(grandTotal)}</span>
           </div>
         </div>
 
-        {/* ── BLOCK 6: NOTES + FOOTER ── */}
-        <div className="ep-footer">
-          <p className="ep-disclaimer">
-            Costs estimated basis site inspection and prevailing Bangalore market rates. Final figures may vary subject to site conditions. This estimate is valid for 30 days from issue date. Work to commence only upon written approval from the property owner.
+        {/* ── FOOTER ── */}
+        <div className="er-footer">
+          <p className="er-disclaimer">
+            Costs estimated basis site inspection and prevailing Bangalore market rates. Final figures may vary subject to actual site conditions. This estimate is valid for 30 days from issue date. Work to commence only upon written approval from the property owner.
           </p>
-
-          <button className="ep-rate-btn no-print" onClick={() => window.open('/rate-card', '_blank')}>
+          <button className="er-rate-link no-print" onClick={() => window.open('/rate-card', '_blank')}>
             Labour Rate Card ↗
           </button>
-
-          <div className="ep-prepared">Prepared by Flent Operations · {fmtDate(inspection.inspection_date)} · ops@flent.in</div>
-          <div className="ep-flent-sig">Flent · Bangalore</div>
+          <div className="er-prepared">
+            Prepared by Flent Operations · ops@flent.in · flent.in
+          </div>
         </div>
 
       </div>
-
-      {/* ── PDF DOWNLOAD BUTTON ── */}
-      <button className="ep-pdf-btn no-print" onClick={handlePrint}>
-        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-          <path d="M7.5 1v9M4 7l3.5 3.5L11 7" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M1 11v1a2 2 0 002 2h9a2 2 0 002-2v-1" stroke="#fff" strokeWidth="1.6" strokeLinecap="round"/>
-        </svg>
-        Download PDF
-      </button>
-
     </div>
   )
 }
