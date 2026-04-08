@@ -4,9 +4,9 @@ import { supabase } from '../lib/supabase'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const BAND = {
-  green: { text: '#1a5c38', dot: '#1a5c38', label: 'Good',             shortLabel: 'Good' },
-  amber: { text: '#7a4a00', dot: '#7a4a00', label: 'Needs Attention',  shortLabel: 'Att.' },
-  red:   { text: '#8b1a2a', dot: '#8b1a2a', label: 'Critical',         shortLabel: 'Poor' },
+  green: { text: '#1E5C38', dot: '#1E5C38', label: 'Good',             shortLabel: 'Good' },
+  amber: { text: '#7A4800', dot: '#7A4800', label: 'Needs Attention',  shortLabel: 'Att.' },
+  red:   { text: '#8B1A28', dot: '#8B1A28', label: 'Critical',         shortLabel: 'Poor' },
 }
 
 function band(displayScore) {
@@ -33,16 +33,16 @@ function fmt(n) { return (n || 0).toLocaleString('en-IN') }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; }
 
   .er-wrap {
     min-height: 100dvh;
-    background: #F5F3EF;
+    background: #F8F6F1;
     padding: 0 0 80px;
     font-family: 'Source Sans 3', sans-serif;
-    color: #1A1A1A;
+    color: #1E1E1E;
     -webkit-font-smoothing: antialiased;
   }
 
@@ -57,7 +57,7 @@ const CSS = `
   .er-back {
     font-family: 'Source Sans 3', sans-serif;
     font-size: 12px;
-    color: #4A4A4A;
+    color: #5C5C5C;
     background: none;
     border: none;
     cursor: pointer;
@@ -69,7 +69,7 @@ const CSS = `
   .er-pdf-link {
     font-family: 'Source Sans 3', sans-serif;
     font-size: 12px;
-    color: #1A1A1A;
+    color: #1E1E1E;
     background: none;
     border: none;
     cursor: pointer;
@@ -82,20 +82,20 @@ const CSS = `
     max-width: 760px;
     margin: 12px auto 0;
     background: #fff;
-    border: 1px solid #C8C4BC;
+    border: 1px solid #D4CFC6;
   }
 
   /* ── HEADER ── */
   .er-header {
-    background: #0F0F0F;
-    padding: 28px 48px 0;
+    background: #1C1C1C;
+    padding: 22px 48px 0;
   }
   .er-header-top {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 24px;
-    padding-bottom: 22px;
+    padding-bottom: 16px;
   }
   .er-brand {
     display: flex;
@@ -117,20 +117,21 @@ const CSS = `
     letter-spacing: -0.2px;
   }
   .er-brand-tag {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 10px; color: rgba(255,255,255,0.35);
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 14px; font-weight: 400;
+    color: rgba(255,255,255,0.55);
     font-style: italic; margin-top: 3px;
   }
   .er-doc-right { text-align: right; }
   .er-doc-title {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 26px; font-weight: 700;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 30px; font-weight: 500;
     color: #fff; line-height: 1.2;
-    letter-spacing: -0.3px;
+    letter-spacing: -0.01em;
   }
   .er-doc-pid {
     font-family: 'DM Mono', monospace;
-    font-size: 11px; color: rgba(255,255,255,0.38);
+    font-size: 12px; color: rgba(255,255,255,0.45);
     margin-top: 5px; letter-spacing: 0.04em;
   }
 
@@ -164,14 +165,14 @@ const CSS = `
   /* ── SECTIONS ── */
   .er-section {
     padding: 32px 48px;
-    border-top: 1px solid #C8C4BC;
+    border-top: 1px solid #D4CFC6;
   }
   .er-section:first-of-type { border-top: none; }
   .er-section-label {
     font-family: 'Source Sans 3', sans-serif;
     font-size: 10px; font-weight: 700;
     letter-spacing: 0.16em; text-transform: uppercase;
-    color: #2A2A2A; margin-bottom: 20px;
+    color: #1E1E1E; margin-bottom: 20px;
   }
 
   /* ── EXECUTIVE SUMMARY ── */
@@ -184,21 +185,21 @@ const CSS = `
   .er-stat-num {
     font-family: 'DM Mono', monospace;
     font-size: 28px; font-weight: 500;
-    color: #1A1A1A; line-height: 1;
+    color: #1E1E1E; line-height: 1;
     font-variant-numeric: tabular-nums;
   }
   .er-stat-lbl {
     font-family: 'Source Sans 3', sans-serif;
     font-size: 10px; font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.08em;
-    color: #4A4A4A; margin-top: 5px;
+    color: #5C5C5C; margin-top: 5px;
   }
   .er-stat-sep {
-    width: 1px; background: #C8C4BC; align-self: stretch; flex-shrink: 0;
+    width: 1px; background: #D4CFC6; align-self: stretch; flex-shrink: 0;
   }
   .er-health-line {
     font-family: 'Source Sans 3', sans-serif;
-    font-size: 12px; color: #4A4A4A; margin-bottom: 8px;
+    font-size: 12px; color: #5C5C5C; margin-bottom: 8px;
     display: flex; gap: 6px; align-items: center;
   }
   .er-health-score-val {
@@ -206,13 +207,13 @@ const CSS = `
     font-size: 12px; font-weight: 500;
   }
   .er-bar-track {
-    height: 4px; background: #C8C4BC; border-radius: 2px;
+    height: 4px; background: #D4CFC6; border-radius: 2px;
     overflow: hidden; margin-bottom: 12px;
   }
   .er-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
   .er-verdict {
     font-family: 'Source Sans 3', sans-serif;
-    font-size: 13px; color: #4A4A4A; line-height: 1.7;
+    font-size: 13px; color: #5C5C5C; line-height: 1.7;
     font-style: italic;
   }
 
@@ -224,27 +225,27 @@ const CSS = `
     font-size: 13px;
   }
   .er-trade-table thead tr {
-    border-bottom: 1px solid #1A1A1A;
+    border-bottom: 1px solid #1E1E1E;
   }
   .er-trade-table th {
     font-size: 9px; font-weight: 700;
     letter-spacing: 0.12em; text-transform: uppercase;
-    color: #4A4A4A; padding: 0 0 8px; text-align: left;
+    color: #5C5C5C; padding: 0 0 8px; text-align: left;
   }
   .er-trade-table th.r { text-align: right; }
   .er-trade-table td {
     padding: 10px 0;
-    border-bottom: 1px solid #C8C4BC;
-    color: #1A1A1A; vertical-align: middle;
+    border-bottom: 1px solid #D4CFC6;
+    color: #1E1E1E; vertical-align: middle;
   }
   .er-trade-table td.r {
     text-align: right;
     font-family: 'DM Mono', monospace;
     font-size: 13px; font-variant-numeric: tabular-nums;
   }
-  .er-trade-table td.muted { color: #4A4A4A; font-family: 'DM Mono', monospace; font-size: 12px; }
+  .er-trade-table td.muted { color: #5C5C5C; font-family: 'DM Mono', monospace; font-size: 12px; }
   .er-trade-table tfoot tr {
-    border-top: 1px solid #1A1A1A;
+    border-top: 1px solid #1E1E1E;
   }
   .er-trade-table tfoot td {
     padding: 10px 0 0;
@@ -257,11 +258,11 @@ const CSS = `
 
   /* ── ITEMISED SECTIONS ── */
   .er-trade-section {
-    border-top: 1px solid #C8C4BC;
+    border-top: 1px solid #D4CFC6;
     padding: 28px 48px;
     page-break-inside: avoid;
   }
-  .er-trade-section:nth-child(even) { background: #F9F7F3; }
+  .er-trade-section:nth-child(even) { background: #F8F6F1; }
   .er-trade-section:nth-child(odd)  { background: #FFFFFF; }
   .er-trade-head {
     display: flex;
@@ -273,11 +274,11 @@ const CSS = `
     font-family: 'Source Sans 3', sans-serif;
     font-size: 11px; font-weight: 700;
     letter-spacing: 0.14em; text-transform: uppercase;
-    color: #1A1A1A; white-space: nowrap;
+    color: #1E1E1E; white-space: nowrap;
   }
   .er-leader {
     flex: 1; height: 0;
-    border-bottom: 1px dotted #C8C4BC;
+    border-bottom: 1px dotted #D4CFC6;
     margin: 0 6px; position: relative; top: -4px;
   }
   .er-trade-head-right {
@@ -286,10 +287,10 @@ const CSS = `
   }
   .er-trade-head-total {
     font-family: 'DM Mono', monospace;
-    font-size: 15px; font-weight: 600; color: #0F0F0F;
+    font-size: 15px; font-weight: 600; color: #1C1C1C;
   }
 
-  .er-item { padding: 12px 0; border-bottom: 1px solid #C8C4BC; }
+  .er-item { padding: 12px 0; border-bottom: 1px solid #D4CFC6; }
   .er-item:last-of-type { border-bottom: none; }
   .er-item-row1 {
     display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px;
@@ -300,52 +301,52 @@ const CSS = `
   }
   .er-item-area {
     font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; font-weight: 500; color: #4A4A4A;
+    font-size: 11px; font-weight: 500; color: #5C5C5C;
     background: #EEECE8; border-radius: 2px;
     padding: 1px 6px; flex-shrink: 0;
   }
   .er-item-desc {
     font-family: 'Source Sans 3', sans-serif;
-    font-size: 14px; color: #1A1A1A; line-height: 1.7; flex: 1;
+    font-size: 14px; color: #1E1E1E; line-height: 1.7; flex: 1;
   }
   .er-item-total {
     font-family: 'DM Mono', monospace;
-    font-size: 15px; font-weight: 600; color: #0F0F0F;
+    font-size: 15px; font-weight: 600; color: #1C1C1C;
     white-space: nowrap; flex-shrink: 0;
   }
   .er-item-row2 {
     display: flex; align-items: center; gap: 8px;
     padding-left: 28px;
     font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; color: #4A4A4A;
+    font-size: 11px; color: #5C5C5C;
     flex-wrap: wrap;
   }
   .er-fix-type {
-    font-size: 10px; font-weight: 600; color: #2A2A2A;
+    font-size: 10px; font-weight: 600; color: #1E1E1E;
     text-transform: uppercase; letter-spacing: 0.06em;
   }
   .er-cost-detail {
     font-family: 'DM Mono', monospace;
-    font-size: 11px; color: #4A4A4A;
+    font-size: 11px; color: #5C5C5C;
   }
 
   .er-section-subtotal {
     display: flex; justify-content: flex-end;
     padding-top: 12px; margin-top: 4px;
-    border-top: 1px solid #C8C4BC;
+    border-top: 1px solid #D4CFC6;
   }
   .er-subtotal-label {
     font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; color: #4A4A4A; margin-right: 8px;
+    font-size: 11px; color: #5C5C5C; margin-right: 8px;
   }
   .er-subtotal-val {
     font-family: 'DM Mono', monospace;
-    font-size: 15px; font-weight: 600; color: #0F0F0F;
+    font-size: 15px; font-weight: 600; color: #1C1C1C;
   }
 
   /* ── COST SUMMARY ── */
   .er-cost-block {
-    background: #0F0F0F;
+    background: #1C1C1C;
     padding: 32px 48px;
   }
   .er-cs-head {
@@ -353,8 +354,8 @@ const CSS = `
     margin-bottom: 20px;
   }
   .er-cs-title {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 20px; font-weight: 700; color: #fff;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px; font-weight: 500; color: #fff;
   }
   .er-cs-pid {
     font-family: 'DM Mono', monospace;
@@ -388,16 +389,16 @@ const CSS = `
   /* ── FOOTER ── */
   .er-footer {
     padding: 24px 48px 32px;
-    border-top: 1px solid #C8C4BC;
+    border-top: 1px solid #D4CFC6;
   }
   .er-disclaimer {
     font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; color: #4A4A4A; line-height: 1.75;
+    font-size: 11px; color: #5C5C5C; line-height: 1.75;
     margin-bottom: 16px;
   }
   .er-rate-link {
     font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; color: #1A1A1A;
+    font-size: 11px; color: #1E1E1E;
     text-decoration: underline;
     text-underline-offset: 3px;
     background: none; border: none;
@@ -406,7 +407,7 @@ const CSS = `
   }
   .er-prepared {
     font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; color: #4A4A4A; line-height: 1.6;
+    font-size: 11px; color: #5C5C5C; line-height: 1.6;
   }
 
   /* ── RESPONSIVE ── */
