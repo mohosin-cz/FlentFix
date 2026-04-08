@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const BAND = {
   green: { text: '#1E5C38', dot: '#1E5C38', label: 'Good',             shortLabel: 'Good' },
-  amber: { text: '#2D5A8A', dot: '#2D5A8A', label: 'Needs Attention',  shortLabel: 'Att.' },
+  amber: { text: '#6B2A3A', dot: '#6B2A3A', label: 'Needs Attention',  shortLabel: 'Att.' },
   red:   { text: '#8B1A28', dot: '#8B1A28', label: 'Critical',         shortLabel: 'Poor' },
 }
 
@@ -33,7 +33,7 @@ function fmt(n) { return (n || 0).toLocaleString('en-IN') }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Poppins:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; }
 
@@ -130,7 +130,7 @@ const CSS = `
     letter-spacing: -0.2px;
   }
   .er-doc-pid {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 12px; color: rgba(255,255,255,0.45);
     margin-top: 5px; letter-spacing: 0.04em;
   }
@@ -158,7 +158,7 @@ const CSS = `
     color: rgba(255,255,255,0.3);
   }
   .er-meta-val {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 11px; color: rgba(255,255,255,0.7);
   }
 
@@ -183,7 +183,7 @@ const CSS = `
   }
   .er-stat {}
   .er-stat-num {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 28px; font-weight: 500;
     color: #1E1E1E; line-height: 1;
     font-variant-numeric: tabular-nums;
@@ -203,7 +203,7 @@ const CSS = `
     display: flex; gap: 6px; align-items: center;
   }
   .er-health-score-val {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 12px; font-weight: 500;
   }
   .er-bar-track {
@@ -240,7 +240,7 @@ const CSS = `
   }
   .er-trade-table td.r {
     text-align: right;
-    font-family: 'DM Mono', monospace;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 13px; font-variant-numeric: tabular-nums;
   }
   .er-trade-table td.muted { color: #5C5C5C; font-family: 'DM Mono', monospace; font-size: 12px; }
@@ -286,7 +286,7 @@ const CSS = `
     white-space: nowrap;
   }
   .er-trade-head-total {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 15px; font-weight: 600; color: #1C1C1C;
   }
 
@@ -296,7 +296,7 @@ const CSS = `
     display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px;
   }
   .er-item-num {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 10px; color: #aaa; flex-shrink: 0; width: 18px;
   }
   .er-item-area {
@@ -310,7 +310,7 @@ const CSS = `
     font-size: 14px; color: #1E1E1E; line-height: 1.7; flex: 1;
   }
   .er-item-total {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 15px; font-weight: 600; color: #1C1C1C;
     white-space: nowrap; flex-shrink: 0;
   }
@@ -326,7 +326,7 @@ const CSS = `
     text-transform: uppercase; letter-spacing: 0.06em;
   }
   .er-cost-detail {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 11px; color: #5C5C5C;
   }
 
@@ -340,7 +340,7 @@ const CSS = `
     font-size: 11px; color: #5C5C5C; margin-right: 8px;
   }
   .er-subtotal-val {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 15px; font-weight: 600; color: #1C1C1C;
   }
 
@@ -358,7 +358,7 @@ const CSS = `
     font-size: 16px; font-weight: 600; color: #fff;
   }
   .er-cs-pid {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 10px; color: rgba(255,255,255,0.28);
   }
   .er-cs-row {
@@ -367,7 +367,7 @@ const CSS = `
   }
   .er-cs-lbl { color: rgba(255,255,255,0.45); }
   .er-cs-val {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Source Sans 3', sans-serif;
     color: rgba(255,255,255,0.7);
     font-variant-numeric: tabular-nums;
   }
@@ -381,7 +381,7 @@ const CSS = `
     font-size: 13px; font-weight: 600; color: #fff;
   }
   .er-grand-val {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 28px; font-weight: 500; color: #fff;
     font-variant-numeric: tabular-nums;
   }
@@ -652,7 +652,7 @@ export default function Estimate() {
                     <td>
                       <span className="er-score-dot">
                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.dot, display: 'inline-block', flexShrink: 0 }} />
-                        <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, color: c.text }}>{sc ?? '—'}</span>
+                        <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: c.text }}>{sc ?? '—'}</span>
                         <span style={{ color: '#aaa', fontSize: 11 }}>·</span>
                         <span style={{ color: c.text, fontSize: 11 }}>{c.shortLabel}</span>
                       </span>
