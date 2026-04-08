@@ -33,7 +33,7 @@ function fmt(n) { return (n || 0).toLocaleString('en-IN') }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; }
 
@@ -41,7 +41,7 @@ const CSS = `
     min-height: 100dvh;
     background: #F5F3EF;
     padding: 0 0 80px;
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     color: #1A1A1A;
     -webkit-font-smoothing: antialiased;
   }
@@ -55,7 +55,7 @@ const CSS = `
     align-items: center;
   }
   .er-back {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 12px;
     color: #4A4A4A;
     background: none;
@@ -67,7 +67,7 @@ const CSS = `
     gap: 4px;
   }
   .er-pdf-link {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 12px;
     color: #1A1A1A;
     background: none;
@@ -111,20 +111,20 @@ const CSS = `
   }
   .er-logo-box img { width: 100%; height: 100%; object-fit: contain; }
   .er-brand-name {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 15px; font-weight: 700;
     color: #fff; line-height: 1.1;
     letter-spacing: -0.2px;
   }
   .er-brand-tag {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 10px; color: rgba(255,255,255,0.35);
     font-style: italic; margin-top: 3px;
   }
   .er-doc-right { text-align: right; }
   .er-doc-title {
-    font-family: 'Playfair Display', serif;
-    font-size: 22px; font-weight: 600;
+    font-family: 'Libre Baskerville', serif;
+    font-size: 26px; font-weight: 700;
     color: #fff; line-height: 1.2;
     letter-spacing: -0.3px;
   }
@@ -151,7 +151,7 @@ const CSS = `
   }
   .er-meta-item:last-child { border-right: none; margin-right: 0; padding-right: 0; }
   .er-meta-label {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 8px; font-weight: 600;
     letter-spacing: 0.14em; text-transform: uppercase;
     color: rgba(255,255,255,0.3);
@@ -168,9 +168,9 @@ const CSS = `
   }
   .er-section:first-of-type { border-top: none; }
   .er-section-label {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 10px; font-weight: 700;
-    letter-spacing: 0.18em; text-transform: uppercase;
+    letter-spacing: 0.16em; text-transform: uppercase;
     color: #2A2A2A; margin-bottom: 20px;
   }
 
@@ -188,7 +188,7 @@ const CSS = `
     font-variant-numeric: tabular-nums;
   }
   .er-stat-lbl {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 10px; font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.08em;
     color: #4A4A4A; margin-top: 5px;
@@ -197,7 +197,7 @@ const CSS = `
     width: 1px; background: #C8C4BC; align-self: stretch; flex-shrink: 0;
   }
   .er-health-line {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 12px; color: #4A4A4A; margin-bottom: 8px;
     display: flex; gap: 6px; align-items: center;
   }
@@ -211,7 +211,7 @@ const CSS = `
   }
   .er-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
   .er-verdict {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 13px; color: #4A4A4A; line-height: 1.7;
     font-style: italic;
   }
@@ -220,7 +220,7 @@ const CSS = `
   .er-trade-table {
     width: 100%;
     border-collapse: collapse;
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 13px;
   }
   .er-trade-table thead tr {
@@ -252,7 +252,7 @@ const CSS = `
   }
   .er-score-dot {
     display: inline-flex; align-items: center; gap: 5px;
-    font-family: 'IBM Plex Sans', sans-serif; font-size: 11px;
+    font-family: 'Source Sans 3', sans-serif; font-size: 11px;
   }
 
   /* ── ITEMISED SECTIONS ── */
@@ -270,7 +270,7 @@ const CSS = `
     margin-bottom: 16px;
   }
   .er-trade-head-name {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 11px; font-weight: 700;
     letter-spacing: 0.14em; text-transform: uppercase;
     color: #1A1A1A; white-space: nowrap;
@@ -299,13 +299,13 @@ const CSS = `
     font-size: 10px; color: #aaa; flex-shrink: 0; width: 18px;
   }
   .er-item-area {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 11px; font-weight: 500; color: #4A4A4A;
     background: #EEECE8; border-radius: 2px;
     padding: 1px 6px; flex-shrink: 0;
   }
   .er-item-desc {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 14px; color: #1A1A1A; line-height: 1.7; flex: 1;
   }
   .er-item-total {
@@ -316,7 +316,7 @@ const CSS = `
   .er-item-row2 {
     display: flex; align-items: center; gap: 8px;
     padding-left: 28px;
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 11px; color: #4A4A4A;
     flex-wrap: wrap;
   }
@@ -335,7 +335,7 @@ const CSS = `
     border-top: 1px solid #C8C4BC;
   }
   .er-subtotal-label {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 11px; color: #4A4A4A; margin-right: 8px;
   }
   .er-subtotal-val {
@@ -353,8 +353,8 @@ const CSS = `
     margin-bottom: 20px;
   }
   .er-cs-title {
-    font-family: 'Playfair Display', serif;
-    font-size: 18px; font-weight: 600; color: #fff;
+    font-family: 'Libre Baskerville', serif;
+    font-size: 20px; font-weight: 700; color: #fff;
   }
   .er-cs-pid {
     font-family: 'DM Mono', monospace;
@@ -362,7 +362,7 @@ const CSS = `
   }
   .er-cs-row {
     display: flex; justify-content: space-between;
-    padding: 8px 0; font-family: 'IBM Plex Sans', sans-serif; font-size: 13px;
+    padding: 8px 0; font-family: 'Source Sans 3', sans-serif; font-size: 13px;
   }
   .er-cs-lbl { color: rgba(255,255,255,0.45); }
   .er-cs-val {
@@ -376,7 +376,7 @@ const CSS = `
     padding-top: 6px;
   }
   .er-grand-lbl {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 13px; font-weight: 600; color: #fff;
   }
   .er-grand-val {
@@ -391,12 +391,12 @@ const CSS = `
     border-top: 1px solid #C8C4BC;
   }
   .er-disclaimer {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 11px; color: #4A4A4A; line-height: 1.75;
     margin-bottom: 16px;
   }
   .er-rate-link {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 11px; color: #1A1A1A;
     text-decoration: underline;
     text-underline-offset: 3px;
@@ -405,7 +405,7 @@ const CSS = `
     display: inline-block;
   }
   .er-prepared {
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: 'Source Sans 3', sans-serif;
     font-size: 11px; color: #4A4A4A; line-height: 1.6;
   }
 
@@ -572,7 +572,7 @@ export default function Estimate() {
               </div>
             </div>
             <div className="er-doc-right">
-              <div className="er-doc-title">Estimate &amp; Health Report</div>
+              <div className="er-doc-title">Estimate and Health Report</div>
               {pid && <div className="er-doc-pid">PID {pid}</div>}
             </div>
           </div>
