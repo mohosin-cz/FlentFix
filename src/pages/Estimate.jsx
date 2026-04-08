@@ -131,8 +131,8 @@ const CSS = `
   }
   .er-doc-pid {
     font-family: 'Source Sans 3', sans-serif;
-    font-size: 12px; color: rgba(255,255,255,0.45);
-    margin-top: 5px; letter-spacing: 0.04em;
+    font-size: 15px; font-weight: 700; color: rgba(255,255,255,0.65);
+    margin-top: 6px; letter-spacing: 0.04em;
   }
 
   .er-meta-strip {
