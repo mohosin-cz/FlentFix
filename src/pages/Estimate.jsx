@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const BAND = {
   green: { text: '#1E5C38', dot: '#1E5C38', label: 'Good',             shortLabel: 'Good' },
-  amber: { text: '#7A4800', dot: '#7A4800', label: 'Needs Attention',  shortLabel: 'Att.' },
+  amber: { text: '#2D5A8A', dot: '#2D5A8A', label: 'Needs Attention',  shortLabel: 'Att.' },
   red:   { text: '#8B1A28', dot: '#8B1A28', label: 'Critical',         shortLabel: 'Poor' },
 }
 
@@ -33,7 +33,7 @@ function fmt(n) { return (n || 0).toLocaleString('en-IN') }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Poppins:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; }
 
@@ -124,10 +124,10 @@ const CSS = `
   }
   .er-doc-right { text-align: right; }
   .er-doc-title {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 30px; font-weight: 500;
+    font-family: 'Poppins', sans-serif;
+    font-size: 22px; font-weight: 600;
     color: #fff; line-height: 1.2;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.2px;
   }
   .er-doc-pid {
     font-family: 'DM Mono', monospace;
@@ -354,8 +354,8 @@ const CSS = `
     margin-bottom: 20px;
   }
   .er-cs-title {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 22px; font-weight: 500; color: #fff;
+    font-family: 'Poppins', sans-serif;
+    font-size: 16px; font-weight: 600; color: #fff;
   }
   .er-cs-pid {
     font-family: 'DM Mono', monospace;
