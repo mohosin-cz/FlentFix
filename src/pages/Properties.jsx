@@ -31,11 +31,46 @@ function StatusBadge({ status }) {
   )
 }
 
+function DeleteModal({ pid, onConfirm, onCancel, deleting }) {
+  return (
+    <div style={m.overlay} onClick={onCancel}>
+      <div style={m.sheet} onClick={e => e.stopPropagation()}>
+        <div style={m.iconWrap}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <polyline points="3 6 5 6 21 6" stroke="#e05c6a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="#e05c6a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M10 11v6M14 11v6" stroke="#e05c6a" strokeWidth="1.8" strokeLinecap="round"/>
+            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" stroke="#e05c6a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+        <div style={m.title}>Delete PID{pid}?</div>
+        <div style={m.body}>
+          This will permanently delete all inspection data for <strong style={{ color: 'var(--text, #e8e8f0)' }}>PID{pid}</strong>. This cannot be undone.
+        </div>
+        <div style={m.actions}>
+          <button style={m.cancelBtn} onClick={onCancel} disabled={deleting}>
+            Cancel
+          </button>
+          <button
+            style={{ ...m.deleteBtn, opacity: deleting ? 0.6 : 1, cursor: deleting ? 'not-allowed' : 'pointer' }}
+            onClick={onConfirm}
+            disabled={deleting}
+          >
+            {deleting ? 'Deleting…' : 'Yes, delete'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Properties() {
   const navigate = useNavigate()
-  const [rows, setRows]       = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch]   = useState('')
+  const [rows, setRows]           = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [search, setSearch]       = useState('')
+  const [confirmPid, setConfirmPid] = useState(null)
+  const [deleting, setDeleting]   = useState(false)
 
   useEffect(() => {
     supabase
@@ -60,6 +95,15 @@ export default function Properties() {
   const filtered = grouped.filter(r =>
     !search || r.pid?.toLowerCase().includes(search.toLowerCase())
   )
+
+  async function handleDelete() {
+    if (!confirmPid) return
+    setDeleting(true)
+    await supabase.from('inspections').delete().eq('pid', confirmPid)
+    setRows(prev => prev.filter(r => r.pid !== confirmPid))
+    setDeleting(false)
+    setConfirmPid(null)
+  }
 
   return (
     <div style={s.page}>
@@ -98,7 +142,7 @@ export default function Properties() {
         </div>
       </div>
 
-      {/* List */}
+      {/* Grid */}
       <main style={s.main}>
         {loading ? (
           <div style={s.empty}>// loading…</div>
@@ -107,37 +151,72 @@ export default function Properties() {
         ) : (
           <div style={s.list}>
             {filtered.map(row => (
-              <button
-                key={row.pid}
-                style={s.card}
-                onClick={() => navigate(`/properties/${row.pid}`)}
-                onMouseEnter={e => {
-                  e.currentTarget.style.borderColor = 'var(--accent, #c8963e)'
-                  e.currentTarget.style.boxShadow = '0 0 0 1px var(--accent, #c8963e)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.borderColor = 'var(--border-dash, #3a3d52)'
-                  e.currentTarget.style.boxShadow = 'none'
-                }}
-              >
-                <div style={s.cardLeft}>
-                  <div style={s.pidText}>PID{row.pid}</div>
-                  {row.house_type && (
-                    <span style={s.houseTypeBadge}>{row.house_type}</span>
-                  )}
-                  <div style={s.dateLine}>last: {fmtDate(row.inspection_date)}</div>
-                </div>
-                <div style={s.cardRight}>
-                  <StatusBadge status={row.status} />
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ opacity: 0.3 }}>
-                    <path d="M5 2.5l4.5 4.5L5 11.5" stroke="var(--text, #e8e8f0)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <div key={row.pid} style={s.cardWrap}>
+                <button
+                  style={s.card}
+                  onClick={() => navigate(`/properties/${row.pid}`)}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = 'var(--accent, #c8963e)'
+                    e.currentTarget.style.boxShadow = '0 0 0 1px var(--accent, #c8963e)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = 'var(--border-dash, #3a3d52)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
+                >
+                  <div style={s.cardLeft}>
+                    <div style={s.pidText}>PID{row.pid}</div>
+                    {row.house_type && (
+                      <span style={s.houseTypeBadge}>{row.house_type}</span>
+                    )}
+                    <div style={s.dateLine}>last: {fmtDate(row.inspection_date)}</div>
+                  </div>
+                  <div style={s.cardRight}>
+                    <StatusBadge status={row.status} />
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ opacity: 0.3 }}>
+                      <path d="M5 2.5l4.5 4.5L5 11.5" stroke="var(--text, #e8e8f0)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                </button>
+
+                {/* Bin button */}
+                <button
+                  style={s.binBtn}
+                  onClick={e => { e.stopPropagation(); setConfirmPid(row.pid) }}
+                  title="Delete property"
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = 'rgba(224,92,106,0.5)'
+                    e.currentTarget.style.color = '#e05c6a'
+                    e.currentTarget.style.background = 'rgba(224,92,106,0.10)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = 'var(--border, #2e3040)'
+                    e.currentTarget.style.color = 'var(--text-muted, #6b6d82)'
+                    e.currentTarget.style.background = 'var(--bg-input, #252731)'
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                    <polyline points="3 6 5 6 21 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                </div>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         )}
       </main>
+
+      {/* Delete confirmation modal */}
+      {confirmPid && (
+        <DeleteModal
+          pid={confirmPid}
+          deleting={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => !deleting && setConfirmPid(null)}
+        />
+      )}
     </div>
   )
 }
@@ -209,18 +288,34 @@ const s = {
     gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
     gap: 10,
   },
+  cardWrap: {
+    position: 'relative',
+    display: 'flex',
+    flexDirection: 'column',
+  },
   card: {
     display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
     gap: 12, padding: '18px 18px',
     background: 'var(--bg-panel, #1e2028)',
     border: '1px dashed var(--border-dash, #3a3d52)',
-    borderRadius: 10,
+    borderRadius: '10px 10px 0 0',
     cursor: 'pointer', textAlign: 'left',
     transition: 'border-color 0.15s, box-shadow 0.15s',
     WebkitTapHighlightColor: 'transparent',
     width: '100%', fontFamily: 'inherit',
     color: 'var(--text, #e8e8f0)',
     minHeight: 110,
+  },
+  binBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: '100%', height: 32,
+    background: 'var(--bg-input, #252731)',
+    border: '1px solid var(--border, #2e3040)',
+    borderTop: 'none',
+    borderRadius: '0 0 10px 10px',
+    color: 'var(--text-muted, #6b6d82)',
+    cursor: 'pointer',
+    transition: 'background 0.15s, color 0.15s, border-color 0.15s',
   },
   cardLeft: { display: 'flex', flexDirection: 'column', gap: 5 },
   cardRight: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
@@ -243,5 +338,68 @@ const s = {
   dateLine: {
     fontSize: 11, color: 'var(--text-muted, #6b6d82)',
     fontFamily: 'var(--font-mono, monospace)',
+  },
+}
+
+const m = {
+  overlay: {
+    position: 'fixed', inset: 0,
+    background: 'rgba(0,0,0,0.6)',
+    backdropFilter: 'blur(4px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    zIndex: 200, padding: '24px',
+  },
+  sheet: {
+    width: '100%', maxWidth: 360,
+    background: 'var(--bg-panel, #1e2028)',
+    border: '1px solid var(--border, #2e3040)',
+    borderRadius: 14,
+    padding: '28px 24px 24px',
+    boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+    animation: 'fadeIn 0.15s ease',
+  },
+  iconWrap: {
+    width: 52, height: 52, borderRadius: 12,
+    background: 'rgba(224,92,106,0.10)',
+    border: '1px solid rgba(224,92,106,0.25)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 17, fontWeight: 700,
+    color: 'var(--text, #e8e8f0)',
+    fontFamily: 'var(--font-mono, monospace)',
+    marginBottom: 8,
+    letterSpacing: '-0.3px',
+  },
+  body: {
+    fontSize: 13, lineHeight: 1.6,
+    color: 'var(--text-muted, #6b6d82)',
+    fontFamily: 'var(--font-mono, monospace)',
+    marginBottom: 24,
+  },
+  actions: {
+    display: 'flex', gap: 10,
+  },
+  cancelBtn: {
+    flex: 1, padding: '11px 0',
+    background: 'var(--bg-input, #252731)',
+    border: '1px solid var(--border, #2e3040)',
+    borderRadius: 8,
+    fontSize: 13, fontWeight: 600,
+    color: 'var(--text-dim, #9394a8)',
+    cursor: 'pointer',
+    fontFamily: 'var(--font-mono, monospace)',
+  },
+  deleteBtn: {
+    flex: 1, padding: '11px 0',
+    background: 'rgba(224,92,106,0.15)',
+    border: '1px solid rgba(224,92,106,0.4)',
+    borderRadius: 8,
+    fontSize: 13, fontWeight: 600,
+    color: '#e05c6a',
+    cursor: 'pointer',
+    fontFamily: 'var(--font-mono, monospace)',
+    transition: 'opacity 0.15s',
   },
 }
