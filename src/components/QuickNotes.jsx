@@ -13,13 +13,10 @@ export default function QuickNotes({ pid }) {
 
   const textareaRef    = useRef(null)
   const panelRef       = useRef(null)
-  const recognRef      = useRef(null)   // SpeechRecognition instance
-  const notesRef       = useRef(notes)  // stable ref for use inside recognition callbacks
-  const pressTimer     = useRef(null)   // long-press timeout
-  const wasLongPress   = useRef(false)  // distinguish tap vs hold
-
-  // keep notesRef in sync
-  useEffect(() => { notesRef.current = notes }, [notes])
+  const recognRef      = useRef(null)    // active SpeechRecognition instance
+  const shouldRunRef   = useRef(false)   // true while user wants transcription on
+  const pressTimer     = useRef(null)    // long-press timeout
+  const wasLongPress   = useRef(false)   // distinguish tap vs hold
 
   // Load from localStorage on mount / pid change
   useEffect(() => {
@@ -55,36 +52,40 @@ export default function QuickNotes({ pid }) {
 
   // ── Speech recognition ────────────────────────────────────────────────────
 
-  const startListening = useCallback(() => {
+  // Spawns one recognition session. On end, auto-restarts if shouldRunRef is
+  // still true — this covers Chrome's ~60s timeout and iOS Safari's lack of
+  // true continuous mode.
+  const spawnSession = useCallback(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SR) return
+    if (!SR || !shouldRunRef.current) return
 
     const recog = new SR()
-    recog.continuous      = true
-    recog.interimResults  = true
-    recog.lang            = 'en-IN'   // Indian English — change if needed
+    recog.continuous     = true
+    recog.interimResults = true
+    recog.maxAlternatives = 1
+    recog.lang           = 'en-IN'
 
-    recog.onstart = () => { setListening(true); setNoSpeech(false) }
+    recog.onstart = () => {
+      setListening(true)
+      setNoSpeech(false)
+    }
 
     recog.onresult = e => {
-      let finalChunk = ''
+      let finalChunk  = ''
       let interimChunk = ''
-
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        const transcript = e.results[i][0].transcript
-        if (e.results[i].isFinal) {
-          finalChunk += transcript
-        } else {
-          interimChunk += transcript
-        }
+        const t = e.results[i][0].transcript
+        if (e.results[i].isFinal) finalChunk  += t
+        else                       interimChunk += t
       }
-
       if (finalChunk) {
-        // Append confirmed text to notes, adding a space/newline separator
         setNotes(prev => {
-          const base = prev.trimEnd()
-          const separator = base.length > 0 ? ' ' : ''
-          return base + separator + finalChunk.trim()
+          const base = prev.replace(/\s+$/, '')
+          // capitalise first word if appending to empty or after sentence-ending punctuation
+          const cap = (!base || /[.!?]\s*$/.test(base))
+            ? finalChunk.trim().replace(/^\w/, c => c.toUpperCase())
+            : finalChunk.trim()
+          return base + (base ? ' ' : '') + cap
         })
         setInterim('')
       } else {
@@ -93,25 +94,41 @@ export default function QuickNotes({ pid }) {
     }
 
     recog.onerror = e => {
-      if (e.error === 'no-speech') setNoSpeech(true)
-      if (e.error !== 'aborted') setListening(false)
-      setInterim('')
-    }
-
-    recog.onend = () => {
+      if (e.error === 'no-speech') { setNoSpeech(true); return }  // don't stop — just flag
+      if (e.error === 'aborted')   return                          // we called .stop() ourselves
+      // network / not-allowed / hardware errors — stop completely
+      shouldRunRef.current = false
       setListening(false)
       setInterim('')
     }
 
+    recog.onend = () => {
+      setInterim('')
+      if (shouldRunRef.current) {
+        // Brief gap before restarting — avoids rapid-fire on some browsers
+        setTimeout(spawnSession, 150)
+      } else {
+        setListening(false)
+      }
+    }
+
     recognRef.current = recog
-    recog.start()
+    try { recog.start() } catch (_) {}
   }, [])
 
+  const startListening = useCallback(() => {
+    if (shouldRunRef.current) return   // already running
+    shouldRunRef.current = true
+    spawnSession()
+  }, [spawnSession])
+
   const stopListening = useCallback(() => {
+    shouldRunRef.current = false
     recognRef.current?.stop()
     recognRef.current = null
     setListening(false)
     setInterim('')
+    setNoSpeech(false)
   }, [])
 
   function toggleListening() {
