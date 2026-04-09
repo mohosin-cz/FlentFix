@@ -16,6 +16,7 @@ import WorkOrder from './pages/WorkOrder'
 import ResetPassword from './pages/ResetPassword'
 import Flentfit from './pages/Flentfit'
 import SOPs from './pages/SOPs'
+import SOPSetup from './pages/SOPSetup'
 
 export default function App() {
   return (
@@ -125,6 +126,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <SOPs />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/sops/setup"
+            element={
+              <ProtectedRoute>
+                <SOPSetup />
               </ProtectedRoute>
             }
           />
