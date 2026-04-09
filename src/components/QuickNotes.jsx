@@ -16,11 +16,97 @@ export default function QuickNotes({ pid }) {
   const textareaRef    = useRef(null)
   const panelRef       = useRef(null)
   const btnRef         = useRef(null)
+  const ring1Ref       = useRef(null)    // inner amplitude ring
+  const ring2Ref       = useRef(null)    // outer amplitude ring
   const recognRef      = useRef(null)    // active SpeechRecognition instance
   const shouldRunRef   = useRef(false)   // true while user wants transcription on
   const pressTimer     = useRef(null)    // long-press timeout
   const wasLongPress   = useRef(false)   // distinguish tap vs hold
   const drag           = useRef({ active: false, ox: 0, oy: 0, moved: false, startX: 0, startY: 0 })
+
+  // ── Audio analyser (amplitude → visuals) ─────────────────────────────────
+  const audioCtxRef    = useRef(null)
+  const analyserRef    = useRef(null)
+  const streamRef      = useRef(null)
+  const rafRef         = useRef(null)
+  const smoothAmp      = useRef(0)       // exponentially smoothed amplitude
+
+  const startAnalyser = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      streamRef.current = stream
+      const ctx = new AudioContext()
+      audioCtxRef.current = ctx
+      const src = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 512
+      analyser.smoothingTimeConstant = 0.6
+      src.connect(analyser)
+      analyserRef.current = analyser
+      const buf = new Uint8Array(analyser.frequencyBinCount)
+
+      function tick() {
+        rafRef.current = requestAnimationFrame(tick)
+        analyser.getByteTimeDomainData(buf)
+
+        // RMS amplitude — 0 (silence) → ~0.6 (very loud)
+        let sum = 0
+        for (let i = 0; i < buf.length; i++) {
+          const v = (buf[i] - 128) / 128
+          sum += v * v
+        }
+        const rms = Math.sqrt(sum / buf.length)
+
+        // Smooth: fast attack, slow release
+        smoothAmp.current = rms > smoothAmp.current
+          ? smoothAmp.current * 0.4 + rms * 0.6
+          : smoothAmp.current * 0.85 + rms * 0.15
+
+        // Normalise to 0–1 (typical speech peaks ~0.15–0.4 RMS)
+        const amp = Math.min(smoothAmp.current / 0.35, 1)
+
+        // Drive visuals directly — no React re-render needed
+        if (btnRef.current) {
+          const scale = 1 + amp * 0.10
+          const glow  = amp * 32
+          btnRef.current.style.transform = `scale(${scale.toFixed(3)})`
+          btnRef.current.style.boxShadow =
+            `0 0 ${(glow).toFixed(1)}px rgba(224,92,106,${(amp * 0.7).toFixed(2)}), ` +
+            `0 4px 24px rgba(224,92,106,0.45)`
+        }
+        if (ring1Ref.current) {
+          const s = 1 + amp * 0.55
+          ring1Ref.current.style.transform = `scale(${s.toFixed(3)})`
+          ring1Ref.current.style.opacity   = (amp * 0.65).toFixed(2)
+        }
+        if (ring2Ref.current) {
+          const s = 1 + amp * 1.1
+          ring2Ref.current.style.transform = `scale(${s.toFixed(3)})`
+          ring2Ref.current.style.opacity   = (amp * 0.35).toFixed(2)
+        }
+      }
+      tick()
+    } catch (_) {
+      // Mic permission already granted to SpeechRecognition; failure here is non-fatal
+    }
+  }, [])
+
+  const stopAnalyser = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    analyserRef.current = null
+    audioCtxRef.current?.close()
+    audioCtxRef.current = null
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    smoothAmp.current = 0
+    // reset button visuals
+    if (btnRef.current) {
+      btnRef.current.style.transform = ''
+      btnRef.current.style.boxShadow = ''
+    }
+    if (ring1Ref.current) { ring1Ref.current.style.transform = ''; ring1Ref.current.style.opacity = '0' }
+    if (ring2Ref.current) { ring2Ref.current.style.transform = ''; ring2Ref.current.style.opacity = '0' }
+  }, [])
 
   // Load from localStorage on mount / pid change
   useEffect(() => {
@@ -121,10 +207,11 @@ export default function QuickNotes({ pid }) {
   }, [])
 
   const startListening = useCallback(() => {
-    if (shouldRunRef.current) return   // already running
+    if (shouldRunRef.current) return
     shouldRunRef.current = true
     spawnSession()
-  }, [spawnSession])
+    startAnalyser()
+  }, [spawnSession, startAnalyser])
 
   const stopListening = useCallback(() => {
     shouldRunRef.current = false
@@ -133,7 +220,8 @@ export default function QuickNotes({ pid }) {
     setListening(false)
     setInterim('')
     setNoSpeech(false)
-  }, [])
+    stopAnalyser()
+  }, [stopAnalyser])
 
   function toggleListening() {
     if (listening) stopListening()
@@ -295,16 +383,23 @@ export default function QuickNotes({ pid }) {
         }}
         title="Tap to open · Hold to transcribe · Drag to move"
       >
-        {/* Pulsing ring — visible when recording with panel closed */}
-        {listening && !open && (
-          <span style={{
-            position: 'absolute', inset: -5,
+        {/* Amplitude-driven rings — shown while recording */}
+        {listening && (<>
+          <span ref={ring1Ref} style={{
+            position: 'absolute', inset: -3,
             borderRadius: '50%',
             border: '2px solid #e05c6a',
-            animation: 'recordingRing 1.2s ease-out infinite',
-            pointerEvents: 'none',
+            opacity: 0, pointerEvents: 'none',
+            willChange: 'transform, opacity',
           }} />
-        )}
+          <span ref={ring2Ref} style={{
+            position: 'absolute', inset: -3,
+            borderRadius: '50%',
+            border: '1.5px solid #e05c6a',
+            opacity: 0, pointerEvents: 'none',
+            willChange: 'transform, opacity',
+          }} />
+        </>)}
         {listening ? (
           /* Mic icon — pulsing while recording */
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -513,11 +608,7 @@ export default function QuickNotes({ pid }) {
       <style>{`
         @keyframes micPulse {
           0%, 100% { opacity: 1; }
-          50%       { opacity: 0.4; }
-        }
-        @keyframes recordingRing {
-          0%   { transform: scale(1);   opacity: 0.8; }
-          100% { transform: scale(1.7); opacity: 0; }
+          50%       { opacity: 0.5; }
         }
       `}</style>
     </>
