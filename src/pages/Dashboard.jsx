@@ -281,6 +281,18 @@ export default function Dashboard() {
         </div>
       </main>
 
+      {/* ── Flentfit footer ── */}
+      <footer style={s.footer}>
+        <div style={s.footerInner}>
+          <p style={s.footerLabel}>HOW FLENTFIT WORKS</p>
+          <p style={s.footerDesc}>
+            Flentfit is Flent's property health scoring engine — it analyses every inspection item and generates a condition score for each trade and an overall property health score.
+          </p>
+          <button onClick={() => navigate('/flentfit')} style={s.footerLink}>
+            Learn how Flentfit scores properties →
+          </button>
+        </div>
+      </footer>
     </div>
   )
 }
@@ -443,4 +455,39 @@ const s = {
     marginTop: 2,
   },
 
+  /* flentfit footer */
+  footer: {
+    background: 'var(--bg, #16171f)',
+    marginTop: 'auto',
+  },
+  footerInner: {
+    padding: '24px 20px',
+    maxWidth: 600,
+    width: '100%',
+    margin: '0 auto',
+  },
+  footerLabel: {
+    fontSize: 9,
+    fontWeight: 600,
+    color: 'var(--accent, #c8963e)',
+    fontFamily: 'var(--font-mono, monospace)',
+    letterSpacing: '0.14em',
+    marginBottom: 8,
+  },
+  footerDesc: {
+    fontSize: 11,
+    color: 'var(--text-muted, #6b6d82)',
+    fontFamily: 'var(--font-mono, monospace)',
+    lineHeight: 1.6,
+    marginBottom: 10,
+  },
+  footerLink: {
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    fontSize: 11,
+    color: 'var(--accent, #c8963e)',
+    fontFamily: 'var(--font-mono, monospace)',
+    cursor: 'pointer',
+  },
 }
