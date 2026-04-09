@@ -1,20 +1,32 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const FONT = '"IBM Plex Sans", system-ui, sans-serif'
-const MONO = '"DM Mono", "Courier New", monospace'
-
 // ─── Primitives ────────────────────────────────────────────────────────────────
 
 function Para({ children, style }) {
-  return <p style={{ margin: '6px 0', fontSize: 13, lineHeight: 1.75, color: '#1a1a1a', fontFamily: FONT, ...style }}>{children}</p>
+  return (
+    <p style={{
+      margin: '6px 0', fontSize: 13, lineHeight: 1.75,
+      color: 'var(--text, #e8e8f0)',
+      fontFamily: 'var(--font-sans, Poppins, sans-serif)',
+      ...style,
+    }}>
+      {children}
+    </p>
+  )
 }
 
 function Ul({ items }) {
   return (
     <ul style={{ margin: '8px 0', paddingLeft: 22 }}>
       {items.map((item, i) => (
-        <li key={i} style={{ marginBottom: 5, fontSize: 13, lineHeight: 1.65, color: '#1a1a1a', fontFamily: FONT }}>{item}</li>
+        <li key={i} style={{
+          marginBottom: 5, fontSize: 13, lineHeight: 1.65,
+          color: 'var(--text, #e8e8f0)',
+          fontFamily: 'var(--font-sans, Poppins, sans-serif)',
+        }}>
+          {item}
+        </li>
       ))}
     </ul>
   )
@@ -24,7 +36,13 @@ function Ol({ items }) {
   return (
     <ol style={{ margin: '8px 0', paddingLeft: 22 }}>
       {items.map((item, i) => (
-        <li key={i} style={{ marginBottom: 5, fontSize: 13, lineHeight: 1.65, color: '#1a1a1a', fontFamily: FONT }}>{item}</li>
+        <li key={i} style={{
+          marginBottom: 5, fontSize: 13, lineHeight: 1.65,
+          color: 'var(--text, #e8e8f0)',
+          fontFamily: 'var(--font-sans, Poppins, sans-serif)',
+        }}>
+          {item}
+        </li>
       ))}
     </ol>
   )
@@ -32,9 +50,9 @@ function Ol({ items }) {
 
 function Callout({ children, type = 'amber' }) {
   const cfg = {
-    amber: { bg: '#FFFBF0', border: '#c8963e', color: '#7a5415' },
-    green: { bg: '#F0FFF7', border: '#2e9e64', color: '#1a6340' },
-    red:   { bg: '#FFF5F5', border: '#c0392b', color: '#7b1e1e' },
+    amber: { bg: 'rgba(200,150,62,0.08)',  border: 'var(--accent, #c8963e)' },
+    green: { bg: 'rgba(61,186,122,0.08)',  border: 'var(--green, #3dba7a)' },
+    red:   { bg: 'rgba(224,92,106,0.08)',  border: 'var(--red, #e05c6a)' },
   }
   const c = cfg[type] || cfg.amber
   return (
@@ -45,9 +63,9 @@ function Callout({ children, type = 'amber' }) {
       margin: '12px 0',
       borderRadius: '0 6px 6px 0',
       fontSize: 13,
-      color: c.color,
+      color: 'var(--text, #e8e8f0)',
       lineHeight: 1.65,
-      fontFamily: FONT,
+      fontFamily: 'var(--font-sans, Poppins, sans-serif)',
     }}>
       {children}
     </div>
@@ -57,53 +75,61 @@ function Callout({ children, type = 'amber' }) {
 function CodeBlock({ children }) {
   return (
     <pre style={{
-      background: '#f5f5f5',
-      border: '1px solid #e0e0e0',
+      background: 'var(--bg-input, #252731)',
+      border: '1px solid var(--border, #2e3040)',
       borderRadius: 6,
       padding: '14px 18px',
-      fontFamily: MONO,
+      fontFamily: 'var(--font-mono, monospace)',
       fontSize: 12,
       lineHeight: 1.75,
       overflowX: 'auto',
       margin: '12px 0',
-      color: '#1a1a1a',
+      color: 'var(--text, #e8e8f0)',
       whiteSpace: 'pre-wrap',
-    }}>{children}</pre>
+    }}>
+      {children}
+    </pre>
   )
 }
 
 function SopTable({ headers, rows }) {
   return (
-    <div style={{ overflowX: 'auto', margin: '12px 0', borderRadius: 6, border: '1px solid #e0e0e0' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: FONT }}>
+    <div style={{ overflowX: 'auto', margin: '12px 0', borderRadius: 8, border: '1px solid var(--border, #2e3040)' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}>
         <thead>
-          <tr>
+          <tr style={{ background: '#0d0d0d' }}>
             {headers.map((h, i) => (
               <th key={i} style={{
-                padding: '9px 13px',
-                background: '#1C1C1C',
-                color: '#fff',
+                padding: '10px 14px',
                 textAlign: 'left',
-                fontWeight: 600,
-                fontSize: 11.5,
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: 'var(--accent, #c8963e)',
+                borderBottom: '1px solid var(--border, #2e3040)',
                 whiteSpace: 'nowrap',
-                borderRight: i < headers.length - 1 ? '1px solid #333' : 'none',
-              }}>{h}</th>
+                fontFamily: 'var(--font-mono, monospace)',
+              }}>
+                {h}
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, ri) => (
-            <tr key={ri} style={{ background: ri % 2 === 1 ? '#f9f9f9' : '#fff' }}>
+            <tr key={ri} style={{ background: ri % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
               {row.map((cell, ci) => (
                 <td key={ci} style={{
-                  padding: '9px 13px',
-                  borderBottom: ri < rows.length - 1 ? '1px solid #eee' : 'none',
-                  borderRight: ci < row.length - 1 ? '1px solid #eee' : 'none',
+                  padding: '10px 14px',
+                  borderBottom: ri < rows.length - 1 ? '1px solid var(--border, #2e3040)' : 'none',
                   verticalAlign: 'top',
-                  fontSize: 12.5,
+                  fontSize: 12,
                   lineHeight: 1.5,
-                }}>{cell}</td>
+                  color: 'var(--text, #e8e8f0)',
+                }}>
+                  {cell}
+                </td>
               ))}
             </tr>
           ))}
@@ -117,16 +143,18 @@ function SubSection({ title, children }) {
   return (
     <div style={{ marginBottom: 22 }}>
       <div style={{
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: 700,
-        color: '#555',
-        fontFamily: MONO,
+        color: 'var(--accent, #c8963e)',
+        fontFamily: 'var(--font-mono, monospace)',
         textTransform: 'uppercase',
-        letterSpacing: '0.09em',
-        borderBottom: '1px solid #e8e8e8',
+        letterSpacing: '0.10em',
+        borderBottom: '1px solid var(--border, #2e3040)',
         paddingBottom: 6,
         marginBottom: 10,
-      }}>{title}</div>
+      }}>
+        {title}
+      </div>
       {children}
     </div>
   )
@@ -136,7 +164,7 @@ function SubSection({ title, children }) {
 
 function Section({ num, title, open, onToggle, children }) {
   return (
-    <div style={{ borderBottom: '1px solid #e0e0e0' }}>
+    <div style={{ borderBottom: '1px solid var(--border, #2e3040)' }}>
       <button
         onClick={onToggle}
         style={{
@@ -145,7 +173,7 @@ function Section({ num, title, open, onToggle, children }) {
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '15px 24px',
-          background: open ? '#1C1C1C' : '#242424',
+          background: 'var(--bg-panel, #1e2028)',
           border: 'none',
           cursor: 'pointer',
           textAlign: 'left',
@@ -154,15 +182,39 @@ function Section({ num, title, open, onToggle, children }) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span style={{ fontFamily: MONO, fontSize: 10, color: '#c8963e', minWidth: 20 }}>§{num}</span>
-          <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 600, color: '#fff', letterSpacing: '-0.1px' }}>{title}</span>
+          <span style={{
+            fontFamily: 'var(--font-mono, monospace)',
+            fontSize: 10,
+            color: 'var(--accent, #c8963e)',
+            minWidth: 20,
+          }}>
+            §{num}
+          </span>
+          <span style={{
+            fontFamily: 'var(--font-sans, Poppins, sans-serif)',
+            fontSize: 14,
+            fontWeight: 600,
+            color: 'var(--text, #e8e8f0)',
+            letterSpacing: '-0.1px',
+          }}>
+            {title}
+          </span>
         </div>
-        <span style={{ color: open ? '#c8963e' : '#555', fontSize: 11, fontFamily: MONO, flexShrink: 0 }}>
+        <span style={{
+          color: open ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)',
+          fontSize: 11,
+          fontFamily: 'var(--font-mono, monospace)',
+          flexShrink: 0,
+        }}>
           {open ? '▲' : '▼'}
         </span>
       </button>
       {open && (
-        <div style={{ padding: '22px 24px 26px', background: '#fff' }}>
+        <div style={{
+          padding: '22px 24px 26px',
+          background: 'var(--bg, #16171f)',
+          borderTop: '1px solid var(--border, #2e3040)',
+        }}>
           {children}
         </div>
       )}
@@ -179,7 +231,6 @@ export default function SOPSetup() {
 
   return (
     <div style={s.page}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Mono:wght@400;500&display=swap');`}</style>
 
       {/* Dark page header */}
       <div style={s.pageHeader}>
@@ -221,7 +272,7 @@ export default function SOPSetup() {
             'Nothing that was promised is missing',
           ]} />
           <div style={{ marginTop: 20 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#c8963e', fontFamily: MONO, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Non-Negotiables</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Non-Negotiables</div>
             <Para>These apply to every setup day, every property, without exception.</Para>
             <Ol items={[
               'No room is signed off until Ops completes QC',
@@ -285,7 +336,7 @@ export default function SOPSetup() {
               'Send vendor alignment on the WhatsApp group — property address, flat number, who is coming, and what time',
               'Confirm WiFi technician and RO installation are scheduled',
             ]} />
-            <Para style={{ fontStyle: 'italic', color: '#555' }}>A setup day that starts well almost always ends well. The night before is where that starts.</Para>
+            <Para style={{ fontStyle: 'italic', color: 'var(--text-muted, #6b6d82)' }}>A setup day that starts well almost always ends well. The night before is where that starts.</Para>
           </SubSection>
 
           <SubSection title="Briefing and Breakfast — 9:15 to 9:30 AM">
@@ -568,7 +619,7 @@ Room is closed. No re-entry.`}</CodeBlock>
         <Section num={7} title="Processes" open={!!open[7]} onToggle={() => toggle(7)}>
 
           <SubSection title="T-Day Box Management">
-            <Para>Six boxes total, three used per setup. Padlock code: <span style={{ fontFamily: MONO, fontWeight: 600, background: '#f0f0f0', padding: '1px 6px', borderRadius: 3 }}>8508</span> — same across all boxes.</Para>
+            <Para>Six boxes total, three used per setup. Padlock code: <span style={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 600, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', padding: '1px 7px', borderRadius: 3, color: 'var(--accent, #c8963e)' }}>8508</span> — same across all boxes.</Para>
             <SopTable
               headers={['Box', 'Label', 'Trade']}
               rows={[
@@ -626,7 +677,7 @@ Room is closed. No re-entry.`}</CodeBlock>
 
           <SubSection title="Lockbox Drilling">
             <Para>The lockbox is taped to the wall at T-5 as a temporary measure. It is drilled in permanently on setup day.</Para>
-            <Para>Runner handles the drilling and installation. Location is at the property entrance — accessible but not immediately visible from outside. Password is <span style={{ fontFamily: MONO, fontWeight: 600, background: '#f0f0f0', padding: '1px 6px', borderRadius: 3 }}>8508</span>. Functionality is confirmed before end of day.</Para>
+            <Para>Runner handles the drilling and installation. Location is at the property entrance — accessible but not immediately visible from outside. Password is <span style={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 600, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', padding: '1px 7px', borderRadius: 3, color: 'var(--accent, #c8963e)' }}>8508</span>. Functionality is confirmed before end of day.</Para>
           </SubSection>
 
           <SubSection title="Appliance Check">
@@ -827,8 +878,8 @@ Room is closed. No re-entry.`}</CodeBlock>
         </Section>
 
         {/* Footer */}
-        <div style={{ padding: '18px 24px', background: '#1C1C1C', textAlign: 'center' }}>
-          <span style={{ fontFamily: MONO, fontSize: 11, color: 'rgba(255,255,255,0.35)', fontStyle: 'italic' }}>
+        <div style={s.footer}>
+          <span style={s.footerText}>
             Property locked. Lockbox secured. Keys confirmed with Ops. Everyone off-site by 6:00 PM.
           </span>
         </div>
@@ -841,19 +892,21 @@ Room is closed. No re-entry.`}</CodeBlock>
 const s = {
   page: {
     minHeight: '100dvh',
-    background: '#f0f0f0',
-    fontFamily: FONT,
+    background: 'var(--bg, #16171f)',
+    fontFamily: 'var(--font-sans, Poppins, sans-serif)',
+    color: 'var(--text, #e8e8f0)',
   },
   pageHeader: {
-    background: '#1C1C1C',
+    background: 'var(--bg-panel, #1e2028)',
+    borderBottom: '1px solid var(--border, #2e3040)',
     padding: '20px 24px 24px',
     paddingTop: 'calc(env(safe-area-inset-top) + 20px)',
   },
   back: {
     background: 'none',
     border: 'none',
-    color: 'rgba(255,255,255,0.45)',
-    fontFamily: MONO,
+    color: 'var(--accent, #c8963e)',
+    fontFamily: 'var(--font-mono, monospace)',
     fontSize: 12,
     cursor: 'pointer',
     padding: 0,
@@ -861,19 +914,21 @@ const s = {
     display: 'block',
   },
   docBadge: {
-    fontFamily: MONO,
-    fontSize: 10,
-    color: '#c8963e',
-    letterSpacing: '0.12em',
+    fontFamily: 'var(--font-mono, monospace)',
+    fontSize: 9,
+    fontWeight: 700,
+    color: 'var(--accent, #c8963e)',
+    letterSpacing: '0.14em',
+    textTransform: 'uppercase',
     marginBottom: 8,
   },
   docTitle: {
-    fontFamily: FONT,
-    fontSize: 22,
+    fontFamily: 'var(--font-sans, Poppins, sans-serif)',
+    fontSize: 24,
     fontWeight: 700,
-    color: '#fff',
-    letterSpacing: '-0.3px',
-    margin: '0 0 10px',
+    color: 'var(--text, #e8e8f0)',
+    letterSpacing: '-0.4px',
+    margin: '0 0 12px',
   },
   metaRow: {
     display: 'flex',
@@ -882,28 +937,38 @@ const s = {
     alignItems: 'center',
   },
   metaItem: {
-    fontFamily: MONO,
+    fontFamily: 'var(--font-mono, monospace)',
     fontSize: 11,
-    color: 'rgba(255,255,255,0.45)',
+    color: 'var(--text-muted, #6b6d82)',
   },
   metaSep: {
-    color: 'rgba(255,255,255,0.2)',
+    color: 'var(--border, #2e3040)',
     fontSize: 11,
   },
   statusBadge: {
-    fontFamily: MONO,
+    fontFamily: 'var(--font-mono, monospace)',
     fontSize: 10,
-    fontWeight: 500,
-    color: '#38a169',
-    background: 'rgba(56,161,105,0.18)',
-    border: '1px solid rgba(56,161,105,0.3)',
+    fontWeight: 600,
+    color: 'var(--accent, #c8963e)',
+    background: 'rgba(200,150,62,0.12)',
+    border: '1px solid rgba(200,150,62,0.3)',
     borderRadius: 4,
     padding: '2px 8px',
   },
   doc: {
     maxWidth: 860,
     margin: '0 auto',
-    background: '#fff',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+  },
+  footer: {
+    padding: '20px 24px',
+    borderTop: '1px solid var(--border, #2e3040)',
+    textAlign: 'center',
+    background: 'var(--bg-panel, #1e2028)',
+  },
+  footerText: {
+    fontFamily: 'var(--font-mono, monospace)',
+    fontSize: 11,
+    color: 'var(--text-muted, #6b6d82)',
+    fontStyle: 'italic',
   },
 }
