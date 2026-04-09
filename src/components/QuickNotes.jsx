@@ -11,12 +11,16 @@ export default function QuickNotes({ pid }) {
   const [interim, setInterim]     = useState('')   // live unconfirmed transcript
   const [noSpeech, setNoSpeech]   = useState(false)
 
+  const [pos, setPos]  = useState(null)  // { x, y } once dragged, null = default CSS
+
   const textareaRef    = useRef(null)
   const panelRef       = useRef(null)
+  const btnRef         = useRef(null)
   const recognRef      = useRef(null)    // active SpeechRecognition instance
   const shouldRunRef   = useRef(false)   // true while user wants transcription on
   const pressTimer     = useRef(null)    // long-press timeout
   const wasLongPress   = useRef(false)   // distinguish tap vs hold
+  const drag           = useRef({ active: false, ox: 0, oy: 0, moved: false, startX: 0, startY: 0 })
 
   // Load from localStorage on mount / pid change
   useEffect(() => {
@@ -186,40 +190,91 @@ export default function QuickNotes({ pid }) {
     if (window.confirm('Clear all notes for this property?')) setNotes('')
   }
 
+  // ── Drag / panel position helpers ─────────────────────────────────────────
+
+  // Returns fixed-position style for the panel, anchored near the button.
+  function getPanelStyle() {
+    const BW = 48, PW = Math.min(340, window.innerWidth - 32), PH = 400
+    const gap = 12
+    if (!pos) return { bottom: 148, right: 16, left: 'auto', top: 'auto' }
+
+    // Centre panel horizontally on button, clamp to viewport
+    let left = Math.round(pos.x + BW / 2 - PW / 2)
+    left = Math.max(8, Math.min(window.innerWidth - PW - 8, left))
+
+    // Prefer above; fall back to below if too close to top
+    const top = pos.y > PH + gap + 8
+      ? Math.round(pos.y - PH - gap)
+      : Math.round(pos.y + BW + gap)
+
+    return { top, left, bottom: 'auto', right: 'auto' }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <>
-      {/* Floating trigger button — tap to open, hold to transcribe */}
+      {/* Floating trigger button — tap to open, hold to transcribe, drag to move */}
       <button
+        ref={btnRef}
         data-quicknotes-trigger
         onPointerDown={e => {
           e.preventDefault()
+          // initialise drag tracking
+          const rect = btnRef.current.getBoundingClientRect()
+          const curX = pos?.x ?? rect.left
+          const curY = pos?.y ?? rect.top
+          drag.current = {
+            active: true, moved: false,
+            startX: e.clientX, startY: e.clientY,
+            ox: e.clientX - curX, oy: e.clientY - curY,
+          }
+          btnRef.current.setPointerCapture(e.pointerId)
+          // long-press timer (only fires if we haven't dragged)
           wasLongPress.current = false
           pressTimer.current = setTimeout(() => {
-            wasLongPress.current = true
-            setOpen(true)
-            if (hasSpeech) startListening()
+            if (!drag.current.moved) {
+              wasLongPress.current = true
+              setOpen(true)
+              if (hasSpeech) startListening()
+            }
           }, LONG_PRESS_MS)
+        }}
+        onPointerMove={e => {
+          if (!drag.current.active) return
+          const dx = e.clientX - drag.current.startX
+          const dy = e.clientY - drag.current.startY
+          if (!drag.current.moved && Math.hypot(dx, dy) > 6) {
+            drag.current.moved = true
+            clearTimeout(pressTimer.current)   // cancel long-press
+            wasLongPress.current = false
+          }
+          if (drag.current.moved) {
+            const newX = e.clientX - drag.current.ox
+            const newY = e.clientY - drag.current.oy
+            setPos({
+              x: Math.max(0, Math.min(window.innerWidth  - 48, newX)),
+              y: Math.max(0, Math.min(window.innerHeight - 48, newY)),
+            })
+          }
         }}
         onPointerUp={e => {
           e.preventDefault()
+          drag.current.active = false
           clearTimeout(pressTimer.current)
-          if (wasLongPress.current) {
-            // release after hold — stop transcription
-            stopListening()
-          } else {
-            // short tap — toggle panel
-            setOpen(p => !p)
-          }
-        }}
-        onPointerLeave={() => {
-          // finger slid off while holding — stop transcription
-          clearTimeout(pressTimer.current)
+          if (drag.current.moved) return          // was a drag — do nothing else
           if (wasLongPress.current) stopListening()
+          else setOpen(p => !p)
+        }}
+        onPointerCancel={() => {
+          drag.current.active = false
+          clearTimeout(pressTimer.current)
         }}
         style={{
-          position: 'fixed', bottom: 88, right: 20,
+          position: 'fixed',
+          ...(pos
+            ? { left: pos.x, top: pos.y, bottom: 'auto', right: 'auto' }
+            : { bottom: 88, right: 20 }),
           width: 48, height: 48, borderRadius: '50%',
           background: listening
             ? '#e05c6a'
@@ -229,13 +284,16 @@ export default function QuickNotes({ pid }) {
             ? '0 4px 24px rgba(224,92,106,0.5)'
             : open ? '0 4px 20px rgba(200,150,62,0.35)' : '0 4px 16px rgba(0,0,0,0.4)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer', zIndex: 120,
-          transition: 'background 0.2s, border-color 0.2s, box-shadow 0.2s',
+          cursor: drag.current?.moved ? 'grabbing' : 'pointer',
+          zIndex: 120,
+          transition: drag.current?.moved
+            ? 'none'
+            : 'background 0.2s, border-color 0.2s, box-shadow 0.2s',
           WebkitTapHighlightColor: 'transparent',
           userSelect: 'none', touchAction: 'none',
           flexShrink: 0,
         }}
-        title="Tap to open notes · Hold to transcribe"
+        title="Tap to open · Hold to transcribe · Drag to move"
       >
         {/* Pulsing ring — visible when recording with panel closed */}
         {listening && !open && (
@@ -279,10 +337,10 @@ export default function QuickNotes({ pid }) {
         )}
       </button>
 
-      {/* Notes panel */}
+      {/* Notes panel — follows button position */}
       {open && (
         <div ref={panelRef} style={{
-          position: 'fixed', bottom: 148, right: 16,
+          position: 'fixed', ...getPanelStyle(),
           width: 'min(340px, calc(100vw - 32px))',
           background: 'var(--bg-panel, #1e2028)',
           border: '1px solid var(--border, #2e3040)',
