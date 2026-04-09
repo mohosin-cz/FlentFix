@@ -39,10 +39,7 @@ export default function QuickNotes({ pid }) {
     if (open) setTimeout(() => textareaRef.current?.focus(), 80)
   }, [open])
 
-  // Stop recognition when panel closes
-  useEffect(() => {
-    if (!open && listening) stopListening()
-  }, [open])
+  // Transcription intentionally keeps running when panel is collapsed
 
   // Close panel on outside click
   useEffect(() => {
@@ -223,6 +220,16 @@ export default function QuickNotes({ pid }) {
         }}
         title="Tap to open notes · Hold to transcribe"
       >
+        {/* Pulsing ring — visible when recording with panel closed */}
+        {listening && !open && (
+          <span style={{
+            position: 'absolute', inset: -5,
+            borderRadius: '50%',
+            border: '2px solid #e05c6a',
+            animation: 'recordingRing 1.2s ease-out infinite',
+            pointerEvents: 'none',
+          }} />
+        )}
         {listening ? (
           /* Mic icon — pulsing while recording */
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -428,11 +435,14 @@ export default function QuickNotes({ pid }) {
         </div>
       )}
 
-      {/* Mic pulse keyframe */}
       <style>{`
         @keyframes micPulse {
           0%, 100% { opacity: 1; }
           50%       { opacity: 0.4; }
+        }
+        @keyframes recordingRing {
+          0%   { transform: scale(1);   opacity: 0.8; }
+          100% { transform: scale(1.7); opacity: 0; }
         }
       `}</style>
     </>
