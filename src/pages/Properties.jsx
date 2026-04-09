@@ -121,7 +121,7 @@ export default function Properties() {
                 }}
               >
                 <div style={s.cardLeft}>
-                  <div style={s.pidText}>{row.pid}</div>
+                  <div style={s.pidText}>PID{row.pid}</div>
                   {row.house_type && (
                     <span style={s.houseTypeBadge}>{row.house_type}</span>
                   )}
