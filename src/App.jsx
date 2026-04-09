@@ -11,6 +11,7 @@ import InspectionMode from './pages/InspectionMode'
 import Estimate from './pages/Estimate'
 import Properties from './pages/Properties'
 import PropertyDetail from './pages/PropertyDetail'
+import PropertyBin from './pages/PropertyBin'
 import RateCard from './pages/RateCard'
 import WorkOrder from './pages/WorkOrder'
 import ResetPassword from './pages/ResetPassword'
@@ -86,6 +87,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Properties />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/properties/bin"
+            element={
+              <ProtectedRoute>
+                <PropertyBin />
               </ProtectedRoute>
             }
           />
