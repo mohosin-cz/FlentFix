@@ -31,7 +31,7 @@ export default function Login() {
         <div style={s.logoWrap}>
           <PixelLogo bg={null} width={160} height={38} />
         </div>
-        <p style={s.tagline}>// property inspection platform</p>
+        <p style={s.tagline}>Property Inspection Platform</p>
 
         <form onSubmit={handleSubmit} style={s.form} noValidate>
           {error && <div style={s.errorBox}>{error}</div>}
@@ -78,7 +78,7 @@ export default function Login() {
           </button>
         </form>
 
-        <p style={s.footer}>flentfix v1.0 · field edition</p>
+        <p style={s.footer}>flentfix v1.0 · Product Operations</p>
       </div>
     </div>
   )
