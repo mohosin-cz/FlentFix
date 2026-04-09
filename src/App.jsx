@@ -14,6 +14,7 @@ import PropertyDetail from './pages/PropertyDetail'
 import RateCard from './pages/RateCard'
 import WorkOrder from './pages/WorkOrder'
 import ResetPassword from './pages/ResetPassword'
+import Flentfit from './pages/Flentfit'
 
 export default function App() {
   return (
@@ -107,6 +108,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <WorkOrder />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/flentfit"
+            element={
+              <ProtectedRoute>
+                <Flentfit />
               </ProtectedRoute>
             }
           />
