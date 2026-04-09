@@ -4,9 +4,13 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import PixelLogo from '../components/PixelLogo'
 
-function greeting() {
-  const h = new Date().getHours()
-  return h < 12 ? 'good_morning' : h < 17 ? 'good_afternoon' : 'good_evening'
+function getGreeting() {
+  const hour = new Date().getHours()
+  if (hour >= 5 && hour < 12) return 'Good morning'
+  if (hour >= 12 && hour < 17) return 'Good afternoon'
+  if (hour >= 17 && hour < 21) return 'Good evening'
+  if (hour >= 21 && hour < 24) return 'Burning the midnight oil,'
+  return 'Up before the sun,'
 }
 function initials(name = '') {
   return name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'FL'
@@ -243,7 +247,7 @@ export default function Dashboard() {
           <p style={s.heroDate}># {date}</p>
           <div style={s.heroPrompt}>
             <span style={s.heroChevron}>&gt;</span>
-            <h1 style={s.heroTitle}>{greeting()},&nbsp;<span style={s.heroName}>{name}</span></h1>
+            <h1 style={s.heroTitle}>{getGreeting()}&nbsp;<span style={s.heroName}>{name}</span></h1>
           </div>
           <p style={s.heroSub}>what would you like to do today?</p>
         </div>
