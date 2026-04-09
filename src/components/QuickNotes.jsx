@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const STORAGE_KEY = pid => `flent_quick_notes_${pid}`
-const hasSpeech = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+const STORAGE_KEY  = pid => `flent_quick_notes_${pid}`
+const hasSpeech    = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+const LONG_PRESS_MS = 400
 
 export default function QuickNotes({ pid }) {
   const [open, setOpen]           = useState(false)
@@ -10,10 +11,12 @@ export default function QuickNotes({ pid }) {
   const [interim, setInterim]     = useState('')   // live unconfirmed transcript
   const [noSpeech, setNoSpeech]   = useState(false)
 
-  const textareaRef  = useRef(null)
-  const panelRef     = useRef(null)
-  const recognRef    = useRef(null)  // SpeechRecognition instance
-  const notesRef     = useRef(notes) // stable ref for use inside recognition callbacks
+  const textareaRef    = useRef(null)
+  const panelRef       = useRef(null)
+  const recognRef      = useRef(null)   // SpeechRecognition instance
+  const notesRef       = useRef(notes)  // stable ref for use inside recognition callbacks
+  const pressTimer     = useRef(null)   // long-press timeout
+  const wasLongPress   = useRef(false)  // distinguish tap vs hold
 
   // keep notesRef in sync
   useEffect(() => { notesRef.current = notes }, [notes])
@@ -173,29 +176,71 @@ export default function QuickNotes({ pid }) {
 
   return (
     <>
-      {/* Floating trigger button */}
+      {/* Floating trigger button — tap to open, hold to transcribe */}
       <button
         data-quicknotes-trigger
-        onClick={() => setOpen(p => !p)}
+        onPointerDown={e => {
+          e.preventDefault()
+          wasLongPress.current = false
+          pressTimer.current = setTimeout(() => {
+            wasLongPress.current = true
+            setOpen(true)
+            if (hasSpeech) startListening()
+          }, LONG_PRESS_MS)
+        }}
+        onPointerUp={e => {
+          e.preventDefault()
+          clearTimeout(pressTimer.current)
+          if (wasLongPress.current) {
+            // release after hold — stop transcription
+            stopListening()
+          } else {
+            // short tap — toggle panel
+            setOpen(p => !p)
+          }
+        }}
+        onPointerLeave={() => {
+          // finger slid off while holding — stop transcription
+          clearTimeout(pressTimer.current)
+          if (wasLongPress.current) stopListening()
+        }}
         style={{
           position: 'fixed', bottom: 88, right: 20,
           width: 48, height: 48, borderRadius: '50%',
-          background: open ? 'var(--accent, #c8963e)' : 'var(--bg-panel, #1e2028)',
-          border: `2px solid ${open ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`,
-          boxShadow: open ? '0 4px 20px rgba(200,150,62,0.35)' : '0 4px 16px rgba(0,0,0,0.4)',
+          background: listening
+            ? '#e05c6a'
+            : open ? 'var(--accent, #c8963e)' : 'var(--bg-panel, #1e2028)',
+          border: `2px solid ${listening ? '#e05c6a' : open ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`,
+          boxShadow: listening
+            ? '0 4px 24px rgba(224,92,106,0.5)'
+            : open ? '0 4px 20px rgba(200,150,62,0.35)' : '0 4px 16px rgba(0,0,0,0.4)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: 'pointer', zIndex: 120,
           transition: 'background 0.2s, border-color 0.2s, box-shadow 0.2s',
-          WebkitTapHighlightColor: 'transparent', flexShrink: 0,
+          WebkitTapHighlightColor: 'transparent',
+          userSelect: 'none', touchAction: 'none',
+          flexShrink: 0,
         }}
-        title="Quick Notes"
+        title="Tap to open notes · Hold to transcribe"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-          style={{ color: open ? '#fff' : 'var(--text-dim, #9394a8)', transition: 'color 0.2s' }}>
-          <path d="M12 20h9" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
+        {listening ? (
+          /* Mic icon — pulsing while recording */
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+            style={{ color: '#fff', animation: 'micPulse 1s ease-in-out infinite' }}>
+            <rect x="9" y="2" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="2"/>
+            <path d="M5 10a7 7 0 0 0 14 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            <line x1="12" y1="17" x2="12" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            <line x1="8" y1="21" x2="16" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+        ) : (
+          /* Pencil / notes icon */
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+            style={{ color: open ? '#fff' : 'var(--text-dim, #9394a8)', transition: 'color 0.2s' }}>
+            <path d="M12 20h9" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        )}
         {lineCount > 0 && !open && (
           <span style={{
             position: 'absolute', top: -4, right: -4,
