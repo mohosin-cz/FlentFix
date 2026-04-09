@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { StickyFooter, BtnPrimary } from '../components/ui'
 import { supabase } from '../lib/supabase'
+import QuickNotes from '../components/QuickNotes'
 
 const CONDITION_COLOR = { Good: '#3dba7a', Fair: '#c8963e', Poor: '#e05c6a' }
 
@@ -130,6 +131,21 @@ export default function InspectionSummary() {
           ))}
         </div>
 
+        {/* Quick notes summary — coming soon */}
+        <div style={s.notesCard}>
+          <div style={s.notesCardTop}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ color: 'var(--accent, #c8963e)', flexShrink: 0 }}>
+              <path d="M12 20h9" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span style={s.notesCardLabel}>Quick Notes</span>
+            <span style={s.notesCardComingSoon}>summary coming soon</span>
+          </div>
+          <p style={s.notesCardDesc}>
+            Your quick notes for PID{pid} are saved. Auto-summarisation will be available in a future update.
+          </p>
+        </div>
+
       </main>
 
       <StickyFooter left={
@@ -142,6 +158,7 @@ export default function InspectionSummary() {
           {submitting ? 'Saving…' : 'Submit →'}
         </BtnPrimary>
       </StickyFooter>
+      <QuickNotes pid={pid} />
     </div>
   )
 }
@@ -169,4 +186,9 @@ const s = {
   notesFlag: { fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontStyle: 'italic', fontFamily: 'var(--font-mono, monospace)' },
   condBadge: { fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 3, fontFamily: 'var(--font-mono, monospace)' },
   submitBtn: { fontFamily: 'var(--font-mono, monospace)', fontSize: 13, fontWeight: 600, padding: '12px 20px', background: 'var(--accent, #c8963e)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', letterSpacing: '0.02em' },
+  notesCard: { background: 'var(--bg-panel, #1e2028)', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 10, padding: '14px 16px' },
+  notesCardTop: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
+  notesCardLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', flex: 1 },
+  notesCardComingSoon: { fontSize: 9, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 3, padding: '2px 6px', letterSpacing: '0.06em', textTransform: 'uppercase' },
+  notesCardDesc: { fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.6, margin: 0 },
 }

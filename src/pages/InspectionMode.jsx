@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import { NavBar, StickyFooter } from '../components/ui'
+import QuickNotes from '../components/QuickNotes'
 
 const MODES = [
   {
@@ -163,6 +164,7 @@ export default function InspectionMode() {
           </p>
         </div>
       </div>
+      <QuickNotes pid={state.pid} />
     </div>
   )
 }

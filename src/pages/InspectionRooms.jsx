@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { StickyFooter, BtnPrimary } from '../components/ui'
+import QuickNotes from '../components/QuickNotes'
 
 const CONDITIONS = ['Good', 'Fair', 'Poor']
 
@@ -160,6 +161,7 @@ export default function InspectionRooms() {
           {isLast ? 'Review →' : 'Next →'}
         </BtnPrimary>
       </StickyFooter>
+      <QuickNotes pid={pid} />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import QuickNotes from '../components/QuickNotes'
 import {
   NavBar, TabBar, Field, Input, Textarea, PillGroup,
   HealthSlider, Banner, AccordionCard, StickyFooter, BtnPrimary,
@@ -1427,7 +1428,7 @@ export default function InspectionOutdoor() {
           </BtnPrimary>
         )}
       </StickyFooter>
-
+      <QuickNotes pid={pid} />
     </div>
   )
 }
