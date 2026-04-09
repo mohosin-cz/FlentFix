@@ -267,7 +267,7 @@ export default function Dashboard() {
 
       {/* ── Tiles ── */}
       <main style={s.main}>
-        <p style={s.sectionEyebrow}>// quick_actions</p>
+        <p style={s.sectionEyebrow}>Quick Actions</p>
         <div style={s.tileGrid}>
           {TILES.map((tile, idx) => (
             <button
