@@ -1,12 +1,22 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 const STORAGE_KEY = pid => `flent_quick_notes_${pid}`
+const hasSpeech = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
 
 export default function QuickNotes({ pid }) {
-  const [open, setOpen]   = useState(false)
-  const [notes, setNotes] = useState('')
-  const textareaRef       = useRef(null)
-  const panelRef          = useRef(null)
+  const [open, setOpen]           = useState(false)
+  const [notes, setNotes]         = useState('')
+  const [listening, setListening] = useState(false)
+  const [interim, setInterim]     = useState('')   // live unconfirmed transcript
+  const [noSpeech, setNoSpeech]   = useState(false)
+
+  const textareaRef  = useRef(null)
+  const panelRef     = useRef(null)
+  const recognRef    = useRef(null)  // SpeechRecognition instance
+  const notesRef     = useRef(notes) // stable ref for use inside recognition callbacks
+
+  // keep notesRef in sync
+  useEffect(() => { notesRef.current = notes }, [notes])
 
   // Load from localStorage on mount / pid change
   useEffect(() => {
@@ -23,55 +33,115 @@ export default function QuickNotes({ pid }) {
 
   // Focus textarea when panel opens
   useEffect(() => {
-    if (open) {
-      setTimeout(() => textareaRef.current?.focus(), 80)
-    }
+    if (open) setTimeout(() => textareaRef.current?.focus(), 80)
   }, [open])
 
-  // Close on outside click
+  // Stop recognition when panel closes
+  useEffect(() => {
+    if (!open && listening) stopListening()
+  }, [open])
+
+  // Close panel on outside click
   useEffect(() => {
     function handleClick(e) {
       if (
         panelRef.current && !panelRef.current.contains(e.target) &&
         !e.target.closest('[data-quicknotes-trigger]')
-      ) {
-        setOpen(false)
-      }
+      ) setOpen(false)
     }
     if (open) document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
 
-  // Count non-empty lines as "notes"
+  // ── Speech recognition ────────────────────────────────────────────────────
+
+  const startListening = useCallback(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) return
+
+    const recog = new SR()
+    recog.continuous      = true
+    recog.interimResults  = true
+    recog.lang            = 'en-IN'   // Indian English — change if needed
+
+    recog.onstart = () => { setListening(true); setNoSpeech(false) }
+
+    recog.onresult = e => {
+      let finalChunk = ''
+      let interimChunk = ''
+
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const transcript = e.results[i][0].transcript
+        if (e.results[i].isFinal) {
+          finalChunk += transcript
+        } else {
+          interimChunk += transcript
+        }
+      }
+
+      if (finalChunk) {
+        // Append confirmed text to notes, adding a space/newline separator
+        setNotes(prev => {
+          const base = prev.trimEnd()
+          const separator = base.length > 0 ? ' ' : ''
+          return base + separator + finalChunk.trim()
+        })
+        setInterim('')
+      } else {
+        setInterim(interimChunk)
+      }
+    }
+
+    recog.onerror = e => {
+      if (e.error === 'no-speech') setNoSpeech(true)
+      if (e.error !== 'aborted') setListening(false)
+      setInterim('')
+    }
+
+    recog.onend = () => {
+      setListening(false)
+      setInterim('')
+    }
+
+    recognRef.current = recog
+    recog.start()
+  }, [])
+
+  const stopListening = useCallback(() => {
+    recognRef.current?.stop()
+    recognRef.current = null
+    setListening(false)
+    setInterim('')
+  }, [])
+
+  function toggleListening() {
+    if (listening) stopListening()
+    else startListening()
+  }
+
+  // ── Keyboard helpers ──────────────────────────────────────────────────────
+
   const lineCount = notes.split('\n').filter(l => l.trim()).length
 
-  // Handle keyboard shortcuts inside textarea
   function handleKeyDown(e) {
     const ta = textareaRef.current
     const { selectionStart, selectionEnd, value } = ta
-
     if (e.key === 'Enter') {
-      // If current line starts with a bullet, auto-continue
-      const lineStart = value.lastIndexOf('\n', selectionStart - 1) + 1
+      const lineStart   = value.lastIndexOf('\n', selectionStart - 1) + 1
       const currentLine = value.slice(lineStart, selectionStart)
       const bulletMatch = currentLine.match(/^(\s*[•\-]\s)/)
       if (bulletMatch) {
         e.preventDefault()
         const bullet = bulletMatch[1]
-        // If line is just a bullet with no content, remove bullet and end list
         if (currentLine.trim() === bulletMatch[0].trim()) {
           const newVal = value.slice(0, lineStart) + '\n' + value.slice(selectionEnd)
           setNotes(newVal)
-          setTimeout(() => {
-            ta.selectionStart = ta.selectionEnd = lineStart + 1
-          }, 0)
+          setTimeout(() => { ta.selectionStart = ta.selectionEnd = lineStart + 1 }, 0)
         } else {
           const insert = '\n' + bullet
           const newVal = value.slice(0, selectionStart) + insert + value.slice(selectionEnd)
           setNotes(newVal)
-          setTimeout(() => {
-            ta.selectionStart = ta.selectionEnd = selectionStart + insert.length
-          }, 0)
+          setTimeout(() => { ta.selectionStart = ta.selectionEnd = selectionStart + insert.length }, 0)
         }
       }
     }
@@ -83,29 +153,23 @@ export default function QuickNotes({ pid }) {
     const { selectionStart, selectionEnd, value } = ta
     const lineStart = value.lastIndexOf('\n', selectionStart - 1) + 1
     const lineText  = value.slice(lineStart, selectionStart)
-
     let newVal, cursor
     if (lineText.match(/^[•\-]\s/)) {
-      // Already a bullet — remove it
       newVal = value.slice(0, lineStart) + lineText.slice(2) + value.slice(lineStart + lineText.length)
       cursor = selectionStart - 2
     } else {
-      // Add bullet at start of line
       newVal = value.slice(0, lineStart) + '• ' + value.slice(lineStart)
       cursor = selectionStart + 2
     }
     setNotes(newVal)
-    setTimeout(() => {
-      ta.focus()
-      ta.selectionStart = ta.selectionEnd = Math.max(0, cursor)
-    }, 0)
+    setTimeout(() => { ta.focus(); ta.selectionStart = ta.selectionEnd = Math.max(0, cursor) }, 0)
   }
 
   function clearNotes() {
-    if (window.confirm('Clear all notes for this property?')) {
-      setNotes('')
-    }
+    if (window.confirm('Clear all notes for this property?')) setNotes('')
   }
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -114,49 +178,32 @@ export default function QuickNotes({ pid }) {
         data-quicknotes-trigger
         onClick={() => setOpen(p => !p)}
         style={{
-          position: 'fixed',
-          bottom: 88,
-          right: 20,
-          width: 48,
-          height: 48,
-          borderRadius: '50%',
+          position: 'fixed', bottom: 88, right: 20,
+          width: 48, height: 48, borderRadius: '50%',
           background: open ? 'var(--accent, #c8963e)' : 'var(--bg-panel, #1e2028)',
           border: `2px solid ${open ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`,
-          boxShadow: open
-            ? '0 4px 20px rgba(200,150,62,0.35)'
-            : '0 4px 16px rgba(0,0,0,0.4)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          zIndex: 120,
+          boxShadow: open ? '0 4px 20px rgba(200,150,62,0.35)' : '0 4px 16px rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', zIndex: 120,
           transition: 'background 0.2s, border-color 0.2s, box-shadow 0.2s',
-          WebkitTapHighlightColor: 'transparent',
-          flexShrink: 0,
+          WebkitTapHighlightColor: 'transparent', flexShrink: 0,
         }}
         title="Quick Notes"
       >
-        {/* Note / pencil icon */}
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
           style={{ color: open ? '#fff' : 'var(--text-dim, #9394a8)', transition: 'color 0.2s' }}>
           <path d="M12 20h9" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
           <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
-        {/* Badge */}
         {lineCount > 0 && !open && (
           <span style={{
-            position: 'absolute',
-            top: -4, right: -4,
-            minWidth: 17, height: 17,
-            borderRadius: 9,
-            background: 'var(--accent, #c8963e)',
-            color: '#fff',
-            fontSize: 9, fontWeight: 700,
-            fontFamily: 'var(--font-mono, monospace)',
+            position: 'absolute', top: -4, right: -4,
+            minWidth: 17, height: 17, borderRadius: 9,
+            background: 'var(--accent, #c8963e)', color: '#fff',
+            fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '0 4px',
-            border: '2px solid var(--bg, #16171f)',
+            padding: '0 4px', border: '2px solid var(--bg, #16171f)',
           }}>
             {lineCount}
           </span>
@@ -165,46 +212,32 @@ export default function QuickNotes({ pid }) {
 
       {/* Notes panel */}
       {open && (
-        <div
-          ref={panelRef}
-          style={{
-            position: 'fixed',
-            bottom: 148,
-            right: 16,
-            width: 'min(340px, calc(100vw - 32px))',
-            background: 'var(--bg-panel, #1e2028)',
-            border: '1px solid var(--border, #2e3040)',
-            borderRadius: 14,
-            boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
-            zIndex: 120,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            animation: 'fadeIn 0.15s ease',
-          }}
-        >
+        <div ref={panelRef} style={{
+          position: 'fixed', bottom: 148, right: 16,
+          width: 'min(340px, calc(100vw - 32px))',
+          background: 'var(--bg-panel, #1e2028)',
+          border: '1px solid var(--border, #2e3040)',
+          borderRadius: 14,
+          boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
+          zIndex: 120, display: 'flex', flexDirection: 'column',
+          overflow: 'hidden', animation: 'fadeIn 0.15s ease',
+        }}>
+
           {/* Panel header */}
           <div style={{
-            padding: '12px 14px 10px',
-            borderBottom: '1px solid var(--border, #2e3040)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            padding: '12px 14px 10px', borderBottom: '1px solid var(--border, #2e3040)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
             <div>
-              <div style={{
-                fontSize: 11, fontWeight: 700,
-                color: 'var(--text, #e8e8f0)',
-                fontFamily: 'var(--font-mono, monospace)',
-                letterSpacing: '-0.2px',
-              }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '-0.2px' }}>
                 Quick Notes
+                {listening && (
+                  <span style={{ marginLeft: 8, fontSize: 9, color: '#e05c6a', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    ● live
+                  </span>
+                )}
               </div>
-              <div style={{
-                fontSize: 9, color: 'var(--text-muted, #6b6d82)',
-                fontFamily: 'var(--font-mono, monospace)',
-                marginTop: 1,
-              }}>
+              <div style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 1 }}>
                 PID{pid} · {lineCount} line{lineCount !== 1 ? 's' : ''}
               </div>
             </div>
@@ -229,11 +262,10 @@ export default function QuickNotes({ pid }) {
 
           {/* Toolbar */}
           <div style={{
-            padding: '7px 12px',
-            borderBottom: '1px solid var(--border, #2e3040)',
-            display: 'flex',
-            gap: 4,
+            padding: '7px 12px', borderBottom: '1px solid var(--border, #2e3040)',
+            display: 'flex', alignItems: 'center', gap: 6,
           }}>
+            {/* Bullet list */}
             <button onClick={insertBullet} style={btn.tool} title="Toggle bullet point">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                 <circle cx="2.5" cy="5" r="1.5" fill="currentColor"/>
@@ -242,15 +274,83 @@ export default function QuickNotes({ pid }) {
                 <line x1="6" y1="11" x2="15" y2="11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
               </svg>
             </button>
-            <div style={{ width: 1, background: 'var(--border, #2e3040)', margin: '2px 4px' }} />
-            <span style={{
-              fontSize: 9, color: 'var(--text-muted, #6b6d82)',
-              fontFamily: 'var(--font-mono, monospace)',
-              alignSelf: 'center', paddingLeft: 2,
-            }}>
-              Enter continues a bullet list
-            </span>
+
+            <div style={{ width: 1, background: 'var(--border, #2e3040)', alignSelf: 'stretch', margin: '2px 2px' }} />
+
+            {/* Transcribe button */}
+            {hasSpeech ? (
+              <button
+                onClick={toggleListening}
+                style={{
+                  ...btn.tool,
+                  width: 'auto', paddingLeft: 10, paddingRight: 10, gap: 6,
+                  display: 'flex', alignItems: 'center',
+                  background: listening
+                    ? 'rgba(224,92,106,0.15)'
+                    : 'var(--bg-input, #252731)',
+                  border: listening
+                    ? '1px solid rgba(224,92,106,0.5)'
+                    : '1px solid var(--border, #2e3040)',
+                  color: listening ? '#e05c6a' : 'var(--text-dim, #9394a8)',
+                  transition: 'all 0.2s',
+                }}
+                title={listening ? 'Stop transcribing' : 'Start live transcription'}
+              >
+                {/* Mic icon */}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                  style={{ animation: listening ? 'micPulse 1.2s ease-in-out infinite' : 'none' }}>
+                  <rect x="9" y="2" width="6" height="11" rx="3"
+                    stroke="currentColor" strokeWidth="2"/>
+                  <path d="M5 10a7 7 0 0 0 14 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  <line x1="12" y1="17" x2="12" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  <line x1="8" y1="21" x2="16" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                <span style={{ fontSize: 10, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em' }}>
+                  {listening ? 'stop' : 'transcribe'}
+                </span>
+                {/* Pulsing dot when live */}
+                {listening && (
+                  <span style={{
+                    width: 6, height: 6, borderRadius: '50%', background: '#e05c6a',
+                    animation: 'micPulse 1.2s ease-in-out infinite',
+                  }} />
+                )}
+              </button>
+            ) : (
+              <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', paddingLeft: 2 }}>
+                transcription not supported in this browser
+              </span>
+            )}
           </div>
+
+          {/* Interim transcript preview */}
+          {interim && (
+            <div style={{
+              padding: '8px 16px',
+              fontSize: 12, lineHeight: 1.6,
+              color: 'var(--text-muted, #6b6d82)',
+              fontFamily: 'var(--font-mono, monospace)',
+              fontStyle: 'italic',
+              borderBottom: '1px solid var(--border, #2e3040)',
+              background: 'rgba(224,92,106,0.04)',
+            }}>
+              {interim}
+              <span style={{ opacity: 0.4 }}>…</span>
+            </div>
+          )}
+
+          {/* No-speech hint */}
+          {noSpeech && !interim && (
+            <div style={{
+              padding: '6px 16px', fontSize: 10,
+              color: 'var(--text-muted, #6b6d82)',
+              fontFamily: 'var(--font-mono, monospace)',
+              borderBottom: '1px solid var(--border, #2e3040)',
+              background: 'rgba(200,150,62,0.04)',
+            }}>
+              No speech detected — speak clearly near the mic
+            </div>
+          )}
 
           {/* Textarea */}
           <textarea
@@ -258,63 +358,56 @@ export default function QuickNotes({ pid }) {
             value={notes}
             onChange={e => setNotes(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={"Start typing your notes...\n\nTip: Click • in the toolbar to add a bullet list"}
+            placeholder={'Start typing — or tap Transcribe to speak\n\nTip: Click • for a bullet list'}
             style={{
-              flex: 1,
-              minHeight: 220,
-              maxHeight: 300,
+              flex: 1, minHeight: 200, maxHeight: 280,
               padding: '14px 16px',
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              resize: 'none',
-              fontSize: 13,
-              lineHeight: 1.7,
+              background: 'transparent', border: 'none', outline: 'none',
+              resize: 'none', fontSize: 13, lineHeight: 1.7,
               color: 'var(--text, #e8e8f0)',
               fontFamily: 'var(--font-mono, monospace)',
               caretColor: 'var(--accent, #c8963e)',
             }}
           />
 
-          {/* Footer hint */}
+          {/* Footer */}
           <div style={{
-            padding: '8px 14px',
-            borderTop: '1px solid var(--border, #2e3040)',
-            fontSize: 9,
-            color: 'var(--text-muted, #6b6d82)',
+            padding: '8px 14px', borderTop: '1px solid var(--border, #2e3040)',
+            fontSize: 9, color: 'var(--text-muted, #6b6d82)',
             fontFamily: 'var(--font-mono, monospace)',
-            display: 'flex',
-            justifyContent: 'space-between',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
-            <span>auto-saved locally</span>
+            <span>{listening ? '🎙 transcribing…' : 'auto-saved locally'}</span>
             <span>{notes.length} chars</span>
           </div>
         </div>
       )}
+
+      {/* Mic pulse keyframe */}
+      <style>{`
+        @keyframes micPulse {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.4; }
+        }
+      `}</style>
     </>
   )
 }
 
-// Small reusable button styles
 const btn = {
   icon: {
     width: 28, height: 28,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    background: 'transparent',
-    border: '1px solid transparent',
-    borderRadius: 6,
-    color: 'var(--text-muted, #6b6d82)',
-    cursor: 'pointer',
-    transition: 'background 0.12s, color 0.12s',
+    background: 'transparent', border: '1px solid transparent',
+    borderRadius: 6, color: 'var(--text-muted, #6b6d82)',
+    cursor: 'pointer', transition: 'background 0.12s, color 0.12s',
   },
   tool: {
-    width: 28, height: 28,
+    height: 28, width: 28,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     background: 'var(--bg-input, #252731)',
     border: '1px solid var(--border, #2e3040)',
-    borderRadius: 5,
-    color: 'var(--text-dim, #9394a8)',
-    cursor: 'pointer',
-    transition: 'background 0.12s, color 0.12s',
+    borderRadius: 5, color: 'var(--text-dim, #9394a8)',
+    cursor: 'pointer', transition: 'background 0.12s, color 0.12s',
   },
 }
