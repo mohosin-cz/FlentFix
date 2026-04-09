@@ -15,6 +15,7 @@ import RateCard from './pages/RateCard'
 import WorkOrder from './pages/WorkOrder'
 import ResetPassword from './pages/ResetPassword'
 import Flentfit from './pages/Flentfit'
+import SOPs from './pages/SOPs'
 
 export default function App() {
   return (
@@ -116,6 +117,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Flentfit />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/sops"
+            element={
+              <ProtectedRoute>
+                <SOPs />
               </ProtectedRoute>
             }
           />

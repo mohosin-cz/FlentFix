@@ -197,6 +197,18 @@ const TILES = [
       </svg>
     ),
   },
+  {
+    id: 'sops', label: 'Find SOPs', desc: 'Standard operating procedures',
+    route: '/sops',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <rect x="4" y="2" width="13" height="18" rx="2" stroke="currentColor" strokeWidth="1.6"/>
+        <path d="M8 7h6M8 10.5h6M8 14h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        <circle cx="18" cy="18" r="4" fill="var(--accent, #c8963e)"/>
+        <path d="M16 18h4M18 16v4" stroke="#fff" strokeWidth="1.6" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
 ]
 
 export default function Dashboard() {
@@ -258,7 +270,7 @@ export default function Dashboard() {
               key={tile.id}
               className={`animate-fadeUp stagger-${idx + 1}`}
               onClick={() => navigate(tile.route)}
-              style={s.tile}
+              style={{ ...s.tile, ...(idx === TILES.length - 1 && TILES.length % 2 !== 0 ? s.tileFullWidth : {}) }}
               onMouseEnter={e => {
                 e.currentTarget.style.borderColor = 'var(--accent, #c8963e)'
                 e.currentTarget.style.boxShadow = '0 0 0 1px var(--accent, #c8963e), 0 8px 24px rgba(200,150,62,0.12)'
@@ -417,7 +429,14 @@ const s = {
     color: 'var(--text-muted, #6b6d82)',
     fontFamily: 'var(--font-mono, monospace)',
   },
-  tileGrid: { display: 'flex', flexDirection: 'column', gap: 8 },
+  tileGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+    gap: 8,
+  },
+  tileFullWidth: {
+    gridColumn: '1 / -1',
+  },
   tile: {
     display: 'flex',
     alignItems: 'center',
