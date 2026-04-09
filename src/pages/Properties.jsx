@@ -129,7 +129,7 @@ export default function Properties() {
                 </div>
                 <div style={s.cardRight}>
                   <StatusBadge status={row.status} />
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ marginTop: 8, opacity: 0.3 }}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ opacity: 0.3 }}>
                     <path d="M5 2.5l4.5 4.5L5 11.5" stroke="var(--text, #e8e8f0)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
@@ -198,15 +198,19 @@ const s = {
     color: 'var(--text-muted, #6b6d82)',
     fontSize: 16, cursor: 'pointer', lineHeight: 1, padding: 0,
   },
-  main: { flex: 1, padding: '16px 20px 48px', maxWidth: 600, width: '100%', margin: '0 auto' },
+  main: { flex: 1, padding: '16px 20px 48px', maxWidth: 860, width: '100%', margin: '0 auto' },
   empty: {
     textAlign: 'center', padding: '60px 0',
     fontSize: 13, color: 'var(--text-muted, #6b6d82)',
     fontFamily: 'var(--font-mono, monospace)',
   },
-  list: { display: 'flex', flexDirection: 'column', gap: 8 },
+  list: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+    gap: 10,
+  },
   card: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
     gap: 12, padding: '18px 18px',
     background: 'var(--bg-panel, #1e2028)',
     border: '1px dashed var(--border-dash, #3a3d52)',
@@ -216,9 +220,10 @@ const s = {
     WebkitTapHighlightColor: 'transparent',
     width: '100%', fontFamily: 'inherit',
     color: 'var(--text, #e8e8f0)',
+    minHeight: 110,
   },
-  cardLeft: { display: 'flex', flexDirection: 'column', gap: 5, flex: 1 },
-  cardRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 },
+  cardLeft: { display: 'flex', flexDirection: 'column', gap: 5 },
+  cardRight: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   pidText: {
     fontSize: 18, fontWeight: 700,
     color: 'var(--text, #e8e8f0)',
