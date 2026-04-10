@@ -801,7 +801,8 @@ function OutdoorLightsForm({ data, set }) {
       ) : (<>
 
       {/* Add Lights */}
-      <Field label="Add Lights">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono, monospace)' }}>Add Lights</span>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button type="button" style={addBtnStyle} onClick={() => addLight('Outdoor Light')}>+ Outdoor Light</button>
           <button type="button" style={addBtnStyle} onClick={() => addLight('General Light')}>+ General Light</button>
@@ -809,10 +810,11 @@ function OutdoorLightsForm({ data, set }) {
         {lightItems.map((entry, i) => (
           <LightEntry key={i} entry={entry} index={i} onUpdate={updateLight} onRemove={removeLight} />
         ))}
-      </Field>
+      </div>
 
       {/* Add Switchboard */}
-      <Field label="Add Switchboard">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono, monospace)' }}>Add Switchboard</span>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button type="button" style={addBtnStyle} onClick={() => addSwitchboard('5 Amps')}>+ 5 Amps</button>
           <button type="button" style={addBtnStyle} onClick={() => addSwitchboard('15 Amps')}>+ 15 Amps</button>
@@ -820,7 +822,7 @@ function OutdoorLightsForm({ data, set }) {
         {switchboardItems.map((entry, i) => (
           <SwitchboardEntry key={i} entry={entry} index={i} onUpdate={updateSwitchboard} onRemove={removeSwitchboard} />
         ))}
-      </Field>
+      </div>
 
       {grandTotal > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 6, border: '1px solid var(--border, #2e3040)' }}>
