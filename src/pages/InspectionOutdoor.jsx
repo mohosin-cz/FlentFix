@@ -44,8 +44,8 @@ function isDone(item) {
   if ('health' in item) return item.health !== null
   if ('type'   in item) return item.type !== ''
   if ('status' in item) return item.status !== ''
-  const { addLights = [], repairActions = [], misc = '' } = item
-  return addLights.length > 0 || repairActions.length > 0 || misc !== ''
+  const { lightItems = [], switchboardItems = [], lightCustomItems = [], misc = '' } = item
+  return lightItems.length > 0 || switchboardItems.length > 0 || lightCustomItems.length > 0 || misc !== ''
 }
 
 // ─── Shared form wrappers ─────────────────────────────────────────────────────
@@ -711,46 +711,162 @@ function WaterAutoForm({ data, set, rateCardRows, areaFilter, setRc, issuePreset
   )
 }
 
+// ─── Outdoor Lights — entry sub-cards ────────────────────────────────────────
+function LightEntry({ entry, index, onUpdate, onRemove }) {
+  const total = (parseFloat(entry.materialCost) || 0) + (parseFloat(entry.labourCost) || 0)
+  return (
+    <div style={{ marginTop: 10, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{entry.type}</span>
+        <button type="button" onClick={() => onRemove(index)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 4, background: 'rgba(224,92,106,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
+      </div>
+      <Field label="Material / Description">
+        <Input value={entry.material} onChange={v => onUpdate(index, 'material', v)} placeholder={entry.type === 'Outdoor Light' ? 'e.g. LED Flood Light 30W' : 'e.g. CFL Bulb 15W'} />
+      </Field>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <Field label="Material Cost (₹)">
+          <Input value={entry.materialCost} onChange={v => onUpdate(index, 'materialCost', v)} placeholder="0" type="number" />
+        </Field>
+        <Field label="Labour Cost (₹)">
+          <Input value={entry.labourCost} onChange={v => onUpdate(index, 'labourCost', v)} placeholder="0" type="number" />
+        </Field>
+      </div>
+      {total > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-input, #252731)', borderRadius: 6, border: '1px solid var(--border, #2e3040)' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>Item Total</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>₹{total.toLocaleString('en-IN')}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SwitchboardEntry({ entry, index, onUpdate, onRemove }) {
+  const total = (parseFloat(entry.materialCost) || 0) + (parseFloat(entry.labourCost) || 0)
+  return (
+    <div style={{ marginTop: 10, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{entry.type} Switchboard</span>
+        <button type="button" onClick={() => onRemove(index)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 4, background: 'rgba(224,92,106,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
+      </div>
+      <Field label="Material / Board Name">
+        <Input value={entry.material} onChange={v => onUpdate(index, 'material', v)} placeholder={`e.g. ${entry.type} 4-way switchboard`} />
+      </Field>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <Field label="Material Cost (₹)">
+          <Input value={entry.materialCost} onChange={v => onUpdate(index, 'materialCost', v)} placeholder="0" type="number" />
+        </Field>
+        <Field label="Labour Cost (₹)">
+          <Input value={entry.labourCost} onChange={v => onUpdate(index, 'labourCost', v)} placeholder="0" type="number" />
+        </Field>
+      </div>
+      {total > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-input, #252731)', borderRadius: 6, border: '1px solid var(--border, #2e3040)' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>Item Total</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>₹{total.toLocaleString('en-IN')}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Outdoor Lights ───────────────────────────────────────────────────────────
-function OutdoorLightsForm({ data, set, rateCardRows, areaFilter, setRc, issuePresets = [] }) {
-  const repairs = data.repairActions || []
+function OutdoorLightsForm({ data, set }) {
+  const lightItems      = data.lightItems      || []
+  const switchboardItems = data.switchboardItems || []
+  const lightCustomItems = data.lightCustomItems || []
+
+  function addLight(type) { set('lightItems', [...lightItems, { type, material: '', materialCost: '', labourCost: '' }]) }
+  function updateLight(i, f, v) { const arr = [...lightItems]; arr[i] = { ...arr[i], [f]: v }; set('lightItems', arr) }
+  function removeLight(i) { set('lightItems', lightItems.filter((_, idx) => idx !== i)) }
+
+  function addSwitchboard(type) { set('switchboardItems', [...switchboardItems, { type, material: '', materialCost: '', labourCost: '' }]) }
+  function updateSwitchboard(i, f, v) { const arr = [...switchboardItems]; arr[i] = { ...arr[i], [f]: v }; set('switchboardItems', arr) }
+  function removeSwitchboard(i) { set('switchboardItems', switchboardItems.filter((_, idx) => idx !== i)) }
+
+  function addCustom() { set('lightCustomItems', [...lightCustomItems, { description: '', materialCost: '', labourCost: '' }]) }
+  function updateCustom(i, f, v) { const arr = [...lightCustomItems]; arr[i] = { ...arr[i], [f]: v }; set('lightCustomItems', arr) }
+  function removeCustom(i) { set('lightCustomItems', lightCustomItems.filter((_, idx) => idx !== i)) }
+
+  const grandTotal = [...lightItems, ...switchboardItems, ...lightCustomItems]
+    .reduce((sum, e) => sum + (parseFloat(e.materialCost) || 0) + (parseFloat(e.labourCost) || 0), 0)
+
+  const addBtnStyle = {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '8px 14px', border: '1px dashed var(--border-dash, #3a3d52)',
+    borderRadius: 6, background: 'var(--bg-input, #252731)',
+    color: 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)',
+  }
+
   return (
     <div style={FF}>
       {data.notAvailable ? (
         <NotAvailableNote value={data.notAvailableNote} onChange={v => set('notAvailableNote', v)} />
       ) : (<>
-      {issuePresets.length > 0 && (
-        <IssueDescriptionField presets={issuePresets} value={data.issueDescription || ''} onChange={v => set('issueDescription', v)} />
-      )}
+
+      {/* Add Lights */}
       <Field label="Add Lights">
-        <PillGroup
-          options={['Outdoor Light', 'General Light']}
-          value={data.addLights}
-          onChange={v => set('addLights', v)}
-          multi
-        />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" style={addBtnStyle} onClick={() => addLight('Outdoor Light')}>+ Outdoor Light</button>
+          <button type="button" style={addBtnStyle} onClick={() => addLight('General Light')}>+ General Light</button>
+        </div>
+        {lightItems.map((entry, i) => (
+          <LightEntry key={i} entry={entry} index={i} onUpdate={updateLight} onRemove={removeLight} />
+        ))}
       </Field>
-      <Field label="Repair Lights">
-        <PillGroup
-          options={['Labour Cost', 'Add Bulb']}
-          value={data.repairActions}
-          onChange={v => set('repairActions', v)}
-          multi
-        />
-      </Field>
-      {repairs.includes('Labour Cost') && (
-        <Field label="Labour Cost Amount">
-          <Input value={data.labourCost} onChange={v => set('labourCost', v)} placeholder="₹ Amount" />
-        </Field>
-      )}
+
+      {/* Add Switchboard */}
       <Field label="Add Switchboard">
-        <PillGroup
-          options={['5 Amps', '15 Amps']}
-          value={data.switchboard}
-          onChange={v => set('switchboard', v)}
-          multi
-        />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" style={addBtnStyle} onClick={() => addSwitchboard('5 Amps')}>+ 5 Amps</button>
+          <button type="button" style={addBtnStyle} onClick={() => addSwitchboard('15 Amps')}>+ 15 Amps</button>
+        </div>
+        {switchboardItems.map((entry, i) => (
+          <SwitchboardEntry key={i} entry={entry} index={i} onUpdate={updateSwitchboard} onRemove={removeSwitchboard} />
+        ))}
       </Field>
+
+      {/* Custom Item */}
+      <Field label="Custom Item" optional>
+        <button type="button" style={addBtnStyle} onClick={addCustom}>+ Add Custom Item</button>
+        {lightCustomItems.map((item, i) => {
+          const rowTotal = (parseFloat(item.materialCost) || 0) + (parseFloat(item.labourCost) || 0)
+          return (
+            <div key={i} style={{ marginTop: 10, background: 'var(--bg-panel, #1e2028)', border: '1px dashed var(--accent, #c8963e)', borderRadius: 8, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>custom item</span>
+                <button type="button" onClick={() => removeCustom(i)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 4, background: 'rgba(224,92,106,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
+              </div>
+              <Field label="Description">
+                <Input value={item.description} onChange={v => updateCustom(i, 'description', v)} placeholder="e.g. Wiring fix, fitting replacement…" />
+              </Field>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <Field label="Material Cost (₹)">
+                  <Input value={item.materialCost} onChange={v => updateCustom(i, 'materialCost', v)} placeholder="0" type="number" />
+                </Field>
+                <Field label="Labour Cost (₹)">
+                  <Input value={item.labourCost} onChange={v => updateCustom(i, 'labourCost', v)} placeholder="0" type="number" />
+                </Field>
+              </div>
+              {rowTotal > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-input, #252731)', borderRadius: 6, border: '1px solid var(--border, #2e3040)' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>Item Total</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>₹{rowTotal.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </Field>
+
+      {grandTotal > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 6, border: '1px solid var(--border, #2e3040)' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Total Cost</span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--text, #e8e8f0)' }}>₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
+        </div>
+      )}
+
       <Field label="Attach Photos / Videos" optional>
         <MediaUpload files={data.media} onChange={v => set('media', v)} />
       </Field>
@@ -1044,7 +1160,7 @@ const SECTIONS = {
     { key: 'pressurePump',      title: 'Pressure Pump',    badge: null,                   Form: WaterPumpForm,  areaFilter: 'pressure pump',       issuePresets: ISSUE_PRESETS.waterPump },
   ],
   electricals: [
-    { key: 'outdoorLights', title: 'Outdoor Lights', badge: null, Form: OutdoorLightsForm, areaFilter: ['outdoor light', 'lights'], issuePresets: ISSUE_PRESETS.outdoorLights },
+    { key: 'outdoorLights', title: 'Outdoor Lights', badge: null, Form: OutdoorLightsForm, areaFilter: ['outdoor light', 'lights'], issuePresets: [] },
     { key: 'mainDB',        title: 'Main DB',         badge: null, Form: MainDBForm,        areaFilter: 'main db',                   issuePresets: ISSUE_PRESETS.mainDB },
     { key: 'meterInfo',     title: 'Meter Info',      badge: null, Form: MeterInfoForm,     areaFilter: 'meter',                     issuePresets: [] },
   ],
@@ -1064,7 +1180,7 @@ const auto    = () => ({ notAvailable: false, notAvailableNote: '', issueDescrip
 
 const INITIAL = {
   utility:     { waterPumpPrimary: pump(), sumpTankPrimary: tank(), overheadTank: tank(), sumpTankSecondary: tank(), borewellMotor: pump(), waterAutomation: auto(), pressurePump: pump() },
-  electricals: { outdoorLights: { notAvailable: false, notAvailableNote: '', issueDescription: '', addLights: [], repairActions: [], labourCost: '', switchboard: [], misc: '', media: [], rc: rc() }, mainDB: { notAvailable: false, notAvailableNote: '', issueDescription: '', status: '', media: [], comments: '', rc: rc() }, meterInfo: { type: '', rc: rc() } },
+  electricals: { outdoorLights: { notAvailable: false, notAvailableNote: '', lightItems: [], switchboardItems: [], lightCustomItems: [], misc: '', media: [], rc: rc() }, mainDB: { notAvailable: false, notAvailableNote: '', issueDescription: '', status: '', media: [], comments: '', rc: rc() }, meterInfo: { type: '', rc: rc() } },
   security:    { cctvCamera: { notAvailable: false, notAvailableNote: '', issueDescription: '', status: '', media: [], functional: '', comments: '', rc: rc() }, gateLock: { notAvailable: false, notAvailableNote: '', issueDescription: '', status: '', media: [], functional: '', comments: '', rc: rc() } },
 }
 
@@ -1229,6 +1345,30 @@ export default function InspectionOutdoor() {
           mediaArrays.push([])
           return
         }
+
+        // Expand outdoor lights into per-item line items
+        if (Array.isArray(item.lightItems) || Array.isArray(item.switchboardItems) || Array.isArray(item.lightCustomItems)) {
+          const sectionMedia = Array.isArray(item.media) ? item.media.filter(f => f instanceof File) : []
+          const allEntries = [
+            ...(item.lightItems      || []).map(e => ({ area: e.type || 'Light',           desc: e.material || e.type || 'Light',              mat: parseFloat(e.materialCost) || 0, lab: parseFloat(e.labourCost) || 0 })),
+            ...(item.switchboardItems || []).map(e => ({ area: `${e.type} Switchboard`,    desc: e.material || `${e.type} Switchboard`,          mat: parseFloat(e.materialCost) || 0, lab: parseFloat(e.labourCost) || 0 })),
+            ...(item.lightCustomItems || []).map(e => ({ area: e.description || 'Custom',  desc: e.description || 'Custom Item',                 mat: parseFloat(e.materialCost) || 0, lab: parseFloat(e.labourCost) || 0 })),
+          ]
+          if (allEntries.length === 0) {
+            // nothing added — push a placeholder if misc/media exists
+            if (item.misc || sectionMedia.length) {
+              lineItemRows.push({ inspection_id: inspectionId, section_name: sectionName, area: title, issue_description: item.misc || 'Outdoor Lights checked', material_cost: 0, labour_cost: 0, item_score: 5 })
+              mediaArrays.push(sectionMedia)
+            }
+          } else {
+            allEntries.forEach((e, idx) => {
+              lineItemRows.push({ inspection_id: inspectionId, section_name: sectionName, area: e.area, issue_description: e.desc, material_cost: e.mat, labour_cost: e.lab, item_score: 5 })
+              mediaArrays.push(idx === 0 ? sectionMedia : [])
+            })
+          }
+          return
+        }
+
         const costs = getItemCosts(item)
         lineItemRows.push({
           inspection_id:     inspectionId,
