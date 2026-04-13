@@ -1223,6 +1223,8 @@ export default function InspectionOutdoor() {
   const [rateCardRows, setRateCardRows] = useState([])
   const [isEstimating, setIsEstimating] = useState(false)
   const [estimateError, setEstimateError] = useState('')
+  const [savedFlash,   setSavedFlash]   = useState(false)
+  const flashTimer = useRef(null)
 
   // ── Fetch rate card ──
   useEffect(() => {
@@ -1231,13 +1233,16 @@ export default function InspectionOutdoor() {
       .then(({ data: rows }) => { if (rows) setRateCardRows(rows) })
   }, [])
 
-  // ── Auto-save draft to localStorage (strips File objects) ──
+  // ── Auto-save draft to localStorage on every change ──
   useEffect(() => {
     if (!pid) return
     localStorage.setItem(
       `flentfix_outdoor_draft_${pid}`,
       JSON.stringify({ data: stripFiles(data), customItems: stripFiles(customItems) })
     )
+    clearTimeout(flashTimer.current)
+    setSavedFlash(true)
+    flashTimer.current = setTimeout(() => setSavedFlash(false), 2000)
   }, [data, customItems])
 
   if (!pid) return null
@@ -1417,14 +1422,27 @@ export default function InspectionOutdoor() {
         subtitle={`${pid} · ${state.layout}`}
         onBack={() => navigate('/inspections/mode', { state })}
         right={
-          <div style={{ fontSize: 11, fontWeight: 700, color: progress === 100 ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>
-            {progress}%
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: progress === 100 ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>
+              {progress}%
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', opacity: savedFlash ? 1 : 0, transition: 'opacity 0.4s ease' }}>
+              draft saved
+            </div>
           </div>
         }
       />
 
       <div style={{ height: 2, background: 'var(--border, #2e3040)' }}>
         <div style={{ height: '100%', background: 'var(--accent, #c8963e)', width: `${progress}%`, transition: 'width 0.4s ease' }} />
+      </div>
+
+      {/* Auto-save pill */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '6px 16px 0', maxWidth: 600, margin: '0 auto', width: '100%' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green, #3dba7a)', display: 'inline-block', opacity: 0.7 }} />
+          auto-saving draft
+        </span>
       </div>
 
       <TabBar tabs={TABS} active={tab} onChange={handleTabChange} counts={counts} />

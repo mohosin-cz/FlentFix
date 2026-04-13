@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { StickyFooter, BtnPrimary } from '../components/ui'
 import QuickNotes from '../components/QuickNotes'
@@ -29,6 +29,17 @@ export default function InspectionRooms() {
 
   const [step,  setStep]  = useState(0)
   const [rooms, setRooms] = useState(roomNames.map(emptyRoom))
+  const [savedFlash, setSavedFlash] = useState(false)
+  const flashTimer = useRef(null)
+
+  // Auto-save draft on every room change
+  useEffect(() => {
+    if (!pid) return
+    localStorage.setItem(`flentfix_draft_${pid}`, JSON.stringify({ rooms }))
+    clearTimeout(flashTimer.current)
+    setSavedFlash(true)
+    flashTimer.current = setTimeout(() => setSavedFlash(false), 2000)
+  }, [rooms])
 
   const current   = rooms[step]
   const total     = rooms.length
@@ -76,7 +87,9 @@ export default function InspectionRooms() {
           <span style={s.headerTitle}>{current.name}</span>
           <span style={s.headerSub}>Room {step + 1} of {total}</span>
         </div>
-        <div style={{ width: 36 }} />
+        <div style={{ width: 36, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+          <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', opacity: savedFlash ? 1 : 0, transition: 'opacity 0.4s ease', whiteSpace: 'nowrap' }}>draft saved</span>
+        </div>
       </header>
 
       {/* progress bar */}

@@ -181,7 +181,7 @@ const TILES = [
     ),
   },
   {
-    id: 'rate', label: 'Rate Card', desc: 'View pricing and rates',
+    id: 'rate', label: 'Explore Inventory', desc: 'View pricing and rates',
     route: '/rate-card',
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
