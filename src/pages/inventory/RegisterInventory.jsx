@@ -22,7 +22,6 @@ function blankItem() {
 
 const today = new Date().toISOString().split('T')[0]
 
-// ── UI helpers ──────────────────────────────────────────────────────────────
 function Label({ children, optional }) {
   return (
     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono, monospace)', display: 'block', marginBottom: 6 }}>
@@ -31,14 +30,10 @@ function Label({ children, optional }) {
   )
 }
 
-function Inp({ value, onChange, placeholder, type = 'text', style = {} }) {
+function Inp({ value, onChange, placeholder, type = 'text' }) {
   return (
-    <input
-      type={type}
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder={placeholder}
-      style={{ width: '100%', padding: '9px 12px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', ...style }}
+    <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      style={{ width: '100%', padding: '9px 12px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
     />
   )
 }
@@ -46,11 +41,8 @@ function Inp({ value, onChange, placeholder, type = 'text', style = {} }) {
 function Sel({ value, onChange, options, placeholder }) {
   return (
     <div style={{ position: 'relative' }}>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        style={{ width: '100%', padding: '9px 32px 9px 12px', fontSize: 13, color: value ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, outline: 'none', appearance: 'none', fontFamily: 'inherit', cursor: 'pointer' }}
-      >
+      <select value={value} onChange={e => onChange(e.target.value)}
+        style={{ width: '100%', padding: '9px 32px 9px 12px', fontSize: 13, color: value ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, outline: 'none', appearance: 'none', fontFamily: 'inherit', cursor: 'pointer' }}>
         <option value="">{placeholder}</option>
         {options.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
@@ -61,10 +53,62 @@ function Sel({ value, onChange, options, placeholder }) {
   )
 }
 
+function StepBar({ step }) {
+  return (
+    <div style={{ padding: '10px 20px', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', display: 'flex', alignItems: 'center', gap: 10 }}>
+      {[1, 2].map(n => (
+        <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', background: step === n ? 'var(--accent, #c8963e)' : step > n ? 'var(--green, #3dba7a)' : 'var(--bg-input, #252731)', color: step >= n ? '#fff' : 'var(--text-muted, #6b6d82)', border: step >= n ? 'none' : '1px solid var(--border, #2e3040)' }}>
+            {step > n ? '✓' : n}
+          </div>
+          <span style={{ fontSize: 11, fontWeight: step === n ? 600 : 400, color: step === n ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+            {n === 1 ? 'Purchase Details' : 'Log Items'}
+          </span>
+          {n < 2 && <div style={{ width: 24, height: 1, background: 'var(--border, #2e3040)', marginLeft: 2 }} />}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function downloadTemplate() {
+  const csv = 'Item Name,Qty,Spec,Size,Price Inc.\n,,,,\n,,,,\n,,,,\n'
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = 'flentfix_inventory_template.csv'; a.click()
+  URL.revokeObjectURL(url)
+}
+
+async function parseUploadedFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = e => {
+      try {
+        const text = e.target.result
+        // Simple CSV parser (handles .csv; for .xlsx we'd need SheetJS)
+        const lines = text.trim().split('\n').slice(1) // skip header
+        const items = lines
+          .map(line => {
+            const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
+            return { itemName: cols[0] || '', qty: cols[1] || '', spec: cols[2] || '', size: cols[3] || '', priceInc: cols[4] || '' }
+          })
+          .filter(it => it.itemName)
+        resolve(items)
+      } catch (err) { reject(err) }
+    }
+    reader.onerror = reject
+    // For xlsx: ideally use SheetJS, but read as text for csv
+    reader.readAsText(file)
+  })
+}
+
 export default function RegisterInventory() {
   const navigate = useNavigate()
   const invoiceRef = useRef(null)
+  const uploadRef  = useRef(null)
 
+  const [step, setStep]                 = useState(1)
   const [purchaseDate, setPurchaseDate] = useState(today)
   const [trade, setTrade]               = useState('')
   const [totalAmount, setTotalAmount]   = useState('')
@@ -76,18 +120,33 @@ export default function RegisterInventory() {
   function updateItem(i, field, value) {
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: value } : it))
   }
-
   function addItem() { setItems(prev => [...prev, blankItem()]) }
   function removeItem(i) { setItems(prev => prev.filter((_, idx) => idx !== i)) }
 
+  function handleContinue() {
+    if (!trade) { setError('Please select a trade.'); return }
+    if (!purchaseDate) { setError('Please enter a purchase date.'); return }
+    setError('')
+    setStep(2)
+  }
+
+  async function handleFileUpload(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    try {
+      const parsed = await parseUploadedFile(file)
+      if (parsed.length) setItems(prev => [...prev.filter(it => it.itemName), ...parsed])
+    } catch {
+      setError('Could not parse file. Please use the CSV template.')
+    }
+    e.target.value = ''
+  }
+
   async function handleSubmit() {
-    if (!trade || !purchaseDate) { setError('Trade and purchase date are required.'); return }
     if (items.some(it => !it.itemName)) { setError('All items must have a name.'); return }
     setSubmitting(true)
     setError('')
-
     try {
-      // 1. Upload invoice
       let invoiceUrl = null
       if (invoiceFile) {
         const path = `${Date.now()}-${invoiceFile.name}`
@@ -98,19 +157,16 @@ export default function RegisterInventory() {
         }
       }
 
-      // 2. Insert registry record
       const { data: reg, error: regErr } = await supabase
         .from('inventory_registry')
         .insert({ purchase_date: purchaseDate, trade: trade.toLowerCase(), total_amount: parseFloat(totalAmount) || 0, invoice_url: invoiceUrl })
         .select('id').single()
       if (regErr) throw regErr
 
-      // 3. Build FXINs (handle duplicates)
       const fxinCounts = {}
       const itemRows = []
       for (const it of items) {
         const baseFxin = generateFXIN(trade, it.itemName, it.qty || 1)
-        // Check if FXIN exists
         const { count } = await supabase.from('inventory_items').select('id', { count: 'exact', head: true }).like('fxin', `${baseFxin}%`)
         const suffix = (count || 0) + (fxinCounts[baseFxin] || 0)
         fxinCounts[baseFxin] = (fxinCounts[baseFxin] || 0) + 1
@@ -118,18 +174,16 @@ export default function RegisterInventory() {
         itemRows.push({ registry_id: reg.id, fxin, item_name: it.itemName, qty: parseInt(it.qty) || 1, spec: it.spec, size: it.size, price_inc: parseFloat(it.priceInc) || 0, trade: trade.toLowerCase() })
       }
 
-      // 4. Insert items
       const { data: inserted, error: itemErr } = await supabase.from('inventory_items').insert(itemRows).select('fxin, item_name, price_inc')
       if (itemErr) throw itemErr
 
-      // 5. Upsert internal rate card
       for (const row of inserted) {
         const { data: existing } = await supabase.from('internal_rate_card').select('avg_cost, purchase_count').eq('fxin', row.fxin).single()
-        const count = (existing?.purchase_count || 0) + 1
-        const avg = existing ? ((existing.avg_cost * existing.purchase_count) + row.price_inc) / count : row.price_inc
+        const cnt = (existing?.purchase_count || 0) + 1
+        const avg = existing ? ((existing.avg_cost * existing.purchase_count) + row.price_inc) / cnt : row.price_inc
         await supabase.from('internal_rate_card').upsert({
           fxin: row.fxin, trade: trade.toLowerCase(), item_name: row.item_name,
-          last_price: row.price_inc, avg_cost: Math.round(avg * 100) / 100, purchase_count: count,
+          last_price: row.price_inc, avg_cost: Math.round(avg * 100) / 100, purchase_count: cnt,
         }, { onConflict: 'fxin' })
       }
 
@@ -143,100 +197,140 @@ export default function RegisterInventory() {
   return (
     <div style={s.page}>
       <header style={s.header}>
-        <button style={s.backBtn} onClick={() => navigate('/inventory')}>
+        <button style={s.backBtn} onClick={() => step === 1 ? navigate('/inventory') : setStep(1)}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M12 5l-5 5 5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
         <div style={s.headerCenter}>
           <span style={s.headerTitle}>Register Inventory</span>
-          <span style={s.headerSub}>log purchase</span>
+          <span style={s.headerSub}>Step {step} of 2 — {step === 1 ? 'Purchase Details' : 'Log Items'}</span>
         </div>
         <div style={{ width: 36 }} />
       </header>
 
+      <StepBar step={step} />
+
       <div style={s.main}>
-        {/* ── Purchase details ── */}
-        <div style={s.card}>
-          <p style={s.section}>Purchase Details</p>
-          <div style={s.row2}>
-            <div>
-              <Label>Date of Purchase</Label>
-              <Inp type="date" value={purchaseDate} onChange={setPurchaseDate} />
-            </div>
-            <div>
-              <Label>Trade</Label>
-              <Sel value={trade} onChange={setTrade} options={TRADES} placeholder="Select trade…" />
-            </div>
-          </div>
-          <div style={{ marginTop: 14 }}>
-            <Label>Total Amount ₹</Label>
-            <Inp type="number" value={totalAmount} onChange={setTotalAmount} placeholder="0.00" />
-          </div>
-          <div style={{ marginTop: 14 }}>
-            <Label optional>Invoice</Label>
-            <input ref={invoiceRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => setInvoiceFile(e.target.files[0] || null)} />
-            <button type="button" onClick={() => invoiceRef.current?.click()} style={{ ...s.uploadBtn, borderColor: invoiceFile ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)', color: invoiceFile ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', background: invoiceFile ? 'rgba(61,186,122,0.06)' : 'var(--bg-input, #252731)' }}>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 11v2a1 1 0 001 1h12a1 1 0 001-1v-2M8 1v9M5 4l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              {invoiceFile ? invoiceFile.name : 'Attach Invoice'}
-            </button>
-          </div>
-        </div>
 
-        {/* ── Line items ── */}
-        <div style={s.card}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <p style={{ ...s.section, margin: 0 }}>Items Purchased</p>
-            <button type="button" onClick={addItem} style={s.addBtn}>+ Add Item</button>
-          </div>
-
-          {items.map((item, i) => {
-            const fxin = trade && item.itemName ? generateFXIN(trade, item.itemName, item.qty || 1) : null
-            return (
-              <div key={i} style={s.itemCard}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={s.itemNum}>#{i + 1}</span>
-                    {fxin && <span style={s.fxinBadge}>{fxin}</span>}
-                  </div>
-                  {items.length > 1 && (
-                    <button type="button" onClick={() => removeItem(i)} style={s.removeBtn}>× remove</button>
-                  )}
-                </div>
-                <div style={s.row2}>
-                  <div>
-                    <Label>Item Name</Label>
-                    <Inp value={item.itemName} onChange={v => updateItem(i, 'itemName', v)} placeholder="e.g. MCB 32A" />
-                  </div>
-                  <div>
-                    <Label>Qty</Label>
-                    <Inp type="number" value={item.qty} onChange={v => updateItem(i, 'qty', v)} placeholder="1" />
-                  </div>
-                </div>
-                <div style={{ ...s.row2, marginTop: 10 }}>
-                  <div>
-                    <Label optional>Spec</Label>
-                    <Inp value={item.spec} onChange={v => updateItem(i, 'spec', v)} placeholder="e.g. 10kA, Type B" />
-                  </div>
-                  <div>
-                    <Label optional>Size</Label>
-                    <Inp value={item.size} onChange={v => updateItem(i, 'size', v)} placeholder="e.g. 25mm" />
-                  </div>
-                </div>
-                <div style={{ marginTop: 10 }}>
-                  <Label>Price Inc. ₹</Label>
-                  <Inp type="number" value={item.priceInc} onChange={v => updateItem(i, 'priceInc', v)} placeholder="0.00" />
-                </div>
+        {/* ── STEP 1 ── */}
+        {step === 1 && (
+          <div style={s.card}>
+            <p style={s.sectionLabel}>Purchase Details</p>
+            <div style={s.row2}>
+              <div>
+                <Label>Date of Purchase</Label>
+                <Inp type="date" value={purchaseDate} onChange={setPurchaseDate} />
               </div>
-            )
-          })}
-        </div>
+              <div>
+                <Label>Trade</Label>
+                <Sel value={trade} onChange={setTrade} options={TRADES} placeholder="Select trade…" />
+              </div>
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <Label>Total Amount ₹</Label>
+              <Inp type="number" value={totalAmount} onChange={setTotalAmount} placeholder="0.00" />
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <Label optional>Invoice</Label>
+              <input ref={invoiceRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => setInvoiceFile(e.target.files[0] || null)} />
+              <button type="button" onClick={() => invoiceRef.current?.click()} style={{ ...s.uploadBtn, borderColor: invoiceFile ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)', color: invoiceFile ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', background: invoiceFile ? 'rgba(61,186,122,0.06)' : 'var(--bg-input, #252731)' }}>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 11v2a1 1 0 001 1h12a1 1 0 001-1v-2M8 1v9M5 4l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                {invoiceFile ? invoiceFile.name : 'Attach Invoice'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 2 ── */}
+        {step === 2 && (
+          <>
+            {/* Summary bar */}
+            <div style={s.summaryBar}>
+              <span style={s.summaryLabel}>Purchase:</span>
+              <span style={s.summaryVal}>{trade}</span>
+              <span style={s.summaryDot}>·</span>
+              <span style={s.summaryVal}>{new Date(purchaseDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+              {totalAmount && <><span style={s.summaryDot}>·</span><span style={s.summaryVal}>₹{parseFloat(totalAmount).toLocaleString('en-IN')}</span></>}
+            </div>
+
+            <div style={s.card}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <p style={{ ...s.sectionLabel, margin: 0 }}>Items Purchased</p>
+                <button type="button" onClick={addItem} style={s.addBtn}>+ Add Item</button>
+              </div>
+
+              {/* Bulk upload tools */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <button type="button" onClick={downloadTemplate} style={s.bulkBtn}>
+                  ⬇ Download Template
+                </button>
+                <input ref={uploadRef} type="file" accept=".csv,.xlsx" style={{ display: 'none' }} onChange={handleFileUpload} />
+                <button type="button" onClick={() => uploadRef.current?.click()} style={s.bulkBtn}>
+                  ⬆ Upload CSV
+                </button>
+              </div>
+
+              {items.map((item, i) => {
+                const fxin = trade && item.itemName ? generateFXIN(trade, item.itemName, item.qty || 1) : null
+                return (
+                  <div key={i} style={s.itemCard}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <span style={s.itemNum}>#{i + 1}</span>
+                      {items.length > 1 && (
+                        <button type="button" onClick={() => removeItem(i)} style={s.removeBtn}>× remove</button>
+                      )}
+                    </div>
+                    <div style={s.row2}>
+                      <div>
+                        <Label>Item Name</Label>
+                        <Inp value={item.itemName} onChange={v => updateItem(i, 'itemName', v)} placeholder="e.g. MCB 32A" />
+                      </div>
+                      <div>
+                        <Label>Qty</Label>
+                        <Inp type="number" value={item.qty} onChange={v => updateItem(i, 'qty', v)} placeholder="1" />
+                      </div>
+                    </div>
+                    {/* FXIN badge — updates live */}
+                    {fxin && (
+                      <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>FXIN</span>
+                        <span style={s.fxinBadge}>{fxin}</span>
+                      </div>
+                    )}
+                    <div style={{ ...s.row2, marginTop: 10 }}>
+                      <div>
+                        <Label optional>Spec</Label>
+                        <Inp value={item.spec} onChange={v => updateItem(i, 'spec', v)} placeholder="e.g. 10kA, Type B" />
+                      </div>
+                      <div>
+                        <Label optional>Size</Label>
+                        <Inp value={item.size} onChange={v => updateItem(i, 'size', v)} placeholder="e.g. 25mm" />
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 10 }}>
+                      <Label>Price Inc. ₹</Label>
+                      <Inp type="number" value={item.priceInc} onChange={v => updateItem(i, 'priceInc', v)} placeholder="0.00" />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
 
         {error && <div style={s.errorBox}>{error}</div>}
 
-        <button type="button" onClick={handleSubmit} disabled={submitting} style={{ ...s.submitBtn, opacity: submitting ? 0.6 : 1 }}>
-          {submitting ? 'Saving…' : 'Save Purchase →'}
-        </button>
+        {step === 1 && (
+          <button type="button" onClick={handleContinue} style={s.submitBtn}>
+            Continue →
+          </button>
+        )}
+        {step === 2 && (
+          <button type="button" onClick={handleSubmit} disabled={submitting} style={{ ...s.submitBtn, opacity: submitting ? 0.6 : 1 }}>
+            {submitting ? 'Saving…' : 'Save Purchase →'}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -251,9 +345,14 @@ const s = {
   headerSub: { fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' },
   main: { flex: 1, padding: '20px 20px 48px', maxWidth: 600, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 },
   card: { background: 'var(--bg-panel, #1e2028)', borderRadius: 10, padding: '18px 18px 20px', border: '1px solid var(--border, #2e3040)' },
-  section: { fontSize: 11, fontWeight: 700, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)', marginBottom: 16 },
+  sectionLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)', marginBottom: 16 },
   row2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
+  summaryBar: { display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'rgba(200,150,62,0.07)', border: '1px solid rgba(200,150,62,0.2)', borderRadius: 8, flexWrap: 'wrap' },
+  summaryLabel: { fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.06em' },
+  summaryVal: { fontSize: 12, fontWeight: 600, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' },
+  summaryDot: { fontSize: 12, color: 'var(--text-muted, #6b6d82)' },
   uploadBtn: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', border: '1px dashed', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' },
+  bulkBtn: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', border: '1px solid var(--border, #2e3040)', borderRadius: 6, background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' },
   addBtn: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', border: '1px dashed var(--accent, #c8963e)', borderRadius: 6, background: 'rgba(200,150,62,0.06)', color: 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' },
   itemCard: { background: 'var(--bg-input, #252731)', borderRadius: 8, padding: 14, border: '1px solid var(--border, #2e3040)', marginBottom: 12 },
   itemNum: { fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' },
