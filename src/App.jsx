@@ -13,6 +13,11 @@ import Properties from './pages/Properties'
 import PropertyDetail from './pages/PropertyDetail'
 import PropertyBin from './pages/PropertyBin'
 import RateCard from './pages/RateCard'
+import ExploreInventory from './pages/inventory/ExploreInventory'
+import RegisterInventory from './pages/inventory/RegisterInventory'
+import PublicRateCard from './pages/inventory/PublicRateCard'
+import InternalRateCard from './pages/inventory/InternalRateCard'
+import PurchaseHistory from './pages/inventory/PurchaseHistory'
 import WorkOrder from './pages/WorkOrder'
 import ResetPassword from './pages/ResetPassword'
 import Flentfit from './pages/Flentfit'
@@ -114,6 +119,11 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/inventory" element={<ProtectedRoute><ExploreInventory /></ProtectedRoute>} />
+          <Route path="/inventory/register" element={<ProtectedRoute><RegisterInventory /></ProtectedRoute>} />
+          <Route path="/inventory/public-rc" element={<ProtectedRoute><PublicRateCard /></ProtectedRoute>} />
+          <Route path="/inventory/internal-rc" element={<ProtectedRoute><InternalRateCard /></ProtectedRoute>} />
+          <Route path="/inventory/history" element={<ProtectedRoute><PurchaseHistory /></ProtectedRoute>} />
           <Route
             path="/work-order"
             element={
