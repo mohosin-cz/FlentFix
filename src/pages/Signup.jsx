@@ -1,44 +1,75 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import PixelLogo from '../components/PixelLogo'
 
-export default function Login() {
-  const navigate = useNavigate()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+export default function Signup() {
+  const [fullName, setFullName]         = useState('')
+  const [email, setEmail]               = useState('')
+  const [password, setPassword]         = useState('')
+  const [confirmPassword, setConfirm]   = useState('')
+  const [error, setError]               = useState('')
+  const [loading, setLoading]           = useState(false)
+  const [submitted, setSubmitted]       = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+
     setLoading(true)
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: fullName } },
+    })
+
     if (error) {
       setError(error.message)
       setLoading(false)
-      return
-    }
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('status')
-      .eq('id', data.user.id)
-      .single()
-    if (profile?.status !== 'approved') {
+    } else {
+      // Always sign out immediately — account needs admin approval before access
       await supabase.auth.signOut()
-      setError('Your account is pending approval. Contact mohosin@flent.in')
-      setLoading(false)
-      return
+      setSubmitted(true)
     }
-    navigate('/', { replace: true })
+  }
+
+  if (submitted) {
+    return (
+      <div style={s.page}>
+        <div style={s.card}>
+          <div style={s.logoWrap}>
+            <PixelLogo bg={null} width={160} height={38} />
+          </div>
+
+          <div style={s.successWrap}>
+            <div style={s.successIcon}>✓</div>
+            <p style={s.successTitle}>Request submitted</p>
+            <p style={s.successBody}>
+              Your account is pending approval.<br />
+              You'll receive an email once your account is approved.
+            </p>
+            <Link to="/login" style={s.backLink}>← Back to Sign In</Link>
+          </div>
+
+          <p style={s.footer}>flentfix v1.0 · Product Operations</p>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div style={s.page}>
       <div style={s.card}>
 
-        {/* Pixel wordmark */}
         <div style={s.logoWrap}>
           <PixelLogo bg={null} width={160} height={38} />
         </div>
@@ -46,6 +77,20 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} style={s.form} noValidate>
           {error && <div style={s.errorBox}>{error}</div>}
+
+          <div style={s.fieldGroup}>
+            <label style={s.label} htmlFor="fullName">full name</label>
+            <input
+              id="fullName"
+              type="text"
+              autoComplete="name"
+              style={s.input}
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              placeholder="Your name"
+              required
+            />
+          </div>
 
           <div style={s.fieldGroup}>
             <label style={s.label} htmlFor="email">email</label>
@@ -66,10 +111,24 @@ export default function Login() {
             <input
               id="password"
               type="password"
-              autoComplete="current-password"
+              autoComplete="new-password"
               style={s.input}
               value={password}
               onChange={e => setPassword(e.target.value)}
+              placeholder="min 8 characters"
+              required
+            />
+          </div>
+
+          <div style={s.fieldGroup}>
+            <label style={s.label} htmlFor="confirm">confirm password</label>
+            <input
+              id="confirm"
+              type="password"
+              autoComplete="new-password"
+              style={s.input}
+              value={confirmPassword}
+              onChange={e => setConfirm(e.target.value)}
               placeholder="••••••••"
               required
             />
@@ -85,15 +144,13 @@ export default function Login() {
             }}
             disabled={loading}
           >
-            {loading ? '// AUTHENTICATING…' : 'SIGN IN →'}
+            {loading ? '// SUBMITTING…' : 'REQUEST ACCESS →'}
           </button>
         </form>
 
         <p style={{ ...s.footer, marginTop: 20 }}>
-          Don't have an account?{' '}
-          <Link to="/signup" style={{ color: 'var(--accent, #c8963e)', textDecoration: 'none', fontWeight: 600 }}>
-            Request access →
-          </Link>
+          Already have an account?{' '}
+          <Link to="/login" style={s.link}>Sign in →</Link>
         </p>
 
         <p style={s.footer}>flentfix v1.0 · Product Operations</p>
@@ -159,6 +216,7 @@ const s = {
     outline: 'none',
     width: '100%',
     transition: 'border-color 0.15s',
+    boxSizing: 'border-box',
   },
   errorBox: {
     background: 'rgba(224,92,106,0.10)',
@@ -181,8 +239,54 @@ const s = {
     marginTop: 4,
     transition: 'background 0.15s, opacity 0.15s',
   },
+  successWrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    textAlign: 'center',
+    padding: '8px 0 20px',
+  },
+  successIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: '50%',
+    background: 'rgba(61,186,122,0.12)',
+    border: '1px solid rgba(61,186,122,0.35)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 22,
+    color: 'var(--green, #3dba7a)',
+    marginBottom: 16,
+  },
+  successTitle: {
+    margin: '0 0 10px',
+    fontSize: 16,
+    fontWeight: 700,
+    color: 'var(--text, #e8e8f0)',
+    fontFamily: 'var(--font-mono, monospace)',
+  },
+  successBody: {
+    margin: '0 0 22px',
+    fontSize: 13,
+    color: 'var(--text-muted, #6b6d82)',
+    fontFamily: 'var(--font-mono, monospace)',
+    lineHeight: 1.65,
+  },
+  backLink: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: 'var(--accent, #c8963e)',
+    textDecoration: 'none',
+    fontFamily: 'var(--font-mono, monospace)',
+  },
+  link: {
+    color: 'var(--accent, #c8963e)',
+    textDecoration: 'none',
+    fontWeight: 600,
+  },
   footer: {
-    marginTop: 24,
+    marginTop: 10,
     fontSize: 11,
     color: 'var(--text-muted, #6b6d82)',
     textAlign: 'center',

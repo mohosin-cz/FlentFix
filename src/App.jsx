@@ -20,6 +20,7 @@ import InternalRateCard from './pages/inventory/InternalRateCard'
 import PurchaseHistory from './pages/inventory/PurchaseHistory'
 import WorkOrder from './pages/WorkOrder'
 import ResetPassword from './pages/ResetPassword'
+import Signup from './pages/Signup'
 import Flentfit from './pages/Flentfit'
 import SOPs from './pages/SOPs'
 import SOPSetup from './pages/SOPSetup'
@@ -30,6 +31,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route
             path="/"
