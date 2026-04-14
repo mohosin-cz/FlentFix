@@ -1,9 +1,19 @@
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
 const TRADES = ['Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc']
 const TRADE_CODES = { electrical: 'EL', plumbing: 'PLB', woodwork: 'WW', cleaning: 'CLN', misc: 'MSC' }
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 640)
+  useEffect(() => {
+    const h = () => setIsMobile(window.innerWidth <= 640)
+    window.addEventListener('resize', h)
+    return () => window.removeEventListener('resize', h)
+  }, [])
+  return isMobile
+}
 
 function getItemCode(itemName) {
   const consonants = itemName.toUpperCase().replace(/[^A-Z]/g, '').replace(/[AEIOU]/g, '')
@@ -85,9 +95,7 @@ async function parseUploadedFile(file) {
     const reader = new FileReader()
     reader.onload = e => {
       try {
-        const text = e.target.result
-        // Simple CSV parser (handles .csv; for .xlsx we'd need SheetJS)
-        const lines = text.trim().split('\n').slice(1) // skip header
+        const lines = e.target.result.trim().split('\n').slice(1)
         const items = lines
           .map(line => {
             const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
@@ -98,13 +106,13 @@ async function parseUploadedFile(file) {
       } catch (err) { reject(err) }
     }
     reader.onerror = reject
-    // For xlsx: ideally use SheetJS, but read as text for csv
     reader.readAsText(file)
   })
 }
 
 export default function RegisterInventory() {
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const invoiceRef = useRef(null)
   const uploadRef  = useRef(null)
 
@@ -131,8 +139,7 @@ export default function RegisterInventory() {
   }
 
   async function handleFileUpload(e) {
-    const file = e.target.files[0]
-    if (!file) return
+    const file = e.target.files[0]; if (!file) return
     try {
       const parsed = await parseUploadedFile(file)
       if (parsed.length) setItems(prev => [...prev.filter(it => it.itemName), ...parsed])
@@ -144,8 +151,7 @@ export default function RegisterInventory() {
 
   async function handleSubmit() {
     if (items.some(it => !it.itemName)) { setError('All items must have a name.'); return }
-    setSubmitting(true)
-    setError('')
+    setSubmitting(true); setError('')
     try {
       let invoiceUrl = null
       if (invoiceFile) {
@@ -194,6 +200,12 @@ export default function RegisterInventory() {
     }
   }
 
+  const mainPadding = isMobile ? '16px 16px' : '20px 24px'
+  const mainMaxWidth = isMobile ? '100%' : 600
+  const stickyBtn = isMobile
+    ? { position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px', background: 'var(--bg, #16171f)', borderTop: '1px solid var(--border, #2e3040)', zIndex: 20 }
+    : null
+
   return (
     <div style={s.page}>
       <header style={s.header}>
@@ -211,30 +223,45 @@ export default function RegisterInventory() {
 
       <StepBar step={step} />
 
-      <div style={s.main}>
+      <div style={{ flex: 1, padding: mainPadding, maxWidth: mainMaxWidth, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16, boxSizing: 'border-box', paddingBottom: isMobile ? 100 : 48 }}>
 
-        {/* ── STEP 1 ── */}
+        {/* STEP 1 */}
         {step === 1 && (
           <div style={s.card}>
             <p style={s.sectionLabel}>Purchase Details</p>
-            <div style={s.row2}>
+
+            {/* Date + Trade: 2 cols on desktop, 1 col on mobile */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
               <div>
                 <Label>Date of Purchase</Label>
                 <Inp type="date" value={purchaseDate} onChange={setPurchaseDate} />
               </div>
-              <div>
+              <div style={{ marginTop: isMobile ? 0 : 0 }}>
                 <Label>Trade</Label>
                 <Sel value={trade} onChange={setTrade} options={TRADES} placeholder="Select trade…" />
               </div>
             </div>
+
+            {/* Total amount with ₹ prefix */}
             <div style={{ marginTop: 14 }}>
-              <Label>Total Amount ₹</Label>
-              <Inp type="number" value={totalAmount} onChange={setTotalAmount} placeholder="0.00" />
+              <Label>Total Amount</Label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', pointerEvents: 'none', zIndex: 1 }}>₹</span>
+                <input
+                  type="number"
+                  value={totalAmount}
+                  onChange={e => setTotalAmount(e.target.value)}
+                  placeholder="0.00"
+                  style={{ width: '100%', padding: '9px 12px 9px 28px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                />
+              </div>
             </div>
+
             <div style={{ marginTop: 14 }}>
               <Label optional>Invoice</Label>
               <input ref={invoiceRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => setInvoiceFile(e.target.files[0] || null)} />
-              <button type="button" onClick={() => invoiceRef.current?.click()} style={{ ...s.uploadBtn, borderColor: invoiceFile ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)', color: invoiceFile ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', background: invoiceFile ? 'rgba(61,186,122,0.06)' : 'var(--bg-input, #252731)' }}>
+              <button type="button" onClick={() => invoiceRef.current?.click()}
+                style={{ ...s.uploadBtn, borderColor: invoiceFile ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)', color: invoiceFile ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', background: invoiceFile ? 'rgba(61,186,122,0.06)' : 'var(--bg-input, #252731)' }}>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 11v2a1 1 0 001 1h12a1 1 0 001-1v-2M8 1v9M5 4l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 {invoiceFile ? invoiceFile.name : 'Attach Invoice'}
               </button>
@@ -242,10 +269,9 @@ export default function RegisterInventory() {
           </div>
         )}
 
-        {/* ── STEP 2 ── */}
+        {/* STEP 2 */}
         {step === 2 && (
           <>
-            {/* Summary bar */}
             <div style={s.summaryBar}>
               <span style={s.summaryLabel}>Purchase:</span>
               <span style={s.summaryVal}>{trade}</span>
@@ -257,16 +283,19 @@ export default function RegisterInventory() {
             <div style={s.card}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <p style={{ ...s.sectionLabel, margin: 0 }}>Items Purchased</p>
-                <button type="button" onClick={addItem} style={s.addBtn}>+ Add Item</button>
+                <button type="button" onClick={addItem}
+                  style={{ ...s.addBtn, width: isMobile ? undefined : undefined }}>
+                  + Add Item
+                </button>
               </div>
 
-              {/* Bulk upload tools */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                <button type="button" onClick={downloadTemplate} style={s.bulkBtn}>
+              {/* Bulk upload tools — stack on mobile */}
+              <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8, marginBottom: 16 }}>
+                <button type="button" onClick={downloadTemplate} style={{ ...s.bulkBtn, justifyContent: 'center' }}>
                   ⬇ Download Template
                 </button>
                 <input ref={uploadRef} type="file" accept=".csv,.xlsx" style={{ display: 'none' }} onChange={handleFileUpload} />
-                <button type="button" onClick={() => uploadRef.current?.click()} style={s.bulkBtn}>
+                <button type="button" onClick={() => uploadRef.current?.click()} style={{ ...s.bulkBtn, justifyContent: 'center' }}>
                   ⬆ Upload CSV
                 </button>
               </div>
@@ -281,24 +310,42 @@ export default function RegisterInventory() {
                         <button type="button" onClick={() => removeItem(i)} style={s.removeBtn}>× remove</button>
                       )}
                     </div>
-                    <div style={s.row2}>
-                      <div>
-                        <Label>Item Name</Label>
-                        <Inp value={item.itemName} onChange={v => updateItem(i, 'itemName', v)} placeholder="e.g. MCB 32A" />
-                      </div>
+
+                    {/* Item Name — full width on mobile */}
+                    <div style={{ marginBottom: 10 }}>
+                      <Label>Item Name</Label>
+                      <Inp value={item.itemName} onChange={v => updateItem(i, 'itemName', v)} placeholder="e.g. MCB 32A" />
+                    </div>
+
+                    {/* FXIN badge — full width amber pill on mobile */}
+                    {fxin && (
+                      isMobile ? (
+                        <div style={{ marginBottom: 10, padding: '7px 12px', background: 'rgba(200,150,62,0.1)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>FXIN</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em' }}>{fxin}</span>
+                        </div>
+                      ) : (
+                        <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>FXIN</span>
+                          <span style={s.fxinBadge}>{fxin}</span>
+                        </div>
+                      )
+                    )}
+
+                    {/* Qty + Price side by side */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                       <div>
                         <Label>Qty</Label>
                         <Inp type="number" value={item.qty} onChange={v => updateItem(i, 'qty', v)} placeholder="1" />
                       </div>
-                    </div>
-                    {/* FXIN badge — updates live */}
-                    {fxin && (
-                      <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>FXIN</span>
-                        <span style={s.fxinBadge}>{fxin}</span>
+                      <div>
+                        <Label>Price Inc. ₹</Label>
+                        <Inp type="number" value={item.priceInc} onChange={v => updateItem(i, 'priceInc', v)} placeholder="0.00" />
                       </div>
-                    )}
-                    <div style={{ ...s.row2, marginTop: 10 }}>
+                    </div>
+
+                    {/* Spec + Size side by side */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                       <div>
                         <Label optional>Spec</Label>
                         <Inp value={item.spec} onChange={v => updateItem(i, 'spec', v)} placeholder="e.g. 10kA, Type B" />
@@ -308,30 +355,46 @@ export default function RegisterInventory() {
                         <Inp value={item.size} onChange={v => updateItem(i, 'size', v)} placeholder="e.g. 25mm" />
                       </div>
                     </div>
-                    <div style={{ marginTop: 10 }}>
-                      <Label>Price Inc. ₹</Label>
-                      <Inp type="number" value={item.priceInc} onChange={v => updateItem(i, 'priceInc', v)} placeholder="0.00" />
-                    </div>
                   </div>
                 )
               })}
+
+              {/* + Add Item full width on mobile */}
+              {isMobile && (
+                <button type="button" onClick={addItem} style={{ ...s.addBtn, width: '100%', justifyContent: 'center', marginTop: 4 }}>
+                  + Add Item
+                </button>
+              )}
             </div>
           </>
         )}
 
         {error && <div style={s.errorBox}>{error}</div>}
 
-        {step === 1 && (
-          <button type="button" onClick={handleContinue} style={s.submitBtn}>
-            Continue →
-          </button>
+        {/* Non-sticky buttons (desktop) */}
+        {!isMobile && step === 1 && (
+          <button type="button" onClick={handleContinue} style={s.submitBtn}>Continue →</button>
         )}
-        {step === 2 && (
+        {!isMobile && step === 2 && (
           <button type="button" onClick={handleSubmit} disabled={submitting} style={{ ...s.submitBtn, opacity: submitting ? 0.6 : 1 }}>
             {submitting ? 'Saving…' : 'Save Purchase →'}
           </button>
         )}
       </div>
+
+      {/* Sticky button on mobile */}
+      {isMobile && (
+        <div style={stickyBtn}>
+          {step === 1 && (
+            <button type="button" onClick={handleContinue} style={s.submitBtn}>Continue →</button>
+          )}
+          {step === 2 && (
+            <button type="button" onClick={handleSubmit} disabled={submitting} style={{ ...s.submitBtn, opacity: submitting ? 0.6 : 1 }}>
+              {submitting ? 'Saving…' : 'Save Purchase →'}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -343,17 +406,15 @@ const s = {
   headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 },
   headerTitle: { fontSize: 14, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' },
   headerSub: { fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' },
-  main: { flex: 1, padding: '20px 20px 48px', maxWidth: 600, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 },
   card: { background: 'var(--bg-panel, #1e2028)', borderRadius: 10, padding: '18px 18px 20px', border: '1px solid var(--border, #2e3040)' },
   sectionLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)', marginBottom: 16 },
-  row2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
   summaryBar: { display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'rgba(200,150,62,0.07)', border: '1px solid rgba(200,150,62,0.2)', borderRadius: 8, flexWrap: 'wrap' },
   summaryLabel: { fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.06em' },
   summaryVal: { fontSize: 12, fontWeight: 600, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' },
   summaryDot: { fontSize: 12, color: 'var(--text-muted, #6b6d82)' },
   uploadBtn: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', border: '1px dashed', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' },
-  bulkBtn: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', border: '1px solid var(--border, #2e3040)', borderRadius: 6, background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' },
-  addBtn: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', border: '1px dashed var(--accent, #c8963e)', borderRadius: 6, background: 'rgba(200,150,62,0.06)', color: 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' },
+  bulkBtn: { display: 'flex', alignItems: 'center', gap: 5, padding: '8px 12px', border: '1px solid var(--border, #2e3040)', borderRadius: 6, background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', flex: 1 },
+  addBtn: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 14px', border: '1px dashed var(--accent, #c8963e)', borderRadius: 6, background: 'rgba(200,150,62,0.06)', color: 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' },
   itemCard: { background: 'var(--bg-input, #252731)', borderRadius: 8, padding: 14, border: '1px solid var(--border, #2e3040)', marginBottom: 12 },
   itemNum: { fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' },
   fxinBadge: { fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.1)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 4, padding: '2px 7px', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em' },
