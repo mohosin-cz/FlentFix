@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { useSwipeNav } from './hooks/useSwipeNav'
 import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -25,9 +26,15 @@ import Flentfit from './pages/Flentfit'
 import SOPs from './pages/SOPs'
 import SOPSetup from './pages/SOPSetup'
 
+function SwipeNav() {
+  useSwipeNav()
+  return null
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <SwipeNav />
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
