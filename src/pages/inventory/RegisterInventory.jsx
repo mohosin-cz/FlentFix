@@ -112,8 +112,9 @@ async function parseUploadedFile(file) {
 
 export default function RegisterInventory() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const step = parseInt(searchParams.get('step')) || 1
+  const [searchParams, setSearchParams] = useSearchParams()
+  const step     = parseInt(searchParams.get('step') || '1')
+  const goToStep = (n) => setSearchParams({ step: n })
   const isMobile = useIsMobile()
   const invoiceRef = useRef(null)
   const uploadRef  = useRef(null)
@@ -135,7 +136,7 @@ export default function RegisterInventory() {
     if (!trade) { setError('Please select a trade.'); return }
     if (!purchaseDate) { setError('Please enter a purchase date.'); return }
     setError('')
-    navigate('/inventory/register?step=2')
+    goToStep(2)
   }
 
   async function handleFileUpload(e) {

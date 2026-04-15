@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { NavBar, StepBar, Field, Input, CardToggle, PillGroup, StickyFooter, BtnPrimary } from '../components/ui'
 
 const INSPECTION_TYPES = [
@@ -29,6 +29,9 @@ function roomsForLayout(layout) {
 
 export default function NewInspection() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const step     = parseInt(searchParams.get('step') || '1')
+  const goToStep = (n) => setSearchParams({ step: n })
   const [pid,            setPid]            = useState('')
   const [inspectionType, setInspectionType] = useState('')
   const [propertyType,   setPropertyType]   = useState('')
@@ -59,7 +62,7 @@ export default function NewInspection() {
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-sans, Poppins, sans-serif)', color: 'var(--text, #e8e8f0)' }}>
-      <NavBar title="new_inspection" subtitle="basic details" onBack={() => navigate('/')} />
+      <NavBar title="new_inspection" subtitle="basic details" onBack={() => navigate(-1)} />
 
       {/* Progress */}
       <div style={{ height: 2, background: 'var(--border, #2e3040)' }}>

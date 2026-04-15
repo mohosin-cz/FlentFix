@@ -1218,8 +1218,9 @@ export default function InspectionOutdoor() {
     return {}
   })
 
-  const [searchParams] = useSearchParams()
-  const tab = Math.max(0, sectionKeys.indexOf(searchParams.get('section') || 'utility'))
+  const [searchParams, setSearchParams] = useSearchParams()
+  const section = searchParams.get('section') || 'utility'
+  const tab     = Math.max(0, sectionKeys.indexOf(section))
   const [openCard,     setOpenCard]     = useState(null)
   const [rateCardRows, setRateCardRows] = useState([])
   const [isEstimating, setIsEstimating] = useState(false)
@@ -1287,7 +1288,7 @@ export default function InspectionOutdoor() {
   function toggleCard(key)    { setOpenCard(p => p === key ? null : key) }
   function handleTabChange(i) {
     setOpenCard(null)
-    navigate(`/inspections/outdoor?section=${sectionKeys[i]}`, { state, replace: true })
+    setSearchParams({ section: sectionKeys[i] }, { replace: true, state })
   }
 
   // ── Completion counts (fixed items only — custom items are bonus) ──
