@@ -6,7 +6,6 @@ import {
   HealthSlider, Banner, AccordionCard, StickyFooter, BtnPrimary,
 } from '../components/ui'
 import { supabase } from '../lib/supabase'
-import { useSwipeNavigation } from '../hooks/useSwipeNavigation'
 
 // ─── Upload helper (called after inspection record is created) ────────────────
 export async function uploadMediaFiles(inspectionId, lineItemId, files) {
@@ -1291,11 +1290,6 @@ export default function InspectionOutdoor() {
     setOpenCard(null)
     setSearchParams({ section: sectionKeys[i] }, { replace: true, state })
   }
-
-  useSwipeNavigation({
-    onNext: () => tab < sectionKeys.length - 1 && handleTabChange(tab + 1),
-    onPrev: () => tab > 0 && handleTabChange(tab - 1),
-  })
 
   // ── Completion counts (fixed items only — custom items are bonus) ──
   const counts = sectionKeys.reduce((acc, sk, i) => {
