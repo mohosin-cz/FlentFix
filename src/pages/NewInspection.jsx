@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { NavBar, StepBar, Field, Input, CardToggle, PillGroup, StickyFooter, BtnPrimary } from '../components/ui'
+import { useSwipeNavigation } from '../hooks/useSwipeNavigation'
 
 const INSPECTION_TYPES = [
   { value: 'exploratory', label: 'Exploratory',
@@ -49,6 +50,11 @@ export default function NewInspection() {
     setErrors(e)
     return Object.keys(e).length === 0
   }
+
+  useSwipeNavigation({
+    onNext: () => handleContinue(),
+    onPrev: () => navigate(-1),
+  })
 
   function handleContinue() {
     if (!validate()) return

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { useSwipeNavigation } from '../../hooks/useSwipeNavigation'
 
 const TRADES = ['Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc']
 const TRADE_CODES = { electrical: 'EL', plumbing: 'PLB', woodwork: 'WW', cleaning: 'CLN', misc: 'MSC' }
@@ -131,6 +132,11 @@ export default function RegisterInventory() {
   }
   function addItem() { setItems(prev => [...prev, blankItem()]) }
   function removeItem(i) { setItems(prev => prev.filter((_, idx) => idx !== i)) }
+
+  useSwipeNavigation({
+    onNext: () => step === 1 && handleContinue(),
+    onPrev: () => step === 2 && goToStep(1),
+  })
 
   function handleContinue() {
     if (!trade) { setError('Please select a trade.'); return }
