@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import QuickNotes from '../components/QuickNotes'
 import {
   NavBar, TabBar, Field, Input, Textarea, PillGroup,
   HealthSlider, Banner, AccordionCard, StickyFooter, BtnPrimary,
 } from '../components/ui'
 import { supabase } from '../lib/supabase'
-import { useSwipeNavigation } from '../hooks/useSwipeNavigation'
 
 // ─── Upload helper (called after inspection record is created) ────────────────
 export async function uploadMediaFiles(inspectionId, lineItemId, files) {
@@ -1219,7 +1218,8 @@ export default function InspectionOutdoor() {
     return {}
   })
 
-  const [tab,          setTab]          = useState(0)
+  const [searchParams] = useSearchParams()
+  const tab = Math.max(0, sectionKeys.indexOf(searchParams.get('section') || 'utility'))
   const [openCard,     setOpenCard]     = useState(null)
   const [rateCardRows, setRateCardRows] = useState([])
   const [isEstimating, setIsEstimating] = useState(false)
@@ -1285,12 +1285,10 @@ export default function InspectionOutdoor() {
 
   // ── Navigation ──
   function toggleCard(key)    { setOpenCard(p => p === key ? null : key) }
-  function handleTabChange(i) { setTab(i); setOpenCard(null) }
-
-  useSwipeNavigation({
-    onSwipeLeft:  () => { if (tab < sectionKeys.length - 1) handleTabChange(tab + 1) },
-    onSwipeRight: () => { if (tab > 0) handleTabChange(tab - 1) },
-  })
+  function handleTabChange(i) {
+    setOpenCard(null)
+    navigate(`/inspections/outdoor?section=${sectionKeys[i]}`, { state, replace: true })
+  }
 
   // ── Completion counts (fixed items only — custom items are bonus) ──
   const counts = sectionKeys.reduce((acc, sk, i) => {

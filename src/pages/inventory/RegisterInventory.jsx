@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { useSwipeNavigation } from '../../hooks/useSwipeNavigation'
 
 const TRADES = ['Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc']
 const TRADE_CODES = { electrical: 'EL', plumbing: 'PLB', woodwork: 'WW', cleaning: 'CLN', misc: 'MSC' }
@@ -113,11 +112,11 @@ async function parseUploadedFile(file) {
 
 export default function RegisterInventory() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const step = parseInt(searchParams.get('step')) || 1
   const isMobile = useIsMobile()
   const invoiceRef = useRef(null)
   const uploadRef  = useRef(null)
-
-  const [step, setStep]                 = useState(1)
   const [purchaseDate, setPurchaseDate] = useState(today)
   const [trade, setTrade]               = useState('')
   const [totalAmount, setTotalAmount]   = useState('')
@@ -132,16 +131,11 @@ export default function RegisterInventory() {
   function addItem() { setItems(prev => [...prev, blankItem()]) }
   function removeItem(i) { setItems(prev => prev.filter((_, idx) => idx !== i)) }
 
-  useSwipeNavigation({
-    onSwipeLeft:  () => { if (step === 1) handleContinue() },
-    onSwipeRight: () => { if (step === 2) setStep(1) },
-  })
-
   function handleContinue() {
     if (!trade) { setError('Please select a trade.'); return }
     if (!purchaseDate) { setError('Please enter a purchase date.'); return }
     setError('')
-    setStep(2)
+    navigate('/inventory/register?step=2')
   }
 
   async function handleFileUpload(e) {
@@ -215,7 +209,7 @@ export default function RegisterInventory() {
   return (
     <div style={s.page}>
       <header style={s.header}>
-        <button style={s.backBtn} onClick={() => step === 1 ? navigate('/inventory') : setStep(1)}>
+        <button style={s.backBtn} onClick={() => navigate(-1)}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M12 5l-5 5 5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
