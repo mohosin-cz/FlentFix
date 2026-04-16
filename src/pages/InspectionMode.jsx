@@ -72,7 +72,7 @@ export default function InspectionMode() {
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-sans, Poppins, sans-serif)', color: 'var(--text, #e8e8f0)' }}>
-      <NavBar title="choose_mode" subtitle={`${state.pid} · ${state.layout}`} onBack={() => navigate('/inspections/new', { state })} />
+      <NavBar title="choose_mode" subtitle={`${state.pid} · ${state.layout}`} onBack={() => navigate(-1)} />
 
       {/* Progress */}
       <div style={{ height: 2, background: 'var(--border, #2e3040)' }}>
