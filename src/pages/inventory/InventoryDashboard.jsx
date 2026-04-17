@@ -95,19 +95,31 @@ export default function InventoryDashboard() {
   const [addSaving, setAddSaving] = useState(false)
 
   useEffect(() => {
-    supabase
-      .from('inventory_items')
-      .select('*, inventory_registry(vendor_name, vendor_contact, purchase_date)')
-      .order('purchase_date', { ascending: false })
-      .then(({ data }) => { setItems(data || []); setLoading(false) })
+    async function load() {
+      // Try with registry join; fall back to plain select if join fails (columns may not exist yet)
+      let { data, error } = await supabase
+        .from('inventory_items')
+        .select('*, inventory_registry(vendor_name, vendor_contact, purchase_date)')
+        .order('purchase_date', { ascending: false })
+      if (error) {
+        const fallback = await supabase
+          .from('inventory_items')
+          .select('*')
+          .order('purchase_date', { ascending: false })
+        data = fallback.data
+      }
+      setItems(data || [])
+      setLoading(false)
+    }
+    load()
   }, [])
 
   const filtered = items
     .filter(r => tradePill === 'All' || (r.trade || '').toLowerCase() === tradePill.toLowerCase())
     .filter(r => !filter || r.fxin?.toLowerCase().includes(filter.toLowerCase()) || r.item_name?.toLowerCase().includes(filter.toLowerCase()))
 
-  const totalItems = filtered.reduce((s, r) => s + (parseInt(r.qty) || 0), 0)
-  const totalValue = filtered.reduce((s, r) => s + (parseFloat(r.price_inc) || 0) * (parseInt(r.qty) || 0), 0)
+  const totalItems = filtered.reduce((s, r) => s + (parseInt(r.quantity_remaining) || 0), 0)
+  const totalValue = filtered.reduce((s, r) => s + (parseFloat(r.price_inc) || 0) * (parseInt(r.quantity_remaining) || 0), 0)
   const tradeCount = new Set(filtered.map(r => (r.trade || 'misc').toLowerCase())).size
 
   function startEdit(row) {
@@ -174,7 +186,8 @@ export default function InventoryDashboard() {
         margin_percent: parseFloat(addForm.margin_percent) || 0,
         registry_id: null,
       }
-      const { data, error } = await supabase.from('inventory_items').insert(newItem).select('*, inventory_registry(vendor_name, vendor_contact, purchase_date)').single()
+      // Fetch without join — new items have no registry_id, join would always be null anyway
+      const { data, error } = await supabase.from('inventory_items').insert(newItem).select('*').single()
       if (error) throw error
       setItems(p => [data, ...p])
       setShowAdd(false)
