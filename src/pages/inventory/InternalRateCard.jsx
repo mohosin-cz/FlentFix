@@ -3,6 +3,49 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
 const ADMIN_EMAIL = 'mohosin@flent.in'
+
+function useToast() {
+  const [toasts, setToasts] = useState([])
+  function showToast(msg, type = 'success') {
+    const id = Date.now()
+    setToasts(p => [...p, { id, msg, type }])
+    setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 3000)
+  }
+  return [toasts, showToast]
+}
+
+function Toasts({ toasts }) {
+  if (!toasts.length) return null
+  return (
+    <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 100, display: 'flex', flexDirection: 'column-reverse', gap: 6, alignItems: 'center', pointerEvents: 'none' }}>
+      {toasts.map(t => (
+        <div key={t.id} style={{ padding: '9px 18px', background: t.type === 'error' ? 'var(--red, #e05252)' : 'var(--green, #3dba7a)', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', boxShadow: '0 4px 16px rgba(0,0,0,0.4)', whiteSpace: 'nowrap' }}>
+          {t.msg}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ConfirmDialog({ message, onConfirm, onCancel }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(245,166,35,0.4)', borderRadius: 12, padding: '20px 24px', maxWidth: 340, width: '100%' }}>
+        <p style={{ fontSize: 13, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', margin: '0 0 18px', lineHeight: 1.55 }}>{message}</p>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: '8px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Cancel</button>
+          <button onClick={onConfirm} style={{ flex: 1, padding: '8px', background: 'var(--red, #e05252)', border: 'none', borderRadius: 7, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Delete</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const TrashIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <path d="M2 3h8M5 3V2h2v1M4 3v6h4V3H4z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
 const TRADES = ['All', 'Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc']
 const TRADE_OPTS = ['electrical', 'plumbing', 'woodwork', 'cleaning', 'misc']
 
@@ -88,6 +131,7 @@ const TrendUpIcon = () => (
 export default function InternalRateCard() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
+  const [toasts, showToast] = useToast()
   const [materialItems, setMaterialItems] = useState([])
   const [labourRates, setLabourRates]     = useState([])
   const [isAdmin, setIsAdmin]             = useState(false)
@@ -101,6 +145,7 @@ export default function InternalRateCard() {
   const [savingMargin, setSavingMargin]   = useState({})
   const [addingTo, setAddingTo]           = useState(null)
   const [newRow, setNewRow]               = useState({ work_type: '', area: '', cost: '', unit: '', trade: 'electrical' })
+  const [confirmDeleteL, setConfirmDeleteL] = useState(null) // { id, name }
 
   useEffect(() => {
     Promise.all([
@@ -136,28 +181,45 @@ export default function InternalRateCard() {
     const e = editingL[row.id]; if (!e) return
     setSavingL(p => ({ ...p, [row.id]: true }))
     const patch = { work_type: e.work_type, area: e.area, cost: parseFloat(e.cost) || 0, unit: e.unit }
-    await supabase.from('labour_rates').update(patch).eq('id', row.id)
+    const prev = { ...row }
     setLabourRates(p => p.map(r => r.id === row.id ? { ...r, ...patch } : r))
-    setSavingL(p => { const n = { ...p }; delete n[row.id]; return n })
     cancelEditL(row.id)
+    const { error } = await supabase.from('labour_rates').update(patch).eq('id', row.id)
+    setSavingL(p => { const n = { ...p }; delete n[row.id]; return n })
+    if (error) { setLabourRates(p => p.map(r => r.id === row.id ? prev : r)); showToast('Save failed', 'error') }
+    else showToast('Rate updated')
   }
 
   async function saveMargin(fxin, value) {
     setSavingMargin(p => ({ ...p, [fxin]: true }))
     const pct = parseFloat(value) || 0
-    await supabase.from('inventory_items').update({ margin_percent: pct }).eq('fxin', fxin)
+    const { error } = await supabase.from('inventory_items').update({ margin_percent: pct }).eq('fxin', fxin)
+    if (error) { setSavingMargin(p => { const n = { ...p }; delete n[fxin]; return n }); showToast('Save failed', 'error'); return }
     setMaterialItems(p => p.map(r => r.fxin === fxin ? { ...r, margin_percent: pct } : r))
     setSavingMargin(p => { const n = { ...p }; delete n[fxin]; return n })
     setEditingMargin(p => { const n = { ...p }; delete n[fxin]; return n })
+    showToast('Margin updated')
   }
 
   async function addLabourRow() {
     const trade = addingTo === '__new__' ? newRow.trade : addingTo
     const insert = { trade, work_type: newRow.work_type, area: newRow.area, cost: parseFloat(newRow.cost) || 0, unit: newRow.unit }
-    const { data } = await supabase.from('labour_rates').insert(insert).select().single()
-    if (data) setLabourRates(p => [...p, data])
+    const { data, error } = await supabase.from('labour_rates').insert(insert).select().single()
+    if (!error && data) { setLabourRates(p => [...p, data]); showToast(`Added "${insert.work_type}"`) }
+    else { showToast('Add failed', 'error') }
     setAddingTo(null)
     setNewRow({ work_type: '', area: '', cost: '', unit: '', trade: 'electrical' })
+  }
+
+  async function confirmDeleteLabour() {
+    if (!confirmDeleteL) return
+    const { id, name } = confirmDeleteL
+    const prev = labourRates
+    setLabourRates(p => p.filter(r => r.id !== id))
+    setConfirmDeleteL(null)
+    const { error } = await supabase.from('labour_rates').delete().eq('id', id)
+    if (error) { setLabourRates(prev); showToast('Delete failed', 'error') }
+    else showToast(`Deleted "${name}"`)
   }
 
   if (loading) return (
@@ -179,6 +241,15 @@ export default function InternalRateCard() {
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', fontFamily: 'var(--font-sans, Poppins, sans-serif)', color: 'var(--text, #e8e8f0)', display: 'flex', flexDirection: 'column' }}>
+
+      <Toasts toasts={toasts} />
+      {confirmDeleteL && (
+        <ConfirmDialog
+          message={`Delete "${confirmDeleteL.name}"? This cannot be undone.`}
+          onConfirm={confirmDeleteLabour}
+          onCancel={() => setConfirmDeleteL(null)}
+        />
+      )}
 
       <header style={s.header}>
         <button style={s.backBtn} onClick={() => navigate('/inventory')}>
@@ -373,7 +444,7 @@ export default function InternalRateCard() {
                         <span style={{ flex: 2 }}>Work Type</span>
                         <span style={{ flex: 1 }}>Area</span>
                         <span style={{ width: 130, textAlign: 'right' }}>₹ Cost / Unit</span>
-                        {isAdmin && <span style={{ width: 30 }} />}
+                        {isAdmin && <span style={{ width: 60 }} />}
                       </div>
                     )}
 
@@ -414,6 +485,11 @@ export default function InternalRateCard() {
                                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
                                   </button>
                                 )}
+                                {isAdmin && (
+                                  <button onClick={() => setConfirmDeleteL({ id: row.id, name: row.work_type })} style={s.deleteBtn}>
+                                    <TrashIcon />
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ) : (
@@ -424,9 +500,12 @@ export default function InternalRateCard() {
                                 ₹{(row.cost || 0).toLocaleString('en-IN')}{row.unit ? ` / ${row.unit}` : ''}
                               </span>
                               {isAdmin && (
-                                <div style={{ width: 30, flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+                                <div style={{ width: 60, flexShrink: 0, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
                                   <button onClick={() => startEditL(row)} style={s.editBtn}>
                                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                  </button>
+                                  <button onClick={() => setConfirmDeleteL({ id: row.id, name: row.work_type })} style={s.deleteBtn}>
+                                    <TrashIcon />
                                   </button>
                                 </div>
                               )}
@@ -507,6 +586,9 @@ const s = {
   tradeHeader: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 },
   colHead: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#0d0d0d', fontSize: 9, fontWeight: 700, color: 'var(--accent, #c8963e)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)' },
   editBtn: { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border, #2e3040)', borderRadius: 5, background: 'var(--bg-input, #252731)', color: 'var(--accent, #c8963e)', cursor: 'pointer' },
+  deleteBtn: { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(224,82,82,0.35)', borderRadius: 5, background: 'rgba(224,82,82,0.08)', color: 'var(--red, #e05252)', cursor: 'pointer' },
+  saveBtn: { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRadius: 5, background: 'var(--green, #3dba7a)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' },
+  cancelBtn: { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border, #2e3040)', borderRadius: 5, background: 'var(--bg-input, #252731)', color: 'var(--text-muted, #6b6d82)', fontSize: 11, fontWeight: 700, cursor: 'pointer' },
   editInput: { width: '100%', padding: '5px 8px', fontSize: 12, color: 'var(--text, #e8e8f0)', background: 'rgba(200,150,62,0.08)', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 4, outline: 'none', fontFamily: 'var(--font-mono, monospace)', boxSizing: 'border-box' },
   mobileLabel: { fontSize: 10, fontWeight: 600, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: 'var(--font-mono, monospace)', display: 'block', marginBottom: 4 },
   empty: { textAlign: 'center', padding: '56px 20px', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 12, background: 'var(--bg-panel, #1e2028)', borderRadius: 10, border: '1px solid var(--border, #2e3040)' },

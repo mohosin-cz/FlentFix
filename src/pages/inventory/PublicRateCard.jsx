@@ -23,6 +23,43 @@ function useIsMobile() {
   return isMobile
 }
 
+function useToast() {
+  const [toasts, setToasts] = useState([])
+  function showToast(msg, type = 'success') {
+    const id = Date.now()
+    setToasts(p => [...p, { id, msg, type }])
+    setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 3000)
+  }
+  return [toasts, showToast]
+}
+
+function Toasts({ toasts }) {
+  if (!toasts.length) return null
+  return (
+    <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 100, display: 'flex', flexDirection: 'column-reverse', gap: 6, alignItems: 'center', pointerEvents: 'none' }}>
+      {toasts.map(t => (
+        <div key={t.id} style={{ padding: '9px 18px', background: t.type === 'error' ? 'var(--red, #e05252)' : 'var(--green, #3dba7a)', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', boxShadow: '0 4px 16px rgba(0,0,0,0.4)', whiteSpace: 'nowrap' }}>
+          {t.msg}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ConfirmDialog({ message, onConfirm, onCancel }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(245,166,35,0.4)', borderRadius: 12, padding: '20px 24px', maxWidth: 340, width: '100%' }}>
+        <p style={{ fontSize: 13, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', margin: '0 0 18px', lineHeight: 1.55 }}>{message}</p>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: '8px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Cancel</button>
+          <button onClick={onConfirm} style={{ flex: 1, padding: '8px', background: 'var(--red, #e05252)', border: 'none', borderRadius: 7, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Delete</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function TradePill({ label, active, onClick, small }) {
   const meta = TRADE_META[label.toLowerCase()]
   return (
@@ -54,9 +91,21 @@ function downloadTemplate() {
   URL.revokeObjectURL(url)
 }
 
+const TrashIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <path d="M2 3h8M5 3V2h2v1M4 3v6h4V3H4z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+const EditIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
 export default function PublicRateCard() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
+  const [toasts, showToast] = useToast()
   const [rows, setRows]           = useState([])
   const [isAdmin, setIsAdmin]     = useState(false)
   const [tab, setTab]             = useState('Material RC')
@@ -69,6 +118,9 @@ export default function PublicRateCard() {
   const [loading, setLoading]     = useState(true)
   const [preview, setPreview]     = useState(null)
   const [importing, setImporting] = useState(false)
+  const [selected, setSelected]   = useState(new Set())
+  const [confirmDelete, setConfirmDelete] = useState(null) // { ids: [], label: string }
+  const [deleting, setDeleting]   = useState(false)
   const fileRef = useRef()
 
   useEffect(() => {
@@ -94,6 +146,9 @@ export default function PublicRateCard() {
     ? pillRows.filter(r => r.item_name?.toLowerCase().includes(filter.toLowerCase()) || r.area?.toLowerCase().includes(filter.toLowerCase()))
     : pillRows
 
+  const displayedIds = displayed.map(r => r.id)
+  const allSelected = displayedIds.length > 0 && displayedIds.every(id => selected.has(id))
+
   // Group by trade
   const grouped = displayed.reduce((acc, row) => {
     const key = (row.trade || 'misc').toLowerCase()
@@ -101,6 +156,14 @@ export default function PublicRateCard() {
     acc[key].push(row)
     return acc
   }, {})
+
+  function toggleSelect(id) {
+    setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+  function toggleSelectAll() {
+    if (allSelected) setSelected(new Set())
+    else setSelected(new Set(displayedIds))
+  }
 
   function startEdit(row) {
     setEditing(p => ({ ...p, [row.id]: { item_name: row.item_name || '', area: row.area || '', spec: row.spec || '', market_price: String(row.market_price ?? ''), flent_price: String(row.flent_price ?? ''), warranty_months: String(row.warranty_months ?? ''), material_cost: String(row.material_cost ?? ''), labour_cost: String(row.labour_cost ?? ''), unit: row.unit || '' } }))
@@ -111,15 +174,18 @@ export default function PublicRateCard() {
     const e = editing[row.id]; if (!e) return
     setSaving(p => ({ ...p, [row.id]: true }))
     const patch = { item_name: e.item_name, area: e.area, spec: e.spec, market_price: parseFloat(e.market_price) || 0, flent_price: parseFloat(e.flent_price) || 0, warranty_months: parseInt(e.warranty_months) || 0, material_cost: parseFloat(e.material_cost) || 0, labour_cost: parseFloat(e.labour_cost) || 0, unit: e.unit }
-    await supabase.from('rate_card').update(patch).eq('id', row.id)
+    const prev = { ...row }
     setRows(p => p.map(r => r.id === row.id ? { ...r, ...patch } : r))
-    setSaving(p => { const n = { ...p }; delete n[row.id]; return n })
     cancelEdit(row.id)
+    const { error } = await supabase.from('rate_card').update(patch).eq('id', row.id)
+    setSaving(p => { const n = { ...p }; delete n[row.id]; return n })
+    if (error) { setRows(p => p.map(r => r.id === row.id ? prev : r)); showToast('Save failed', 'error') }
+    else showToast('Item updated')
   }
 
   async function addItem(trade) {
     if (!newRow.item_name) return
-    const { data, error } = await supabase.from('rate_card').insert({
+    const insert = {
       trade,
       area: newRow.area || '',
       item_name: newRow.item_name,
@@ -130,12 +196,34 @@ export default function PublicRateCard() {
       material_cost: parseFloat(newRow.material_cost) || 0,
       labour_cost: parseFloat(newRow.labour_cost) || 0,
       unit: newRow.unit || '',
-    }).select().single()
+    }
+    const { data, error } = await supabase.from('rate_card').insert(insert).select().single()
     if (!error && data) {
       setRows(p => [...p, data])
       setNewRow({ item_name: '', area: '', spec: '', market_price: '', flent_price: '', warranty_months: '', material_cost: '', labour_cost: '', unit: '' })
       setAddingTo(null)
+      showToast(`Added "${insert.item_name}"`)
+    } else {
+      showToast('Add failed', 'error')
     }
+  }
+
+  async function deleteRows() {
+    if (!confirmDelete) return
+    const { ids, label } = confirmDelete
+    setDeleting(true)
+    const prevRows = rows
+    setRows(p => p.filter(r => !ids.includes(r.id)))
+    setSelected(p => { const n = new Set(p); ids.forEach(id => n.delete(id)); return n })
+    setConfirmDelete(null)
+    let failed = false
+    for (const id of ids) {
+      const { error } = await supabase.from('rate_card').delete().eq('id', id)
+      if (error) { failed = true; break }
+    }
+    setDeleting(false)
+    if (failed) { setRows(prevRows); showToast('Delete failed', 'error') }
+    else showToast(ids.length === 1 ? `Deleted "${label}"` : `Deleted ${ids.length} items`)
   }
 
   function handleFileSelect(e) {
@@ -160,8 +248,8 @@ export default function PublicRateCard() {
     if (!preview?.length) return
     setImporting(true)
     const { data, error } = await supabase.from('rate_card').insert(preview).select()
-    if (!error && data) { setRows(p => [...p, ...data]); setPreview(null) }
-    else alert('Import failed: ' + (error?.message || 'unknown error'))
+    if (!error && data) { setRows(p => [...p, ...data]); setPreview(null); showToast(`Imported ${data.length} items`) }
+    else { showToast('Import failed', 'error') }
     setImporting(false)
   }
 
@@ -180,6 +268,17 @@ export default function PublicRateCard() {
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', fontFamily: 'var(--font-sans, Poppins, sans-serif)', color: 'var(--text, #e8e8f0)' }}>
 
+      <Toasts toasts={toasts} />
+      {confirmDelete && (
+        <ConfirmDialog
+          message={confirmDelete.ids.length === 1
+            ? `Delete "${confirmDelete.label}"? This cannot be undone.`
+            : `Delete ${confirmDelete.ids.length} selected items? This cannot be undone.`}
+          onConfirm={deleteRows}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+
       <header style={s.header}>
         <button style={s.backBtn} onClick={() => navigate('/inventory')}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 5l-5 5 5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -194,7 +293,7 @@ export default function PublicRateCard() {
       {/* Tabs */}
       <div style={{ display: 'flex', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
         {['Material RC', 'Labour RC'].map(t => (
-          <button key={t} onClick={() => { setTab(t); setTradePill('All'); setFilter(''); setAddingTo(null) }} style={{
+          <button key={t} onClick={() => { setTab(t); setTradePill('All'); setFilter(''); setAddingTo(null); setSelected(new Set()) }} style={{
             flex: 1, padding: isMobile ? '11px 8px' : '11px 20px',
             fontSize: isMobile ? 11 : 12, fontWeight: 600, cursor: 'pointer',
             background: 'none', border: 'none',
@@ -210,7 +309,7 @@ export default function PublicRateCard() {
         {/* Trade pills */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
           {TRADES.map(t => (
-            <TradePill key={t} label={t} active={tradePill === t} onClick={() => setTradePill(t)} small={isMobile} />
+            <TradePill key={t} label={t} active={tradePill === t} onClick={() => { setTradePill(t); setSelected(new Set()) }} small={isMobile} />
           ))}
         </div>
 
@@ -226,6 +325,15 @@ export default function PublicRateCard() {
               Import from Excel / CSV
             </button>
             <input ref={fileRef} type="file" accept=".csv,.xlsx" onChange={handleFileSelect} style={{ display: 'none' }} />
+            {selected.size > 0 && (
+              <button
+                onClick={() => setConfirmDelete({ ids: [...selected], label: '' })}
+                disabled={deleting}
+                style={{ padding: '7px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer', background: 'rgba(224,82,82,0.12)', border: '1px solid rgba(224,82,82,0.4)', borderRadius: 6, color: 'var(--red, #e05252)', fontFamily: 'var(--font-mono, monospace)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginLeft: isMobile ? 0 : 'auto' }}>
+                <TrashIcon />
+                Delete {selected.size} selected
+              </button>
+            )}
           </div>
         )}
 
@@ -313,18 +421,30 @@ export default function PublicRateCard() {
         {/* Trade groups */}
         {Object.entries(grouped).map(([trade, items]) => {
           const meta = TRADE_META[trade] || TRADE_META.misc
+          const tradeIds = items.map(r => r.id)
+          const tradeAllSelected = tradeIds.length > 0 && tradeIds.every(id => selected.has(id))
           return (
             <div key={trade} style={{ marginBottom: 28 }}>
 
               {/* Trade heading */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                {isAdmin && (
+                  <input type="checkbox" checked={tradeAllSelected} onChange={() => {
+                    setSelected(p => {
+                      const n = new Set(p)
+                      if (tradeAllSelected) tradeIds.forEach(id => n.delete(id))
+                      else tradeIds.forEach(id => n.add(id))
+                      return n
+                    })
+                  }} style={{ accentColor: meta.color, cursor: 'pointer', flexShrink: 0 }} />
+                )}
                 <span style={{ fontSize: 9, fontWeight: 700, color: meta.color, textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: 'var(--font-mono, monospace)' }}>
                   {trade.charAt(0).toUpperCase() + trade.slice(1)}
                 </span>
                 <div style={{ flex: 1, height: 1, background: meta.border }} />
                 <span style={{ fontSize: 10, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{items.length}</span>
                 {isAdmin && (
-                  <button onClick={() => { setAddingTo(trade); setNewRow({ item_name: '', area: '', material_cost: '', labour_cost: '', unit: '' }) }}
+                  <button onClick={() => { setAddingTo(trade); setNewRow({ item_name: '', area: '', spec: '', market_price: '', flent_price: '', warranty_months: '', material_cost: '', labour_cost: '', unit: '' }) }}
                     style={{ fontSize: 10, fontWeight: 600, color: meta.color, background: meta.bg, border: `1px dashed ${meta.border}`, borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                     + Add
                   </button>
@@ -336,21 +456,23 @@ export default function PublicRateCard() {
                 {/* Desktop column header */}
                 {!isMobile && tab === 'Material RC' && (
                   <div style={s.colHead}>
+                    {isAdmin && <span style={{ width: 22, flexShrink: 0 }}><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} style={{ accentColor: 'var(--accent, #c8963e)', cursor: 'pointer' }} /></span>}
                     <span style={{ flex: 2 }}>Item Description</span>
                     <span style={{ flex: 1 }}>Spec</span>
                     <span style={{ width: 110, textAlign: 'right' }}>Market ₹</span>
                     <span style={{ width: 110, textAlign: 'right' }}>Flent ₹</span>
                     <span style={{ width: 80, textAlign: 'right' }}>Warranty</span>
                     <span style={{ width: 60, textAlign: 'right' }}>Unit</span>
-                    {isAdmin && <span style={{ width: 36 }} />}
+                    {isAdmin && <span style={{ width: 60 }} />}
                   </div>
                 )}
                 {!isMobile && tab === 'Labour RC' && (
                   <div style={s.colHead}>
+                    {isAdmin && <span style={{ width: 22, flexShrink: 0 }}><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} style={{ accentColor: 'var(--accent, #c8963e)', cursor: 'pointer' }} /></span>}
                     <span style={{ flex: 2 }}>Work Type</span>
                     <span style={{ flex: 1 }}>Area</span>
                     <span style={{ width: 130, textAlign: 'right' }}>₹ Cost / Unit</span>
-                    {isAdmin && <span style={{ width: 36 }} />}
+                    {isAdmin && <span style={{ width: 60 }} />}
                   </div>
                 )}
 
@@ -358,10 +480,11 @@ export default function PublicRateCard() {
                   const isEdit = !!editing[row.id]
                   const e = editing[row.id] || {}
                   const cost = tab === 'Material RC' ? parseFloat(row.material_cost) || 0 : parseFloat(row.labour_cost) || 0
+                  const isSel = selected.has(row.id)
 
                   if (isMobile) {
                     return (
-                      <div key={row.id} style={{ padding: '12px 14px', borderTop: ri > 0 ? '1px solid var(--border, #2e3040)' : 'none', background: ri % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}>
+                      <div key={row.id} style={{ padding: '12px 14px', borderTop: ri > 0 ? '1px solid var(--border, #2e3040)' : 'none', background: isSel ? 'rgba(200,150,62,0.06)' : ri % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}>
                         {isEdit ? (
                           <div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
@@ -387,32 +510,36 @@ export default function PublicRateCard() {
                           </div>
                         ) : tab === 'Material RC' ? (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            {isAdmin && <input type="checkbox" checked={isSel} onChange={() => toggleSelect(row.id)} style={{ accentColor: meta.color, cursor: 'pointer', marginRight: 8, marginTop: 2, flexShrink: 0 }} />}
                             <div style={{ flex: 1, paddingRight: 10 }}>
                               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', marginBottom: 2 }}>{row.item_name}</div>
                               {row.spec && <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginBottom: 2 }}>{row.spec}</div>}
                               {row.warranty_months > 0 && <div style={{ fontSize: 10, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{row.warranty_months}mo warranty</div>}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                               <div style={{ textAlign: 'right' }}>
                                 {parseFloat(row.flent_price) > 0 && <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>₹{parseFloat(row.flent_price).toLocaleString('en-IN')}</div>}
                                 {parseFloat(row.market_price) > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textDecoration: 'line-through' }}>₹{parseFloat(row.market_price).toLocaleString('en-IN')}</div>}
                                 {row.unit && <div style={{ fontSize: 10, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{row.unit}</div>}
                               </div>
-                              {isAdmin && <button onClick={() => startEdit(row)} style={s.editBtn}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>}
+                              {isAdmin && <button onClick={() => startEdit(row)} style={s.editBtn}><EditIcon /></button>}
+                              {isAdmin && <button onClick={() => setConfirmDelete({ ids: [row.id], label: row.item_name })} style={s.deleteBtn}><TrashIcon /></button>}
                             </div>
                           </div>
                         ) : (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            {isAdmin && <input type="checkbox" checked={isSel} onChange={() => toggleSelect(row.id)} style={{ accentColor: meta.color, cursor: 'pointer', marginRight: 8, marginTop: 2, flexShrink: 0 }} />}
                             <div style={{ flex: 1, paddingRight: 10 }}>
                               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', marginBottom: 3 }}>{row.item_name}</div>
                               {row.area && <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{row.area}</div>}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                               <div style={{ textAlign: 'right' }}>
                                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>₹{cost.toLocaleString('en-IN')}</div>
                                 {row.unit && <div style={{ fontSize: 10, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>per {row.unit}</div>}
                               </div>
-                              {isAdmin && <button onClick={() => startEdit(row)} style={s.editBtn}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>}
+                              {isAdmin && <button onClick={() => startEdit(row)} style={s.editBtn}><EditIcon /></button>}
+                              {isAdmin && <button onClick={() => setConfirmDelete({ ids: [row.id], label: row.item_name })} style={s.deleteBtn}><TrashIcon /></button>}
                             </div>
                           </div>
                         )}
@@ -423,7 +550,8 @@ export default function PublicRateCard() {
                   // Desktop row
                   if (tab === 'Material RC') {
                     return (
-                      <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', borderTop: '1px solid var(--border, #2e3040)', minHeight: 44, background: ri % 2 !== 0 ? 'rgba(255,255,255,0.018)' : 'transparent' }}>
+                      <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', borderTop: '1px solid var(--border, #2e3040)', minHeight: 44, background: isSel ? 'rgba(200,150,62,0.06)' : ri % 2 !== 0 ? 'rgba(255,255,255,0.018)' : 'transparent' }}>
+                        {isAdmin && <input type="checkbox" checked={isSel} onChange={() => toggleSelect(row.id)} style={{ accentColor: meta.color, cursor: 'pointer', flexShrink: 0, width: 22 }} />}
                         {isEdit ? (
                           <>
                             <input value={e.item_name} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], item_name: ev.target.value } }))} style={{ ...s.editInput, flex: 2 }} placeholder="Item name" />
@@ -432,7 +560,7 @@ export default function PublicRateCard() {
                             <input type="number" value={e.flent_price} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], flent_price: ev.target.value } }))} style={{ ...s.editInput, width: 80, flexShrink: 0 }} placeholder="Flent ₹" />
                             <input type="number" value={e.warranty_months} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], warranty_months: ev.target.value } }))} style={{ ...s.editInput, width: 60, flexShrink: 0 }} placeholder="Mo" />
                             <input value={e.unit} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], unit: ev.target.value } }))} style={{ ...s.editInput, width: 50, flexShrink: 0 }} placeholder="unit" />
-                            <div style={{ width: 36, flexShrink: 0, display: 'flex', gap: 4 }}>
+                            <div style={{ width: 60, flexShrink: 0, display: 'flex', gap: 4 }}>
                               <button onClick={() => saveRow(row)} disabled={saving[row.id]} style={s.saveBtn}>{saving[row.id] ? '…' : '✓'}</button>
                               <button onClick={() => cancelEdit(row.id)} style={s.cancelBtn}>✕</button>
                             </div>
@@ -452,8 +580,9 @@ export default function PublicRateCard() {
                             </span>
                             <span style={{ width: 60, flexShrink: 0, fontSize: 11, color: 'var(--text-muted, #6b6d82)', textAlign: 'right' }}>{row.unit || '—'}</span>
                             {isAdmin && (
-                              <div style={{ width: 36, flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
-                                <button onClick={() => startEdit(row)} style={s.editBtn}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                              <div style={{ width: 60, flexShrink: 0, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                                <button onClick={() => startEdit(row)} style={s.editBtn}><EditIcon /></button>
+                                <button onClick={() => setConfirmDelete({ ids: [row.id], label: row.item_name })} style={s.deleteBtn}><TrashIcon /></button>
                               </div>
                             )}
                           </>
@@ -463,14 +592,15 @@ export default function PublicRateCard() {
                   }
 
                   return (
-                    <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', borderTop: '1px solid var(--border, #2e3040)', minHeight: 44, background: ri % 2 !== 0 ? 'rgba(255,255,255,0.018)' : 'transparent' }}>
+                    <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', borderTop: '1px solid var(--border, #2e3040)', minHeight: 44, background: isSel ? 'rgba(200,150,62,0.06)' : ri % 2 !== 0 ? 'rgba(255,255,255,0.018)' : 'transparent' }}>
+                      {isAdmin && <input type="checkbox" checked={isSel} onChange={() => toggleSelect(row.id)} style={{ accentColor: meta.color, cursor: 'pointer', flexShrink: 0, width: 22 }} />}
                       {isEdit ? (
                         <>
                           <input value={e.item_name} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], item_name: ev.target.value } }))} style={{ ...s.editInput, flex: 2 }} />
                           <input value={e.area} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], area: ev.target.value } }))} style={{ ...s.editInput, flex: 1 }} />
                           <input type="number" value={e.labour_cost} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], labour_cost: ev.target.value } }))} style={{ ...s.editInput, width: 90, flexShrink: 0 }} placeholder="₹" />
                           <input value={e.unit} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], unit: ev.target.value } }))} style={{ ...s.editInput, width: 70, flexShrink: 0 }} placeholder="unit" />
-                          <div style={{ width: 36, flexShrink: 0, display: 'flex', gap: 4 }}>
+                          <div style={{ width: 60, flexShrink: 0, display: 'flex', gap: 4 }}>
                             <button onClick={() => saveRow(row)} disabled={saving[row.id]} style={s.saveBtn}>{saving[row.id] ? '…' : '✓'}</button>
                             <button onClick={() => cancelEdit(row.id)} style={s.cancelBtn}>✕</button>
                           </div>
@@ -483,8 +613,9 @@ export default function PublicRateCard() {
                             ₹{cost.toLocaleString('en-IN')}{row.unit ? ` / ${row.unit}` : ''}
                           </span>
                           {isAdmin && (
-                            <div style={{ width: 36, flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
-                              <button onClick={() => startEdit(row)} style={s.editBtn}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                            <div style={{ width: 60, flexShrink: 0, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                              <button onClick={() => startEdit(row)} style={s.editBtn}><EditIcon /></button>
+                              <button onClick={() => setConfirmDelete({ ids: [row.id], label: row.item_name })} style={s.deleteBtn}><TrashIcon /></button>
                             </div>
                           )}
                         </>
@@ -526,7 +657,7 @@ export default function PublicRateCard() {
 
         {displayed.length > 0 && (
           <p style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textAlign: 'right', marginTop: -16 }}>
-            {displayed.length} item{displayed.length !== 1 ? 's' : ''}
+            {displayed.length} item{displayed.length !== 1 ? 's' : ''}{selected.size > 0 ? ` · ${selected.size} selected` : ''}
           </p>
         )}
       </div>
@@ -542,6 +673,7 @@ const s = {
   headerSub: { fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' },
   colHead: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#0d0d0d', fontSize: 9, fontWeight: 700, color: 'var(--accent, #c8963e)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)' },
   editBtn: { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border, #2e3040)', borderRadius: 5, background: 'var(--bg-input, #252731)', color: 'var(--accent, #c8963e)', cursor: 'pointer' },
+  deleteBtn: { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(224,82,82,0.35)', borderRadius: 5, background: 'rgba(224,82,82,0.08)', color: 'var(--red, #e05252)', cursor: 'pointer' },
   saveBtn: { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRadius: 5, background: 'var(--green, #3dba7a)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' },
   cancelBtn: { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border, #2e3040)', borderRadius: 5, background: 'var(--bg-input, #252731)', color: 'var(--text-muted, #6b6d82)', fontSize: 11, fontWeight: 700, cursor: 'pointer' },
   editInput: { width: '100%', padding: '5px 8px', fontSize: 12, color: 'var(--text, #e8e8f0)', background: 'rgba(200,150,62,0.08)', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 4, outline: 'none', fontFamily: 'var(--font-mono, monospace)', boxSizing: 'border-box' },

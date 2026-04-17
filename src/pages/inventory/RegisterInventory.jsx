@@ -27,7 +27,7 @@ function generateFXIN(trade, itemName, qty) {
 }
 
 function blankItem() {
-  return { itemName: '', qty: '', spec: '', size: '', priceInc: '', warranty: '', margin: '' }
+  return { _key: Math.random().toString(36).slice(2), itemName: '', qty: '', spec: '', size: '', priceInc: '', warranty: '', margin: '' }
 }
 
 const today = new Date().toISOString().split('T')[0]
@@ -126,6 +126,7 @@ export default function RegisterInventory() {
   const [vendorGstin, setVendorGstin]   = useState('')
   const [invoiceFile, setInvoiceFile]   = useState(null)
   const [items, setItems]               = useState([blankItem()])
+  const [collapsed, setCollapsed]       = useState(new Set())
   const [submitting, setSubmitting]     = useState(false)
   const [error, setError]               = useState('')
 
@@ -133,7 +134,13 @@ export default function RegisterInventory() {
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: value } : it))
   }
   function addItem() { setItems(prev => [...prev, blankItem()]) }
-  function removeItem(i) { setItems(prev => prev.filter((_, idx) => idx !== i)) }
+  function removeItem(i) {
+    const key = items[i]._key
+    setCollapsed(p => { const n = new Set(p); n.delete(key); return n })
+    setItems(prev => prev.filter((_, idx) => idx !== i))
+  }
+  function collapseItem(key) { setCollapsed(p => new Set([...p, key])) }
+  function expandItem(key) { setCollapsed(p => { const n = new Set(p); n.delete(key); return n }) }
 
   function handleContinue() {
     if (!trade) { setError('Please select a trade.'); return }
@@ -175,7 +182,7 @@ export default function RegisterInventory() {
 
       const fxinCounts = {}
       const itemRows = []
-      for (const it of items) {
+      for (const it of items.map(({ _key, ...rest }) => rest)) {
         const baseFxin = generateFXIN(trade, it.itemName, it.qty || 1)
         const { count } = await supabase.from('inventory_items').select('id', { count: 'exact', head: true }).like('fxin', `${baseFxin}%`)
         const suffix = (count || 0) + (fxinCounts[baseFxin] || 0)
@@ -323,13 +330,63 @@ export default function RegisterInventory() {
 
               {items.map((item, i) => {
                 const fxin = trade && item.itemName ? generateFXIN(trade, item.itemName, item.qty || 1) : null
+                const isCollapsed = collapsed.has(item._key)
+
+                if (isCollapsed) {
+                  // Compact view
+                  return (
+                    <div key={item._key} style={{ ...s.itemCard, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: item.spec || item.size || item.warranty || item.margin ? 4 : 0 }}>
+                          {fxin && <span style={s.fxinBadge}>{fxin}</span>}
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{item.itemName || '—'}</span>
+                          {item.qty && <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>× {item.qty}</span>}
+                          {item.priceInc && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>₹{parseFloat(item.priceInc).toLocaleString('en-IN')}</span>}
+                        </div>
+                        {(item.spec || item.size) && (
+                          <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginBottom: 2 }}>
+                            {[item.spec, item.size].filter(Boolean).join(' · ')}
+                          </div>
+                        )}
+                        {(item.warranty || item.margin) && (
+                          <div style={{ fontSize: 10, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', display: 'flex', gap: 10 }}>
+                            {item.warranty ? <span>{item.warranty}mo warranty</span> : null}
+                            {item.margin ? <span>{item.margin}% margin</span> : null}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button type="button" onClick={() => expandItem(item._key)}
+                          style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border, #2e3040)', borderRadius: 5, background: 'var(--bg-input, #252731)', color: 'var(--accent, #c8963e)', cursor: 'pointer' }}>
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        </button>
+                        {items.length > 1 && (
+                          <button type="button" onClick={() => removeItem(i)}
+                            style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 5, background: 'rgba(224,92,106,0.08)', color: 'var(--red, #e05c6a)', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                }
+
+                // Edit mode (expanded)
                 return (
-                  <div key={i} style={s.itemCard}>
+                  <div key={item._key} style={s.itemCard}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                       <span style={s.itemNum}>#{i + 1}</span>
-                      {items.length > 1 && (
-                        <button type="button" onClick={() => removeItem(i)} style={s.removeBtn}>× remove</button>
-                      )}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {item.itemName && (
+                          <button type="button" onClick={() => collapseItem(item._key)}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 4, background: 'rgba(61,186,122,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                            ✓ done
+                          </button>
+                        )}
+                        {items.length > 1 && (
+                          <button type="button" onClick={() => removeItem(i)} style={s.removeBtn}>× remove</button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Item Name — full width on mobile */}
@@ -338,7 +395,7 @@ export default function RegisterInventory() {
                       <Inp value={item.itemName} onChange={v => updateItem(i, 'itemName', v)} placeholder="e.g. MCB 32A" />
                     </div>
 
-                    {/* FXIN badge — full width amber pill on mobile */}
+                    {/* FXIN badge */}
                     {fxin && (
                       isMobile ? (
                         <div style={{ marginBottom: 10, padding: '7px 12px', background: 'rgba(200,150,62,0.1)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
