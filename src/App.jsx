@@ -15,6 +15,8 @@ import PropertyBin from './pages/PropertyBin'
 import RateCard from './pages/RateCard'
 import ExploreInventory from './pages/inventory/ExploreInventory'
 import RegisterInventory from './pages/inventory/RegisterInventory'
+import InventoryDashboard from './pages/inventory/InventoryDashboard'
+import LogUsage from './pages/inventory/LogUsage'
 import PublicRateCard from './pages/inventory/PublicRateCard'
 import InternalRateCard from './pages/inventory/InternalRateCard'
 import PurchaseHistory from './pages/inventory/PurchaseHistory'
@@ -123,6 +125,8 @@ export default function App() {
           />
           <Route path="/inventory" element={<ProtectedRoute><ExploreInventory /></ProtectedRoute>} />
           <Route path="/inventory/register" element={<ProtectedRoute><RegisterInventory /></ProtectedRoute>} />
+          <Route path="/inventory/dashboard" element={<ProtectedRoute><InventoryDashboard /></ProtectedRoute>} />
+          <Route path="/inventory/usage" element={<ProtectedRoute><LogUsage /></ProtectedRoute>} />
           <Route path="/inventory/public-rc" element={<ProtectedRoute><PublicRateCard /></ProtectedRoute>} />
           <Route path="/inventory/internal-rc" element={<ProtectedRoute><InternalRateCard /></ProtectedRoute>} />
           <Route path="/inventory/history" element={<ProtectedRoute><PurchaseHistory /></ProtectedRoute>} />

@@ -27,7 +27,7 @@ function generateFXIN(trade, itemName, qty) {
 }
 
 function blankItem() {
-  return { itemName: '', qty: '', spec: '', size: '', priceInc: '' }
+  return { itemName: '', qty: '', spec: '', size: '', priceInc: '', warranty: '', margin: '' }
 }
 
 const today = new Date().toISOString().split('T')[0]
@@ -82,7 +82,7 @@ function StepBar({ step }) {
 }
 
 function downloadTemplate() {
-  const csv = 'Item Name,Qty,Spec,Size,Price Inc.\n,,,,\n,,,,\n,,,,\n'
+  const csv = 'Item Name,Qty,Spec,Size,Price Inc.,Warranty (months),Margin %\n,,,,,\n,,,,,\n,,,,,\n'
   const blob = new Blob([csv], { type: 'text/csv' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -99,7 +99,7 @@ async function parseUploadedFile(file) {
         const items = lines
           .map(line => {
             const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
-            return { itemName: cols[0] || '', qty: cols[1] || '', spec: cols[2] || '', size: cols[3] || '', priceInc: cols[4] || '' }
+            return { itemName: cols[0] || '', qty: cols[1] || '', spec: cols[2] || '', size: cols[3] || '', priceInc: cols[4] || '', warranty: cols[5] || '', margin: cols[6] || '' }
           })
           .filter(it => it.itemName)
         resolve(items)
@@ -121,6 +121,9 @@ export default function RegisterInventory() {
   const [purchaseDate, setPurchaseDate] = useState(today)
   const [trade, setTrade]               = useState('')
   const [totalAmount, setTotalAmount]   = useState('')
+  const [vendorName, setVendorName]     = useState('')
+  const [vendorContact, setVendorContact] = useState('')
+  const [vendorGstin, setVendorGstin]   = useState('')
   const [invoiceFile, setInvoiceFile]   = useState(null)
   const [items, setItems]               = useState([blankItem()])
   const [submitting, setSubmitting]     = useState(false)
@@ -166,7 +169,7 @@ export default function RegisterInventory() {
 
       const { data: reg, error: regErr } = await supabase
         .from('inventory_registry')
-        .insert({ purchase_date: purchaseDate, trade: trade.toLowerCase(), total_amount: parseFloat(totalAmount) || 0, invoice_url: invoiceUrl })
+        .insert({ purchase_date: purchaseDate, trade: trade.toLowerCase(), total_amount: parseFloat(totalAmount) || 0, invoice_url: invoiceUrl, vendor_name: vendorName || null, vendor_contact: vendorContact || null, vendor_gstin: vendorGstin || null })
         .select('id').single()
       if (regErr) throw regErr
 
@@ -178,7 +181,8 @@ export default function RegisterInventory() {
         const suffix = (count || 0) + (fxinCounts[baseFxin] || 0)
         fxinCounts[baseFxin] = (fxinCounts[baseFxin] || 0) + 1
         const fxin = suffix === 0 ? baseFxin : `${baseFxin}-${String(suffix).padStart(3, '0')}`
-        itemRows.push({ registry_id: reg.id, fxin, item_name: it.itemName, qty: parseInt(it.qty) || 1, spec: it.spec, size: it.size, price_inc: parseFloat(it.priceInc) || 0, trade: trade.toLowerCase() })
+        const qty = parseInt(it.qty) || 1
+        itemRows.push({ registry_id: reg.id, fxin, item_name: it.itemName, qty, spec: it.spec, size: it.size, price_inc: parseFloat(it.priceInc) || 0, trade: trade.toLowerCase(), quantity_remaining: qty, quantity_used: 0, warranty_months: parseInt(it.warranty) || 0, margin_percent: parseFloat(it.margin) || 0 })
       }
 
       const { data: inserted, error: itemErr } = await supabase.from('inventory_items').insert(itemRows).select('fxin, item_name, price_inc')
@@ -255,6 +259,22 @@ export default function RegisterInventory() {
                   placeholder="0.00"
                   style={{ width: '100%', padding: '9px 12px 9px 28px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
                 />
+              </div>
+            </div>
+
+            {/* Vendor fields */}
+            <div style={{ marginTop: 14 }}>
+              <Label optional>Vendor Name</Label>
+              <Inp value={vendorName} onChange={setVendorName} placeholder="e.g. Sharma Electricals" />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginTop: 12 }}>
+              <div>
+                <Label optional>Vendor Contact</Label>
+                <Inp value={vendorContact} onChange={setVendorContact} placeholder="Phone or email" />
+              </div>
+              <div>
+                <Label optional>Vendor GSTIN</Label>
+                <Inp value={vendorGstin} onChange={setVendorGstin} placeholder="e.g. 29AAAAA0000A1Z5" />
               </div>
             </div>
 
@@ -346,7 +366,7 @@ export default function RegisterInventory() {
                     </div>
 
                     {/* Spec + Size side by side */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                       <div>
                         <Label optional>Spec</Label>
                         <Inp value={item.spec} onChange={v => updateItem(i, 'spec', v)} placeholder="e.g. 10kA, Type B" />
@@ -354,6 +374,18 @@ export default function RegisterInventory() {
                       <div>
                         <Label optional>Size</Label>
                         <Inp value={item.size} onChange={v => updateItem(i, 'size', v)} placeholder="e.g. 25mm" />
+                      </div>
+                    </div>
+
+                    {/* Warranty + Margin side by side */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div>
+                        <Label optional>Warranty (months)</Label>
+                        <Inp type="number" value={item.warranty} onChange={v => updateItem(i, 'warranty', v)} placeholder="0" />
+                      </div>
+                      <div>
+                        <Label optional>Margin %</Label>
+                        <Inp type="number" value={item.margin} onChange={v => updateItem(i, 'margin', v)} placeholder="0" />
                       </div>
                     </div>
                   </div>

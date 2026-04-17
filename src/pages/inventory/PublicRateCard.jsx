@@ -38,14 +38,14 @@ function TradePill({ label, active, onClick, small }) {
   )
 }
 
-const TEMPLATE_COLS = 'trade,area,item_name,material_cost,labour_cost,unit'
+const TEMPLATE_COLS = 'trade,area,item_name,spec,market_price,flent_price,warranty_months,material_cost,labour_cost,unit'
 
 function downloadTemplate() {
   const sample = [
     TEMPLATE_COLS,
-    'electrical,Main DB,MCB Replacement,280,0,nos',
-    'electrical,Main DB,DB Inspection,0,500,per session',
-    'plumbing,Bathroom,Basin Tap Replacement,450,200,nos',
+    'electrical,Main DB,MCB Replacement,10kA Type B,350,280,24,280,0,nos',
+    'electrical,Main DB,DB Inspection,,0,0,0,0,500,per session',
+    'plumbing,Bathroom,Basin Tap Replacement,Chrome 1/2",600,450,12,450,200,nos',
   ].join('\n')
   const blob = new Blob([sample], { type: 'text/csv' })
   const url = URL.createObjectURL(blob)
@@ -65,7 +65,7 @@ export default function PublicRateCard() {
   const [editing, setEditing]     = useState({})
   const [saving, setSaving]       = useState({})
   const [addingTo, setAddingTo]   = useState(null)
-  const [newRow, setNewRow]       = useState({ item_name: '', area: '', material_cost: '', labour_cost: '', unit: '' })
+  const [newRow, setNewRow]       = useState({ item_name: '', area: '', spec: '', market_price: '', flent_price: '', warranty_months: '', material_cost: '', labour_cost: '', unit: '' })
   const [loading, setLoading]     = useState(true)
   const [preview, setPreview]     = useState(null)
   const [importing, setImporting] = useState(false)
@@ -103,14 +103,14 @@ export default function PublicRateCard() {
   }, {})
 
   function startEdit(row) {
-    setEditing(p => ({ ...p, [row.id]: { item_name: row.item_name || '', area: row.area || '', material_cost: String(row.material_cost ?? ''), labour_cost: String(row.labour_cost ?? ''), unit: row.unit || '' } }))
+    setEditing(p => ({ ...p, [row.id]: { item_name: row.item_name || '', area: row.area || '', spec: row.spec || '', market_price: String(row.market_price ?? ''), flent_price: String(row.flent_price ?? ''), warranty_months: String(row.warranty_months ?? ''), material_cost: String(row.material_cost ?? ''), labour_cost: String(row.labour_cost ?? ''), unit: row.unit || '' } }))
   }
   function cancelEdit(id) { setEditing(p => { const n = { ...p }; delete n[id]; return n }) }
 
   async function saveRow(row) {
     const e = editing[row.id]; if (!e) return
     setSaving(p => ({ ...p, [row.id]: true }))
-    const patch = { item_name: e.item_name, area: e.area, material_cost: parseFloat(e.material_cost) || 0, labour_cost: parseFloat(e.labour_cost) || 0, unit: e.unit }
+    const patch = { item_name: e.item_name, area: e.area, spec: e.spec, market_price: parseFloat(e.market_price) || 0, flent_price: parseFloat(e.flent_price) || 0, warranty_months: parseInt(e.warranty_months) || 0, material_cost: parseFloat(e.material_cost) || 0, labour_cost: parseFloat(e.labour_cost) || 0, unit: e.unit }
     await supabase.from('rate_card').update(patch).eq('id', row.id)
     setRows(p => p.map(r => r.id === row.id ? { ...r, ...patch } : r))
     setSaving(p => { const n = { ...p }; delete n[row.id]; return n })
@@ -123,13 +123,17 @@ export default function PublicRateCard() {
       trade,
       area: newRow.area || '',
       item_name: newRow.item_name,
+      spec: newRow.spec || '',
+      market_price: parseFloat(newRow.market_price) || 0,
+      flent_price: parseFloat(newRow.flent_price) || 0,
+      warranty_months: parseInt(newRow.warranty_months) || 0,
       material_cost: parseFloat(newRow.material_cost) || 0,
       labour_cost: parseFloat(newRow.labour_cost) || 0,
       unit: newRow.unit || '',
     }).select().single()
     if (!error && data) {
       setRows(p => [...p, data])
-      setNewRow({ item_name: '', area: '', material_cost: '', labour_cost: '', unit: '' })
+      setNewRow({ item_name: '', area: '', spec: '', market_price: '', flent_price: '', warranty_months: '', material_cost: '', labour_cost: '', unit: '' })
       setAddingTo(null)
     }
   }
@@ -145,7 +149,7 @@ export default function PublicRateCard() {
       const parsed = lines.slice(1).map(line => {
         const vals = line.split(','); const obj = {}
         header.forEach((h, i) => { obj[h] = vals[i]?.trim() || '' })
-        return { trade: obj.trade || 'misc', area: obj.area || '', item_name: obj.item_name || '', material_cost: parseFloat(obj.material_cost) || 0, labour_cost: parseFloat(obj.labour_cost) || 0, unit: obj.unit || '' }
+        return { trade: obj.trade || 'misc', area: obj.area || '', item_name: obj.item_name || '', spec: obj.spec || '', market_price: parseFloat(obj.market_price) || 0, flent_price: parseFloat(obj.flent_price) || 0, warranty_months: parseInt(obj.warranty_months) || 0, material_cost: parseFloat(obj.material_cost) || 0, labour_cost: parseFloat(obj.labour_cost) || 0, unit: obj.unit || '' }
       }).filter(r => r.item_name)
       setPreview(parsed)
     }
@@ -330,11 +334,22 @@ export default function PublicRateCard() {
               <div style={{ background: 'var(--bg-panel, #1e2028)', borderRadius: 10, border: '1px solid var(--border, #2e3040)', overflow: 'hidden' }}>
 
                 {/* Desktop column header */}
-                {!isMobile && (
+                {!isMobile && tab === 'Material RC' && (
                   <div style={s.colHead}>
-                    <span style={{ flex: 2 }}>{tab === 'Material RC' ? 'Item Name' : 'Work Type'}</span>
+                    <span style={{ flex: 2 }}>Item Description</span>
+                    <span style={{ flex: 1 }}>Spec</span>
+                    <span style={{ width: 110, textAlign: 'right' }}>Market ₹</span>
+                    <span style={{ width: 110, textAlign: 'right' }}>Flent ₹</span>
+                    <span style={{ width: 80, textAlign: 'right' }}>Warranty</span>
+                    <span style={{ width: 60, textAlign: 'right' }}>Unit</span>
+                    {isAdmin && <span style={{ width: 36 }} />}
+                  </div>
+                )}
+                {!isMobile && tab === 'Labour RC' && (
+                  <div style={s.colHead}>
+                    <span style={{ flex: 2 }}>Work Type</span>
                     <span style={{ flex: 1 }}>Area</span>
-                    <span style={{ width: 120, textAlign: 'right' }}>₹ Cost{tab === 'Labour RC' ? ' / Unit' : ''}</span>
+                    <span style={{ width: 130, textAlign: 'right' }}>₹ Cost / Unit</span>
                     {isAdmin && <span style={{ width: 36 }} />}
                   </div>
                 )}
@@ -350,15 +365,40 @@ export default function PublicRateCard() {
                         {isEdit ? (
                           <div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                              <div><span style={s.label}>Item Name</span><input value={e.item_name} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], item_name: ev.target.value } }))} style={s.editInput} /></div>
-                              <div><span style={s.label}>Area</span><input value={e.area} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], area: ev.target.value } }))} style={s.editInput} /></div>
-                              <div><span style={s.label}>Material ₹</span><input type="number" value={e.material_cost} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], material_cost: ev.target.value } }))} style={s.editInput} /></div>
-                              <div><span style={s.label}>Labour ₹</span><input type="number" value={e.labour_cost} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], labour_cost: ev.target.value } }))} style={s.editInput} /></div>
-                              <div style={{ gridColumn: '1/-1' }}><span style={s.label}>Unit</span><input value={e.unit} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], unit: ev.target.value } }))} style={s.editInput} /></div>
+                              <div style={{ gridColumn: '1/-1' }}><span style={s.label}>Item Name</span><input value={e.item_name} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], item_name: ev.target.value } }))} style={s.editInput} /></div>
+                              {tab === 'Material RC' && <>
+                                <div><span style={s.label}>Spec</span><input value={e.spec} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], spec: ev.target.value } }))} style={s.editInput} /></div>
+                                <div><span style={s.label}>Unit</span><input value={e.unit} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], unit: ev.target.value } }))} style={s.editInput} /></div>
+                                <div><span style={s.label}>Market ₹</span><input type="number" value={e.market_price} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], market_price: ev.target.value } }))} style={s.editInput} /></div>
+                                <div><span style={s.label}>Flent ₹</span><input type="number" value={e.flent_price} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], flent_price: ev.target.value } }))} style={s.editInput} /></div>
+                                <div><span style={s.label}>Warranty (mo)</span><input type="number" value={e.warranty_months} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], warranty_months: ev.target.value } }))} style={s.editInput} /></div>
+                                <div><span style={s.label}>Material ₹</span><input type="number" value={e.material_cost} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], material_cost: ev.target.value } }))} style={s.editInput} /></div>
+                              </>}
+                              {tab === 'Labour RC' && <>
+                                <div><span style={s.label}>Area</span><input value={e.area} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], area: ev.target.value } }))} style={s.editInput} /></div>
+                                <div><span style={s.label}>Labour ₹</span><input type="number" value={e.labour_cost} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], labour_cost: ev.target.value } }))} style={s.editInput} /></div>
+                                <div><span style={s.label}>Unit</span><input value={e.unit} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], unit: ev.target.value } }))} style={s.editInput} /></div>
+                              </>}
                             </div>
                             <div style={{ display: 'flex', gap: 8 }}>
                               <button onClick={() => saveRow(row)} disabled={saving[row.id]} style={{ flex: 1, padding: '7px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{saving[row.id] ? '…' : '✓ Save'}</button>
                               <button onClick={() => cancelEdit(row.id)} style={{ flex: 1, padding: '7px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>✕ Cancel</button>
+                            </div>
+                          </div>
+                        ) : tab === 'Material RC' ? (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ flex: 1, paddingRight: 10 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', marginBottom: 2 }}>{row.item_name}</div>
+                              {row.spec && <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginBottom: 2 }}>{row.spec}</div>}
+                              {row.warranty_months > 0 && <div style={{ fontSize: 10, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{row.warranty_months}mo warranty</div>}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                              <div style={{ textAlign: 'right' }}>
+                                {parseFloat(row.flent_price) > 0 && <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>₹{parseFloat(row.flent_price).toLocaleString('en-IN')}</div>}
+                                {parseFloat(row.market_price) > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textDecoration: 'line-through' }}>₹{parseFloat(row.market_price).toLocaleString('en-IN')}</div>}
+                                {row.unit && <div style={{ fontSize: 10, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{row.unit}</div>}
+                              </div>
+                              {isAdmin && <button onClick={() => startEdit(row)} style={s.editBtn}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>}
                             </div>
                           </div>
                         ) : (
@@ -370,13 +410,9 @@ export default function PublicRateCard() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                               <div style={{ textAlign: 'right' }}>
                                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>₹{cost.toLocaleString('en-IN')}</div>
-                                {tab === 'Labour RC' && row.unit && <div style={{ fontSize: 10, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>per {row.unit}</div>}
+                                {row.unit && <div style={{ fontSize: 10, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>per {row.unit}</div>}
                               </div>
-                              {isAdmin && (
-                                <button onClick={() => startEdit(row)} style={s.editBtn}>
-                                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                </button>
-                              )}
+                              {isAdmin && <button onClick={() => startEdit(row)} style={s.editBtn}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>}
                             </div>
                           </div>
                         )}
@@ -385,15 +421,54 @@ export default function PublicRateCard() {
                   }
 
                   // Desktop row
+                  if (tab === 'Material RC') {
+                    return (
+                      <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', borderTop: '1px solid var(--border, #2e3040)', minHeight: 44, background: ri % 2 !== 0 ? 'rgba(255,255,255,0.018)' : 'transparent' }}>
+                        {isEdit ? (
+                          <>
+                            <input value={e.item_name} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], item_name: ev.target.value } }))} style={{ ...s.editInput, flex: 2 }} placeholder="Item name" />
+                            <input value={e.spec} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], spec: ev.target.value } }))} style={{ ...s.editInput, flex: 1 }} placeholder="Spec" />
+                            <input type="number" value={e.market_price} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], market_price: ev.target.value } }))} style={{ ...s.editInput, width: 80, flexShrink: 0 }} placeholder="Market ₹" />
+                            <input type="number" value={e.flent_price} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], flent_price: ev.target.value } }))} style={{ ...s.editInput, width: 80, flexShrink: 0 }} placeholder="Flent ₹" />
+                            <input type="number" value={e.warranty_months} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], warranty_months: ev.target.value } }))} style={{ ...s.editInput, width: 60, flexShrink: 0 }} placeholder="Mo" />
+                            <input value={e.unit} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], unit: ev.target.value } }))} style={{ ...s.editInput, width: 50, flexShrink: 0 }} placeholder="unit" />
+                            <div style={{ width: 36, flexShrink: 0, display: 'flex', gap: 4 }}>
+                              <button onClick={() => saveRow(row)} disabled={saving[row.id]} style={s.saveBtn}>{saving[row.id] ? '…' : '✓'}</button>
+                              <button onClick={() => cancelEdit(row.id)} style={s.cancelBtn}>✕</button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ flex: 2, fontSize: 13, color: 'var(--text, #e8e8f0)' }}>{row.item_name}</span>
+                            <span style={{ flex: 1, fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{row.spec || '—'}</span>
+                            <span style={{ width: 110, flexShrink: 0, fontSize: 12, color: 'var(--text-muted, #6b6d82)', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)', textDecoration: parseFloat(row.market_price) > 0 ? 'line-through' : 'none' }}>
+                              {parseFloat(row.market_price) > 0 ? `₹${parseFloat(row.market_price).toLocaleString('en-IN')}` : '—'}
+                            </span>
+                            <span style={{ width: 110, flexShrink: 0, fontSize: 13, fontWeight: 700, color: 'var(--text, #e8e8f0)', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)' }}>
+                              {parseFloat(row.flent_price) > 0 ? `₹${parseFloat(row.flent_price).toLocaleString('en-IN')}` : '—'}
+                            </span>
+                            <span style={{ width: 80, flexShrink: 0, fontSize: 11, color: row.warranty_months > 0 ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)' }}>
+                              {row.warranty_months > 0 ? `${row.warranty_months}mo` : '—'}
+                            </span>
+                            <span style={{ width: 60, flexShrink: 0, fontSize: 11, color: 'var(--text-muted, #6b6d82)', textAlign: 'right' }}>{row.unit || '—'}</span>
+                            {isAdmin && (
+                              <div style={{ width: 36, flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+                                <button onClick={() => startEdit(row)} style={s.editBtn}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )
+                  }
+
                   return (
                     <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', borderTop: '1px solid var(--border, #2e3040)', minHeight: 44, background: ri % 2 !== 0 ? 'rgba(255,255,255,0.018)' : 'transparent' }}>
                       {isEdit ? (
                         <>
                           <input value={e.item_name} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], item_name: ev.target.value } }))} style={{ ...s.editInput, flex: 2 }} />
                           <input value={e.area} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], area: ev.target.value } }))} style={{ ...s.editInput, flex: 1 }} />
-                          <input type="number" value={tab === 'Material RC' ? e.material_cost : e.labour_cost}
-                            onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], [tab === 'Material RC' ? 'material_cost' : 'labour_cost']: ev.target.value } }))}
-                            style={{ ...s.editInput, width: 90, flexShrink: 0 }} placeholder="₹" />
+                          <input type="number" value={e.labour_cost} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], labour_cost: ev.target.value } }))} style={{ ...s.editInput, width: 90, flexShrink: 0 }} placeholder="₹" />
                           <input value={e.unit} onChange={ev => setEditing(p => ({ ...p, [row.id]: { ...p[row.id], unit: ev.target.value } }))} style={{ ...s.editInput, width: 70, flexShrink: 0 }} placeholder="unit" />
                           <div style={{ width: 36, flexShrink: 0, display: 'flex', gap: 4 }}>
                             <button onClick={() => saveRow(row)} disabled={saving[row.id]} style={s.saveBtn}>{saving[row.id] ? '…' : '✓'}</button>
@@ -404,14 +479,12 @@ export default function PublicRateCard() {
                         <>
                           <span style={{ flex: 2, fontSize: 13, color: 'var(--text, #e8e8f0)' }}>{row.item_name}</span>
                           <span style={{ flex: 1, fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{row.area || '—'}</span>
-                          <span style={{ width: 120, flexShrink: 0, fontSize: 13, fontWeight: 700, color: 'var(--text, #e8e8f0)', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)' }}>
-                            ₹{cost.toLocaleString('en-IN')}{tab === 'Labour RC' && row.unit ? ` / ${row.unit}` : ''}
+                          <span style={{ width: 130, flexShrink: 0, fontSize: 13, fontWeight: 700, color: 'var(--text, #e8e8f0)', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)' }}>
+                            ₹{cost.toLocaleString('en-IN')}{row.unit ? ` / ${row.unit}` : ''}
                           </span>
                           {isAdmin && (
                             <div style={{ width: 36, flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
-                              <button onClick={() => startEdit(row)} style={s.editBtn}>
-                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                              </button>
+                              <button onClick={() => startEdit(row)} style={s.editBtn}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
                             </div>
                           )}
                         </>
@@ -423,14 +496,23 @@ export default function PublicRateCard() {
                 {/* Add new row form */}
                 {isAdmin && addingTo === trade && (
                   <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border, #2e3040)', background: 'rgba(200,150,62,0.04)' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '2fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
-                      <input value={newRow.item_name} onChange={e => setNewRow(p => ({ ...p, item_name: e.target.value }))} placeholder={tab === 'Labour RC' ? 'Work type' : 'Item name'} style={s.editInput} />
-                      <input value={newRow.area} onChange={e => setNewRow(p => ({ ...p, area: e.target.value }))} placeholder="Area" style={s.editInput} />
-                      <input type="number" value={tab === 'Material RC' ? newRow.material_cost : newRow.labour_cost}
-                        onChange={e => setNewRow(p => ({ ...p, [tab === 'Material RC' ? 'material_cost' : 'labour_cost']: e.target.value }))}
-                        placeholder="Cost ₹" style={s.editInput} />
-                      <input value={newRow.unit} onChange={e => setNewRow(p => ({ ...p, unit: e.target.value }))} placeholder="Unit" style={s.editInput} />
-                    </div>
+                    {tab === 'Material RC' ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '2fr 1fr 1fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+                        <input value={newRow.item_name} onChange={e => setNewRow(p => ({ ...p, item_name: e.target.value }))} placeholder="Item name" style={s.editInput} />
+                        <input value={newRow.spec} onChange={e => setNewRow(p => ({ ...p, spec: e.target.value }))} placeholder="Spec" style={s.editInput} />
+                        <input type="number" value={newRow.market_price} onChange={e => setNewRow(p => ({ ...p, market_price: e.target.value }))} placeholder="Market ₹" style={s.editInput} />
+                        <input type="number" value={newRow.flent_price} onChange={e => setNewRow(p => ({ ...p, flent_price: e.target.value }))} placeholder="Flent ₹" style={s.editInput} />
+                        <input type="number" value={newRow.warranty_months} onChange={e => setNewRow(p => ({ ...p, warranty_months: e.target.value }))} placeholder="Warranty mo" style={s.editInput} />
+                        <input value={newRow.unit} onChange={e => setNewRow(p => ({ ...p, unit: e.target.value }))} placeholder="Unit" style={s.editInput} />
+                      </div>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '2fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+                        <input value={newRow.item_name} onChange={e => setNewRow(p => ({ ...p, item_name: e.target.value }))} placeholder="Work type" style={s.editInput} />
+                        <input value={newRow.area} onChange={e => setNewRow(p => ({ ...p, area: e.target.value }))} placeholder="Area" style={s.editInput} />
+                        <input type="number" value={newRow.labour_cost} onChange={e => setNewRow(p => ({ ...p, labour_cost: e.target.value }))} placeholder="Cost ₹" style={s.editInput} />
+                        <input value={newRow.unit} onChange={e => setNewRow(p => ({ ...p, unit: e.target.value }))} placeholder="Unit" style={s.editInput} />
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => addItem(trade)} style={{ flex: 1, padding: '6px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
                       <button onClick={() => setAddingTo(null)} style={{ flex: 1, padding: '6px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>Cancel</button>

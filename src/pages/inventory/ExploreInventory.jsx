@@ -2,8 +2,8 @@ import { useNavigate } from 'react-router-dom'
 
 const TILES = [
   {
-    label: 'Register Inventory',
-    desc: 'Log new purchases with invoice and line items',
+    label: 'Register Purchase',
+    desc: 'Log new purchases with vendor, invoice and line items',
     route: '/inventory/register',
     icon: (
       <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
@@ -16,6 +16,37 @@ const TILES = [
     accent: 'var(--accent, #c8963e)',
     bg: 'rgba(200,150,62,0.06)',
     border: 'rgba(200,150,62,0.22)',
+  },
+  {
+    label: 'Dashboard',
+    desc: 'View stock levels, values and item details by trade',
+    route: '/inventory/dashboard',
+    icon: (
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+        <rect x="4" y="4" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.8"/>
+        <rect x="17" y="4" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.8"/>
+        <rect x="4" y="17" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.8"/>
+        <rect x="17" y="17" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.8"/>
+      </svg>
+    ),
+    accent: '#5ba8e5',
+    bg: 'rgba(91,168,229,0.06)',
+    border: 'rgba(91,168,229,0.22)',
+  },
+  {
+    label: 'Log Usage',
+    desc: 'Record items used on a job and update stock levels',
+    route: '/inventory/usage',
+    icon: (
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="16" r="12" stroke="currentColor" strokeWidth="1.8"/>
+        <path d="M16 10v6l4 2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M9 24l3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+      </svg>
+    ),
+    accent: '#3dba7a',
+    bg: 'rgba(61,186,122,0.06)',
+    border: 'rgba(61,186,122,0.22)',
   },
   {
     label: 'Public Rate Card',

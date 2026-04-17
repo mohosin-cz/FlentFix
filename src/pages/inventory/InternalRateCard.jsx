@@ -31,7 +31,7 @@ function processInventoryItems(items) {
   items.forEach(item => {
     const key = `${item.item_name}|||${(item.trade || '').toLowerCase()}`
     if (!groups[key]) {
-      groups[key] = { item_name: item.item_name, trade: item.trade, fxin: item.fxin, spec: item.spec, size: item.size, prices: [] }
+      groups[key] = { item_name: item.item_name, trade: item.trade, fxin: item.fxin, spec: item.spec, size: item.size, margin_percent: item.margin_percent || 0, prices: [] }
       order.push(key)
     }
     groups[key].prices.push(parseFloat(item.price_inc) || 0)
@@ -97,12 +97,14 @@ export default function InternalRateCard() {
   const [filter, setFilter]               = useState('')
   const [editingL, setEditingL]           = useState({})
   const [savingL, setSavingL]             = useState({})
+  const [editingMargin, setEditingMargin] = useState({})
+  const [savingMargin, setSavingMargin]   = useState({})
   const [addingTo, setAddingTo]           = useState(null)
   const [newRow, setNewRow]               = useState({ work_type: '', area: '', cost: '', unit: '', trade: 'electrical' })
 
   useEffect(() => {
     Promise.all([
-      supabase.from('inventory_items').select('item_name,trade,fxin,spec,size,price_inc,purchase_date').order('purchase_date', { ascending: false }),
+      supabase.from('inventory_items').select('item_name,trade,fxin,spec,size,price_inc,purchase_date,margin_percent').order('purchase_date', { ascending: false }),
       supabase.from('labour_rates').select('*').order('trade').order('work_type'),
       supabase.auth.getUser(),
     ]).then(([{ data: invData }, { data: lData }, { data: { user } }]) => {
@@ -138,6 +140,15 @@ export default function InternalRateCard() {
     setLabourRates(p => p.map(r => r.id === row.id ? { ...r, ...patch } : r))
     setSavingL(p => { const n = { ...p }; delete n[row.id]; return n })
     cancelEditL(row.id)
+  }
+
+  async function saveMargin(fxin, value) {
+    setSavingMargin(p => ({ ...p, [fxin]: true }))
+    const pct = parseFloat(value) || 0
+    await supabase.from('inventory_items').update({ margin_percent: pct }).eq('fxin', fxin)
+    setMaterialItems(p => p.map(r => r.fxin === fxin ? { ...r, margin_percent: pct } : r))
+    setSavingMargin(p => { const n = { ...p }; delete n[fxin]; return n })
+    setEditingMargin(p => { const n = { ...p }; delete n[fxin]; return n })
   }
 
   async function addLabourRow() {
@@ -257,6 +268,8 @@ export default function InternalRateCard() {
                           <span style={{ flex: 1 }}>Spec</span>
                           <span style={{ width: 80, textAlign: 'right' }}>Last ₹</span>
                           <span style={{ width: 90, textAlign: 'right' }}>Avg ₹</span>
+                          {isAdmin && <span style={{ width: 90, textAlign: 'right' }}>Margin %</span>}
+                          {isAdmin && <span style={{ width: 100, textAlign: 'right' }}>Margin Cost</span>}
                         </div>
                       )}
                       {items.map((row, i) => (
@@ -279,6 +292,7 @@ export default function InternalRateCard() {
                                 <span>Last: <span style={{ color: 'var(--text, #e8e8f0)', fontWeight: 600 }}>₹{(row.last_price || 0).toLocaleString('en-IN')}</span></span>
                                 <span>Avg: <span style={{ color: row.avg_cost > row.last_price ? '#f5c842' : 'var(--text, #e8e8f0)', fontWeight: 600 }}>₹{(row.avg_cost || 0).toLocaleString('en-IN')}</span>{row.avg_cost > row.last_price && <TrendUpIcon />}</span>
                                 {row.count > 1 && <span>{row.count} purchases</span>}
+                                {isAdmin && <span>Margin: <span style={{ color: 'var(--accent, #c8963e)', fontWeight: 600 }}>{row.margin_percent || 0}% → ₹{Math.round((row.last_price || 0) * (1 + (row.margin_percent || 0) / 100)).toLocaleString('en-IN')}</span></span>}
                               </div>
                             </>
                           ) : (
@@ -290,6 +304,28 @@ export default function InternalRateCard() {
                               <span style={{ width: 90, flexShrink: 0, fontSize: 12, fontWeight: 600, textAlign: 'right', fontFamily: 'var(--font-mono, monospace)', color: row.avg_cost > row.last_price ? '#f5c842' : 'var(--text-muted, #6b6d82)' }}>
                                 ₹{(row.avg_cost || 0).toLocaleString('en-IN')}{row.avg_cost > row.last_price && <TrendUpIcon />}
                               </span>
+                              {isAdmin && (
+                                <div style={{ width: 90, flexShrink: 0, textAlign: 'right' }}>
+                                  {editingMargin[row.fxin] !== undefined ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'flex-end' }}>
+                                      <input type="number" value={editingMargin[row.fxin]} onChange={ev => setEditingMargin(p => ({ ...p, [row.fxin]: ev.target.value }))}
+                                        style={{ width: 44, padding: '3px 5px', fontSize: 11, color: 'var(--text, #e8e8f0)', background: 'rgba(200,150,62,0.08)', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 4, outline: 'none', fontFamily: 'var(--font-mono, monospace)', textAlign: 'right' }} />
+                                      <button onClick={() => saveMargin(row.fxin, editingMargin[row.fxin])} disabled={savingMargin[row.fxin]} style={{ ...s.saveBtn, width: 22, height: 22, fontSize: 10 }}>{savingMargin[row.fxin] ? '…' : '✓'}</button>
+                                      <button onClick={() => setEditingMargin(p => { const n = { ...p }; delete n[row.fxin]; return n })} style={{ ...s.cancelBtn, width: 22, height: 22, fontSize: 10 }}>✕</button>
+                                    </div>
+                                  ) : (
+                                    <span onClick={() => setEditingMargin(p => ({ ...p, [row.fxin]: String(row.margin_percent || 0) }))}
+                                      style={{ fontSize: 12, color: (row.margin_percent || 0) > 0 ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', cursor: 'pointer', borderBottom: '1px dashed rgba(200,150,62,0.4)' }}>
+                                      {(row.margin_percent || 0)}%
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              {isAdmin && (
+                                <span style={{ width: 100, flexShrink: 0, fontSize: 12, fontWeight: 700, textAlign: 'right', fontFamily: 'var(--font-mono, monospace)', color: 'var(--green, #3dba7a)' }}>
+                                  ₹{Math.round((row.last_price || 0) * (1 + (row.margin_percent || 0) / 100)).toLocaleString('en-IN')}
+                                </span>
+                              )}
                             </>
                           )}
                         </div>
