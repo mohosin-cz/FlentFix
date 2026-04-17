@@ -96,18 +96,11 @@ export default function InventoryDashboard() {
 
   useEffect(() => {
     async function load() {
-      // Try with registry join; fall back to plain select if join fails (columns may not exist yet)
-      let { data, error } = await supabase
+      const { data, error } = await supabase
         .from('inventory_items')
-        .select('*, inventory_registry(vendor_name, vendor_contact, purchase_date)')
-        .order('purchase_date', { ascending: false })
-      if (error) {
-        const fallback = await supabase
-          .from('inventory_items')
-          .select('*')
-          .order('purchase_date', { ascending: false })
-        data = fallback.data
-      }
+        .select('*, inventory_registry(vendor_name, vendor_contact, purchase_date, trade)')
+        .order('created_at', { ascending: false })
+      if (error) console.error('Dashboard fetch error:', error)
       setItems(data || [])
       setLoading(false)
     }
@@ -118,8 +111,8 @@ export default function InventoryDashboard() {
     .filter(r => tradePill === 'All' || (r.trade || '').toLowerCase() === tradePill.toLowerCase())
     .filter(r => !filter || r.fxin?.toLowerCase().includes(filter.toLowerCase()) || r.item_name?.toLowerCase().includes(filter.toLowerCase()))
 
-  const totalItems = filtered.reduce((s, r) => s + (parseInt(r.quantity_remaining) || 0), 0)
-  const totalValue = filtered.reduce((s, r) => s + (parseFloat(r.price_inc) || 0) * (parseInt(r.quantity_remaining) || 0), 0)
+  const totalItems = filtered.reduce((s, r) => s + (parseInt(r.quantity_remaining ?? r.qty) || 0), 0)
+  const totalValue = filtered.reduce((s, r) => s + (parseFloat(r.price_inc) || 0) * (parseInt(r.quantity_remaining ?? r.qty) || 0), 0)
   const tradeCount = new Set(filtered.map(r => (r.trade || 'misc').toLowerCase())).size
 
   function startEdit(row) {
