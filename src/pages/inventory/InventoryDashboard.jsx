@@ -76,8 +76,9 @@ export default function InventoryDashboard() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
   const [toasts, showToast] = useToast()
-  const [items, setItems]   = useState([])
-  const [loading, setLoading] = useState(true)
+  const [items, setItems]       = useState([])
+  const [registry, setRegistry] = useState([])
+  const [loading, setLoading]   = useState(true)
   const [tradePill, setTradePill] = useState('All')
   const [filter, setFilter] = useState('')
 
@@ -107,12 +108,18 @@ export default function InventoryDashboard() {
 
   useEffect(() => {
     async function load() {
-      const { data, error } = await supabase
-        .from('inventory_items')
-        .select('*, inventory_registry(vendor_name, vendor_contact, purchase_date, trade)')
-        .order('created_at', { ascending: false })
+      const [{ data, error }, { data: regData }] = await Promise.all([
+        supabase
+          .from('inventory_items')
+          .select('*, inventory_registry(vendor_name, vendor_contact, purchase_date, trade)')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('inventory_registry')
+          .select('total_amount, trade'),
+      ])
       if (error) console.error('Dashboard fetch error:', error)
       setItems(data || [])
+      setRegistry(regData || [])
       setLoading(false)
     }
     load()
@@ -123,7 +130,9 @@ export default function InventoryDashboard() {
     .filter(r => !filter || r.fxin?.toLowerCase().includes(filter.toLowerCase()) || r.item_name?.toLowerCase().includes(filter.toLowerCase()))
 
   const availableUnits = filtered.reduce((sum, item) => sum + (item.quantity_remaining ?? 0), 0)
-  const totalValue     = filtered.reduce((sum, item) => sum + ((item.price_inc ?? 0) * (item.qty ?? 1)), 0)
+  const totalValue     = registry
+    .filter(r => tradePill === 'All' || (r.trade || '').toLowerCase() === tradePill.toLowerCase())
+    .reduce((sum, r) => sum + (r.total_amount ?? 0), 0)
   const unitsUsed      = filtered.reduce((sum, item) => sum + (item.quantity_used ?? 0), 0)
 
   function startEdit(row) {
