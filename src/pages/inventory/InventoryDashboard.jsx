@@ -114,9 +114,9 @@ export default function InventoryDashboard() {
     .filter(r => tradePill === 'All' || (r.trade || '').toLowerCase() === tradePill.toLowerCase())
     .filter(r => !filter || r.fxin?.toLowerCase().includes(filter.toLowerCase()) || r.item_name?.toLowerCase().includes(filter.toLowerCase()))
 
-  const totalItems = filtered.reduce((s, r) => s + (parseInt(r.quantity_remaining ?? r.qty) || 0), 0)
-  const totalValue = filtered.reduce((s, r) => s + (parseFloat(r.price_inc) || 0) * (parseInt(r.quantity_remaining ?? r.qty) || 0), 0)
-  const totalUsed  = filtered.reduce((s, r) => s + (parseInt(r.quantity_used) || 0), 0)
+  const availableUnits = filtered.reduce((sum, item) => sum + (item.quantity_remaining ?? 0), 0)
+  const totalValue     = filtered.reduce((sum, item) => sum + ((item.price_inc ?? 0) * (item.qty ?? 1)), 0)
+  const unitsUsed      = filtered.reduce((sum, item) => sum + (item.quantity_used ?? 0), 0)
 
   function startEdit(row) {
     setEditing(row.id)
@@ -220,9 +220,9 @@ export default function InventoryDashboard() {
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 20 }}>
           {[
-            { label: 'Available Units', value: totalItems.toLocaleString('en-IN'),                   color: 'var(--text, #e8e8f0)' },
+            { label: 'Available Units', value: availableUnits.toLocaleString('en-IN'),                color: 'var(--text, #e8e8f0)' },
             { label: 'Total Value',     value: `₹${Math.round(totalValue).toLocaleString('en-IN')}`, color: 'var(--accent, #c8963e)' },
-            { label: 'Units Used',      value: totalUsed.toLocaleString('en-IN'),                    color: '#5ba8e5' },
+            { label: 'Units Used',      value: unitsUsed.toLocaleString('en-IN'),                    color: '#5ba8e5' },
           ].map(stat => (
             <div key={stat.label} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, padding: isMobile ? '12px 14px' : '16px 18px' }}>
               <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: stat.color, fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.2 }}>{stat.value}</div>
@@ -324,14 +324,13 @@ export default function InventoryDashboard() {
           </div>
         ) : (
           <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '120px minmax(160px,1fr) minmax(0,200px) 110px 90px 100px 100px 80px', padding: '10px 14px', background: '#0d0d0d', fontSize: 9, fontWeight: 700, color: 'var(--accent, #c8963e)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(150px,1fr) 180px 100px 90px 90px 70px', padding: '10px 16px', background: 'var(--bg-panel, #1e2028)', fontSize: 9, fontWeight: 700, color: 'var(--accent, #c8963e)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: 'var(--font-mono, monospace)', gap: 8, borderBottom: '1px solid var(--border, #2e3040)' }}>
               <span>FXIN</span>
               <span>Item Name</span>
               <span>Spec</span>
-              <span>Trade</span>
-              <span style={{ textAlign: 'right' }}>Price ₹</span>
-              <span>Warranty</span>
               <span style={{ textAlign: 'center' }}>Available</span>
+              <span style={{ textAlign: 'center' }}>Warranty</span>
+              <span style={{ textAlign: 'right' }}>Price ₹</span>
               <span style={{ textAlign: 'right' }}>Actions</span>
             </div>
             {filtered.map((row, i) => {
@@ -360,15 +359,14 @@ export default function InventoryDashboard() {
                     <div
                       onMouseEnter={() => setHoveredRow(row.id)}
                       onMouseLeave={() => setHoveredRow(null)}
-                      style={{ display: 'grid', gridTemplateColumns: '120px minmax(160px,1fr) minmax(0,200px) 110px 90px 100px 100px 80px', padding: '12px 14px', borderTop: '1px solid var(--border, #2e3040)', alignItems: 'center', gap: 8, background: hoveredRow === row.id ? 'rgba(255,255,255,0.04)' : i % 2 !== 0 ? 'rgba(255,255,255,0.018)' : 'transparent', transition: 'background 0.1s' }}
+                      style={{ display: 'grid', gridTemplateColumns: '110px minmax(150px,1fr) 180px 100px 90px 90px 70px', padding: '14px 16px', borderTop: '1px solid var(--border, #2e3040)', alignItems: 'center', gap: 8, background: hoveredRow === row.id ? 'rgba(200,150,62,0.04)' : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent', transition: 'background 0.1s' }}
                     >
-                      <span>{row.fxin ? <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.1)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 4, padding: '2px 6px', fontFamily: 'var(--font-mono, monospace)' }}>{row.fxin}</span> : '—'}</span>
-                      <span style={{ fontSize: 13, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.item_name}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.spec || '—'}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: meta.color, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono, monospace)' }}>{row.trade}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text, #e8e8f0)', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)' }}>₹{(parseFloat(row.price_inc) || 0).toLocaleString('en-IN')}</span>
-                      <span style={{ fontSize: 11, color: row.warranty_months > 0 ? '#3dba7a' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{row.warranty_months > 0 ? `${row.warranty_months}mo` : '—'}</span>
+                      <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>{row.fxin ? <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.1)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 4, padding: '2px 6px' }}>{row.fxin}</span> : '—'}</span>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.item_name}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.spec || '—'}</span>
                       <span style={{ textAlign: 'center' }}><QtyBadge qty={row.quantity_remaining ?? row.qty ?? 0} /></span>
+                      <span style={{ fontSize: 12, color: row.warranty_months > 0 ? '#3dba7a' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textAlign: 'center' }}>{row.warranty_months > 0 ? `${row.warranty_months}mo` : '—'}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text, #e8e8f0)', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)' }}>₹{(parseFloat(row.price_inc) || 0).toLocaleString('en-IN')}</span>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
                         <button onClick={() => startEdit(row)} style={s.iconBtn} title="Edit">
                           <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
