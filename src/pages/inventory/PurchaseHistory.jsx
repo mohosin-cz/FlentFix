@@ -320,17 +320,13 @@ export default function PurchaseHistory() {
                       <div style={{ textAlign: 'right', marginRight: 4 }}>
                         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>₹{(rec.total_amount || 0).toLocaleString('en-IN')}</div>
                       </div>
-                      {rec.invoice_url && rec.invoice_url.trim() !== '' && (
-                        <a
-                          href={rec.invoice_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          onMouseEnter={() => setHoveredInvoice(rec.id)}
-                          onMouseLeave={() => setHoveredInvoice(null)}
-                          style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.08)', border: `1px solid ${hoveredInvoice === rec.id ? 'rgba(200,150,62,0.6)' : 'var(--border, #2e3040)'}`, borderRadius: 20, padding: '3px 8px', textDecoration: 'none', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', transition: 'border-color 0.15s', flexShrink: 0 }}
-                        >📄 Invoice</a>
-                      )}
+                      <a
+                        href={rec.invoice_url || '#'}
+                        target={rec.invoice_url ? '_blank' : '_self'}
+                        rel="noopener noreferrer"
+                        onClick={e => { if (!rec.invoice_url) e.preventDefault(); e.stopPropagation() }}
+                        style={{ fontSize: 10, fontWeight: 600, color: rec.invoice_url ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', background: rec.invoice_url ? 'rgba(200,150,62,0.08)' : 'transparent', border: '1px solid var(--border, #2e3040)', borderRadius: 20, padding: '3px 8px', textDecoration: 'none', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', flexShrink: 0, opacity: rec.invoice_url ? 1 : 0.4, cursor: rec.invoice_url ? 'pointer' : 'default' }}
+                      >📄 Invoice</a>
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, color: 'var(--text-muted, #6b6d82)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
                         <path d="M2.5 5l4.5 4 4.5-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>

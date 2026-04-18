@@ -167,17 +167,15 @@ export default function RegisterInventory() {
       let invoiceUrl = null
       if (invoiceFile) {
         const fileExt = invoiceFile.name.split('.').pop()
-        const fileName = `invoices/${Date.now()}.${fileExt}`
+        const filePath = `invoices/${Date.now()}.${fileExt}`
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('inventory-invoices')
-          .upload(fileName, invoiceFile, { upsert: true })
-        if (uploadError) {
-          console.error('Invoice upload error:', uploadError)
-        } else {
-          const { data: urlData } = supabase.storage
+          .upload(filePath, invoiceFile, { upsert: true })
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage
             .from('inventory-invoices')
             .getPublicUrl(uploadData.path)
-          invoiceUrl = urlData.publicUrl
+          invoiceUrl = publicUrl
         }
       }
 
