@@ -320,7 +320,7 @@ export default function PurchaseHistory() {
                       <div style={{ textAlign: 'right', marginRight: 4 }}>
                         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>₹{(rec.total_amount || 0).toLocaleString('en-IN')}</div>
                       </div>
-                      {rec.invoice_url && (
+                      {rec.invoice_url && rec.invoice_url.trim() !== '' && (
                         <a
                           href={rec.invoice_url}
                           target="_blank"
