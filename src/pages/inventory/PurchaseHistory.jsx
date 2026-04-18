@@ -320,13 +320,47 @@ export default function PurchaseHistory() {
                       <div style={{ textAlign: 'right', marginRight: 4 }}>
                         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>₹{(rec.total_amount || 0).toLocaleString('en-IN')}</div>
                       </div>
-                      <a
-                        href={rec.invoice_url || '#'}
-                        target={rec.invoice_url ? '_blank' : '_self'}
-                        rel="noopener noreferrer"
-                        onClick={e => { if (!rec.invoice_url) e.preventDefault(); e.stopPropagation() }}
-                        style={{ fontSize: 10, fontWeight: 600, color: rec.invoice_url ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', background: rec.invoice_url ? 'rgba(200,150,62,0.08)' : 'transparent', border: '1px solid var(--border, #2e3040)', borderRadius: 20, padding: '3px 8px', textDecoration: 'none', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', flexShrink: 0, opacity: rec.invoice_url ? 1 : 0.4, cursor: rec.invoice_url ? 'pointer' : 'default' }}
-                      >📄 Invoice</a>
+                      {rec.invoice_url ? (
+                        <a
+                          href={rec.invoice_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.08)', border: '1px solid var(--accent, #c8963e)', borderRadius: 4, padding: '3px 8px', textDecoration: 'none', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', flexShrink: 0 }}
+                        >📄 Invoice</a>
+                      ) : (
+                        <span onClick={e => e.stopPropagation()} style={{ flexShrink: 0 }}>
+                          <label
+                            htmlFor={`invoice-upload-${rec.id}`}
+                            style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', border: '1px dashed var(--border, #2e3040)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}
+                          >⬆ Upload</label>
+                          <input
+                            id={`invoice-upload-${rec.id}`}
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            style={{ display: 'none' }}
+                            onChange={async e => {
+                              const file = e.target.files[0]; if (!file) return
+                              const fileExt = file.name.split('.').pop()
+                              const filePath = `invoices/${Date.now()}.${fileExt}`
+                              const { data: uploadData, error: upErr } = await supabase.storage
+                                .from('inventory-invoices')
+                                .upload(filePath, file, { upsert: true })
+                              if (upErr) { showToast('Upload failed: ' + upErr.message, 'error'); return }
+                              const { data: { publicUrl } } = supabase.storage
+                                .from('inventory-invoices')
+                                .getPublicUrl(uploadData.path)
+                              const { error: dbErr } = await supabase
+                                .from('inventory_registry')
+                                .update({ invoice_url: publicUrl })
+                                .eq('id', rec.id)
+                              if (dbErr) { showToast('Save failed: ' + dbErr.message, 'error'); return }
+                              showToast('Invoice uploaded')
+                              load()
+                            }}
+                          />
+                        </span>
+                      )}
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, color: 'var(--text-muted, #6b6d82)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
                         <path d="M2.5 5l4.5 4 4.5-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
