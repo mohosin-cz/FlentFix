@@ -99,6 +99,14 @@ export default function PurchaseHistory() {
   // Invoice hover
   const [hoveredInvoice, setHoveredInvoice] = useState(null)
 
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsAdmin(user?.email === 'mohosin@flent.in')
+    })
+  }, [])
+
   useEffect(() => {
     load()
   }, [])
@@ -235,9 +243,11 @@ export default function PurchaseHistory() {
           <span style={s.headerTitle}>Purchase History</span>
           <span style={s.headerSub}>{records.length} entries</span>
         </div>
-        <button style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer' }} onClick={() => navigate('/inventory/register')} title="New Purchase">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-        </button>
+        {isAdmin ? (
+          <button style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer' }} onClick={() => navigate('/inventory/register')} title="New Purchase">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+          </button>
+        ) : <div style={{ width: 36 }} />}
       </header>
 
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '20px 16px 60px' }}>
@@ -366,12 +376,16 @@ export default function PurchaseHistory() {
                       </svg>
                     </button>
                     {/* Actions */}
-                    <button onClick={() => startEditRec(rec)} style={s.iconBtn} title="Edit purchase">
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    </button>
-                    <button onClick={() => setConfirmDelRec({ id: rec.id, date: formatDate(rec.purchase_date) })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }} title="Delete purchase">
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    </button>
+                    {isAdmin && (
+                      <button onClick={() => startEditRec(rec)} style={s.iconBtn} title="Edit purchase">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button onClick={() => setConfirmDelRec({ id: rec.id, date: formatDate(rec.purchase_date) })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }} title="Delete purchase">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -424,14 +438,16 @@ export default function PurchaseHistory() {
                                     {(item.spec || item.size) && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)' }}>{[item.spec, item.size].filter(Boolean).join(' · ')}</div>}
                                     <div style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', marginTop: 3 }}>×{item.qty} · ₹{(item.price_inc || 0).toLocaleString('en-IN')}</div>
                                   </div>
-                                  <div style={{ display: 'flex', gap: 4 }}>
-                                    <button onClick={() => startEditItem(item)} style={s.iconBtn}>
-                                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                    </button>
-                                    <button onClick={() => setConfirmDelItem({ id: item.id, name: item.item_name, registry_id: rec.id })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }}>
-                                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                    </button>
-                                  </div>
+                                  {isAdmin && (
+                                    <div style={{ display: 'flex', gap: 4 }}>
+                                      <button onClick={() => startEditItem(item)} style={s.iconBtn}>
+                                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                      </button>
+                                      <button onClick={() => setConfirmDelItem({ id: item.id, name: item.item_name, registry_id: rec.id })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }}>
+                                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
                                 <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 80px 50px 80px 64px', gap: 6, padding: '8px 16px', alignItems: 'center' }}>
@@ -443,14 +459,16 @@ export default function PurchaseHistory() {
                                   <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{item.spec || '—'}</span>
                                   <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', textAlign: 'right' }}>×{item.qty}</span>
                                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text, #e8e8f0)', textAlign: 'right' }}>₹{(item.price_inc || 0).toLocaleString('en-IN')}</span>
-                                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
-                                    <button onClick={() => startEditItem(item)} style={s.iconBtn}>
-                                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                    </button>
-                                    <button onClick={() => setConfirmDelItem({ id: item.id, name: item.item_name, registry_id: rec.id })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }}>
-                                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                    </button>
-                                  </div>
+                                  {isAdmin && (
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                                      <button onClick={() => startEditItem(item)} style={s.iconBtn}>
+                                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                      </button>
+                                      <button onClick={() => setConfirmDelItem({ id: item.id, name: item.item_name, registry_id: rec.id })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }}>
+                                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>

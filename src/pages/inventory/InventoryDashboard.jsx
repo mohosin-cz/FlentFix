@@ -97,6 +97,14 @@ export default function InventoryDashboard() {
   // Row hover (for subtle table hover without CSS classes)
   const [hoveredRow, setHoveredRow] = useState(null)
 
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsAdmin(user?.email === 'mohosin@flent.in')
+    })
+  }, [])
+
   useEffect(() => {
     async function load() {
       const { data, error } = await supabase
@@ -210,9 +218,11 @@ export default function InventoryDashboard() {
           <span style={s.headerTitle}>Inventory Dashboard</span>
           <span style={s.headerSub}>stock · values · details</span>
         </div>
-        <button onClick={() => setShowAdd(true)} style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer' }}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-        </button>
+        {isAdmin ? (
+          <button onClick={() => setShowAdd(true)} style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer' }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+          </button>
+        ) : <div style={{ width: 36 }} />}
       </header>
 
       <div style={{ flex: 1, padding: isMobile ? '16px 16px 60px' : '20px 24px 60px', maxWidth: 1100, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
@@ -252,7 +262,7 @@ export default function InventoryDashboard() {
               style={{ width: '100%', padding: '8px 12px 8px 32px', fontSize: 12, color: 'var(--text, #e8e8f0)', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
             />
           </div>
-          {!isMobile && (
+          {!isMobile && isAdmin && (
             <button onClick={() => setShowAdd(true)} style={{ padding: '8px 16px', background: 'rgba(200,150,62,0.1)', border: '1px dashed rgba(200,150,62,0.4)', borderRadius: 7, color: 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>
               + Add Item
             </button>
@@ -262,7 +272,7 @@ export default function InventoryDashboard() {
         {/* Table */}
         {filtered.length === 0 ? (
           <div style={s.empty}>No items found.{' '}
-            <button onClick={() => setShowAdd(true)} style={{ background: 'none', border: 'none', color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>Add one?</button>
+            {isAdmin && <button onClick={() => setShowAdd(true)} style={{ background: 'none', border: 'none', color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>Add one?</button>}
           </div>
         ) : isMobile ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -300,12 +310,16 @@ export default function InventoryDashboard() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <QtyBadge qty={row.quantity_remaining ?? row.qty ?? 0} />
-                          <button onClick={() => startEdit(row)} style={s.iconBtn} title="Edit">
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                          </button>
-                          <button onClick={() => setConfirmDelete({ id: row.id, name: row.item_name })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }} title="Delete">
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                          </button>
+                          {isAdmin && (
+                            <button onClick={() => startEdit(row)} style={s.iconBtn} title="Edit">
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button onClick={() => setConfirmDelete({ id: row.id, name: row.item_name })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }} title="Delete">
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            </button>
+                          )}
                         </div>
                       </div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', marginBottom: 3 }}>{row.item_name}</div>
@@ -368,12 +382,16 @@ export default function InventoryDashboard() {
                       <span style={{ fontSize: 12, color: row.warranty_months > 0 ? '#3dba7a' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textAlign: 'center' }}>{row.warranty_months > 0 ? `${row.warranty_months}mo` : '—'}</span>
                       <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text, #e8e8f0)', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)' }}>₹{(parseFloat(row.price_inc) || 0).toLocaleString('en-IN')}</span>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
-                        <button onClick={() => startEdit(row)} style={s.iconBtn} title="Edit">
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                        </button>
-                        <button onClick={() => setConfirmDelete({ id: row.id, name: row.item_name })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }} title="Delete">
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                        </button>
+                        {isAdmin && (
+                          <button onClick={() => startEdit(row)} style={s.iconBtn} title="Edit">
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button onClick={() => setConfirmDelete({ id: row.id, name: row.item_name })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }} title="Delete">
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
