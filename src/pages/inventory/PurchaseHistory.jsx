@@ -96,6 +96,9 @@ export default function PurchaseHistory() {
   // Delete item
   const [confirmDelItem, setConfirmDelItem] = useState(null) // { id, name, registry_id }
 
+  // Invoice hover
+  const [hoveredInvoice, setHoveredInvoice] = useState(null)
+
   useEffect(() => {
     load()
   }, [])
@@ -312,12 +315,22 @@ export default function PurchaseHistory() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{items.length} item{items.length !== 1 ? 's' : ''}</span>
-                          {rec.invoice_url && <a href={rec.invoice_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 11, color: 'var(--accent, #c8963e)', textDecoration: 'none', fontFamily: 'var(--font-mono, monospace)' }}>invoice ↗</a>}
                         </div>
                       </div>
                       <div style={{ textAlign: 'right', marginRight: 4 }}>
                         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>₹{(rec.total_amount || 0).toLocaleString('en-IN')}</div>
                       </div>
+                      {rec.invoice_url && (
+                        <a
+                          href={rec.invoice_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          onMouseEnter={() => setHoveredInvoice(rec.id)}
+                          onMouseLeave={() => setHoveredInvoice(null)}
+                          style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.08)', border: `1px solid ${hoveredInvoice === rec.id ? 'rgba(200,150,62,0.6)' : 'var(--border, #2e3040)'}`, borderRadius: 20, padding: '3px 8px', textDecoration: 'none', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', transition: 'border-color 0.15s', flexShrink: 0 }}
+                        >📄 Invoice</a>
+                      )}
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, color: 'var(--text-muted, #6b6d82)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
                         <path d="M2.5 5l4.5 4 4.5-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
