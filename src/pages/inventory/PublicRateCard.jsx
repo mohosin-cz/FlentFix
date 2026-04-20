@@ -208,7 +208,6 @@ export default function PublicRateCard() {
 
   function startEditInv(item) {
     setEditingInv(p => ({ ...p, [item.id]: {
-      item_name: item.item_name || '',
       spec: item.spec || '',
       market_price: String(item.market_price ?? ''),
       flent_price: String(item.flent_price ?? ''),
@@ -221,7 +220,6 @@ export default function PublicRateCard() {
     const e = editingInv[item.id]; if (!e) return
     setSavingInv(p => ({ ...p, [item.id]: true }))
     const patch = {
-      item_name: e.item_name,
       spec: e.spec,
       market_price: parseFloat(e.market_price) || 0,
       flent_price: parseFloat(e.flent_price) || 0,
@@ -443,7 +441,7 @@ export default function PublicRateCard() {
         </button>
         <div style={s.headerCenter}>
           <span style={s.headerTitle}>Public Rate Card</span>
-          <span style={s.headerSub}>client-facing pricing{isAdmin ? ' · admin' : ''}</span>
+          <span style={s.headerSub}>client-facing pricing</span>
         </div>
         <div style={{ width: 36 }} />
       </header>
@@ -641,8 +639,7 @@ export default function PublicRateCard() {
                             {isEdit ? (
                               <div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                                  <div style={{ gridColumn: '1/-1' }}><span style={s.label}>Item Name</span><input value={e.item_name} onChange={ev => setEditingInv(p => ({ ...p, [item.id]: { ...p[item.id], item_name: ev.target.value } }))} style={s.editInput} /></div>
-                                  <div><span style={s.label}>Spec</span><input value={e.spec} onChange={ev => setEditingInv(p => ({ ...p, [item.id]: { ...p[item.id], spec: ev.target.value } }))} style={s.editInput} /></div>
+                                  <div style={{ gridColumn: '1/-1' }}><span style={s.label}>Spec</span><input value={e.spec} onChange={ev => setEditingInv(p => ({ ...p, [item.id]: { ...p[item.id], spec: ev.target.value } }))} style={s.editInput} /></div>
                                   <div><span style={s.label}>Warranty (mo)</span><input type="number" value={e.warranty_months} onChange={ev => setEditingInv(p => ({ ...p, [item.id]: { ...p[item.id], warranty_months: ev.target.value } }))} style={s.editInput} /></div>
                                   <div><span style={s.label}>Market ₹</span><input type="number" value={e.market_price} onChange={ev => setEditingInv(p => ({ ...p, [item.id]: { ...p[item.id], market_price: ev.target.value } }))} style={s.editInput} /></div>
                                   <div><span style={s.label}>Flent ₹</span><input type="number" value={e.flent_price} onChange={ev => setEditingInv(p => ({ ...p, [item.id]: { ...p[item.id], flent_price: ev.target.value } }))} style={s.editInput} /></div>
@@ -680,7 +677,7 @@ export default function PublicRateCard() {
                           {isAdmin && <input type="checkbox" checked={isSel} onChange={() => toggleInvSelect(item.id)} style={{ accentColor: meta.color, cursor: 'pointer', flexShrink: 0, width: 22 }} />}
                           {isEdit ? (
                             <>
-                              <input value={e.item_name} onChange={ev => setEditingInv(p => ({ ...p, [item.id]: { ...p[item.id], item_name: ev.target.value } }))} style={{ ...s.editInput, flex: 2 }} placeholder="Item name" />
+                              <span style={{ flex: 2, fontSize: 13, color: 'var(--text, #e8e8f0)' }}>{item.item_name}</span>
                               <input value={e.spec} onChange={ev => setEditingInv(p => ({ ...p, [item.id]: { ...p[item.id], spec: ev.target.value } }))} style={{ ...s.editInput, flex: 1 }} placeholder="Spec" />
                               <input type="number" value={e.warranty_months} onChange={ev => setEditingInv(p => ({ ...p, [item.id]: { ...p[item.id], warranty_months: ev.target.value } }))} style={{ ...s.editInput, width: 70, flexShrink: 0 }} placeholder="Mo" />
                               <input type="number" value={e.market_price} onChange={ev => setEditingInv(p => ({ ...p, [item.id]: { ...p[item.id], market_price: ev.target.value } }))} style={{ ...s.editInput, width: 90, flexShrink: 0 }} placeholder="Market ₹" />

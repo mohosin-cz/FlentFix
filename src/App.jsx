@@ -127,7 +127,7 @@ export default function App() {
           <Route path="/inventory/register" element={<ProtectedRoute><RegisterInventory /></ProtectedRoute>} />
           <Route path="/inventory/dashboard" element={<ProtectedRoute><InventoryDashboard /></ProtectedRoute>} />
           <Route path="/inventory/usage" element={<ProtectedRoute><LogUsage /></ProtectedRoute>} />
-          <Route path="/inventory/public-rc" element={<ProtectedRoute><PublicRateCard /></ProtectedRoute>} />
+          <Route path="/inventory/public-rc" element={<PublicRateCard />} />
           <Route path="/inventory/internal-rc" element={<ProtectedRoute><InternalRateCard /></ProtectedRoute>} />
           <Route path="/inventory/history" element={<ProtectedRoute><PurchaseHistory /></ProtectedRoute>} />
           <Route
