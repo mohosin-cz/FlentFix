@@ -212,7 +212,8 @@ function buildTabs(houseType, bhk) {
 }
 
 // ── State helpers ─────────────────────────────────────────────────────────────
-const blankCard = () => ({ issueDescription: '', health: null, action: '', labourRateId: '', labourCost: '', materialCost: '', notes: '', media: [], notAvailable: false, notAvailableNote: '' })
+const blankIssueRow = () => ({ id: `ir_${Date.now()}_${Math.random().toString(36).slice(2)}`, issueDescription: '', action: '', labourRateId: '', labourCost: '', materialCost: '' })
+const blankCard = () => ({ health: null, notes: '', media: [], notAvailable: false, notAvailableNote: '', issues: [] })
 const blankGeneral = () => ({ enabled: false, areas: [], partialRooms: '', labourCost: '', notes: '', media: [], description: '' })
 
 function buildInitialState(tabs) {
@@ -267,7 +268,7 @@ function countItems(tabs, data) {
     tab.sections?.forEach(sec => {
       sec.items.forEach(item => {
         const cards = data[tab.id]?.[sec.id]?.[item.key] || []
-        cards.forEach(card => { total++; if (card.issueDescription || card.notAvailable) done++ })
+        cards.forEach(card => { total++; if (card.notAvailable || (card.issues || []).some(r => r.issueDescription)) done++ })
       })
     })
   })
@@ -374,7 +375,7 @@ function LabourRateDropdown({ rates, value, labourCost, onSelect }) {
 function NotAvailableNote({ value, onChange }) {
   return (
     <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(224,92,106,0.3)' }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono, monospace)' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', marginBottom: 10, fontFamily: 'var(--font-mono, monospace)' }}>
         // marked as not_available
       </div>
       <Field label="Note" optional>
@@ -384,122 +385,137 @@ function NotAvailableNote({ value, onChange }) {
   )
 }
 
+// ── Issue row (single issue inside a card) ────────────────────────────────────
+function IssueRow({ row, presets, tradeRates, onUpdate, onRemove, showRemove }) {
+  const isFunctional = row.issueDescription === 'Functional'
+  const rowTotal = (parseFloat(row.materialCost) || 0) + (parseFloat(row.labourCost) || 0)
+  return (
+    <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: isFunctional ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+          {isFunctional ? '✓ functional' : row.issueDescription ? '— issue' : 'new issue'}
+        </span>
+        {showRemove && (
+          <button type="button" onClick={onRemove} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 4, background: 'rgba(224,92,106,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
+        )}
+      </div>
+
+      <IssueField presets={presets} value={row.issueDescription} onChange={v => onUpdate('issueDescription', v)} />
+
+      {!isFunctional && row.issueDescription && (
+        <>
+          <Field label="Action">
+            <PillGroup options={['Repair', 'Replace', 'Install']} value={row.action} onChange={v => onUpdate('action', v)} />
+          </Field>
+          {row.action && (
+            <>
+              <LabourRateDropdown
+                rates={tradeRates}
+                value={row.labourRateId}
+                labourCost={row.labourCost}
+                onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }}
+              />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <Field label="Material ₹"><Input value={row.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" /></Field>
+                <Field label="Labour ₹"><Input value={row.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" /></Field>
+              </div>
+              {rowTotal > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.2)', borderRadius: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Issue Total</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent, #c8963e)' }}>₹{rowTotal.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Item card ─────────────────────────────────────────────────────────────────
 function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onUpdate, onDuplicate, onRemove, labourRates }) {
-  const { label, trade, issues } = itemConfig
+  const { label, trade, issues: presets } = itemConfig
   const tradeRates = (labourRates || []).filter(r => r.trade === trade)
   const cardLabel = totalCards > 1 ? `${label} (${cardIdx + 1})` : label
-  const done = card.notAvailable || !!card.issueDescription
-  const notFunctional = !card.notAvailable && card.issueDescription && card.issueDescription !== 'Functional'
-  const total = (parseFloat(card.materialCost) || 0) + (parseFloat(card.labourCost) || 0)
+  const issueRows = card.issues || []
+  const done = card.notAvailable || issueRows.some(r => r.issueDescription)
+  const itemTotal = issueRows.reduce((sum, r) => sum + (parseFloat(r.materialCost) || 0) + (parseFloat(r.labourCost) || 0), 0)
+
+  function addIssue() { onUpdate('issues', [...issueRows, blankIssueRow()]) }
+  function removeIssue(idx) { onUpdate('issues', issueRows.filter((_, i) => i !== idx)) }
+  function updateIssue(idx, field, value) {
+    const updated = [...issueRows]; updated[idx] = { ...updated[idx], [field]: value }; onUpdate('issues', updated)
+  }
 
   const naToggle = (
-    <label
-      style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '3px 8px', borderRadius: 4, background: card.notAvailable ? 'rgba(224,92,106,0.1)' : 'var(--bg-input, #252731)', border: `1px solid ${card.notAvailable ? 'rgba(224,92,106,0.3)' : 'var(--border, #2e3040)'}`, transition: 'background 0.15s' }}
-      onClick={e => e.stopPropagation()}
-    >
-      <input
-        type="checkbox"
-        checked={card.notAvailable || false}
-        onChange={e => onUpdate('notAvailable', e.target.checked)}
-        style={{ width: 12, height: 12, accentColor: 'var(--red, #e05c6a)', cursor: 'pointer', flexShrink: 0 }}
-      />
-      <span style={{ fontSize: 10, fontWeight: 600, color: card.notAvailable ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}>
-        {card.notAvailable ? 'n/a' : 'not avail'}
-      </span>
+    <label onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '3px 8px', borderRadius: 4, background: card.notAvailable ? 'rgba(224,92,106,0.1)' : 'var(--bg-input, #252731)', border: `1px solid ${card.notAvailable ? 'rgba(224,92,106,0.3)' : 'var(--border, #2e3040)'}` }}>
+      <input type="checkbox" checked={card.notAvailable || false} onChange={e => onUpdate('notAvailable', e.target.checked)} style={{ width: 12, height: 12, accentColor: 'var(--red, #e05c6a)', cursor: 'pointer', flexShrink: 0 }} />
+      <span style={{ fontSize: 10, fontWeight: 600, color: card.notAvailable ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}>{card.notAvailable ? 'n/a' : 'not avail'}</span>
     </label>
   )
 
   const headerActions = (
     <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
       {naToggle}
-      <button
-        type="button"
-        onClick={e => { e.stopPropagation(); onDuplicate() }}
-        title="Duplicate card"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(200,150,62,0.4)', background: 'rgba(200,150,62,0.08)', color: 'var(--accent, #c8963e)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}
-      >⊕</button>
+      <button type="button" onClick={e => { e.stopPropagation(); onDuplicate() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(200,150,62,0.4)', background: 'rgba(200,150,62,0.08)', color: 'var(--accent, #c8963e)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>⊕</button>
       {totalCards > 1 && (
-        <button
-          type="button"
-          onClick={e => { e.stopPropagation(); onRemove() }}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(224,92,106,0.35)', background: 'rgba(224,92,106,0.08)', color: 'var(--red, #e05c6a)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}
-        >×</button>
+        <button type="button" onClick={e => { e.stopPropagation(); onRemove() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(224,92,106,0.35)', background: 'rgba(224,92,106,0.08)', color: 'var(--red, #e05c6a)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>×</button>
       )}
     </div>
   )
 
   return (
-    <AccordionCard
-      title={cardLabel}
-      status={done ? 'done' : isOpen ? 'partial' : null}
-      isOpen={isOpen}
-      onToggle={onToggle}
-      headerAction={headerActions}
-    >
+    <AccordionCard title={cardLabel} status={done ? 'done' : isOpen ? 'partial' : null} isOpen={isOpen} onToggle={onToggle} headerAction={headerActions}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
         {card.notAvailable ? (
           <NotAvailableNote value={card.notAvailableNote} onChange={v => onUpdate('notAvailableNote', v)} />
         ) : (
           <>
-            <IssueField presets={issues} value={card.issueDescription} onChange={v => onUpdate('issueDescription', v)} />
-
-            {card.issueDescription && (
-              <Field label="Health Score">
-                <HealthSlider value={card.health} onChange={v => onUpdate('health', v)} />
-              </Field>
-            )}
-
-            <Field label="Attach Media">
-              <MediaUpload files={card.media} onChange={v => onUpdate('media', v)} />
+            <Field label="Health Score">
+              <HealthSlider value={card.health} onChange={v => onUpdate('health', v)} />
             </Field>
 
-            {notFunctional && (
-              <>
-                <Field label="Action Required">
-                  <PillGroup
-                    options={['Repair', 'Replace', 'Install']}
-                    value={card.action}
-                    onChange={v => onUpdate('action', v)}
-                  />
-                </Field>
-
-                {card.action && (
-                  <LabourRateDropdown
-                    rates={tradeRates}
-                    value={card.labourRateId}
-                    labourCost={card.labourCost}
-                    onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }}
-                  />
-                )}
-
-                {card.action && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <Field label="Material Cost (₹)">
-                      <Input value={card.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" />
-                    </Field>
-                    <Field label="Labour Cost (₹)">
-                      <Input value={card.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" />
-                    </Field>
-                  </div>
-                )}
-
-                {total > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-input, #252731)', borderRadius: 6, border: '1px solid var(--border, #2e3040)' }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Total</span>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text, #e8e8f0)' }}>₹{total.toLocaleString('en-IN')}</span>
-                  </div>
-                )}
-              </>
-            )}
+            <MediaUpload files={card.media} onChange={v => onUpdate('media', v)} />
 
             <Field label="Notes" optional>
               <Textarea value={card.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any observations…" />
             </Field>
+
+            {/* ── Issues list ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)' }}>Issues</span>
+                <button type="button" onClick={addIssue} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 5, background: 'rgba(200,150,62,0.08)', fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ Add Issue</button>
+              </div>
+
+              {issueRows.length === 0 && (
+                <div style={{ padding: 14, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 8 }}>
+                  No issues logged — tap + Add Issue or select Functional
+                </div>
+              )}
+
+              {issueRows.map((row, idx) => (
+                <IssueRow
+                  key={row.id || idx}
+                  row={row}
+                  presets={presets}
+                  tradeRates={tradeRates}
+                  onUpdate={(f, v) => updateIssue(idx, f, v)}
+                  onRemove={() => removeIssue(idx)}
+                  showRemove={issueRows.length > 1 || !!row.issueDescription}
+                />
+              ))}
+            </div>
+
+            {itemTotal > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.25)', borderRadius: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Item Total</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent, #c8963e)' }}>₹{itemTotal.toLocaleString('en-IN')}</span>
+              </div>
+            )}
           </>
         )}
-
       </div>
     </AccordionCard>
   )
@@ -567,44 +583,86 @@ function GeneralToggleItem({ config, data, onUpdate, labourRates }) {
 }
 
 // ── Custom item ───────────────────────────────────────────────────────────────
-const BLANK_CUSTOM = () => ({ id: `ci_${Date.now()}_${Math.random().toString(36).slice(2)}`, name: '', issueDescription: '', health: null, action: '', materialCost: '', labourCost: '', notes: '', media: [] })
+const BLANK_CUSTOM = () => ({ id: `ci_${Date.now()}_${Math.random().toString(36).slice(2)}`, name: '', health: null, notes: '', media: [], issues: [] })
 
 function CustomItemCard({ item, onChange, onRemove }) {
-  const total = (parseFloat(item.materialCost) || 0) + (parseFloat(item.labourCost) || 0)
+  const issueRows = item.issues || []
+  const itemTotal = issueRows.reduce((sum, r) => sum + (parseFloat(r.materialCost) || 0) + (parseFloat(r.labourCost) || 0), 0)
+
+  function addIssue() { onChange('issues', [...issueRows, blankIssueRow()]) }
+  function removeIssue(idx) { onChange('issues', issueRows.filter((_, i) => i !== idx)) }
+  function updateIssue(idx, field, value) {
+    const updated = [...issueRows]; updated[idx] = { ...updated[idx], [field]: value }; onChange('issues', updated)
+  }
+
   return (
     <div style={{ borderRadius: 8, border: '1px dashed var(--accent, #c8963e)', padding: 14, background: 'var(--bg-input, #252731)', display: 'flex', flexDirection: 'column', gap: 14, marginTop: 4 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono, monospace)' }}>+ custom item</span>
         <button type="button" onClick={onRemove} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 4, background: 'rgba(224,92,106,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
       </div>
+
       <Field label="Item Name">
         <Input value={item.name} onChange={v => onChange('name', v)} placeholder="e.g. Intercom, smoke detector…" />
       </Field>
-      <Field label="Issue Description" optional>
-        <Textarea value={item.issueDescription} onChange={v => onChange('issueDescription', v)} rows={2} placeholder="Describe the issue…" />
-      </Field>
+
       <Field label="Health Score">
         <HealthSlider value={item.health} onChange={v => onChange('health', v)} />
       </Field>
-      <Field label="Action" optional>
-        <PillGroup options={['Repair','Replace','Install']} value={item.action} onChange={v => onChange('action', v)} />
-      </Field>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <Field label="Material Cost (₹)">
-          <Input value={item.materialCost} onChange={v => onChange('materialCost', v)} placeholder="0" type="number" />
-        </Field>
-        <Field label="Labour Cost (₹)">
-          <Input value={item.labourCost} onChange={v => onChange('labourCost', v)} placeholder="0" type="number" />
-        </Field>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 6 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Total</span>
-        <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text, #e8e8f0)' }}>₹{total.toLocaleString('en-IN')}</span>
-      </div>
+
+      <MediaUpload files={item.media} onChange={v => onChange('media', v)} />
+
       <Field label="Notes" optional>
         <Textarea value={item.notes} onChange={v => onChange('notes', v)} rows={2} placeholder="Notes…" />
       </Field>
-      <MediaUpload files={item.media} onChange={v => onChange('media', v)} />
+
+      {/* Issues */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)' }}>Issues</span>
+          <button type="button" onClick={addIssue} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 5, background: 'rgba(200,150,62,0.08)', fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ Add Issue</button>
+        </div>
+        {issueRows.length === 0 && (
+          <div style={{ padding: 12, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 8 }}>
+            No issues logged
+          </div>
+        )}
+        {issueRows.map((row, idx) => {
+          const rowTotal = (parseFloat(row.materialCost) || 0) + (parseFloat(row.labourCost) || 0)
+          return (
+            <div key={row.id || idx} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => removeIssue(idx)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 4, background: 'rgba(224,92,106,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
+              </div>
+              <Field label="Issue Description" optional>
+                <Textarea value={row.issueDescription} onChange={v => updateIssue(idx, 'issueDescription', v)} rows={2} placeholder="Describe the issue…" />
+              </Field>
+              <Field label="Action" optional>
+                <PillGroup options={['Repair','Replace','Install']} value={row.action} onChange={v => updateIssue(idx, 'action', v)} />
+              </Field>
+              {row.action && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <Field label="Material ₹"><Input value={row.materialCost} onChange={v => updateIssue(idx, 'materialCost', v)} placeholder="0" type="number" /></Field>
+                  <Field label="Labour ₹"><Input value={row.labourCost} onChange={v => updateIssue(idx, 'labourCost', v)} placeholder="0" type="number" /></Field>
+                </div>
+              )}
+              {rowTotal > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.2)', borderRadius: 6 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)' }}>Issue Total</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent, #c8963e)' }}>₹{rowTotal.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {itemTotal > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.25)', borderRadius: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Item Total</span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent, #c8963e)' }}>₹{itemTotal.toLocaleString('en-IN')}</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -759,28 +817,51 @@ export default function InspectionIndoor() {
         sec.items.forEach(itemConfig => {
           const cards = data[tab.id]?.[sec.id]?.[itemConfig.key] || []
           cards.forEach((card, ci) => {
-            if (!card.issueDescription && !card.notAvailable) return
+            const issueRows = card.issues || []
+            const hasIssues = issueRows.some(r => r.issueDescription)
+            if (!card.notAvailable && !hasIssues) return
             const suffix = cards.length > 1 ? ` (${ci + 1})` : ''
-            lineItemRows.push({
-              inspection_id:       inspectionId,
-              section_name:        tab.label,
-              area:                sec.label,
-              item_name:           itemConfig.label + suffix,
-              trade:               itemConfig.trade,
-              issue_description:   card.notAvailable ? (card.notAvailableNote || 'Not available') : card.issueDescription,
-              material_cost:       card.notAvailable ? 0 : (parseFloat(card.materialCost) || 0),
-              labour_cost:         card.notAvailable ? 0 : (parseFloat(card.labourCost) || 0),
-              item_score:          card.notAvailable ? null : (card.health != null ? card.health : (card.issueDescription === 'Functional' ? 10 : null)),
-              availability_status: card.notAvailable ? 'not_available' : null,
+            const mediaFiles = Array.isArray(card.media) ? card.media.filter(f => f instanceof File) : []
+
+            if (card.notAvailable) {
+              lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: sec.label, item_name: itemConfig.label + suffix, trade: itemConfig.trade, issue_description: card.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available' })
+              mediaArrays.push(mediaFiles)
+              return
+            }
+
+            issueRows.forEach((row, ri) => {
+              if (!row.issueDescription) return
+              lineItemRows.push({
+                inspection_id:       inspectionId,
+                section_name:        tab.label,
+                area:                sec.label,
+                item_name:           itemConfig.label + suffix,
+                trade:               itemConfig.trade,
+                issue_description:   row.issueDescription,
+                action:              row.action || '',
+                material_cost:       parseFloat(row.materialCost) || 0,
+                labour_cost:         parseFloat(row.labourCost) || 0,
+                item_score:          card.health != null ? card.health : (row.issueDescription === 'Functional' ? 10 : null),
+                availability_status: null,
+              })
+              mediaArrays.push(ri === 0 ? mediaFiles : [])
             })
-            mediaArrays.push(Array.isArray(card.media) ? card.media.filter(f => f instanceof File) : [])
           })
         })
       })
       getCI(tab.id).forEach(ci => {
         if (!ci.name) return
-        lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: ci.issueDescription || ci.action || '', material_cost: parseFloat(ci.materialCost) || 0, labour_cost: parseFloat(ci.labourCost) || 0, item_score: ci.health != null ? ci.health : null })
-        mediaArrays.push(Array.isArray(ci.media) ? ci.media.filter(f => f instanceof File) : [])
+        const ciMedia = Array.isArray(ci.media) ? ci.media.filter(f => f instanceof File) : []
+        const ciIssues = ci.issues || []
+        if (ciIssues.length === 0) {
+          lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null })
+          mediaArrays.push(ciMedia)
+        } else {
+          ciIssues.forEach((row, ri) => {
+            lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: row.issueDescription || '', action: row.action || '', material_cost: parseFloat(row.materialCost) || 0, labour_cost: parseFloat(row.labourCost) || 0, item_score: ci.health ?? null })
+            mediaArrays.push(ri === 0 ? ciMedia : [])
+          })
+        }
       })
     })
 
