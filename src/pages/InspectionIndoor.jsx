@@ -190,8 +190,8 @@ const GENERAL_ITEMS = [
 
 // ── Tab builder ───────────────────────────────────────────────────────────────
 function parseBHK(layout) {
-  const m = (layout || '').match(/(\d)BHK/i)
-  return m ? parseInt(m[1]) : 1
+  const n = parseInt((layout || '').replace(/BHK/i, '').trim())
+  return (n >= 1 && n <= 10) ? n : 1
 }
 
 function isIndependentHome(houseType) {
@@ -567,7 +567,7 @@ function GeneralToggleItem({ config, data, onUpdate, labourRates }) {
 }
 
 // ── Custom item ───────────────────────────────────────────────────────────────
-const BLANK_CUSTOM = () => ({ id: `ci_${Date.now()}_${Math.random().toString(36).slice(2)}`, name: '', issueDescription: '', action: '', materialCost: '', labourCost: '', notes: '', media: [] })
+const BLANK_CUSTOM = () => ({ id: `ci_${Date.now()}_${Math.random().toString(36).slice(2)}`, name: '', issueDescription: '', health: null, action: '', materialCost: '', labourCost: '', notes: '', media: [] })
 
 function CustomItemCard({ item, onChange, onRemove }) {
   const total = (parseFloat(item.materialCost) || 0) + (parseFloat(item.labourCost) || 0)
@@ -577,20 +577,33 @@ function CustomItemCard({ item, onChange, onRemove }) {
         <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono, monospace)' }}>+ custom item</span>
         <button type="button" onClick={onRemove} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 4, background: 'rgba(224,92,106,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
       </div>
-      <Field label="Item Name"><Input value={item.name} onChange={v => onChange('name', v)} placeholder="e.g. Intercom, smoke detector…" /></Field>
-      <Field label="Issue Description" optional><Textarea value={item.issueDescription} onChange={v => onChange('issueDescription', v)} rows={2} placeholder="Describe the issue…" /></Field>
-      <Field label="Action" optional><PillGroup options={['Repair','Replace','Install']} value={item.action} onChange={v => onChange('action', v)} /></Field>
+      <Field label="Item Name">
+        <Input value={item.name} onChange={v => onChange('name', v)} placeholder="e.g. Intercom, smoke detector…" />
+      </Field>
+      <Field label="Issue Description" optional>
+        <Textarea value={item.issueDescription} onChange={v => onChange('issueDescription', v)} rows={2} placeholder="Describe the issue…" />
+      </Field>
+      <Field label="Health Score">
+        <HealthSlider value={item.health} onChange={v => onChange('health', v)} />
+      </Field>
+      <Field label="Action" optional>
+        <PillGroup options={['Repair','Replace','Install']} value={item.action} onChange={v => onChange('action', v)} />
+      </Field>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <Field label="Material Cost (₹)"><Input value={item.materialCost} onChange={v => onChange('materialCost', v)} placeholder="0" type="number" /></Field>
-        <Field label="Labour Cost (₹)"><Input value={item.labourCost} onChange={v => onChange('labourCost', v)} placeholder="0" type="number" /></Field>
+        <Field label="Material Cost (₹)">
+          <Input value={item.materialCost} onChange={v => onChange('materialCost', v)} placeholder="0" type="number" />
+        </Field>
+        <Field label="Labour Cost (₹)">
+          <Input value={item.labourCost} onChange={v => onChange('labourCost', v)} placeholder="0" type="number" />
+        </Field>
       </div>
-      {total > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 6 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Total</span>
-          <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text, #e8e8f0)' }}>₹{total.toLocaleString('en-IN')}</span>
-        </div>
-      )}
-      <Field label="Notes" optional><Textarea value={item.notes} onChange={v => onChange('notes', v)} rows={2} placeholder="Notes…" /></Field>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Total</span>
+        <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text, #e8e8f0)' }}>₹{total.toLocaleString('en-IN')}</span>
+      </div>
+      <Field label="Notes" optional>
+        <Textarea value={item.notes} onChange={v => onChange('notes', v)} rows={2} placeholder="Notes…" />
+      </Field>
       <MediaUpload files={item.media} onChange={v => onChange('media', v)} />
     </div>
   )
@@ -766,7 +779,7 @@ export default function InspectionIndoor() {
       })
       getCI(tab.id).forEach(ci => {
         if (!ci.name) return
-        lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: ci.issueDescription || ci.action || '', material_cost: parseFloat(ci.materialCost) || 0, labour_cost: parseFloat(ci.labourCost) || 0, item_score: null })
+        lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: ci.issueDescription || ci.action || '', material_cost: parseFloat(ci.materialCost) || 0, labour_cost: parseFloat(ci.labourCost) || 0, item_score: ci.health != null ? ci.health : null })
         mediaArrays.push(Array.isArray(ci.media) ? ci.media.filter(f => f instanceof File) : [])
       })
     })
