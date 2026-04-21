@@ -138,12 +138,6 @@ export default function PublicRateCard() {
   const [matImporting, setMatImporting] = useState(false)
   const matFileRef = useRef()
 
-  // Pull from Dashboard modal
-  const [pullModal, setPullModal]       = useState(false)
-  const [pullItems, setPullItems]       = useState([])
-  const [pullSelected, setPullSelected] = useState(new Set())
-  const [pullLoading, setPullLoading]   = useState(false)
-  const [pulling, setPulling]           = useState(false)
 
   // ── Labour RC state (labour_rates) ───────────────────────────────────────
   const [labItems, setLabItems]         = useState([])
@@ -160,11 +154,11 @@ export default function PublicRateCard() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('rate_card').select('*').order('trade').order('item_name'),
+      supabase.from('inventory_items').select('id, item_name, trade, spec, warranty_months, market_price, flent_price, price_inc, qty').order('trade', { ascending: true }).order('item_name', { ascending: true }),
       supabase.from('labour_rates').select('*').order('trade').order('work_type'),
       supabase.auth.getUser(),
-    ]).then(([{ data: rcData }, { data: lrData }, { data: { user } }]) => {
-      setMatItems(rcData || [])
+    ]).then(([{ data: invData }, { data: lrData }, { data: { user } }]) => {
+      setMatItems(invData || [])
       setLabItems(lrData || [])
       setIsAdmin(user?.email === ADMIN_EMAIL)
       setLoading(false)
@@ -234,7 +228,7 @@ export default function PublicRateCard() {
     const prev = { ...item }
     setMatItems(p => p.map(r => r.id === item.id ? { ...r, ...patch } : r))
     cancelEditMat(item.id)
-    const { error } = await supabase.from('rate_card').update(patch).eq('id', item.id)
+    const { error } = await supabase.from('inventory_items').update(patch).eq('id', item.id)
     setSavingMat(p => { const n = { ...p }; delete n[item.id]; return n })
     if (error) { setMatItems(p => p.map(r => r.id === item.id ? prev : r)); showToast('Save failed', 'error') }
     else showToast('Item updated')
@@ -251,7 +245,7 @@ export default function PublicRateCard() {
       warranty_months: parseInt(newMatRow.warranty_months) || 0,
       unit: newMatRow.unit || '',
     }
-    const { data, error } = await supabase.from('rate_card').insert(insert).select().single()
+    const { data, error } = await supabase.from('inventory_items').insert(insert).select().single()
     if (!error && data) {
       setMatItems(p => [...p, data].sort((a, b) => (a.item_name || '').localeCompare(b.item_name || '')))
       setNewMatRow({ item_name: '', spec: '', market_price: '', flent_price: '', warranty_months: '', unit: '' })
@@ -272,7 +266,7 @@ export default function PublicRateCard() {
     setConfirmDeleteMat(null)
     let failed = false
     for (const id of ids) {
-      const { error } = await supabase.from('rate_card').delete().eq('id', id)
+      const { error } = await supabase.from('inventory_items').delete().eq('id', id)
       if (error) { failed = true; break }
     }
     setDeletingMat(false)
@@ -310,7 +304,7 @@ export default function PublicRateCard() {
   async function confirmMatImport() {
     if (!matPreview?.length) return
     setMatImporting(true)
-    const { data, error } = await supabase.from('rate_card').insert(matPreview).select()
+    const { data, error } = await supabase.from('inventory_items').insert(matPreview).select()
     if (!error && data) {
       setMatItems(p => [...p, ...data].sort((a, b) => (a.item_name || '').localeCompare(b.item_name || '')))
       setMatPreview(null)
@@ -321,39 +315,6 @@ export default function PublicRateCard() {
     setMatImporting(false)
   }
 
-  async function openPullModal() {
-    setPullModal(true)
-    setPullSelected(new Set())
-    setPullLoading(true)
-    const { data } = await supabase.from('inventory_items').select('id, item_name, trade, spec').order('trade').order('item_name')
-    setPullItems(data || [])
-    setPullLoading(false)
-  }
-
-  async function confirmPull() {
-    if (!pullSelected.size) return
-    setPulling(true)
-    const toInsert = pullItems
-      .filter(item => pullSelected.has(item.id))
-      .map(item => ({
-        trade: item.trade || 'misc',
-        item_name: item.item_name,
-        spec: item.spec || '',
-        market_price: 0,
-        flent_price: 0,
-        warranty_months: 0,
-        unit: '',
-      }))
-    const { data, error } = await supabase.from('rate_card').insert(toInsert).select()
-    if (!error && data) {
-      setMatItems(p => [...p, ...data].sort((a, b) => (a.item_name || '').localeCompare(b.item_name || '')))
-      showToast(`Added ${data.length} item${data.length !== 1 ? 's' : ''} to Rate Card`)
-      setPullModal(false)
-    } else {
-      showToast('Pull failed', 'error')
-    }
-    setPulling(false)
-  }
 
   // ── Labour RC functions ──────────────────────────────────────────────────
   function toggleLabSelect(id) {
@@ -500,50 +461,6 @@ export default function PublicRateCard() {
         />
       )}
 
-      {/* Pull from Dashboard modal */}
-      {pullModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, width: '100%', maxWidth: 560, maxHeight: '85svh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border, #2e3040)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>Pull from Dashboard</span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', display: 'block', marginTop: 2 }}>Select inventory items to add to Material RC</span>
-              </div>
-              <button onClick={() => setPullModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
-            </div>
-            <div style={{ overflowY: 'auto', flex: 1 }}>
-              {pullLoading ? (
-                <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>Loading inventory…</div>
-              ) : pullItems.length === 0 ? (
-                <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>No inventory items found.</div>
-              ) : pullItems.map((item, i) => {
-                const meta = TRADE_META[(item.trade || 'misc').toLowerCase()] || TRADE_META.misc
-                const isSel = pullSelected.has(item.id)
-                return (
-                  <div key={item.id} onClick={() => setPullSelected(p => { const n = new Set(p); n.has(item.id) ? n.delete(item.id) : n.add(item.id); return n })}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px', borderTop: i > 0 ? '1px solid var(--border, #2e3040)' : 'none', background: isSel ? 'rgba(200,150,62,0.06)' : 'transparent', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={isSel} onChange={() => {}} style={{ accentColor: meta.color, cursor: 'pointer', flexShrink: 0 }} />
-                    <div style={{ flex: 1 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{item.item_name}</span>
-                      {item.spec && <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginLeft: 8 }}>{item.spec}</span>}
-                    </div>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: meta.color, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase' }}>{item.trade || 'misc'}</span>
-                  </div>
-                )
-              })}
-            </div>
-            <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border, #2e3040)', display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', flex: 1 }}>
-                {pullSelected.size > 0 ? `${pullSelected.size} selected` : 'None selected'}
-              </span>
-              <button onClick={() => setPullModal(false)} style={{ padding: '8px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Cancel</button>
-              <button onClick={confirmPull} disabled={!pullSelected.size || pulling} style={{ padding: '8px 18px', background: pullSelected.size ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)', border: 'none', borderRadius: 7, color: pullSelected.size ? '#fff' : 'var(--text-muted, #6b6d82)', fontSize: 12, fontWeight: 700, cursor: pullSelected.size && !pulling ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-mono, monospace)', opacity: pulling ? 0.6 : 1 }}>
-                {pulling ? 'Adding…' : `Add ${pullSelected.size || ''} to RC`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <header style={s.header}>
         <button style={s.backBtn} onClick={() => navigate('/inventory')}>
@@ -598,10 +515,6 @@ export default function PublicRateCard() {
                 <button onClick={() => matFileRef.current?.click()} style={{ padding: '7px 14px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(200,150,62,0.08)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 6, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 9V2M3 5l3-3 3 3M2 10h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   Import CSV
-                </button>
-                <button onClick={openPullModal} style={{ padding: '7px 14px', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(91,168,229,0.08)', border: '1px solid rgba(91,168,229,0.3)', borderRadius: 6, color: '#5ba8e5', fontFamily: 'var(--font-mono, monospace)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6h8M6 2l4 4-4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  Pull from Dashboard
                 </button>
                 <input ref={matFileRef} type="file" accept=".csv" onChange={handleMatFileSelect} style={{ display: 'none' }} />
                 {matSelected.size > 0 && (
