@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { uploadMediaFiles } from './InspectionOutdoor'
 import {
   NavBar, TabBar, Field, Input, Textarea, PillGroup,
-  AccordionCard, StickyFooter, BtnPrimary,
+  HealthSlider, AccordionCard, StickyFooter, BtnPrimary,
 } from '../components/ui'
 import QuickNotes from '../components/QuickNotes'
 
@@ -207,7 +207,7 @@ function buildTabs(houseType, bhk) {
 }
 
 // ── State helpers ─────────────────────────────────────────────────────────────
-const blankCard = () => ({ issueDescription: '', action: '', labourRateId: '', labourCost: '', materialCost: '', notes: '', media: [] })
+const blankCard = () => ({ issueDescription: '', health: null, action: '', labourRateId: '', labourCost: '', materialCost: '', notes: '', media: [], notAvailable: false, notAvailableNote: '' })
 const blankGeneral = () => ({ enabled: false, areas: [], partialRooms: '', labourCost: '', notes: '', media: [], description: '' })
 
 function buildInitialState(tabs) {
@@ -262,7 +262,7 @@ function countItems(tabs, data) {
     tab.sections?.forEach(sec => {
       sec.items.forEach(item => {
         const cards = data[tab.id]?.[sec.id]?.[item.key] || []
-        cards.forEach(card => { total++; if (card.issueDescription) done++ })
+        cards.forEach(card => { total++; if (card.issueDescription || card.notAvailable) done++ })
       })
     })
   })
@@ -365,17 +365,49 @@ function LabourRateDropdown({ rates, value, labourCost, onSelect }) {
   )
 }
 
+// ── Not-available note ────────────────────────────────────────────────────────
+function NotAvailableNote({ value, onChange }) {
+  return (
+    <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(224,92,106,0.3)' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono, monospace)' }}>
+        // marked as not_available
+      </div>
+      <Field label="Note" optional>
+        <Textarea value={value || ''} onChange={onChange} placeholder="e.g. No geyser in this room" rows={2} />
+      </Field>
+    </div>
+  )
+}
+
 // ── Item card ─────────────────────────────────────────────────────────────────
 function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onUpdate, onDuplicate, onRemove, labourRates }) {
   const { label, trade, issues } = itemConfig
   const tradeRates = (labourRates || []).filter(r => r.trade === trade)
   const cardLabel = totalCards > 1 ? `${label} (${cardIdx + 1})` : label
-  const done = !!card.issueDescription
-  const notFunctional = card.issueDescription && card.issueDescription !== 'Functional'
+  const done = card.notAvailable || !!card.issueDescription
+  const notFunctional = !card.notAvailable && card.issueDescription && card.issueDescription !== 'Functional'
   const total = (parseFloat(card.materialCost) || 0) + (parseFloat(card.labourCost) || 0)
 
-  const dupBtn = (
+  const naToggle = (
+    <label
+      style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '3px 8px', borderRadius: 4, background: card.notAvailable ? 'rgba(224,92,106,0.1)' : 'var(--bg-input, #252731)', border: `1px solid ${card.notAvailable ? 'rgba(224,92,106,0.3)' : 'var(--border, #2e3040)'}`, transition: 'background 0.15s' }}
+      onClick={e => e.stopPropagation()}
+    >
+      <input
+        type="checkbox"
+        checked={card.notAvailable || false}
+        onChange={e => onUpdate('notAvailable', e.target.checked)}
+        style={{ width: 12, height: 12, accentColor: 'var(--red, #e05c6a)', cursor: 'pointer', flexShrink: 0 }}
+      />
+      <span style={{ fontSize: 10, fontWeight: 600, color: card.notAvailable ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}>
+        {card.notAvailable ? 'n/a' : 'not avail'}
+      </span>
+    </label>
+  )
+
+  const headerActions = (
     <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+      {naToggle}
       <button
         type="button"
         onClick={e => { e.stopPropagation(); onDuplicate() }}
@@ -398,50 +430,71 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
       status={done ? 'done' : isOpen ? 'partial' : null}
       isOpen={isOpen}
       onToggle={onToggle}
-      headerAction={dupBtn}
+      headerAction={headerActions}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <IssueField presets={issues} value={card.issueDescription} onChange={v => onUpdate('issueDescription', v)} />
 
-        {notFunctional && (
+        {card.notAvailable ? (
+          <NotAvailableNote value={card.notAvailableNote} onChange={v => onUpdate('notAvailableNote', v)} />
+        ) : (
           <>
-            <Field label="Action Required">
-              <PillGroup
-                options={['Repair', 'Replace', 'Install']}
-                value={card.action}
-                onChange={v => onUpdate('action', v)}
-              />
+            <IssueField presets={issues} value={card.issueDescription} onChange={v => onUpdate('issueDescription', v)} />
+
+            {card.issueDescription && (
+              <Field label="Health Score">
+                <HealthSlider value={card.health} onChange={v => onUpdate('health', v)} />
+              </Field>
+            )}
+
+            <Field label="Attach Media">
+              <MediaUpload files={card.media} onChange={v => onUpdate('media', v)} />
             </Field>
 
-            <LabourRateDropdown
-              rates={tradeRates}
-              value={card.labourRateId}
-              labourCost={card.labourCost}
-              onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }}
-            />
+            {notFunctional && (
+              <>
+                <Field label="Action Required">
+                  <PillGroup
+                    options={['Repair', 'Replace', 'Install']}
+                    value={card.action}
+                    onChange={v => onUpdate('action', v)}
+                  />
+                </Field>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <Field label="Material Cost (₹)">
-                <Input value={card.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" />
-              </Field>
-              <Field label="Labour Cost (₹)">
-                <Input value={card.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" />
-              </Field>
-            </div>
+                {card.action && (
+                  <LabourRateDropdown
+                    rates={tradeRates}
+                    value={card.labourRateId}
+                    labourCost={card.labourCost}
+                    onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }}
+                  />
+                )}
 
-            {total > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-input, #252731)', borderRadius: 6, border: '1px solid var(--border, #2e3040)' }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Total</span>
-                <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text, #e8e8f0)' }}>₹{total.toLocaleString('en-IN')}</span>
-              </div>
+                {card.action && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <Field label="Material Cost (₹)">
+                      <Input value={card.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" />
+                    </Field>
+                    <Field label="Labour Cost (₹)">
+                      <Input value={card.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" />
+                    </Field>
+                  </div>
+                )}
+
+                {total > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-input, #252731)', borderRadius: 6, border: '1px solid var(--border, #2e3040)' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Total</span>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text, #e8e8f0)' }}>₹{total.toLocaleString('en-IN')}</span>
+                  </div>
+                )}
+              </>
             )}
+
+            <Field label="Notes" optional>
+              <Textarea value={card.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any observations…" />
+            </Field>
           </>
         )}
 
-        <Field label="Notes" optional>
-          <Textarea value={card.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any observations…" />
-        </Field>
-        <MediaUpload files={card.media} onChange={v => onUpdate('media', v)} />
       </div>
     </AccordionCard>
   )
@@ -684,18 +737,19 @@ export default function InspectionIndoor() {
         sec.items.forEach(itemConfig => {
           const cards = data[tab.id]?.[sec.id]?.[itemConfig.key] || []
           cards.forEach((card, ci) => {
-            if (!card.issueDescription) return
+            if (!card.issueDescription && !card.notAvailable) return
             const suffix = cards.length > 1 ? ` (${ci + 1})` : ''
             lineItemRows.push({
-              inspection_id:     inspectionId,
-              section_name:      tab.label,
-              area:              sec.label,
-              item_name:         itemConfig.label + suffix,
-              trade:             itemConfig.trade,
-              issue_description: card.issueDescription,
-              material_cost:     parseFloat(card.materialCost) || 0,
-              labour_cost:       parseFloat(card.labourCost) || 0,
-              item_score:        card.issueDescription === 'Functional' ? 10 : null,
+              inspection_id:       inspectionId,
+              section_name:        tab.label,
+              area:                sec.label,
+              item_name:           itemConfig.label + suffix,
+              trade:               itemConfig.trade,
+              issue_description:   card.notAvailable ? (card.notAvailableNote || 'Not available') : card.issueDescription,
+              material_cost:       card.notAvailable ? 0 : (parseFloat(card.materialCost) || 0),
+              labour_cost:         card.notAvailable ? 0 : (parseFloat(card.labourCost) || 0),
+              item_score:          card.notAvailable ? null : (card.health != null ? card.health : (card.issueDescription === 'Functional' ? 10 : null)),
+              availability_status: card.notAvailable ? 'not_available' : null,
             })
             mediaArrays.push(Array.isArray(card.media) ? card.media.filter(f => f instanceof File) : [])
           })
