@@ -601,8 +601,12 @@ export default function InspectionIndoor() {
   const navigate       = useNavigate()
   const { state }      = useLocation()
   const pid            = state?.pid
-  const houseType      = state?.inspectionType || 'apartment'
+  const houseType      = state?.propertyType || state?.inspectionType || 'apartment'
   const bhk            = parseBHK(state?.layout)
+
+  // Debug — remove once confirmed
+  console.log('[InspectionIndoor] state:', state)
+  console.log('[InspectionIndoor] houseType:', houseType, '| bhk:', bhk)
 
   const tabs = buildTabs(houseType, bhk)
   const tabLabels = tabs.map(t => t.label)
@@ -719,7 +723,7 @@ export default function InspectionIndoor() {
     const today = new Date().toISOString().split('T')[0]
     const { data: ins, error: insErr } = await supabase
       .from('inspections')
-      .insert({ pid, inspection_date: today, house_type: houseType, status: 'draft', config: { layout: state?.layout, inspection_type: houseType, scope: 'indoor', bhk } })
+      .insert({ pid, inspection_date: today, house_type: houseType, status: 'draft', config: { layout: state?.layout, inspection_type: state?.inspectionType, property_type: houseType, scope: 'indoor', bhk } })
       .select('id').single()
     if (insErr) { setEstimateError(insErr.message); setIsEstimating(false); return }
 
