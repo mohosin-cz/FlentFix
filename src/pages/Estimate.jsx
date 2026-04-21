@@ -472,7 +472,7 @@ export default function Estimate() {
   useEffect(() => {
     supabase
       .from('inspections')
-      .select('*, inspection_line_items(*)')
+      .select('*, inspection_line_items(*, line_item_media(*))')
       .eq('id', id)
       .single()
       .then(({ data, error: err }) => {
@@ -720,6 +720,22 @@ export default function Estimate() {
                         {itemMat > 0 && <span className="er-cost-detail">Material: ₹{fmt(itemMat)}</span>}
                         {itemMat > 0 && itemLab > 0 && <span style={{ color: '#ddd' }}>·</span>}
                         {itemLab > 0 && <span className="er-cost-detail">Labour: ₹{fmt(itemLab)}</span>}
+                      </div>
+                    )}
+                    {item.line_item_media?.filter(m => m.type === 'image').length > 0 && (
+                      <div style={{ paddingLeft: 28, marginTop: 10 }}>
+                        <div style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', marginBottom: 6 }}>Photos</div>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {item.line_item_media.filter(m => m.type === 'image').map((m, mi) => (
+                            <a key={mi} href={m.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', flexShrink: 0 }}>
+                              <img
+                                src={m.url}
+                                alt={m.caption || ''}
+                                style={{ height: 80, width: 'auto', maxWidth: 120, objectFit: 'cover', borderRadius: 4, border: '1px solid #D4CFC6', display: 'block', cursor: 'pointer' }}
+                              />
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>

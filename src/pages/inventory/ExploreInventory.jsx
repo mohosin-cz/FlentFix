@@ -49,7 +49,7 @@ const TILES = [
     border: 'rgba(61,186,122,0.22)',
   },
   {
-    label: 'Public Rate Card',
+    label: 'Rate Card',
     desc: 'View and edit client-facing pricing by trade',
     route: '/inventory/public-rc',
     icon: (
@@ -61,22 +61,6 @@ const TILES = [
     accent: '#3dba7a',
     bg: 'rgba(61,186,122,0.06)',
     border: 'rgba(61,186,122,0.22)',
-  },
-  {
-    label: 'Internal Rate Card',
-    desc: 'Auto-updated from inventory registry with FXIN codes',
-    route: '/inventory/internal-rc',
-    icon: (
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-        <rect x="4" y="4" width="24" height="24" rx="3" stroke="currentColor" strokeWidth="1.8"/>
-        <path d="M11 11h10M11 16h7M11 21h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-        <circle cx="24" cy="24" r="5" fill="var(--bg-panel, #1e2028)" stroke="currentColor" strokeWidth="1.5"/>
-        <path d="M22 24l1.5 1.5L26 22" stroke="var(--accent, #c8963e)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    ),
-    accent: '#9b8af4',
-    bg: 'rgba(155,138,244,0.06)',
-    border: 'rgba(155,138,244,0.22)',
   },
   {
     label: 'Purchase History',

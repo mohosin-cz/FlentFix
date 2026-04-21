@@ -18,7 +18,6 @@ import RegisterInventory from './pages/inventory/RegisterInventory'
 import InventoryDashboard from './pages/inventory/InventoryDashboard'
 import LogUsage from './pages/inventory/LogUsage'
 import PublicRateCard from './pages/inventory/PublicRateCard'
-import InternalRateCard from './pages/inventory/InternalRateCard'
 import PurchaseHistory from './pages/inventory/PurchaseHistory'
 import WorkOrder from './pages/WorkOrder'
 import ResetPassword from './pages/ResetPassword'
@@ -128,7 +127,6 @@ export default function App() {
           <Route path="/inventory/dashboard" element={<ProtectedRoute><InventoryDashboard /></ProtectedRoute>} />
           <Route path="/inventory/usage" element={<ProtectedRoute><LogUsage /></ProtectedRoute>} />
           <Route path="/inventory/public-rc" element={<PublicRateCard />} />
-          <Route path="/inventory/internal-rc" element={<ProtectedRoute><InternalRateCard /></ProtectedRoute>} />
           <Route path="/inventory/history" element={<ProtectedRoute><PurchaseHistory /></ProtectedRoute>} />
           <Route
             path="/work-order"

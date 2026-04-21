@@ -9,28 +9,26 @@ import { supabase } from '../lib/supabase'
 
 // ─── Upload helper (called after inspection record is created) ────────────────
 export async function uploadMediaFiles(inspectionId, lineItemId, files) {
-  const results = []
+  const uploads = []
   for (const file of files) {
-    const filename = `${Date.now()}-${file.name}`
-    const path = `${inspectionId}/${filename}`
-
-    const { error: uploadErr } = await supabase.storage
+    const ext = file.name.split('.').pop()
+    const path = `inspections/${lineItemId}/${Date.now()}.${ext}`
+    const { data, error } = await supabase.storage
       .from('inspection-media')
-      .upload(path, file)
-    if (uploadErr) continue
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('inspection-media')
-      .getPublicUrl(path)
-
-    const { error: dbErr } = await supabase.from('line_item_media').insert({
-      line_item_id: lineItemId,
-      url: publicUrl,
-      type: file.type.startsWith('video') ? 'video' : 'image',
-    })
-    if (!dbErr) results.push(publicUrl)
+      .upload(path, file, { upsert: true })
+    if (!error) {
+      const { data: { publicUrl } } = supabase.storage
+        .from('inspection-media')
+        .getPublicUrl(data.path)
+      uploads.push({ url: publicUrl, type: file.type.startsWith('video') ? 'video' : 'image' })
+    }
   }
-  return results
+  if (uploads.length) {
+    await supabase.from('line_item_media').insert(
+      uploads.map(m => ({ line_item_id: lineItemId, url: m.url, type: m.type, caption: '' }))
+    )
+  }
+  return uploads.map(u => u.url)
 }
 
 // ─── Item completeness check ──────────────────────────────────────────────────
