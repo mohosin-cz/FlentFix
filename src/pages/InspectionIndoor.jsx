@@ -194,12 +194,17 @@ function parseBHK(layout) {
   return m ? parseInt(m[1]) : 1
 }
 
+function isIndependentHome(houseType) {
+  const v = (houseType || '').toLowerCase().replace(/[\s_-]+/g, '_')
+  return v === 'independent_home' || v === 'independenthome'
+}
+
 function buildTabs(houseType, bhk) {
   const tabs = []
-  if (houseType === 'independent_home') tabs.push({ id: 'entrance', label: 'Entrance', sections: ENTRANCE_SECTIONS })
+  if (isIndependentHome(houseType)) tabs.push({ id: 'entrance', label: 'Entrance', sections: ENTRANCE_SECTIONS })
   tabs.push({ id: 'living_room', label: 'Living Room', sections: LIVING_ROOM_SECTIONS })
   for (let i = 1; i <= bhk; i++) {
-    tabs.push({ id: `bedroom_${i}`, label: bhk === 1 ? 'Bedroom' : `Bedroom ${i}`, sections: bedroomSections(i, bhk) })
+    tabs.push({ id: `bedroom_${i}`, label: `Bedroom ${i}`, sections: bedroomSections(i, bhk) })
   }
   tabs.push({ id: 'kitchen', label: 'Kitchen', sections: KITCHEN_SECTIONS })
   tabs.push({ id: 'general', label: 'General', sections: null })
