@@ -54,6 +54,33 @@ const MODES = [
     ),
     areas: ['Living Room', 'Kitchen', 'Bedrooms', 'Bathrooms'],
   },
+  {
+    value: 'appliances',
+    label: 'Appliances',
+    desc: 'All home appliances & equipment',
+    route: '/inspections/appliances',
+    color: '#7c9ef8',
+    bg: 'rgba(96,165,250,0.04)',
+    border: 'rgba(96,165,250,0.2)',
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        {/* AC unit */}
+        <rect x="4" y="8" width="18" height="10" rx="2" stroke="#7c9ef8" strokeWidth="1.8"/>
+        <path d="M8 13h10M8 15.5h6" stroke="#7c9ef8" strokeWidth="1.3" strokeLinecap="round"/>
+        {/* fridge */}
+        <rect x="26" y="6" width="16" height="26" rx="2" stroke="#7c9ef8" strokeWidth="1.8"/>
+        <path d="M26 17h16" stroke="#7c9ef8" strokeWidth="1.3"/>
+        <path d="M30 12v3M30 22v5" stroke="#7c9ef8" strokeWidth="1.3" strokeLinecap="round"/>
+        {/* washing machine */}
+        <rect x="4" y="26" width="18" height="16" rx="2" stroke="#7c9ef8" strokeWidth="1.8"/>
+        <circle cx="13" cy="34" r="5" stroke="#7c9ef8" strokeWidth="1.5"/>
+        <circle cx="13" cy="34" r="2" stroke="#7c9ef8" strokeWidth="1.2"/>
+        {/* plug/power */}
+        <path d="M38 36v4M38 40h4" stroke="#7c9ef8" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
+    areas: ['AC · Fridge', 'Geyser · Washer', 'Chimney · Hob', 'TV · Inverter'],
+  },
 ]
 
 export default function InspectionMode() {

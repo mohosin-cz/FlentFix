@@ -9,6 +9,8 @@ import InspectionSummary from './pages/InspectionSummary'
 import InspectionOutdoor from './pages/InspectionOutdoor'
 import InspectionMode from './pages/InspectionMode'
 import InspectionIndoor from './pages/InspectionIndoor'
+import InspectionAppliances from './pages/InspectionAppliances'
+import InspectionApplianceReport from './pages/InspectionApplianceReport'
 import Estimate from './pages/Estimate'
 import Properties from './pages/Properties'
 import PropertyDetail from './pages/PropertyDetail'
@@ -72,6 +74,22 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <InspectionOutdoor />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inspections/appliances"
+            element={
+              <ProtectedRoute>
+                <InspectionAppliances />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inspections/appliance-report"
+            element={
+              <ProtectedRoute>
+                <InspectionApplianceReport />
               </ProtectedRoute>
             }
           />
