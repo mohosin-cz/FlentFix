@@ -268,7 +268,7 @@ function countItems(tabs, data) {
     tab.sections?.forEach(sec => {
       sec.items.forEach(item => {
         const cards = data[tab.id]?.[sec.id]?.[item.key] || []
-        cards.forEach(card => { total++; if (card.notAvailable || (card.issues || []).some(r => r.issueDescription)) done++ })
+        cards.forEach(card => { total++; if (card.notAvailable || (card.issues || []).some(r => r.action)) done++ })
       })
     })
   })
@@ -387,13 +387,13 @@ function NotAvailableNote({ value, onChange }) {
 
 // ── Issue row (single issue inside a card) ────────────────────────────────────
 function IssueRow({ row, presets, tradeRates, onUpdate, onRemove, showRemove }) {
-  const isFunctional = row.issueDescription === 'Functional'
+  const isFunctional = row.action === 'Functional'
   const rowTotal = (parseFloat(row.materialCost) || 0) + (parseFloat(row.labourCost) || 0)
   return (
-    <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${isFunctional ? 'rgba(61,186,122,0.3)' : 'var(--border, #2e3040)'}`, borderRadius: 8, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: isFunctional ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
-          {isFunctional ? '✓ functional' : row.issueDescription ? '— issue' : 'new issue'}
+          {isFunctional ? '✓ functional' : row.action ? `— ${row.action.toLowerCase()}` : 'new issue'}
         </span>
         {showRemove && (
           <button type="button" onClick={onRemove} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 4, background: 'rgba(224,92,106,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
@@ -402,32 +402,38 @@ function IssueRow({ row, presets, tradeRates, onUpdate, onRemove, showRemove }) 
 
       <IssueField presets={presets} value={row.issueDescription} onChange={v => onUpdate('issueDescription', v)} />
 
-      {!isFunctional && row.issueDescription && (
+      <Field label="Action">
+        <PillGroup
+          options={['Repair', 'Replace', 'Install', 'Functional']}
+          value={row.action}
+          onChange={v => { onUpdate('action', v); if (v === 'Functional') { onUpdate('materialCost', ''); onUpdate('labourCost', ''); onUpdate('labourRateId', '') } }}
+        />
+      </Field>
+
+      {!isFunctional && row.action === 'Repair' && (
         <>
-          <Field label="Action">
-            <PillGroup options={['Repair', 'Replace', 'Install']} value={row.action} onChange={v => onUpdate('action', v)} />
+          <LabourRateDropdown rates={tradeRates} value={row.labourRateId} labourCost={row.labourCost} onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }} />
+          <Field label="Labour ₹">
+            <Input value={row.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" />
           </Field>
-          {row.action && (
-            <>
-              <LabourRateDropdown
-                rates={tradeRates}
-                value={row.labourRateId}
-                labourCost={row.labourCost}
-                onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }}
-              />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <Field label="Material ₹"><Input value={row.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" /></Field>
-                <Field label="Labour ₹"><Input value={row.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" /></Field>
-              </div>
-              {rowTotal > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.2)', borderRadius: 6 }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Issue Total</span>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent, #c8963e)' }}>₹{rowTotal.toLocaleString('en-IN')}</span>
-                </div>
-              )}
-            </>
-          )}
         </>
+      )}
+
+      {!isFunctional && (row.action === 'Replace' || row.action === 'Install') && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="Material ₹"><Input value={row.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" /></Field>
+            <Field label="Labour ₹"><Input value={row.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" /></Field>
+          </div>
+          <LabourRateDropdown rates={tradeRates} value={row.labourRateId} labourCost={row.labourCost} onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }} />
+        </>
+      )}
+
+      {!isFunctional && rowTotal > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.2)', borderRadius: 6 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Issue Total</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent, #c8963e)' }}>₹{rowTotal.toLocaleString('en-IN')}</span>
+        </div>
       )}
     </div>
   )
@@ -439,7 +445,7 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
   const tradeRates = (labourRates || []).filter(r => r.trade === trade)
   const cardLabel = totalCards > 1 ? `${label} (${cardIdx + 1})` : label
   const issueRows = card.issues || []
-  const done = card.notAvailable || issueRows.some(r => r.issueDescription)
+  const done = card.notAvailable || issueRows.some(r => r.action)
   const itemTotal = issueRows.reduce((sum, r) => sum + (parseFloat(r.materialCost) || 0) + (parseFloat(r.labourCost) || 0), 0)
 
   function addIssue() { onUpdate('issues', [...issueRows, blankIssueRow()]) }
@@ -818,7 +824,7 @@ export default function InspectionIndoor() {
           const cards = data[tab.id]?.[sec.id]?.[itemConfig.key] || []
           cards.forEach((card, ci) => {
             const issueRows = card.issues || []
-            const hasIssues = issueRows.some(r => r.issueDescription)
+            const hasIssues = issueRows.some(r => r.action)
             if (!card.notAvailable && !hasIssues) return
             const suffix = cards.length > 1 ? ` (${ci + 1})` : ''
             const mediaFiles = Array.isArray(card.media) ? card.media.filter(f => f instanceof File) : []
@@ -830,7 +836,7 @@ export default function InspectionIndoor() {
             }
 
             issueRows.forEach((row, ri) => {
-              if (!row.issueDescription) return
+              if (!row.action) return
               lineItemRows.push({
                 inspection_id:       inspectionId,
                 section_name:        tab.label,
@@ -841,7 +847,7 @@ export default function InspectionIndoor() {
                 action:              row.action || '',
                 material_cost:       parseFloat(row.materialCost) || 0,
                 labour_cost:         parseFloat(row.labourCost) || 0,
-                item_score:          card.health != null ? card.health : (row.issueDescription === 'Functional' ? 10 : null),
+                item_score:          card.health != null ? card.health : (row.action === 'Functional' ? 10 : null),
                 availability_status: null,
               })
               mediaArrays.push(ri === 0 ? mediaFiles : [])
@@ -934,7 +940,7 @@ export default function InspectionIndoor() {
               {getCI('general').map((ci, idx) => (
                 <CustomItemCard key={ci.id} item={ci} onChange={(f, v) => updateCI('general', idx, f, v)} onRemove={() => removeCI('general', idx)} />
               ))}
-              <button type="button" onClick={() => addCI('general')} style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '11px 14px', border: '1px dashed var(--accent, #c8963e)', borderRadius: 8, background: 'rgba(200,150,62,0.04)', fontSize: 12, fontWeight: 600, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ add_custom_item</button>
+              <button type="button" onClick={() => addCI('general')} style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '11px 14px', border: '1px dashed var(--accent, #c8963e)', borderRadius: 8, background: 'rgba(200,150,62,0.04)', fontSize: 12, fontWeight: 600, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ Add Custom Item</button>
             </>
           )}
 
@@ -980,7 +986,7 @@ export default function InspectionIndoor() {
             <CustomItemCard key={ci.id} item={ci} onChange={(f, v) => updateCI(currentTab.id, idx, f, v)} onRemove={() => removeCI(currentTab.id, idx)} />
           ))}
           {currentTab.id !== 'general' && (
-            <button type="button" onClick={() => addCI(currentTab.id)} style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '11px 14px', border: '1px dashed var(--accent, #c8963e)', borderRadius: 8, background: 'rgba(200,150,62,0.04)', fontSize: 12, fontWeight: 600, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ add_custom_item</button>
+            <button type="button" onClick={() => addCI(currentTab.id)} style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '11px 14px', border: '1px dashed var(--accent, #c8963e)', borderRadius: 8, background: 'rgba(200,150,62,0.04)', fontSize: 12, fontWeight: 600, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ Add Custom Item</button>
           )}
         </div>
       </div>
