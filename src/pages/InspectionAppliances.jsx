@@ -10,18 +10,18 @@ import QuickNotes from '../components/QuickNotes'
 
 // ── Appliance definitions ─────────────────────────────────────────────────────
 const APPLIANCES = [
-  { name: 'Air Conditioner',      icon: '❄️',  trade: 'electrical', components: ['Cooling performance', 'Compressor', 'Filter', 'Remote', 'Gas level', 'Drainage pipe', 'Indoor unit body', 'Outdoor unit body'] },
-  { name: 'Refrigerator',         icon: '🧊',  trade: 'electrical', components: ['Cooling performance', 'Door seal/gasket', 'Ice maker', 'Water dispenser', 'Interior light', 'Compressor noise', 'Door alignment', 'Body/exterior'] },
-  { name: 'Geyser / Water Heater',icon: '🔥',  trade: 'electrical', components: ['Heating element/coil', 'Thermostat', 'Tank/body', 'Inlet pipe', 'Outlet pipe', 'Safety valve', 'Electrical connections', 'Mounting'] },
-  { name: 'Washing Machine',      icon: '🫧',  trade: 'electrical', components: ['Drum/tub', 'Motor', 'Water inlet valve', 'Drain hose', 'Control panel', 'Door seal', 'Spin function', 'Vibration/noise'] },
-  { name: 'Microwave / OTG',      icon: '📦',  trade: 'electrical', components: ['Heating function', 'Turntable', 'Door latch', 'Control panel', 'Interior light', 'Body/exterior'] },
-  { name: 'Chimney / Hood',       icon: '💨',  trade: 'electrical', components: ['Suction performance', 'Motor', 'Filter (baffle/mesh)', 'Lights', 'Auto-clean function', 'Duct/pipe', 'Control panel', 'Body/exterior'] },
-  { name: 'Hob / Cooktop',        icon: '🍳',  trade: 'misc',       components: ['Burners (all)', 'Ignition', 'Gas knobs', 'Glass surface', 'Drip tray', 'Gas pipe connection'] },
-  { name: 'Dishwasher',           icon: '🍽️', trade: 'plumbing',   components: ['Wash cycle', 'Drain function', 'Door seal', 'Spray arms', 'Detergent dispenser', 'Control panel', 'Inlet hose', 'Body/exterior'] },
-  { name: 'Oven (Built-in)',       icon: '🍕',  trade: 'electrical', components: ['Heating element', 'Temperature control', 'Timer/display', 'Door hinge', 'Door seal', 'Interior light', 'Body/exterior'] },
-  { name: 'Water Purifier / RO',  icon: '💧',  trade: 'plumbing',   components: ['Water output', 'Filter condition', 'Membrane', 'Storage tank', 'TDS level', 'Tap/faucet', 'Drainage pipe', 'Mounting'] },
-  { name: 'TV',                   icon: '📺',  trade: 'electrical', components: ['Display/screen', 'Remote', 'HDMI/ports', 'Sound', 'Smart functions', 'Wall mount/stand', 'Power cable'] },
-  { name: 'Inverter / UPS',       icon: '⚡',  trade: 'electrical', components: ['Battery backup', 'Charging function', 'Output power', 'Display/indicator', 'Body/wiring', 'Battery condition'] },
+  { name: 'Air Conditioner',      trade: 'electrical', components: ['Cooling performance', 'Compressor', 'Filter', 'Remote', 'Gas level', 'Drainage pipe', 'Indoor unit body', 'Outdoor unit body'] },
+  { name: 'Refrigerator',         trade: 'electrical', components: ['Cooling performance', 'Door seal/gasket', 'Ice maker', 'Water dispenser', 'Interior light', 'Compressor noise', 'Door alignment', 'Body/exterior'] },
+  { name: 'Geyser / Water Heater',trade: 'electrical', components: ['Heating element/coil', 'Thermostat', 'Tank/body', 'Inlet pipe', 'Outlet pipe', 'Safety valve', 'Electrical connections', 'Mounting'] },
+  { name: 'Washing Machine',      trade: 'electrical', components: ['Drum/tub', 'Motor', 'Water inlet valve', 'Drain hose', 'Control panel', 'Door seal', 'Spin function', 'Vibration/noise'] },
+  { name: 'Microwave / OTG',      trade: 'electrical', components: ['Heating function', 'Turntable', 'Door latch', 'Control panel', 'Interior light', 'Body/exterior'] },
+  { name: 'Chimney / Hood',       trade: 'electrical', components: ['Suction performance', 'Motor', 'Filter (baffle/mesh)', 'Lights', 'Auto-clean function', 'Duct/pipe', 'Control panel', 'Body/exterior'] },
+  { name: 'Hob / Cooktop',        trade: 'misc',       components: ['Burners (all)', 'Ignition', 'Gas knobs', 'Glass surface', 'Drip tray', 'Gas pipe connection'] },
+  { name: 'Dishwasher',           trade: 'plumbing',   components: ['Wash cycle', 'Drain function', 'Door seal', 'Spray arms', 'Detergent dispenser', 'Control panel', 'Inlet hose', 'Body/exterior'] },
+  { name: 'Oven (Built-in)',       trade: 'electrical', components: ['Heating element', 'Temperature control', 'Timer/display', 'Door hinge', 'Door seal', 'Interior light', 'Body/exterior'] },
+  { name: 'Water Purifier / RO',  trade: 'plumbing',   components: ['Water output', 'Filter condition', 'Membrane', 'Storage tank', 'TDS level', 'Tap/faucet', 'Drainage pipe', 'Mounting'] },
+  { name: 'TV',                   trade: 'electrical', components: ['Display/screen', 'Remote', 'HDMI/ports', 'Sound', 'Smart functions', 'Wall mount/stand', 'Power cable'] },
+  { name: 'Inverter / UPS',       trade: 'electrical', components: ['Battery backup', 'Charging function', 'Output power', 'Display/indicator', 'Body/wiring', 'Battery condition'] },
 ]
 
 // ── State helpers ─────────────────────────────────────────────────────────────
@@ -92,8 +92,14 @@ function MediaUpload({ files = [], onChange, label = 'Attach Photos / Videos' })
           <div style={{ width: '100%', background: 'var(--bg-panel, #1e2028)', borderRadius: '12px 12px 0 0', padding: '8px 16px 36px' }} onClick={e => e.stopPropagation()}>
             <div style={{ width: 36, height: 3, borderRadius: 2, background: 'var(--border-dash, #3a3d52)', margin: '10px auto 18px' }} />
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', marginBottom: 14, textAlign: 'center', fontFamily: 'var(--font-mono, monospace)' }}>{label}</div>
-            <button type="button" onClick={() => cameraRef.current?.click()} style={SHEET_BTN}><span style={{ fontSize: 18 }}>📷</span> take photo / video</button>
-            <button type="button" onClick={() => galleryRef.current?.click()} style={{ ...SHEET_BTN, marginTop: 8 }}><span style={{ fontSize: 18 }}>🖼</span> choose from gallery</button>
+            <button type="button" onClick={() => cameraRef.current?.click()} style={SHEET_BTN}>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M6.5 3h5l1.5 2H15a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V6a1 1 0 011-1h1.5L6 3z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><circle cx="9" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.4"/></svg>
+              take photo / video
+            </button>
+            <button type="button" onClick={() => galleryRef.current?.click()} style={{ ...SHEET_BTN, marginTop: 8 }}>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="2" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.4"/><circle cx="6.5" cy="6.5" r="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M2 12l4-4 3 3 2-2 5 5" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>
+              choose from gallery
+            </button>
             <button type="button" onClick={() => setSheet(false)} style={{ ...SHEET_BTN, marginTop: 14, color: 'var(--text-muted, #6b6d82)' }}>cancel</button>
           </div>
         </div>
@@ -227,7 +233,7 @@ function ApplianceCard({ appliance, appData, isOpen, onToggle, onUpdate, labourR
   const doneComps   = appliance.components.filter(c => comps[c]?.status).length + customC.filter(c => c.status).length
   const totalComps  = appliance.components.length + customC.length
   const badge       = totalComps > 0 && doneComps > 0 ? `${doneComps}/${totalComps}` : null
-  const displayTitle = isCustom ? (appData.customName || 'Custom Appliance') : `${appliance.icon}  ${appliance.name}`
+  const displayTitle = isCustom ? (appData.customName || 'Custom Appliance') : appliance.name
 
   function updateComp(compName, field, value) {
     onUpdate('components', { ...comps, [compName]: { ...(comps[compName] || blankComp()), [field]: value } })
@@ -491,7 +497,7 @@ export default function InspectionAppliances() {
           {customAppliances.map((ca, idx) => (
             <ApplianceCard
               key={ca.id}
-              appliance={{ name: ca.customName || 'Custom Appliance', icon: '🔌', trade: ca.trade || 'electrical', components: [] }}
+              appliance={{ name: ca.customName || 'Custom Appliance', trade: ca.trade || 'electrical', components: [] }}
               appData={ca}
               isOpen={openCards.has(ca.id)}
               onToggle={() => toggleCard(ca.id)}
@@ -513,7 +519,7 @@ export default function InspectionAppliances() {
         </div>
       }>
         <button type="button" onClick={handleGenerateReport} disabled={isSaving} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '11px 18px', border: 'none', borderRadius: 6, background: isSaving ? 'var(--bg-input, #252731)' : 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 700, color: isSaving ? 'var(--text-muted, #6b6d82)' : '#fff', cursor: isSaving ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
-          {isSaving ? 'Saving…' : '📊 Generate Report'}
+          {isSaving ? 'Saving…' : 'Generate Report'}
         </button>
       </StickyFooter>
 
