@@ -200,14 +200,13 @@ function isIndependentHome(houseType) {
 }
 
 function buildTabs(houseType, bhk) {
-  const tabs = []
+  const tabs = [{ id: 'basics', label: 'Basics', sections: null }]
   if (isIndependentHome(houseType)) tabs.push({ id: 'entrance', label: 'Entrance', sections: ENTRANCE_SECTIONS })
   tabs.push({ id: 'living_room', label: 'Living Room', sections: LIVING_ROOM_SECTIONS })
   for (let i = 1; i <= bhk; i++) {
     tabs.push({ id: `bedroom_${i}`, label: `Bedroom ${i}`, sections: bedroomSections(i, bhk) })
   }
   tabs.push({ id: 'kitchen', label: 'Kitchen', sections: KITCHEN_SECTIONS })
-  tabs.push({ id: 'general', label: 'General', sections: null })
   return tabs
 }
 
@@ -215,14 +214,18 @@ function buildTabs(houseType, bhk) {
 const blankCostRow  = () => ({ action: '', labourRateId: '', labourCost: '', materialCost: '' })
 const blankIssueRow = () => ({ id: `ir_${Date.now()}_${Math.random().toString(36).slice(2)}`, issueDescription: '', action: '', labourRateId: '', labourCost: '', materialCost: '' })
 const blankCard = () => ({ health: null, notes: '', media: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {} })
-const blankGeneral = () => ({ enabled: false, areas: [], partialRooms: '', labourCost: '', notes: '', media: [], description: '' })
+const blankGeneral = () => ({ enabled: false, areas: [], partialRooms: '', labourCost: '', rateId: '', notes: '', media: [], description: '', fullHome: true, specificAreas: [] })
+const BLANK_SPEC_AREA = () => ({ id: `sa_${Date.now()}_${Math.random().toString(36).slice(2)}`, area: '', type: '', notes: '', rateId: '', cost: '' })
+
+const SPECIFIC_AREA_OPTIONS = ['Living Room', 'Kitchen', 'Bedroom 1', 'Bedroom 2', 'Bedroom 3', 'Bathroom', 'Master Bathroom', 'Balcony', 'Utility']
+const CLEAN_TYPES = ['Deep Clean', 'Basic Clean', 'Specialised Clean']
 
 function buildInitialState(tabs) {
   const s = {}
   tabs.forEach(tab => {
-    if (tab.id === 'general') {
-      s.general = {}
-      GENERAL_ITEMS.forEach(g => { s.general[g.key] = blankGeneral() })
+    if (tab.id === 'basics') {
+      s.basics = {}
+      GENERAL_ITEMS.forEach(g => { s.basics[g.key] = blankGeneral() })
       return
     }
     s[tab.id] = {}
@@ -258,10 +261,10 @@ function deepMerge(base, override) {
 function countItems(tabs, data) {
   let done = 0, total = 0
   tabs.forEach(tab => {
-    if (tab.id === 'general') {
+    if (tab.id === 'basics') {
       GENERAL_ITEMS.forEach(g => {
         total++
-        const d = data.general?.[g.key]
+        const d = data.basics?.[g.key]
         if (d && (!d.enabled || d.labourCost || d.description || d.areas?.length)) done++
       })
       return
@@ -269,7 +272,10 @@ function countItems(tabs, data) {
     tab.sections?.forEach(sec => {
       sec.items.forEach(item => {
         const cards = data[tab.id]?.[sec.id]?.[item.key] || []
-        cards.forEach(card => { total++; if (card.notAvailable || (card.selectedIssues || []).length > 0) done++ })
+        cards.forEach(card => {
+          total++
+          if (card.notAvailable || (card.selectedIssues || []).length > 0 || card.acProvision === 'not_present') done++
+        })
       })
     })
   })
@@ -317,8 +323,14 @@ function MediaUpload({ files = [], onChange, label = 'Attach Photos / Videos' })
           <div style={{ width: '100%', background: 'var(--bg-panel, #1e2028)', borderRadius: '12px 12px 0 0', padding: '8px 16px 36px' }} onClick={e => e.stopPropagation()}>
             <div style={{ width: 36, height: 3, borderRadius: 2, background: 'var(--border-dash, #3a3d52)', margin: '10px auto 18px' }} />
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', marginBottom: 14, textAlign: 'center', fontFamily: 'var(--font-mono, monospace)' }}>{label}</div>
-            <button type="button" onClick={() => cameraRef.current?.click()} style={SHEET_BTN}><span style={{ fontSize: 18 }}>📷</span> take photo / video</button>
-            <button type="button" onClick={() => galleryRef.current?.click()} style={{ ...SHEET_BTN, marginTop: 8 }}><span style={{ fontSize: 18 }}>🖼</span> choose from gallery</button>
+            <button type="button" onClick={() => cameraRef.current?.click()} style={SHEET_BTN}>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M6.5 3h5l1.5 2H15a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V6a1 1 0 011-1h1.5L6 3z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><circle cx="9" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.4"/></svg>
+              take photo / video
+            </button>
+            <button type="button" onClick={() => galleryRef.current?.click()} style={{ ...SHEET_BTN, marginTop: 8 }}>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="2" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.4"/><circle cx="6.5" cy="6.5" r="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M2 12l4-4 3 3 2-2 5 5" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>
+              choose from gallery
+            </button>
             <button type="button" onClick={() => setSheet(false)} style={{ ...SHEET_BTN, marginTop: 14, color: 'var(--text-muted, #6b6d82)' }}>cancel</button>
           </div>
         </div>
@@ -494,13 +506,16 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate }) {
 // ── Item card ─────────────────────────────────────────────────────────────────
 function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onUpdate, onDuplicate, onRemove, labourRates }) {
   const { label, trade, issues: presets } = itemConfig
-  const tradeRates = (labourRates || []).filter(r => r.trade === trade)
-  const cardLabel = totalCards > 1 ? `${label} (${cardIdx + 1})` : label
-  const selectedIssues   = card.selectedIssues || []
-  const costRows         = card.costRows || {}
-  const done             = card.notAvailable || selectedIssues.length > 0
-  const nonFunctional    = selectedIssues.filter(i => i !== 'Functional')
-  const itemTotal        = nonFunctional.reduce((sum, issue) => {
+  const isAcPoint      = itemConfig.key === 'acPoint'
+  const acProvision    = card.acProvision || 'present'
+  const tradeRates     = (labourRates || []).filter(r => r.trade === trade)
+  const baseLabel      = isAcPoint ? 'AC Point · Provision check' : label
+  const cardLabel      = totalCards > 1 ? `${baseLabel} (${cardIdx + 1})` : baseLabel
+  const selectedIssues = card.selectedIssues || []
+  const costRows       = card.costRows || {}
+  const done           = card.notAvailable || selectedIssues.length > 0 || (isAcPoint && acProvision === 'not_present')
+  const nonFunctional  = selectedIssues.filter(i => i !== 'Functional')
+  const itemTotal      = nonFunctional.reduce((sum, issue) => {
     const cr = costRows[issue] || {}
     return sum + (parseFloat(cr.materialCost) || 0) + (parseFloat(cr.labourCost) || 0)
   }, 0)
@@ -527,7 +542,7 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
 
   const headerActions = (
     <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-      {naToggle}
+      {!isAcPoint && naToggle}
       <button type="button" onClick={e => { e.stopPropagation(); onDuplicate() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(200,150,62,0.4)', background: 'rgba(200,150,62,0.08)', color: 'var(--accent, #c8963e)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>⊕</button>
       {totalCards > 1 && (
         <button type="button" onClick={e => { e.stopPropagation(); onRemove() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(224,92,106,0.35)', background: 'rgba(224,92,106,0.08)', color: 'var(--red, #e05c6a)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>×</button>
@@ -538,11 +553,33 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
   return (
     <AccordionCard title={cardLabel} status={done ? 'done' : isOpen ? 'partial' : null} isOpen={isOpen} onToggle={onToggle} headerAction={headerActions}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {card.notAvailable ? (
+
+        {/* AC Point — provision toggle at the top */}
+        {isAcPoint && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', flex: 1 }}>AC Provision</span>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[['present', 'Present'], ['not_present', 'Not Present']].map(([val, lbl]) => {
+                const active = acProvision === val
+                return (
+                  <button key={val} type="button" onClick={() => onUpdate('acProvision', val)} style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, borderRadius: 5, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', border: `1px solid ${active ? (val === 'present' ? 'rgba(61,186,122,0.4)' : 'rgba(224,92,106,0.4)') : 'var(--border, #2e3040)'}`, background: active ? (val === 'present' ? 'rgba(61,186,122,0.1)' : 'rgba(224,92,106,0.1)') : 'transparent', color: active ? (val === 'present' ? 'var(--green, #3dba7a)' : 'var(--red, #e05c6a)') : 'var(--text-muted, #6b6d82)' }}>
+                    {lbl}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* AC Point not present — no further fields */}
+        {isAcPoint && acProvision === 'not_present' ? (
+          <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(224,92,106,0.3)' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>// saved as no_provision</div>
+          </div>
+        ) : card.notAvailable ? (
           <NotAvailableNote value={card.notAvailableNote} onChange={v => onUpdate('notAvailableNote', v)} />
         ) : (
           <>
-            {/* 1. Issue checkboxes */}
             <Field label="Issues">
               <IssueCheckboxGrid
                 presets={presets}
@@ -553,20 +590,16 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
               />
             </Field>
 
-            {/* 2. Health Score */}
             <Field label="Health Score">
               <HealthSlider value={card.health} onChange={v => onUpdate('health', v)} />
             </Field>
 
-            {/* 3. Media */}
             <MediaUpload files={card.media} onChange={v => onUpdate('media', v)} />
 
-            {/* 4. Notes */}
             <Field label="Notes" optional>
               <Textarea value={card.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any observations…" />
             </Field>
 
-            {/* 5. Cost rows for each selected non-Functional issue */}
             {nonFunctional.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)' }}>Cost Breakdown</span>
@@ -595,61 +628,164 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
   )
 }
 
-// ── General toggle item ───────────────────────────────────────────────────────
-function GeneralToggleItem({ config, data, onUpdate, labourRates }) {
-  const { label, areaOptions, multiSelect, freeText, hasPartialRooms } = config
+// ── Basics toggle item ────────────────────────────────────────────────────────
+function GeneralToggleItem({ config, data, onUpdate, cleaningRates }) {
+  const { key, label, areaOptions, multiSelect, freeText, hasPartialRooms, trade } = config
+  const isCleaning    = trade === 'cleaning'
+  const isDeepCleaning = key === 'deepCleaning'
+  const cleanOptions  = cleaningRates.map(r => ({ value: r.id, label: r.work_type, cost: r.cost_per_unit, unit: r.unit }))
+
   function toggleArea(a) {
     if (multiSelect) {
-      const areas = data.areas.includes(a) ? data.areas.filter(x => x !== a) : [...data.areas, a]
-      onUpdate('areas', areas)
+      onUpdate('areas', data.areas.includes(a) ? data.areas.filter(x => x !== a) : [...data.areas, a])
     } else {
       onUpdate('areas', data.areas[0] === a ? [] : [a])
     }
   }
+
+  function addSpecificArea() { onUpdate('specificAreas', [...(data.specificAreas || []), BLANK_SPEC_AREA()]) }
+  function removeSpecificArea(idx) { onUpdate('specificAreas', (data.specificAreas || []).filter((_, i) => i !== idx)) }
+  function updateSpecificArea(idx, field, value) {
+    const next = [...(data.specificAreas || [])]; next[idx] = { ...next[idx], [field]: value }; onUpdate('specificAreas', next)
+  }
+
+  const toggle = (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+      <span style={{ fontSize: 11, color: data.enabled ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{data.enabled ? 'on' : 'off'}</span>
+      <div style={{ position: 'relative', width: 36, height: 20 }}>
+        <input type="checkbox" checked={data.enabled} onChange={e => onUpdate('enabled', e.target.checked)} style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }} />
+        <div style={{ position: 'absolute', inset: 0, background: data.enabled ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)', border: `1px solid ${data.enabled ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, borderRadius: 10, transition: 'background 0.2s' }} />
+        <div style={{ position: 'absolute', top: 2, left: data.enabled ? 18 : 2, width: 16, height: 16, background: '#fff', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+      </div>
+    </label>
+  )
+
   return (
     <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${data.enabled ? 'rgba(200,150,62,0.3)' : 'var(--border, #2e3040)'}`, borderRadius: 10, padding: '14px 16px', transition: 'border-color 0.2s' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: data.enabled ? 16 : 0 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{label}</span>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-          <span style={{ fontSize: 11, color: data.enabled ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{data.enabled ? 'on' : 'off'}</span>
-          <div style={{ position: 'relative', width: 36, height: 20 }}>
-            <input type="checkbox" checked={data.enabled} onChange={e => onUpdate('enabled', e.target.checked)} style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }} />
-            <div style={{ position: 'absolute', inset: 0, background: data.enabled ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)', border: `1px solid ${data.enabled ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, borderRadius: 10, transition: 'background 0.2s' }} />
-            <div style={{ position: 'absolute', top: 2, left: data.enabled ? 18 : 2, width: 16, height: 16, background: '#fff', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
-          </div>
-        </label>
+        {toggle}
       </div>
 
       {data.enabled && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {freeText ? (
-            <Field label="Description">
-              <Textarea value={data.description} onChange={v => onUpdate('description', v)} placeholder="Describe the work needed…" rows={2} />
-            </Field>
+
+          {isDeepCleaning ? (
+            <>
+              {/* Full Home toggle */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: data.fullHome !== false ? 'rgba(61,186,122,0.08)' : 'var(--bg-input, #252731)', border: `1px solid ${data.fullHome !== false ? 'rgba(61,186,122,0.35)' : 'var(--border, #2e3040)'}`, borderRadius: 8, cursor: 'pointer' }}>
+                <div style={{ position: 'relative', width: 36, height: 20, flexShrink: 0 }}>
+                  <input type="checkbox" checked={data.fullHome !== false} onChange={e => onUpdate('fullHome', e.target.checked)} style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }} />
+                  <div style={{ position: 'absolute', inset: 0, background: data.fullHome !== false ? 'var(--green, #3dba7a)' : 'var(--bg-input, #252731)', border: `1px solid ${data.fullHome !== false ? 'var(--green, #3dba7a)' : 'var(--border, #2e3040)'}`, borderRadius: 10, transition: 'background 0.2s' }} />
+                  <div style={{ position: 'absolute', top: 2, left: data.fullHome !== false ? 18 : 2, width: 16, height: 16, background: '#fff', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: data.fullHome !== false ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)' }}>Full Home Deep Cleaning</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>Covers all rooms and areas</div>
+                </div>
+              </label>
+
+              {data.fullHome !== false && (
+                <>
+                  {cleanOptions.length > 0 && (
+                    <Field label="Rate">
+                      <SearchableDropdown options={cleanOptions} value={data.rateId} onChange={id => { const r = cleaningRates.find(x => x.id === id); onUpdate('rateId', id); onUpdate('labourCost', r ? String(r.cost_per_unit) : '') }} placeholder="Select cleaning service…" />
+                    </Field>
+                  )}
+                  <Field label="Cost (₹)" hint={data.rateId ? 'auto-filled from rate' : undefined}>
+                    <Input value={data.labourCost} onChange={v => onUpdate('labourCost', v)} type="number" placeholder="0" />
+                  </Field>
+                </>
+              )}
+
+              {/* Specific area rows */}
+              {(data.specificAreas || []).length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)' }}>Specific Areas</span>
+                  {(data.specificAreas || []).map((sa, idx) => (
+                    <div key={sa.id} style={{ background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <button type="button" onClick={() => removeSpecificArea(idx)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 4, background: 'rgba(224,92,106,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
+                      </div>
+                      <Field label="Area">
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                          {SPECIFIC_AREA_OPTIONS.map(a => (
+                            <button key={a} type="button" onClick={() => updateSpecificArea(idx, 'area', sa.area === a ? '' : a)} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', border: sa.area === a ? '1px solid rgba(200,150,62,0.5)' : '1px solid var(--border, #2e3040)', background: sa.area === a ? 'rgba(200,150,62,0.1)' : 'var(--bg-input, #252731)', color: sa.area === a ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)' }}>{a}</button>
+                          ))}
+                        </div>
+                      </Field>
+                      <Field label="Type">
+                        <PillGroup options={CLEAN_TYPES} value={sa.type} onChange={v => updateSpecificArea(idx, 'type', v)} />
+                      </Field>
+                      <Field label="Notes" optional>
+                        <Textarea value={sa.notes || ''} onChange={v => updateSpecificArea(idx, 'notes', v)} rows={2} placeholder="e.g. focus on grease buildup near hob" />
+                      </Field>
+                      {cleanOptions.length > 0 && (
+                        <Field label="Rate">
+                          <SearchableDropdown options={cleanOptions} value={sa.rateId} onChange={id => { const r = cleaningRates.find(x => x.id === id); updateSpecificArea(idx, 'rateId', id); updateSpecificArea(idx, 'cost', r ? String(r.cost_per_unit) : '') }} placeholder="Select service…" />
+                        </Field>
+                      )}
+                      <Field label="Cost (₹)" hint={sa.rateId ? 'auto-filled from rate' : undefined}>
+                        <Input value={sa.cost || ''} onChange={v => updateSpecificArea(idx, 'cost', v)} type="number" placeholder="0" />
+                      </Field>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button type="button" onClick={addSpecificArea} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '10px 14px', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 8, background: 'transparent', fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ Add Specific Area</button>
+
+              <Field label="Notes" optional>
+                <Textarea value={data.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Notes…" />
+              </Field>
+              <MediaUpload files={data.media} onChange={v => onUpdate('media', v)} />
+            </>
+          ) : freeText ? (
+            <>
+              <Field label="Description">
+                <Textarea value={data.description} onChange={v => onUpdate('description', v)} placeholder="Describe the work needed…" rows={2} />
+              </Field>
+              <Field label="Labour Cost (₹)">
+                <Input value={data.labourCost} onChange={v => onUpdate('labourCost', v)} type="number" placeholder="0" />
+              </Field>
+              <Field label="Notes" optional>
+                <Textarea value={data.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Notes…" />
+              </Field>
+              <MediaUpload files={data.media} onChange={v => onUpdate('media', v)} />
+            </>
           ) : (
-            <Field label={multiSelect ? 'Select Areas' : 'Select Area'}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {areaOptions.map(a => (
-                  <button key={a} type="button" onClick={() => toggleArea(a)} style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', border: data.areas.includes(a) ? '1px solid rgba(200,150,62,0.5)' : '1px solid var(--border, #2e3040)', background: data.areas.includes(a) ? 'rgba(200,150,62,0.1)' : 'var(--bg-input, #252731)', color: data.areas.includes(a) ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)' }}>{a}</button>
-                ))}
-              </div>
-            </Field>
+            <>
+              <Field label={multiSelect ? 'Select Areas' : 'Select Area'}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {areaOptions.map(a => (
+                    <button key={a} type="button" onClick={() => toggleArea(a)} style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', border: data.areas.includes(a) ? '1px solid rgba(200,150,62,0.5)' : '1px solid var(--border, #2e3040)', background: data.areas.includes(a) ? 'rgba(200,150,62,0.1)' : 'var(--bg-input, #252731)', color: data.areas.includes(a) ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)' }}>{a}</button>
+                  ))}
+                </div>
+              </Field>
+
+              {hasPartialRooms && data.areas.includes('Partial') && (
+                <Field label="Specify Rooms">
+                  <Input value={data.partialRooms} onChange={v => onUpdate('partialRooms', v)} placeholder="e.g. Living Room, Bedroom 1" />
+                </Field>
+              )}
+
+              {isCleaning && cleanOptions.length > 0 && (
+                <Field label="Rate">
+                  <SearchableDropdown options={cleanOptions} value={data.rateId} onChange={id => { const r = cleaningRates.find(x => x.id === id); onUpdate('rateId', id); onUpdate('labourCost', r ? String(r.cost_per_unit) : '') }} placeholder="Select service…" />
+                </Field>
+              )}
+
+              <Field label="Labour Cost (₹)" hint={isCleaning && data.rateId ? 'auto-filled from rate' : undefined}>
+                <Input value={data.labourCost} onChange={v => onUpdate('labourCost', v)} type="number" placeholder="0" />
+              </Field>
+
+              <Field label="Notes" optional>
+                <Textarea value={data.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Notes…" />
+              </Field>
+              <MediaUpload files={data.media} onChange={v => onUpdate('media', v)} />
+            </>
           )}
 
-          {hasPartialRooms && data.areas.includes('Partial') && (
-            <Field label="Specify Rooms">
-              <Input value={data.partialRooms} onChange={v => onUpdate('partialRooms', v)} placeholder="e.g. Living Room, Bedroom 1" />
-            </Field>
-          )}
-
-          <Field label="Labour Cost (₹)">
-            <Input value={data.labourCost} onChange={v => onUpdate('labourCost', v)} type="number" placeholder="0" />
-          </Field>
-
-          <Field label="Notes" optional>
-            <Textarea value={data.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Notes…" />
-          </Field>
-          <MediaUpload files={data.media} onChange={v => onUpdate('media', v)} />
         </div>
       )}
     </div>
@@ -838,7 +974,7 @@ export default function InspectionIndoor() {
   }
 
   function updateGeneral(key, field, value) {
-    setData(prev => ({ ...prev, general: { ...prev.general, [key]: { ...prev.general[key], [field]: value } } }))
+    setData(prev => ({ ...prev, basics: { ...prev.basics, [key]: { ...prev.basics[key], [field]: value } } }))
   }
 
   // ── Custom items ──
@@ -857,6 +993,9 @@ export default function InspectionIndoor() {
   }
 
   function toggleCard(key) { setOpenCards(p => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n }) }
+
+  // ── Cleaning rates (derived from already-fetched labour_rates) ──
+  const cleaningRates = labourRates.filter(r => r.trade === 'cleaning')
 
   // ── Progress ──
   const { done: totalDone, total: totalItems } = countItems(tabs, data)
@@ -877,13 +1016,27 @@ export default function InspectionIndoor() {
     const mediaArrays  = []
 
     tabs.forEach(tab => {
-      if (tab.id === 'general') {
+      if (tab.id === 'basics') {
         GENERAL_ITEMS.forEach(gItem => {
-          const d = data.general?.[gItem.key]
+          const d = data.basics?.[gItem.key]
           if (!d?.enabled) return
-          const desc = gItem.freeText ? d.description : d.areas.join(', ')
-          lineItemRows.push({ inspection_id: inspectionId, section_name: 'General', area: gItem.trade, item_name: gItem.label, trade: gItem.trade, issue_description: desc, material_cost: 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: null })
-          mediaArrays.push(Array.isArray(d.media) ? d.media.filter(f => f instanceof File) : [])
+          const mediaFiles = Array.isArray(d.media) ? d.media.filter(f => f instanceof File) : []
+
+          if (gItem.key === 'deepCleaning') {
+            if (d.fullHome !== false) {
+              lineItemRows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: 'Deep Cleaning - Full Home', trade: 'cleaning', issue_description: 'Full Home', material_cost: 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: null })
+              mediaArrays.push(mediaFiles)
+            }
+            ;(d.specificAreas || []).forEach(sa => {
+              if (!sa.area) return
+              lineItemRows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: `Deep Cleaning - ${sa.area}`, trade: 'cleaning', issue_description: sa.type || '', action: sa.notes || '', material_cost: 0, labour_cost: parseFloat(sa.cost) || 0, item_score: null })
+              mediaArrays.push([])
+            })
+          } else {
+            const desc = gItem.freeText ? d.description : d.areas.join(', ')
+            lineItemRows.push({ inspection_id: inspectionId, section_name: 'Basics', area: gItem.trade, item_name: gItem.label, trade: gItem.trade, issue_description: desc, material_cost: 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: null })
+            mediaArrays.push(mediaFiles)
+          }
         })
         return
       }
@@ -892,10 +1045,17 @@ export default function InspectionIndoor() {
           const cards = data[tab.id]?.[sec.id]?.[itemConfig.key] || []
           cards.forEach((card, ci) => {
             const selIssues  = card.selectedIssues || []
-            if (!card.notAvailable && selIssues.length === 0) return
             const suffix     = cards.length > 1 ? ` (${ci + 1})` : ''
             const mediaFiles = Array.isArray(card.media) ? card.media.filter(f => f instanceof File) : []
             const base       = { inspection_id: inspectionId, section_name: tab.label, area: sec.label, item_name: itemConfig.label + suffix, trade: itemConfig.trade }
+
+            if (itemConfig.key === 'acPoint' && (card.acProvision || 'present') === 'not_present') {
+              lineItemRows.push({ ...base, issue_description: 'No provision', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'no_provision' })
+              mediaArrays.push(mediaFiles)
+              return
+            }
+
+            if (!card.notAvailable && selIssues.length === 0) return
 
             if (card.notAvailable) {
               lineItemRows.push({ ...base, issue_description: card.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available' })
@@ -987,27 +1147,27 @@ export default function InspectionIndoor() {
             </span>
           </div>
 
-          {/* ── General tab ── */}
-          {currentTab.id === 'general' && (
+          {/* ── Basics tab ── */}
+          {currentTab.id === 'basics' && (
             <>
               {GENERAL_ITEMS.map(gItem => (
                 <GeneralToggleItem
                   key={gItem.key}
                   config={gItem}
-                  data={data.general?.[gItem.key] || blankGeneral()}
+                  data={data.basics?.[gItem.key] || blankGeneral()}
                   onUpdate={(field, value) => updateGeneral(gItem.key, field, value)}
-                  labourRates={labourRates}
+                  cleaningRates={cleaningRates}
                 />
               ))}
-              {getCI('general').map((ci, idx) => (
-                <CustomItemCard key={ci.id} item={ci} onChange={(f, v) => updateCI('general', idx, f, v)} onRemove={() => removeCI('general', idx)} />
+              {getCI('basics').map((ci, idx) => (
+                <CustomItemCard key={ci.id} item={ci} onChange={(f, v) => updateCI('basics', idx, f, v)} onRemove={() => removeCI('basics', idx)} />
               ))}
-              <button type="button" onClick={() => addCI('general')} style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '11px 14px', border: '1px dashed var(--accent, #c8963e)', borderRadius: 8, background: 'rgba(200,150,62,0.04)', fontSize: 12, fontWeight: 600, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ Add Custom Item</button>
+              <button type="button" onClick={() => addCI('basics')} style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '11px 14px', border: '1px dashed var(--accent, #c8963e)', borderRadius: 8, background: 'rgba(200,150,62,0.04)', fontSize: 12, fontWeight: 600, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ Add Custom Item</button>
             </>
           )}
 
           {/* ── Regular tabs ── */}
-          {currentTab.id !== 'general' && currentTab.sections?.map(sec => (
+          {currentTab.id !== 'basics' && currentTab.sections?.map(sec => (
             <div key={sec.id}>
               {sec.divider ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '8px 0 4px' }}>
@@ -1044,10 +1204,10 @@ export default function InspectionIndoor() {
           ))}
 
           {/* Custom items for this tab */}
-          {currentTab.id !== 'general' && getCI(currentTab.id).map((ci, idx) => (
+          {currentTab.id !== 'basics' && getCI(currentTab.id).map((ci, idx) => (
             <CustomItemCard key={ci.id} item={ci} onChange={(f, v) => updateCI(currentTab.id, idx, f, v)} onRemove={() => removeCI(currentTab.id, idx)} />
           ))}
-          {currentTab.id !== 'general' && (
+          {currentTab.id !== 'basics' && (
             <button type="button" onClick={() => addCI(currentTab.id)} style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '11px 14px', border: '1px dashed var(--accent, #c8963e)', borderRadius: 8, background: 'rgba(200,150,62,0.04)', fontSize: 12, fontWeight: 600, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ Add Custom Item</button>
           )}
         </div>
@@ -1067,7 +1227,7 @@ export default function InspectionIndoor() {
       }>
         {isLast ? (
           <button type="button" onClick={handleCreateEstimate} disabled={isEstimating} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '11px 18px', border: 'none', borderRadius: 6, background: isEstimating ? 'var(--bg-input, #252731)' : 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 700, color: isEstimating ? 'var(--text-muted, #6b6d82)' : '#fff', cursor: isEstimating ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
-            {isEstimating ? 'Saving…' : '📋 Create Estimate from Indoor'}
+            {isEstimating ? 'Saving…' : 'Create Estimate from Indoor'}
           </button>
         ) : (
           <BtnPrimary onClick={() => handleTabChange(tabIdx + 1)}>
