@@ -687,7 +687,7 @@ export default function InspectionOutdoor() {
       <NavBar
         title="outdoor_inspection"
         subtitle={`${pid} · ${state.layout}`}
-        onBack={() => navigate(-1)}
+        onBack={() => navigate('/inspections/mode', { state })}
         right={
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: progress === 100 ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>{progress}%</div>

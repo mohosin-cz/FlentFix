@@ -15,6 +15,7 @@ import Estimate from './pages/Estimate'
 import Properties from './pages/Properties'
 import PropertyDetail from './pages/PropertyDetail'
 import PropertyBin from './pages/PropertyBin'
+import RawInspectionData from './pages/RawInspectionData'
 import RateCard from './pages/RateCard'
 import ExploreInventory from './pages/inventory/ExploreInventory'
 import RegisterInventory from './pages/inventory/RegisterInventory'
@@ -138,6 +139,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <PropertyDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/properties/:pid/raw"
+            element={
+              <ProtectedRoute>
+                <RawInspectionData />
               </ProtectedRoute>
             }
           />

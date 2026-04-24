@@ -7,67 +7,120 @@ function fmtDate(str) {
   return new Date(str).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function StatusBadge({ status }) {
-  const map = {
-    draft:              { color: 'var(--text-muted, #6b6d82)', border: 'var(--border, #2e3040)',        label: 'draft' },
-    submitted:          { color: '#60a5fa',                     border: 'rgba(96,165,250,0.3)',           label: 'submitted' },
-    estimate_generated: { color: 'var(--green, #3dba7a)',       border: 'rgba(61,186,122,0.3)',           label: 'estimate ready' },
-  }
-  const c = map[status] || { color: 'var(--text-muted, #6b6d82)', border: 'var(--border, #2e3040)', label: status || '—' }
-  return (
-    <span style={{
-      fontSize: 10, fontWeight: 600,
-      padding: '2px 8px', borderRadius: 3,
-      background: 'transparent',
-      border: `1px solid ${c.border}`,
-      color: c.color,
-      fontFamily: 'var(--font-mono, monospace)',
-      textTransform: 'lowercase',
-    }}>
-      {c.label}
-    </span>
-  )
-}
-
-function SectionEyebrow({ children }) {
+function Toast({ msg, onClose }) {
+  useEffect(() => { const t = setTimeout(onClose, 2500); return () => clearTimeout(t) }, [])
   return (
     <div style={{
-      fontSize: 10, fontWeight: 600,
-      letterSpacing: '0.1em', textTransform: 'uppercase',
-      color: 'var(--text-muted, #6b6d82)',
-      marginBottom: 8, marginTop: 28,
-      fontFamily: 'var(--font-mono, monospace)',
+      position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+      background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)',
+      borderRadius: 8, padding: '10px 18px', fontSize: 13, color: 'var(--text-dim, #9394a8)',
+      fontFamily: 'var(--font-mono, monospace)', zIndex: 300, whiteSpace: 'nowrap',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
     }}>
-      // {children}
+      {msg}
     </div>
   )
 }
 
-function PlaceholderCard({ label }) {
-  return (
-    <div style={{
-      background: 'var(--bg-panel, #1e2028)',
-      borderRadius: 8,
-      border: '1px dashed var(--border-dash, #3a3d52)',
-      padding: '28px 20px',
-      textAlign: 'center',
-    }}>
-      <div style={{
-        fontSize: 12, fontWeight: 500,
-        color: 'var(--text-muted, #6b6d82)',
-        fontFamily: 'var(--font-mono, monospace)',
-      }}>
-        // {label.toLowerCase().replace(' ', '_')} — coming_soon
-      </div>
-    </div>
-  )
-}
+const TILES = [
+  {
+    key: 'estimate',
+    title: 'Create Estimate',
+    sub: 'Indoor + Outdoor',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" strokeWidth="1.8"/>
+        <path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
+    color: 'var(--green, #3dba7a)',
+    bg: 'rgba(61,186,122,0.08)',
+    border: 'rgba(61,186,122,0.25)',
+  },
+  {
+    key: 'appliance',
+    title: 'Appliance Report',
+    sub: 'All appliances',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <rect x="2" y="3" width="9" height="6" rx="1" stroke="currentColor" strokeWidth="1.8"/>
+        <rect x="13" y="3" width="9" height="13" rx="1" stroke="currentColor" strokeWidth="1.8"/>
+        <rect x="2" y="13" width="9" height="8" rx="1" stroke="currentColor" strokeWidth="1.8"/>
+        <circle cx="6.5" cy="17" r="2" stroke="currentColor" strokeWidth="1.4"/>
+      </svg>
+    ),
+    color: '#7c9ef8',
+    bg: 'rgba(124,158,248,0.08)',
+    border: 'rgba(124,158,248,0.25)',
+  },
+  {
+    key: 'workorder',
+    title: 'Work Order',
+    sub: 'Coming soon',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3-3a1 1 0 0 0-1.4-1.4l-2.3 2.3-.9-.9a1 1 0 0 0-1.4 0z" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M4 12h10M4 8h6M4 16h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
+    color: 'var(--text-muted, #6b6d82)',
+    bg: 'var(--bg-input, #252731)',
+    border: 'var(--border, #2e3040)',
+    disabled: true,
+  },
+  {
+    key: 'invoice',
+    title: 'Landlord Invoice',
+    sub: 'Coming soon',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.8"/>
+        <path d="M8 9h8M8 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M8 17h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
+    color: 'var(--text-muted, #6b6d82)',
+    bg: 'var(--bg-input, #252731)',
+    border: 'var(--border, #2e3040)',
+    disabled: true,
+  },
+  {
+    key: 'raw',
+    title: 'Raw Inspection Data',
+    sub: 'All line items',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M4 6h16M4 10h16M4 14h10M4 18h7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+      </svg>
+    ),
+    color: 'var(--accent, #c8963e)',
+    bg: 'rgba(200,150,62,0.08)',
+    border: 'rgba(200,150,62,0.25)',
+  },
+  {
+    key: 'flentfit',
+    title: 'FlentFit Report',
+    sub: 'Coming soon',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
+        <path d="M9 22V12h6v10" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
+      </svg>
+    ),
+    color: 'var(--text-muted, #6b6d82)',
+    bg: 'var(--bg-input, #252731)',
+    border: 'var(--border, #2e3040)',
+    disabled: true,
+  },
+]
 
 export default function PropertyDetail() {
   const navigate = useNavigate()
   const { pid }  = useParams()
   const [inspections, setInspections] = useState([])
   const [loading, setLoading]         = useState(true)
+  const [toast, setToast]             = useState('')
+  const [stats, setStats]             = useState(null)
 
   useEffect(() => {
     supabase
@@ -79,13 +132,45 @@ export default function PropertyDetail() {
         setInspections(data || [])
         setLoading(false)
       })
-  }, [pid])
 
-  const estimates = inspections.filter(i => i.status === 'estimate_generated')
+    supabase
+      .from('inspection_line_items')
+      .select('id, inspection_id, material_cost, labour_cost, issue_description')
+      .then(({ data: allItems }) => {
+        if (!allItems) return
+        // get inspection IDs for this pid
+        supabase
+          .from('inspections')
+          .select('id')
+          .eq('pid', pid)
+          .then(({ data: ins }) => {
+            if (!ins) return
+            const ids = new Set(ins.map(i => i.id))
+            const items = allItems.filter(r => ids.has(r.inspection_id))
+            const totalCost = items.reduce((s, r) => s + (parseFloat(r.material_cost) || 0) + (parseFloat(r.labour_cost) || 0), 0)
+            const issues = items.filter(r => r.issue_description && r.issue_description !== 'Functional' && r.issue_description !== 'Working' && r.issue_description !== 'N/A').length
+            setStats({ totalCost, issues, totalItems: items.length })
+          })
+      })
+  }, [pid])
 
   const latest    = inspections[0]
   const houseType = latest?.house_type || ''
   const address   = latest?.config?.address || ''
+  const latestId  = latest?.id
+
+  function handleTile(key) {
+    if (key === 'estimate') {
+      if (!latestId) { setToast('No inspection found for this property.'); return }
+      navigate(`/estimate/${latestId}`)
+    } else if (key === 'appliance') {
+      navigate('/inspections/appliance-report', { state: { inspectionId: latestId, pid } })
+    } else if (key === 'raw') {
+      navigate(`/properties/${pid}/raw`)
+    } else {
+      setToast('Coming soon')
+    }
+  }
 
   return (
     <div style={s.page}>
@@ -112,93 +197,99 @@ export default function PropertyDetail() {
             {houseType && <span style={s.heroBadge}>{houseType}</span>}
             {address   && <span style={s.heroAddress}>{address}</span>}
           </div>
-          <div style={s.heroStats}>
-            <span style={s.heroStat}><span style={s.heroStatNum}>{inspections.length}</span> inspection{inspections.length !== 1 ? 's' : ''}</span>
-            <span style={s.heroStatDivider}>·</span>
-            <span style={s.heroStat}><span style={s.heroStatNum}>{estimates.length}</span> estimate{estimates.length !== 1 ? 's' : ''}</span>
-          </div>
+          {latest && (
+            <div style={s.heroStats}>
+              <span style={s.heroStat}>Last inspection: <span style={s.heroStatNum}>{fmtDate(latest.inspection_date)}</span></span>
+            </div>
+          )}
         </div>
         <div style={s.heroGrid} aria-hidden="true" />
       </div>
 
       <main style={s.main}>
-
         {loading ? (
           <div style={s.empty}>// loading…</div>
         ) : (
           <>
+            {/* Summary stats */}
+            {stats && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
+                {[
+                  { label: 'Line Items', value: stats.totalItems },
+                  { label: 'Issues', value: stats.issues, color: stats.issues > 0 ? 'var(--red, #e05c6a)' : undefined },
+                  { label: 'Est. Cost', value: `₹${(stats.totalCost || 0).toLocaleString('en-IN')}`, color: stats.totalCost > 0 ? 'var(--accent, #c8963e)' : undefined },
+                ].map(stat => (
+                  <div key={stat.label} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: '12px 10px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: stat.color || 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{stat.value}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
 
-            {/* ── 1. Inspections ── */}
-            <SectionEyebrow>Inspections</SectionEyebrow>
-            {inspections.length === 0 ? (
-              <div style={s.emptyCard}>// no inspections found</div>
-            ) : (
-              <div style={s.card}>
-                {inspections.map((ins, i) => (
-                  <div key={ins.id} style={{ ...s.row, borderBottom: i < inspections.length - 1 ? '1px solid var(--border, #2e3040)' : 'none' }}>
-                    <div style={s.rowLeft}>
-                      <div style={s.rowDate}>{fmtDate(ins.inspection_date)}</div>
-                      <div style={s.rowMeta}>
-                        {ins.config?.inspection_type && <span style={s.metaChip}>{ins.config.inspection_type}</span>}
-                        {ins.config?.scope           && <span style={s.metaChip}>{ins.config.scope}</span>}
+            {/* Action tiles — 2x3 grid */}
+            <p style={{ margin: '0 0 12px', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.06em' }}>// actions</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {TILES.map(tile => (
+                <button
+                  key={tile.key}
+                  onClick={() => handleTile(tile.key)}
+                  disabled={tile.disabled}
+                  style={{
+                    display: 'flex', flexDirection: 'column', gap: 12,
+                    padding: '16px',
+                    background: tile.bg,
+                    border: `1px solid ${tile.border}`,
+                    borderRadius: 10,
+                    cursor: tile.disabled ? 'default' : 'pointer',
+                    textAlign: 'left',
+                    opacity: tile.disabled ? 0.6 : 1,
+                    transition: 'border-color 0.15s, box-shadow 0.15s',
+                    WebkitTapHighlightColor: 'transparent',
+                    color: 'var(--text, #e8e8f0)',
+                    minHeight: 100,
+                  }}
+                  onMouseEnter={e => { if (!tile.disabled) { e.currentTarget.style.borderColor = tile.color; e.currentTarget.style.boxShadow = `0 0 0 1px ${tile.color}` } }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = tile.border; e.currentTarget.style.boxShadow = 'none' }}
+                >
+                  <div style={{ color: tile.color, lineHeight: 0, opacity: 0.85 }}>{tile.icon}</div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: tile.color, fontFamily: 'var(--font-mono, monospace)', marginBottom: 3 }}>{tile.title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{tile.sub}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Recent inspections */}
+            {inspections.length > 0 && (
+              <>
+                <p style={{ margin: '28px 0 12px', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.06em' }}>// inspection_history</p>
+                <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
+                  {inspections.map((ins, i) => (
+                    <div key={ins.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: i < inspections.length - 1 ? '1px solid var(--border, #2e3040)' : 'none' }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDate(ins.inspection_date)}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>{ins.config?.inspection_type || ins.house_type || '—'}</div>
                       </div>
-                    </div>
-                    <div style={s.rowRight}>
-                      <StatusBadge status={ins.status} />
                       {ins.status === 'estimate_generated' && (
                         <button
-                          style={s.viewBtn}
                           onClick={() => navigate(`/estimate/${ins.id}`)}
+                          style={{ fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', background: 'rgba(61,186,122,0.08)', border: '1px solid rgba(61,186,122,0.25)', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}
                         >
                           view estimate →
                         </button>
                       )}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </>
             )}
-
-            {/* ── 2. Estimates ── */}
-            <SectionEyebrow>Estimates</SectionEyebrow>
-            {estimates.length === 0 ? (
-              <div style={s.emptyCard}>// no estimates generated yet</div>
-            ) : (
-              <div style={s.card}>
-                {estimates.map((ins, i) => (
-                  <div key={ins.id} style={{ ...s.row, borderBottom: i < estimates.length - 1 ? '1px solid var(--border, #2e3040)' : 'none' }}>
-                    <div style={s.rowLeft}>
-                      <div style={s.rowDate}>{fmtDate(ins.inspection_date)}</div>
-                      {ins.config?.scope && <div style={s.rowMeta}><span style={s.metaChip}>{ins.config.scope}</span></div>}
-                    </div>
-                    <div style={s.rowRight}>
-                      <button
-                        style={s.downloadBtn}
-                        onClick={() => navigate(`/estimate/${ins.id}`)}
-                      >
-                        download pdf
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* ── 3. Work Orders ── */}
-            <SectionEyebrow>Work Orders</SectionEyebrow>
-            <PlaceholderCard label="Work Orders" />
-
-            {/* ── 4. Flentfit Report ── */}
-            <SectionEyebrow>Flentfit Report</SectionEyebrow>
-            <PlaceholderCard label="Flentfit Report" />
-
-            {/* ── 5. Invoice ── */}
-            <SectionEyebrow>Invoice</SectionEyebrow>
-            <PlaceholderCard label="Invoice" />
-
           </>
         )}
       </main>
+
+      {toast && <Toast msg={toast} onClose={() => setToast('')} />}
     </div>
   )
 }
@@ -227,18 +318,8 @@ const s = {
     color: 'var(--text-dim, #9394a8)', cursor: 'pointer',
   },
   headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 },
-  headerTitle: {
-    fontSize: 14, fontWeight: 600,
-    color: 'var(--text, #e8e8f0)',
-    fontFamily: 'var(--font-mono, monospace)',
-  },
-  headerSub: {
-    fontSize: 10,
-    color: 'var(--text-muted, #6b6d82)',
-    fontFamily: 'var(--font-mono, monospace)',
-  },
-
-  /* hero */
+  headerTitle: { fontSize: 14, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' },
+  headerSub: { fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' },
   heroStrip: {
     background: 'var(--bg-panel, #1e2028)',
     borderBottom: '1px solid var(--border, #2e3040)',
@@ -253,7 +334,7 @@ const s = {
     letterSpacing: '-1px', lineHeight: 1.1,
     marginBottom: 10,
   },
-  heroMeta: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 },
+  heroMeta: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 },
   heroBadge: {
     fontSize: 10, fontWeight: 600,
     padding: '3px 8px', borderRadius: 3,
@@ -263,17 +344,10 @@ const s = {
     textTransform: 'capitalize',
     fontFamily: 'var(--font-mono, monospace)',
   },
-  heroAddress: {
-    fontSize: 12, color: 'var(--text-muted, #6b6d82)',
-    fontFamily: 'var(--font-mono, monospace)',
-  },
+  heroAddress: { fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' },
   heroStats: { display: 'flex', alignItems: 'center', gap: 8 },
-  heroStat: {
-    fontSize: 12, color: 'var(--text-muted, #6b6d82)',
-    fontFamily: 'var(--font-mono, monospace)',
-  },
+  heroStat: { fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' },
   heroStatNum: { color: 'var(--accent, #c8963e)', fontWeight: 700 },
-  heroStatDivider: { color: 'var(--border-dash, #3a3d52)' },
   heroGrid: {
     position: 'absolute', inset: 0,
     backgroundImage: 'linear-gradient(var(--border, #2e3040) 1px, transparent 1px), linear-gradient(90deg, var(--border, #2e3040) 1px, transparent 1px)',
@@ -281,64 +355,10 @@ const s = {
     opacity: 0.25,
     pointerEvents: 'none',
   },
-
-  main: { flex: 1, padding: '0 20px 48px', maxWidth: 600, width: '100%', margin: '0 auto' },
+  main: { flex: 1, padding: '24px 20px 48px', maxWidth: 600, width: '100%', margin: '0 auto' },
   empty: {
     textAlign: 'center', padding: '40px 0',
     fontSize: 12, color: 'var(--text-muted, #6b6d82)',
-    fontFamily: 'var(--font-mono, monospace)',
-  },
-  emptyCard: {
-    padding: '20px', textAlign: 'center',
-    fontSize: 12, color: 'var(--text-muted, #6b6d82)',
-    background: 'var(--bg-panel, #1e2028)',
-    border: '1px dashed var(--border-dash, #3a3d52)',
-    borderRadius: 8,
-    fontFamily: 'var(--font-mono, monospace)',
-  },
-  card: {
-    background: 'var(--bg-panel, #1e2028)',
-    borderRadius: 8,
-    border: '1px solid var(--border, #2e3040)',
-    overflow: 'hidden',
-  },
-  row: {
-    display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-    gap: 12, padding: '14px 18px',
-  },
-  rowLeft: { display: 'flex', flexDirection: 'column', gap: 6, flex: 1 },
-  rowRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 0 },
-  rowDate: {
-    fontSize: 13, fontWeight: 600,
-    color: 'var(--text, #e8e8f0)',
-    fontFamily: 'var(--font-mono, monospace)',
-  },
-  rowMeta: { display: 'flex', gap: 6, flexWrap: 'wrap' },
-  metaChip: {
-    fontSize: 10, fontWeight: 500,
-    padding: '2px 7px', borderRadius: 3,
-    background: 'var(--bg-input, #252731)',
-    border: '1px solid var(--border, #2e3040)',
-    color: 'var(--text-dim, #9394a8)',
-    textTransform: 'capitalize',
-    fontFamily: 'var(--font-mono, monospace)',
-  },
-  viewBtn: {
-    fontSize: 11, fontWeight: 600,
-    color: 'var(--green, #3dba7a)',
-    background: 'rgba(61,186,122,0.08)',
-    border: '1px solid rgba(61,186,122,0.25)',
-    borderRadius: 4, padding: '4px 10px',
-    cursor: 'pointer',
-    fontFamily: 'var(--font-mono, monospace)',
-  },
-  downloadBtn: {
-    fontSize: 11, fontWeight: 600,
-    color: 'var(--accent, #c8963e)',
-    background: 'rgba(200,150,62,0.08)',
-    border: '1px solid rgba(200,150,62,0.25)',
-    borderRadius: 4, padding: '4px 10px',
-    cursor: 'pointer',
     fontFamily: 'var(--font-mono, monospace)',
   },
 }
