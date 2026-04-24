@@ -107,12 +107,13 @@ export const ISSUE_PRESETS = {
 }
 
 // ─── State helpers ────────────────────────────────────────────────────────────
+const blankCostRow  = () => ({ action: '', labourRateId: '', labourCost: '', materialCost: '' })
 const blankIssueRow = () => ({ id: `ir_${Date.now()}_${Math.random().toString(36).slice(2)}`, issueDescription: '', action: '', labourRateId: '', labourCost: '', materialCost: '' })
-const blankCard     = () => ({ health: null, notes: '', media: [], notAvailable: false, notAvailableNote: '', issues: [] })
+const blankCard     = () => ({ health: null, notes: '', media: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {} })
 
 function isDone(item) {
   if (!item) return false
-  return item.notAvailable || (item.issues || []).some(r => r.action)
+  return item.notAvailable || (item.selectedIssues || []).length > 0
 }
 
 function stripFiles(obj) {
@@ -185,29 +186,51 @@ function MediaUpload({ files = [], onChange, label = 'Attach Photos / Videos' })
   )
 }
 
-// ─── Issue description field ──────────────────────────────────────────────────
-function IssueField({ presets, value, onChange }) {
-  const inPreset = (presets || []).includes(value)
-  const [otherMode, setOtherMode] = useState(!inPreset && value !== '')
-  const selectVal = otherMode ? 'Other' : value
-  function handleSelect(e) {
-    if (e.target.value === 'Other') { setOtherMode(true); onChange('') }
-    else { setOtherMode(false); onChange(e.target.value) }
+// ─── Issue checkbox grid ──────────────────────────────────────────────────────
+function IssueCheckboxGrid({ presets, selectedIssues, otherIssue, onSetIssues, onOtherChange }) {
+  const regularPresets = (presets || []).filter(p => p !== 'Functional' && p !== 'Other')
+  const hasOtherPreset = (presets || []).includes('Other')
+  const hasFunctional  = (presets || []).includes('Functional')
+  const isFunctional   = selectedIssues.includes('Functional')
+
+  function toggle(issue) {
+    if (issue === 'Functional') {
+      onSetIssues(isFunctional ? [] : ['Functional'])
+    } else {
+      const next = selectedIssues.filter(x => x !== 'Functional')
+      onSetIssues(next.includes(issue) ? next.filter(x => x !== issue) : [...next, issue])
+    }
   }
+
+  const allOptions = [...regularPresets, ...(hasOtherPreset ? ['Other'] : [])]
+
   return (
-    <Field label="Issue Description">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ position: 'relative' }}>
-          <select value={selectVal} onChange={handleSelect} style={{ fontFamily: 'inherit', width: '100%', padding: '10px 36px 10px 14px', fontSize: 13, color: selectVal ? (selectVal === 'Functional' ? 'var(--green, #3dba7a)' : 'var(--text, #e8e8f0)') : 'var(--text-muted, #6b6d82)', border: `1px solid ${selectVal === 'Functional' ? 'rgba(61,186,122,0.4)' : 'var(--border, #2e3040)'}`, borderRadius: 6, background: selectVal === 'Functional' ? 'rgba(61,186,122,0.07)' : 'var(--bg-input, #252731)', outline: 'none', appearance: 'none', cursor: 'pointer' }}>
-            <option value="">Select issue…</option>
-            {(presets || []).map(o => <option key={o} value={o}>{o}</option>)}
-            <option value="Other">Other (describe below)</option>
-          </select>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><path d="M2.5 5l4.5 4 4.5-4" stroke="#B0B0B0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        </div>
-        {otherMode && <Textarea value={value} onChange={onChange} placeholder="Describe the issue…" rows={2} />}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+        {allOptions.map(p => {
+          const checked = !isFunctional && selectedIssues.includes(p)
+          return (
+            <button key={p} type="button" onClick={() => toggle(p)} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', border: `1px solid ${checked ? 'rgba(200,150,62,0.5)' : 'var(--border, #2e3040)'}`, borderRadius: 6, background: checked ? 'rgba(200,150,62,0.08)' : 'var(--bg-input, #252731)', cursor: 'pointer', textAlign: 'left', WebkitTapHighlightColor: 'transparent' }}>
+              <span style={{ width: 14, height: 14, minWidth: 14, borderRadius: 3, border: `1.5px solid ${checked ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, background: checked ? 'var(--accent, #c8963e)' : 'transparent', marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {checked && <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2.5 2.5L7 1.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 500, color: checked ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)', lineHeight: 1.4 }}>{p}</span>
+            </button>
+          )
+        })}
       </div>
-    </Field>
+      {!isFunctional && selectedIssues.includes('Other') && (
+        <Textarea value={otherIssue || ''} onChange={onOtherChange} placeholder="Describe the issue…" rows={2} />
+      )}
+      {hasFunctional && (
+        <button type="button" onClick={() => toggle('Functional')} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', border: `1px solid ${isFunctional ? 'rgba(61,186,122,0.4)' : 'var(--border-dash, #3a3d52)'}`, borderRadius: 6, background: isFunctional ? 'rgba(61,186,122,0.08)' : 'var(--bg-input, #252731)', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+          <span style={{ width: 14, height: 14, minWidth: 14, borderRadius: 3, border: `1.5px solid ${isFunctional ? 'var(--green, #3dba7a)' : 'var(--border, #2e3040)'}`, background: isFunctional ? 'var(--green, #3dba7a)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {isFunctional && <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2.5 2.5L7 1.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: isFunctional ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Functional — no issues</span>
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -239,51 +262,37 @@ function NotAvailableNote({ value, onChange }) {
   )
 }
 
-// ─── Issue row ────────────────────────────────────────────────────────────────
-function IssueRow({ row, presets, tradeRates, onUpdate, onRemove, showRemove }) {
-  const isFunctional = row.action === 'Functional'
-  const rowTotal = (parseFloat(row.materialCost) || 0) + (parseFloat(row.labourCost) || 0)
+// ─── Issue cost row (one per selected non-Functional issue) ───────────────────
+function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate }) {
+  const rowTotal = (parseFloat(costRow.materialCost) || 0) + (parseFloat(costRow.labourCost) || 0)
   return (
-    <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${isFunctional ? 'rgba(61,186,122,0.3)' : 'var(--border, #2e3040)'}`, borderRadius: 8, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: isFunctional ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
-          {isFunctional ? '✓ functional' : row.action ? `— ${row.action.toLowerCase()}` : 'new issue'}
-        </span>
-        {showRemove && (
-          <button type="button" onClick={onRemove} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 4, background: 'rgba(224,92,106,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
-        )}
-      </div>
-
-      <IssueField presets={presets} value={row.issueDescription} onChange={v => onUpdate('issueDescription', v)} />
+    <div style={{ background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>— {issueLabel}</span>
 
       <Field label="Action">
-        <PillGroup
-          options={['Repair', 'Replace', 'Install', 'Functional']}
-          value={row.action}
-          onChange={v => { onUpdate('action', v); if (v === 'Functional') { onUpdate('materialCost', ''); onUpdate('labourCost', ''); onUpdate('labourRateId', '') } }}
-        />
+        <PillGroup options={['Repair', 'Replace', 'Install']} value={costRow.action} onChange={v => onUpdate('action', v)} />
       </Field>
 
-      {!isFunctional && row.action === 'Repair' && (
+      {costRow.action === 'Repair' && (
         <>
-          <LabourRateDropdown rates={tradeRates} value={row.labourRateId} labourCost={row.labourCost} onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }} />
+          <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }} />
           <Field label="Labour ₹">
-            <Input value={row.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" />
+            <Input value={costRow.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" />
           </Field>
         </>
       )}
 
-      {!isFunctional && (row.action === 'Replace' || row.action === 'Install') && (
+      {(costRow.action === 'Replace' || costRow.action === 'Install') && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Field label="Material ₹"><Input value={row.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" /></Field>
-            <Field label="Labour ₹"><Input value={row.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" /></Field>
+            <Field label="Material ₹"><Input value={costRow.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" /></Field>
+            <Field label="Labour ₹"><Input value={costRow.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" /></Field>
           </div>
-          <LabourRateDropdown rates={tradeRates} value={row.labourRateId} labourCost={row.labourCost} onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }} />
+          <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }} />
         </>
       )}
 
-      {!isFunctional && rowTotal > 0 && (
+      {rowTotal > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.2)', borderRadius: 6 }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Issue Total</span>
           <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent, #c8963e)' }}>₹{rowTotal.toLocaleString('en-IN')}</span>
@@ -296,15 +305,27 @@ function IssueRow({ row, presets, tradeRates, onUpdate, onRemove, showRemove }) 
 // ─── Outdoor item card ────────────────────────────────────────────────────────
 function OutdoorItemCard({ config, item, isOpen, onToggle, onUpdate, labourRates }) {
   const { title, badge, trade, presets } = config
-  const tradeRates = (labourRates || []).filter(r => r.trade === trade)
-  const issueRows = item.issues || []
-  const done = isDone(item)
-  const itemTotal = issueRows.reduce((sum, r) => sum + (parseFloat(r.materialCost) || 0) + (parseFloat(r.labourCost) || 0), 0)
+  const tradeRates     = (labourRates || []).filter(r => r.trade === trade)
+  const selectedIssues = item.selectedIssues || []
+  const costRows       = item.costRows || {}
+  const done           = isDone(item)
+  const nonFunctional  = selectedIssues.filter(i => i !== 'Functional')
+  const itemTotal      = nonFunctional.reduce((sum, issue) => {
+    const cr = costRows[issue] || {}
+    return sum + (parseFloat(cr.materialCost) || 0) + (parseFloat(cr.labourCost) || 0)
+  }, 0)
 
-  function addIssue() { onUpdate('issues', [...issueRows, blankIssueRow()]) }
-  function removeIssue(idx) { onUpdate('issues', issueRows.filter((_, i) => i !== idx)) }
-  function updateIssue(idx, field, value) {
-    const updated = [...issueRows]; updated[idx] = { ...updated[idx], [field]: value }; onUpdate('issues', updated)
+  function toggleIssue(nextIssues) {
+    const newCostRows = { ...costRows }
+    nextIssues.forEach(issue => {
+      if (issue !== 'Functional' && !newCostRows[issue]) newCostRows[issue] = blankCostRow()
+    })
+    onUpdate('selectedIssues', nextIssues)
+    onUpdate('costRows', newCostRows)
+  }
+
+  function updateCostRow(issue, field, value) {
+    onUpdate('costRows', { ...costRows, [issue]: { ...(costRows[issue] || {}), [field]: value } })
   }
 
   const naToggle = (
@@ -321,30 +342,45 @@ function OutdoorItemCard({ config, item, isOpen, onToggle, onUpdate, labourRates
           <NotAvailableNote value={item.notAvailableNote} onChange={v => onUpdate('notAvailableNote', v)} />
         ) : (
           <>
+            {/* 1. Issue checkboxes */}
+            <Field label="Issues">
+              <IssueCheckboxGrid
+                presets={presets}
+                selectedIssues={selectedIssues}
+                otherIssue={item.otherIssue}
+                onSetIssues={toggleIssue}
+                onOtherChange={v => onUpdate('otherIssue', v)}
+              />
+            </Field>
+
+            {/* 2. Health Score */}
             <Field label="Health Score">
               <HealthSlider value={item.health} onChange={v => onUpdate('health', v)} />
             </Field>
 
+            {/* 3. Media */}
             <MediaUpload files={item.media} onChange={v => onUpdate('media', v)} />
 
+            {/* 4. Notes */}
             <Field label="Notes" optional>
               <Textarea value={item.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any observations…" />
             </Field>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)' }}>Issues</span>
-                <button type="button" onClick={addIssue} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 5, background: 'rgba(200,150,62,0.08)', fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ Add Issue</button>
+            {/* 5. Cost rows */}
+            {nonFunctional.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)' }}>Cost Breakdown</span>
+                {nonFunctional.map(issue => (
+                  <IssueCostRow
+                    key={issue}
+                    issueLabel={issue === 'Other' ? (item.otherIssue || 'Other') : issue}
+                    costRow={costRows[issue] || {}}
+                    tradeRates={tradeRates}
+                    onUpdate={(field, value) => updateCostRow(issue, field, value)}
+                  />
+                ))}
               </div>
-              {issueRows.length === 0 && (
-                <div style={{ padding: 14, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 8 }}>
-                  No issues logged — tap + Add Issue or select Functional
-                </div>
-              )}
-              {issueRows.map((row, idx) => (
-                <IssueRow key={row.id || idx} row={row} presets={presets} tradeRates={tradeRates} onUpdate={(f, v) => updateIssue(idx, f, v)} onRemove={() => removeIssue(idx)} showRemove={issueRows.length > 1 || !!row.issueDescription} />
-              ))}
-            </div>
+            )}
 
             {itemTotal > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.25)', borderRadius: 8 }}>
@@ -546,34 +582,28 @@ export default function InspectionOutdoor() {
       SECTIONS[sectionKey].forEach(({ key, title, trade }) => {
         const item = data[sectionKey][key]
         if (!item) return
-        const issueRows = item.issues || []
-        const hasIssues = issueRows.some(r => r.action)
-        if (!item.notAvailable && !hasIssues) return
+        const selIssues = item.selectedIssues || []
+        if (!item.notAvailable && selIssues.length === 0) return
         const mediaFiles = Array.isArray(item.media) ? item.media.filter(f => f instanceof File) : []
+        const base = { inspection_id: inspectionId, section_name: sectionName, area: title, item_name: title, trade }
 
         if (item.notAvailable) {
-          lineItemRows.push({ inspection_id: inspectionId, section_name: sectionName, area: title, item_name: title, trade, issue_description: item.notAvailableNote || 'Not available in property', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available' })
+          lineItemRows.push({ ...base, issue_description: item.notAvailableNote || 'Not available in property', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available' })
           mediaArrays.push(mediaFiles)
           return
         }
 
-        issueRows.forEach((row, ri) => {
-          if (!row.action) return
-          lineItemRows.push({
-            inspection_id:       inspectionId,
-            section_name:        sectionName,
-            area:                title,
-            item_name:           title,
-            trade,
-            issue_description:   row.issueDescription,
-            action:              row.action || '',
-            material_cost:       parseFloat(row.materialCost) || 0,
-            labour_cost:         parseFloat(row.labourCost) || 0,
-            item_score:          item.health != null ? item.health : (row.action === 'Functional' ? 10 : null),
-            availability_status: null,
+        if (selIssues.includes('Functional')) {
+          lineItemRows.push({ ...base, issue_description: 'Functional', action: 'Functional', material_cost: 0, labour_cost: 0, item_score: item.health ?? 10, availability_status: null })
+          mediaArrays.push(mediaFiles)
+        } else {
+          selIssues.forEach((issue, ri) => {
+            const cr = (item.costRows || {})[issue] || {}
+            const issueLabel = issue === 'Other' ? (item.otherIssue || 'Other') : issue
+            lineItemRows.push({ ...base, issue_description: issueLabel, action: cr.action || '', material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: item.health ?? null, availability_status: null })
+            mediaArrays.push(ri === 0 ? mediaFiles : [])
           })
-          mediaArrays.push(ri === 0 ? mediaFiles : [])
-        })
+        }
       })
 
       getCI(sectionKey).forEach(ci => {
