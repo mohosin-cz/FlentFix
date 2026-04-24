@@ -375,21 +375,64 @@ function IssueCheckboxGrid({ presets, selectedIssues, otherIssue, onSetIssues, o
   )
 }
 
+// ── Searchable dropdown ───────────────────────────────────────────────────────
+function SearchableDropdown({ options, value, onChange, placeholder }) {
+  const [search, setSearch] = useState('')
+  const [open, setOpen]     = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handleOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setSearch('') }
+    }
+    if (open) document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [open])
+
+  const selected = options.find(o => o.value === value)
+  const filtered = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <div onClick={() => { setOpen(p => !p); setSearch('') }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', border: `1px solid ${value ? 'rgba(200,150,62,0.5)' : 'var(--border, #2e3040)'}`, borderRadius: 6, background: 'var(--bg-input, #252731)', fontSize: 12, color: value ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'inherit', gap: 6 }}>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {selected ? selected.label : placeholder}
+        </span>
+        {selected && <span style={{ fontSize: 11, color: 'var(--accent, #c8963e)', whiteSpace: 'nowrap' }}>₹{selected.cost} / {selected.unit}</span>}
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}><path d="M2 4l4 4 4-4" stroke="#B0B0B0" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </div>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, zIndex: 200, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
+          <input autoFocus value={search} onChange={e => setSearch(e.target.value)} onClick={e => e.stopPropagation()} placeholder="Search…" style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-input, #252731)', border: 'none', borderBottom: '1px solid var(--border, #2e3040)', color: 'var(--text, #e8e8f0)', fontSize: 12, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+          {filtered.map(o => (
+            <div key={o.value} onClick={() => { onChange(o.value); setOpen(false); setSearch('') }}
+              style={{ padding: '9px 12px', fontSize: 12, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, color: o.value === value ? 'var(--accent, #c8963e)' : 'var(--text, #e8e8f0)', background: o.value === value ? 'rgba(200,150,62,0.08)' : 'transparent' }}
+              onMouseEnter={e => { if (o.value !== value) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = o.value === value ? 'rgba(200,150,62,0.08)' : 'transparent' }}
+            >
+              <span>{o.label}</span>
+              <span style={{ color: 'var(--text-muted, #6b6d82)', fontSize: 11, whiteSpace: 'nowrap' }}>₹{o.cost} / {o.unit}</span>
+            </div>
+          ))}
+          {filtered.length === 0 && <div style={{ padding: 12, color: 'var(--text-muted, #6b6d82)', fontSize: 12, textAlign: 'center' }}>No results</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Labour dropdown (from labour_rates) ───────────────────────────────────────
 function LabourRateDropdown({ rates, value, labourCost, onSelect }) {
   if (!rates.length) return null
+  const options = rates.map(r => ({ value: r.id, label: r.work_type, cost: r.cost_per_unit, unit: r.unit }))
   return (
-    <Field label="Labour Rate" hint={value ? `₹${parseFloat(labourCost || 0).toLocaleString('en-IN')} auto-filled` : 'Select to auto-fill cost'}>
-      <div style={{ position: 'relative' }}>
-        <select value={value || ''} onChange={e => {
-          const r = rates.find(x => x.id === e.target.value)
-          onSelect(e.target.value, r ? String(r.cost_per_unit) : '')
-        }} style={{ fontFamily: 'inherit', width: '100%', padding: '10px 36px 10px 14px', fontSize: 13, color: value ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, background: 'var(--bg-input, #252731)', outline: 'none', appearance: 'none', cursor: 'pointer' }}>
-          <option value="">Select service…</option>
-          {rates.map(r => <option key={r.id} value={r.id}>{r.work_type} — ₹{r.cost_per_unit} / {r.unit}</option>)}
-        </select>
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><path d="M2.5 5l4.5 4 4.5-4" stroke="#B0B0B0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-      </div>
+    <Field label="Labour Rate" hint={value ? `₹${parseFloat(labourCost || 0).toLocaleString('en-IN')} auto-filled` : undefined}>
+      <SearchableDropdown
+        options={options}
+        value={value}
+        onChange={id => { const r = rates.find(x => x.id === id); onSelect(id, r ? String(r.cost_per_unit) : '') }}
+        placeholder="Select service…"
+      />
     </Field>
   )
 }
