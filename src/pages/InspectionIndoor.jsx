@@ -1226,9 +1226,9 @@ export default function InspectionIndoor() {
         )
       }>
         {isLast ? (
-          <button type="button" onClick={handleCreateEstimate} disabled={isEstimating} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '11px 18px', border: 'none', borderRadius: 6, background: isEstimating ? 'var(--bg-input, #252731)' : 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 700, color: isEstimating ? 'var(--text-muted, #6b6d82)' : '#fff', cursor: isEstimating ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
-            {isEstimating ? 'Saving…' : 'Create Estimate from Indoor'}
-          </button>
+          <BtnPrimary onClick={() => navigate('/inspections/mode', { state })}>
+            Back to Hub →
+          </BtnPrimary>
         ) : (
           <BtnPrimary onClick={() => handleTabChange(tabIdx + 1)}>
             {tabLabels[tabIdx + 1]} →

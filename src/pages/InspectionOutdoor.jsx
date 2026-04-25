@@ -754,14 +754,9 @@ export default function InspectionOutdoor() {
         )
       }>
         {isLast ? (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button type="button" onClick={handleCreateEstimate} disabled={isEstimating} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '11px 14px', border: '1px solid var(--border-dash, #3a3d52)', borderRadius: 6, background: 'transparent', fontSize: 12, fontWeight: 600, color: isEstimating ? 'var(--text-muted, #6b6d82)' : 'var(--text-dim, #9394a8)', cursor: isEstimating ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}>
-              {isEstimating ? 'Saving…' : '📋 Create Estimate'}
-            </button>
-            <BtnPrimary onClick={() => navigate('/inspections/indoor', { state: { ...state, outdoor: data, customItems } })}>
-              Indoor →
-            </BtnPrimary>
-          </div>
+          <BtnPrimary onClick={() => navigate('/inspections/mode', { state })}>
+            Back to Hub →
+          </BtnPrimary>
         ) : (
           <BtnPrimary onClick={() => handleTabChange(tab + 1)}>
             {TABS[tab + 1]} →

@@ -181,6 +181,7 @@ export default function InspectionMode() {
   const navigate  = useNavigate()
   const { state } = useLocation()
   const [showEndModal, setShowEndModal] = useState(false)
+  const [isEnding, setIsEnding] = useState(false)
 
   useEffect(() => {
     if (!state?.pid) navigate('/inspections/new', { replace: true })
@@ -195,23 +196,61 @@ export default function InspectionMode() {
   }
 
   async function confirmEnd() {
-    setShowEndModal(false)
-    const { data: existing } = await supabase
-      .from('inspections')
-      .select('id')
-      .eq('pid', state.pid)
-      .limit(1)
-    if (!existing?.length) {
-      const today = new Date().toISOString().split('T')[0]
-      await supabase.from('inspections').insert({
-        pid: state.pid,
-        inspection_date: today,
-        house_type: state.propertyType || state.inspectionType,
-        status: 'draft',
-        config: { layout: state.layout, inspection_type: state.inspectionType, scope: 'all' },
-      })
+    setIsEnding(true)
+    try {
+      const pid = state.pid
+      const { data: existing } = await supabase
+        .from('inspections')
+        .select('id')
+        .eq('pid', pid)
+        .single()
+
+      let inspectionId = existing?.id
+
+      if (!inspectionId) {
+        const { data: newInspection, error } = await supabase
+          .from('inspections')
+          .insert({
+            pid,
+            house_type: state.propertyType || state.inspectionType,
+            inspection_date: new Date().toISOString().split('T')[0],
+            status: 'completed',
+            config: state,
+          })
+          .select()
+          .single()
+        if (error) throw error
+        inspectionId = newInspection.id
+      } else {
+        await supabase
+          .from('inspections')
+          .update({ status: 'completed' })
+          .eq('id', inspectionId)
+      }
+
+      // Read drafts (for future batch-save logic)
+      // eslint-disable-next-line no-unused-vars
+      const _outdoorDraft   = JSON.parse(localStorage.getItem(`flentfix_outdoor_draft_${pid}`)    || '{}')
+      // eslint-disable-next-line no-unused-vars
+      const _indoorDraft    = JSON.parse(localStorage.getItem(`flentfix_indoor_draft_${pid}`)     || '{}')
+      // eslint-disable-next-line no-unused-vars
+      const _appliancesDraft = JSON.parse(localStorage.getItem(`flentfix_appliances_draft_${pid}`) || '{}')
+
+      await supabase
+        .from('properties')
+        .upsert(
+          { pid, name: pid, type: state.propertyType || 'independent_home', address: '', landlord: '' },
+          { onConflict: 'pid' }
+        )
+
+      setShowEndModal(false)
+      navigate(`/properties/${pid}`)
+    } catch (err) {
+      console.error('End inspection error:', err)
+      alert('Error saving inspection: ' + err.message)
+    } finally {
+      setIsEnding(false)
     }
-    navigate(`/properties/${state.pid}`)
   }
 
   return (
@@ -373,9 +412,10 @@ export default function InspectionMode() {
               </button>
               <button
                 onClick={confirmEnd}
-                style={{ flex: 1, padding: '11px 0', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#fff', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
+                disabled={isEnding}
+                style={{ flex: 1, padding: '11px 0', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#fff', cursor: isEnding ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-mono, monospace)', opacity: isEnding ? 0.7 : 1 }}
               >
-                End Inspection
+                {isEnding ? 'Saving…' : 'End Inspection'}
               </button>
             </div>
           </div>

@@ -518,9 +518,14 @@ export default function InspectionAppliances() {
           <div style={{ fontSize: 11, color: saveError ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{saveError || `${doneCount} of ${totalCount} inspected`}</div>
         </div>
       }>
-        <button type="button" onClick={handleGenerateReport} disabled={isSaving} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '11px 18px', border: 'none', borderRadius: 6, background: isSaving ? 'var(--bg-input, #252731)' : 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 700, color: isSaving ? 'var(--text-muted, #6b6d82)' : '#fff', cursor: isSaving ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
-          {isSaving ? 'Saving…' : 'Generate Report'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={handleGenerateReport} disabled={isSaving} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '11px 14px', border: '1px solid var(--border-dash, #3a3d52)', borderRadius: 6, background: 'transparent', fontSize: 12, fontWeight: 600, color: isSaving ? 'var(--text-muted, #6b6d82)' : 'var(--text-dim, #9394a8)', cursor: isSaving ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}>
+            {isSaving ? 'Saving…' : 'Save Report'}
+          </button>
+          <button type="button" onClick={() => navigate('/inspections/mode', { state })} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '11px 18px', border: 'none', borderRadius: 6, background: 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+            Back to Hub →
+          </button>
+        </div>
       </StickyFooter>
 
       <QuickNotes pid={pid} />

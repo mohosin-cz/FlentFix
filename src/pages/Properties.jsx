@@ -66,18 +66,48 @@ export default function Properties() {
   const [binCount, setBinCount]     = useState(0)
 
   useEffect(() => {
-    supabase
-      .from('inspections')
-      .select('pid, house_type, inspection_date, status, config, deleted_at')
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        const all = data || []
-        setRows(all.filter(r => !r.deleted_at))
-        // count unique PIDs in bin
-        const binPids = new Set(all.filter(r => r.deleted_at).map(r => r.pid))
-        setBinCount(binPids.size)
-        setLoading(false)
+    Promise.all([
+      supabase
+        .from('properties')
+        .select('pid, name, type, address, created_at')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('inspections')
+        .select('pid, house_type, inspection_date, status, config, deleted_at')
+        .order('created_at', { ascending: false }),
+    ]).then(([{ data: props }, { data: insp }]) => {
+      const inspections = insp || []
+      const properties  = props || []
+
+      // Build merged map: inspections first (fallback), then properties override
+      const map = new Map()
+      inspections.forEach(i => {
+        if (!map.has(i.pid)) {
+          map.set(i.pid, {
+            pid:             i.pid,
+            house_type:      i.house_type,
+            inspection_date: i.inspection_date,
+            status:          i.status,
+            deleted_at:      i.deleted_at,
+          })
+        }
       })
+      properties.forEach(p => {
+        map.set(p.pid, {
+          pid:             p.pid,
+          house_type:      p.type || map.get(p.pid)?.house_type,
+          inspection_date: map.get(p.pid)?.inspection_date,
+          status:          map.get(p.pid)?.status,
+          deleted_at:      null,
+        })
+      })
+
+      const all = [...map.values()]
+      setRows(all.filter(r => !r.deleted_at))
+      const binPids = new Set(inspections.filter(r => r.deleted_at).map(r => r.pid))
+      setBinCount(binPids.size)
+      setLoading(false)
+    })
   }, [])
 
   const grouped = []
