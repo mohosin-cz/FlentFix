@@ -4,7 +4,6 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import NewInspection from './pages/NewInspection'
-import InspectionRooms from './pages/InspectionRooms'
 import InspectionSummary from './pages/InspectionSummary'
 import InspectionOutdoor from './pages/InspectionOutdoor'
 import InspectionMode from './pages/InspectionMode'
@@ -91,14 +90,6 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <InspectionApplianceReport />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/inspections/rooms"
-            element={
-              <ProtectedRoute>
-                <InspectionRooms />
               </ProtectedRoute>
             }
           />

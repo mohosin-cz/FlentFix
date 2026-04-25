@@ -53,11 +53,7 @@ export default function NewInspection() {
   function handleContinue() {
     if (!validate()) return
     const state = { pid: pid.trim(), inspectionType, propertyType, layout, rooms }
-    if (propertyType === 'independent_home') {
-      navigate('/inspections/mode', { state })
-    } else {
-      navigate('/inspections/rooms', { state })
-    }
+    navigate('/inspections/mode', { state })
   }
 
   return (
