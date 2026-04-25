@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { NavBar } from '../components/ui'
 import QuickNotes from '../components/QuickNotes'
+import { supabase } from '../lib/supabase'
 
 const MODES = [
   {
@@ -193,8 +194,23 @@ export default function InspectionMode() {
     navigate(mode.route, { state })
   }
 
-  function confirmEnd() {
+  async function confirmEnd() {
     setShowEndModal(false)
+    const { data: existing } = await supabase
+      .from('inspections')
+      .select('id')
+      .eq('pid', state.pid)
+      .limit(1)
+    if (!existing?.length) {
+      const today = new Date().toISOString().split('T')[0]
+      await supabase.from('inspections').insert({
+        pid: state.pid,
+        inspection_date: today,
+        house_type: state.propertyType || state.inspectionType,
+        status: 'draft',
+        config: { layout: state.layout, inspection_type: state.inspectionType, scope: 'all' },
+      })
+    }
     navigate(`/properties/${state.pid}`)
   }
 
