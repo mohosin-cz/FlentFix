@@ -1,116 +1,103 @@
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
-const HIDE_ROUTES = [
+const NAV_ITEMS = [
+  { icon: '⌂', label: 'Home',       path: '/' },
+  { icon: '◎', label: 'Inspect',    path: '/inspections/new' },
+  { icon: '▤', label: 'Properties', path: '/properties' },
+  { icon: '⬡', label: 'Inventory',  path: '/inventory' },
+  { icon: '☰', label: 'More',       path: '/sops' },
+]
+
+const HIDE_ON = [
   '/inspections/outdoor',
   '/inspections/indoor',
   '/inspections/appliances',
-  '/inspections/appliance-report',
   '/inspections/mode',
   '/inspections/new',
-]
-
-const NAV_ITEMS = [
-  {
-    label: 'Home',
-    path: '/',
-    exact: true,
-    icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <path d="M2 9l8-7 8 7v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9z" stroke="currentColor" strokeWidth={active ? 2 : 1.6} strokeLinejoin="round"/>
-        <path d="M7 19v-7h6v7" stroke="currentColor" strokeWidth={active ? 2 : 1.6} strokeLinejoin="round"/>
-      </svg>
-    ),
-  },
-  {
-    label: 'Inspect',
-    path: '/inspections',
-    icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth={active ? 2 : 1.6}/>
-        <path d="M13.5 13.5l3.5 3.5" stroke="currentColor" strokeWidth={active ? 2 : 1.6} strokeLinecap="round"/>
-      </svg>
-    ),
-  },
-  {
-    label: 'Properties',
-    path: '/properties',
-    icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <rect x="2" y="7" width="16" height="11" rx="1.5" stroke="currentColor" strokeWidth={active ? 2 : 1.6}/>
-        <path d="M1 8l9-6 9 6" stroke="currentColor" strokeWidth={active ? 2 : 1.6} strokeLinecap="round" strokeLinejoin="round"/>
-        <rect x="7" y="13" width="6" height="5" rx="1" stroke="currentColor" strokeWidth={active ? 1.8 : 1.4}/>
-      </svg>
-    ),
-  },
-  {
-    label: 'Inventory',
-    path: '/inventory',
-    icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <rect x="2" y="3" width="16" height="14" rx="1.5" stroke="currentColor" strokeWidth={active ? 2 : 1.6}/>
-        <path d="M2 7h16" stroke="currentColor" strokeWidth={active ? 2 : 1.6}/>
-        <path d="M6 11h8M6 14h5" stroke="currentColor" strokeWidth={active ? 1.8 : 1.4} strokeLinecap="round"/>
-      </svg>
-    ),
-  },
-  {
-    label: 'SOPs',
-    path: '/sops',
-    icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <rect x="4" y="2" width="12" height="16" rx="1.5" stroke="currentColor" strokeWidth={active ? 2 : 1.6}/>
-        <path d="M7 7h6M7 10h6M7 13h4" stroke="currentColor" strokeWidth={active ? 1.8 : 1.4} strokeLinecap="round"/>
-      </svg>
-    ),
-  },
+  '/inspections/rooms',
+  '/login',
+  '/signup',
 ]
 
 export default function FloatingNav() {
-  const navigate  = useNavigate()
-  const location  = useLocation()
+  const location = useLocation()
+  const navigate = useNavigate()
 
-  if (HIDE_ROUTES.some(r => location.pathname.startsWith(r))) return null
+  if (HIDE_ON.some(r => location.pathname.startsWith(r))) return null
 
-  function isActive(item) {
-    if (item.exact) return location.pathname === item.path
-    return location.pathname.startsWith(item.path)
+  const isActive = (path) => {
+    if (path === '/') return location.pathname === '/'
+    return location.pathname.startsWith(path)
   }
 
   return (
-    <nav style={{
-      position: 'fixed', bottom: 0, left: 0, right: 0,
-      height: 60,
-      background: 'var(--bg-panel, #1e2028)',
-      borderTop: '1px solid var(--border, #2e3040)',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-around',
-      paddingBottom: 'env(safe-area-inset-bottom)',
-      zIndex: 1000,
-      // desktop: hidden
-      visibility: 'visible',
-    }} className="floating-nav">
-      {NAV_ITEMS.map(item => {
-        const active = isActive(item)
-        return (
+    <>
+      <style>{`
+        @media (min-width: 641px) {
+          .flentfix-floating-nav { display: none !important; }
+        }
+      `}</style>
+      <div
+        className="flentfix-floating-nav"
+        style={{
+          position: 'fixed',
+          bottom: 'calc(20px + env(safe-area-inset-bottom))',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '10px 16px',
+          background: 'rgba(20, 21, 28, 0.75)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderRadius: '100px',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05) inset',
+          zIndex: 9999,
+          userSelect: 'none',
+        }}
+      >
+        {NAV_ITEMS.map(item => (
           <button
             key={item.path}
             onClick={() => navigate(item.path)}
             style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-              padding: '6px 10px',
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: active ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)',
-              fontFamily: 'var(--font-sans, Poppins, sans-serif)',
-              fontSize: 10, letterSpacing: '0.04em', fontWeight: active ? 600 : 400,
-              minWidth: 48,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '3px',
+              padding: '6px 14px',
+              background: isActive(item.path) ? 'rgba(200, 150, 62, 0.2)' : 'transparent',
+              border: 'none',
+              borderRadius: '80px',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              minWidth: '44px',
               WebkitTapHighlightColor: 'transparent',
-              transition: 'color 0.15s',
             }}
           >
-            {item.icon(active)}
-            <span>{item.label}</span>
+            <span style={{
+              fontSize: '16px',
+              lineHeight: 1,
+              color: isActive(item.path) ? '#c8963e' : 'rgba(255,255,255,0.5)',
+              fontFamily: 'system-ui',
+            }}>
+              {item.icon}
+            </span>
+            <span style={{
+              fontSize: '9px',
+              letterSpacing: '0.04em',
+              color: isActive(item.path) ? '#c8963e' : 'rgba(255,255,255,0.35)',
+              fontFamily: 'var(--font-sans)',
+              fontWeight: isActive(item.path) ? 600 : 400,
+            }}>
+              {item.label}
+            </span>
           </button>
-        )
-      })}
-    </nav>
+        ))}
+      </div>
+    </>
   )
 }
