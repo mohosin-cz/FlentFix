@@ -189,6 +189,24 @@ export default function InspectionMode() {
 
   if (!state?.pid) return null
 
+  const houseType       = (state.propertyType || state.inspectionType || '').toLowerCase()
+  const isApartment     = houseType.includes('apartment')
+  const isIndependentHome = houseType.includes('independent')
+
+  // Apartments skip Outdoor; everything else (independent home, enterprise) includes it
+  const visibleModes = MODES
+    .filter(m => !(isApartment && m.value === 'outdoor'))
+    .map(m => {
+      if (m.value === 'indoor' && isApartment) {
+        return {
+          ...m,
+          desc:  'Living spaces, kitchen, bedrooms & bathrooms',
+          areas: ['Living Room', 'Kitchen', 'Bedrooms', 'Bathrooms'],
+        }
+      }
+      return m
+    })
+
   const progress = readDraftProgress(state.pid)
 
   function choose(mode) {
@@ -277,7 +295,7 @@ export default function InspectionMode() {
 
         {/* mode cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {MODES.map((mode, i) => {
+          {visibleModes.map((mode, i) => {
             const prog = progress[mode.value]
             return (
               <button
