@@ -121,6 +121,7 @@ export default function PropertyDetail() {
   const [loading, setLoading]         = useState(true)
   const [toast, setToast]             = useState('')
   const [stats, setStats]             = useState(null)
+  const [showAllInspections, setShowAllInspections] = useState(false)
 
   useEffect(() => {
     supabase
@@ -261,30 +262,52 @@ export default function PropertyDetail() {
               ))}
             </div>
 
-            {/* Recent inspections */}
-            {inspections.length > 0 && (
-              <>
-                <p style={{ margin: '28px 0 12px', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.06em' }}>// inspection_history</p>
-                <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
-                  {inspections.map((ins, i) => (
-                    <div key={ins.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: i < inspections.length - 1 ? '1px solid var(--border, #2e3040)' : 'none' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDate(ins.inspection_date)}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>{ins.config?.inspection_type || ins.house_type || '—'}</div>
+            {/* Inspection History — production has one record per inspection date per PID; multiple records here are test data for PID 123 */}
+            {inspections.length > 0 && (() => {
+              const visible = showAllInspections ? inspections : inspections.slice(0, 1)
+              return (
+                <>
+                  <p style={{ margin: '28px 0 12px', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.06em' }}>// Inspection History</p>
+                  <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
+                    {visible.map((ins, i) => (
+                      <div key={ins.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: i < visible.length - 1 ? '1px solid var(--border, #2e3040)' : 'none' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDate(ins.inspection_date)}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                            {ins.house_type && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{ins.house_type}</span>}
+                            <span style={{
+                              fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3,
+                              fontFamily: 'var(--font-mono, monospace)',
+                              background: ins.status === 'completed' ? 'rgba(61,186,122,0.1)' : ins.status === 'estimate_generated' ? 'rgba(61,186,122,0.1)' : 'var(--bg-input, #252731)',
+                              border: `1px solid ${ins.status === 'completed' || ins.status === 'estimate_generated' ? 'rgba(61,186,122,0.3)' : 'var(--border, #2e3040)'}`,
+                              color: ins.status === 'completed' || ins.status === 'estimate_generated' ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)',
+                            }}>
+                              {ins.status || 'draft'}
+                            </span>
+                          </div>
+                        </div>
+                        {ins.status === 'estimate_generated' && (
+                          <button
+                            onClick={() => navigate(`/estimate/${ins.id}`)}
+                            style={{ fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', background: 'rgba(61,186,122,0.08)', border: '1px solid rgba(61,186,122,0.25)', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}
+                          >
+                            view estimate →
+                          </button>
+                        )}
                       </div>
-                      {ins.status === 'estimate_generated' && (
-                        <button
-                          onClick={() => navigate(`/estimate/${ins.id}`)}
-                          style={{ fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', background: 'rgba(61,186,122,0.08)', border: '1px solid rgba(61,186,122,0.25)', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}
-                        >
-                          view estimate →
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+                    ))}
+                  </div>
+                  {inspections.length > 1 && (
+                    <button
+                      onClick={() => setShowAllInspections(v => !v)}
+                      style={{ marginTop: 8, background: 'none', border: 'none', padding: 0, fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
+                    >
+                      {showAllInspections ? 'Show less ↑' : `View all ${inspections.length} inspections for this PID →`}
+                    </button>
+                  )}
+                </>
+              )
+            })()}
           </>
         )}
       </main>
