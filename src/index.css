@@ -17,6 +17,17 @@ select {
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+@media (max-width: 640px) {
+  /* Minimum tap target */
+  button, [role="button"] { min-height: 44px; }
+
+  /* Comfortable body text */
+  body { font-size: 14px; }
+
+  /* ₹ amounts should never break mid-number */
+  .no-wrap { white-space: nowrap; }
+}
+
 
 :root {
   /* Airbnb-inspired palette */

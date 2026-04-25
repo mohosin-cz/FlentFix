@@ -7,6 +7,10 @@ function fmtDate(str) {
   return new Date(str).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+function titleCase(str) {
+  return (str || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
 function StatusBadge({ status }) {
   const map = {
     draft:              { color: 'var(--text-muted, #6b6d82)',  border: 'var(--border, #2e3040)',      label: 'draft' },
@@ -228,7 +232,7 @@ export default function Properties() {
                 >
                   <div style={s.cardTop}>
                     <div style={s.pidText}>PID{row.pid}</div>
-                    {row.house_type && <span style={s.houseTypeBadge}>{row.house_type}</span>}
+                    {row.house_type && <span style={s.houseTypeBadge}>{titleCase(row.house_type)}</span>}
                     <div style={s.dateLine}>last: {fmtDate(row.inspection_date)}</div>
                   </div>
                   <div style={s.cardBottom}>

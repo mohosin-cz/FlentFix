@@ -7,6 +7,18 @@ function fmtDate(str) {
   return new Date(str).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+function titleCase(str) {
+  return (str || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
+function SectionLabel({ children }) {
+  return (
+    <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+      {children}
+    </p>
+  )
+}
+
 function Toast({ msg, onClose }) {
   useEffect(() => { const t = setTimeout(onClose, 2500); return () => clearTimeout(t) }, [])
   return (
@@ -195,7 +207,7 @@ export default function PropertyDetail() {
         <div style={s.heroInner}>
           <div style={s.heroPid}>{pid}</div>
           <div style={s.heroMeta}>
-            {houseType && <span style={s.heroBadge}>{houseType}</span>}
+            {houseType && <span style={s.heroBadge}>{titleCase(houseType)}</span>}
             {address   && <span style={s.heroAddress}>{address}</span>}
           </div>
           {latest && (
@@ -229,7 +241,7 @@ export default function PropertyDetail() {
             )}
 
             {/* Action tiles — 2x3 grid */}
-            <p style={{ margin: '0 0 12px', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.06em' }}>// actions</p>
+            <SectionLabel>Actions</SectionLabel>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {TILES.map(tile => (
                 <button
@@ -267,7 +279,7 @@ export default function PropertyDetail() {
               const visible = showAllInspections ? inspections : inspections.slice(0, 1)
               return (
                 <>
-                  <p style={{ margin: '28px 0 12px', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.06em' }}>// Inspection History</p>
+                  <div style={{ marginTop: 28 }}><SectionLabel>Inspection History</SectionLabel></div>
                   <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
                     {visible.map((ins, i) => (
                       <div key={ins.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: i < visible.length - 1 ? '1px solid var(--border, #2e3040)' : 'none' }}>

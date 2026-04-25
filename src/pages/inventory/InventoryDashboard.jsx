@@ -251,7 +251,7 @@ export default function InventoryDashboard() {
         </div>
 
         {/* Trade pills */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, ...(isMobile ? { overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 4, WebkitOverflowScrolling: 'touch' } : { flexWrap: 'wrap' }) }}>
           {TRADES.map(t => {
             const meta = TRADE_META[t.toLowerCase()]
             const active = tradePill === t

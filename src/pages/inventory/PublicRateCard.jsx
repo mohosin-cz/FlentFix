@@ -494,7 +494,7 @@ export default function PublicRateCard() {
       <div style={containerStyle}>
 
         {/* Trade pills */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14, ...(isMobile ? { overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 4, WebkitOverflowScrolling: 'touch' } : { flexWrap: 'wrap' }) }}>
           {TRADES.map(t => (
             <TradePill key={t} label={t} active={tradePill === t} onClick={() => {
               setTradePill(t); setMatSelected(new Set()); setLabSelected(new Set())
