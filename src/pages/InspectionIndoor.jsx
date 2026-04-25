@@ -201,7 +201,7 @@ function isIndependentHome(houseType) {
 
 function buildTabs(houseType, bhk) {
   const tabs = [{ id: 'basics', label: 'Basics', sections: null }]
-  if (isIndependentHome(houseType)) tabs.push({ id: 'entrance', label: 'Entrance', sections: ENTRANCE_SECTIONS })
+  tabs.push({ id: 'entrance', label: 'Entrance', sections: ENTRANCE_SECTIONS })
   tabs.push({ id: 'living_room', label: 'Living Room', sections: LIVING_ROOM_SECTIONS })
   for (let i = 1; i <= bhk; i++) {
     tabs.push({ id: `bedroom_${i}`, label: `Bedroom ${i}`, sections: bedroomSections(i, bhk) })

@@ -189,23 +189,13 @@ export default function InspectionMode() {
 
   if (!state?.pid) return null
 
-  const houseType       = (state.propertyType || state.inspectionType || '').toLowerCase()
-  const isApartment     = houseType.includes('apartment')
-  const isIndependentHome = houseType.includes('independent')
+  const houseType   = (state.propertyType || state.inspectionType || '').toLowerCase()
+  const isApartment = houseType.includes('apartment')
 
-  // Apartments skip Outdoor; everything else (independent home, enterprise) includes it
-  const visibleModes = MODES
-    .filter(m => !(isApartment && m.value === 'outdoor'))
-    .map(m => {
-      if (m.value === 'indoor' && isApartment) {
-        return {
-          ...m,
-          desc:  'Living spaces, kitchen, bedrooms & bathrooms',
-          areas: ['Living Room', 'Kitchen', 'Bedrooms', 'Bathrooms'],
-        }
-      }
-      return m
-    })
+  // Apartments skip Outdoor; Independent Home and Enterprise show all three tiles
+  const visibleModes = isApartment
+    ? MODES.filter(m => m.value !== 'outdoor')
+    : MODES
 
   const progress = readDraftProgress(state.pid)
 
