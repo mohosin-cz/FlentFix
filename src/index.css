@@ -17,6 +17,13 @@ select {
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Floating bottom nav — mobile only */
+.floating-nav { display: none; }
+@media (max-width: 640px) {
+  .floating-nav { display: flex; }
+  #root { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
+}
+
 :root {
   /* Airbnb-inspired palette */
   --brand:       #FF385C;

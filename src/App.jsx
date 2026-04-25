@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import FloatingNav from './components/FloatingNav'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import NewInspection from './pages/NewInspection'
@@ -189,6 +190,7 @@ export default function App() {
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <FloatingNav />
       </AuthProvider>
     </BrowserRouter>
   )
