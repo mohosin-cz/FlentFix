@@ -32,9 +32,13 @@ export default function FloatingNav() {
 
   return (
     <>
+      {/* Spacer pushes content above the fixed nav on mobile */}
+      <div style={{ height: '100px', display: 'block' }} className="mobile-nav-spacer" />
+
       <style>{`
         @media (min-width: 641px) {
           .flentfix-floating-nav { display: none !important; }
+          .mobile-nav-spacer { display: none !important; }
         }
       `}</style>
       <div

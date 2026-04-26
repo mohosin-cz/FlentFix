@@ -22,8 +22,8 @@
   }
 
   /* Space for floating nav */
-  body {
-    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  body, #root {
+    padding-bottom: 100px !important;
   }
 
   /* Prevent inventory grid tiles from being cut off */
