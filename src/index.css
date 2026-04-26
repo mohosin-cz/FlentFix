@@ -1,31 +1,37 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-/* Prevent iOS Safari auto-zoom on input focus */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="number"],
-input[type="search"],
-input[type="tel"],
-input[type="url"],
-input[type="date"],
-textarea,
-select {
-  font-size: 16px !important;
-  -webkit-text-size-adjust: 100%;
-}
-
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 @media (max-width: 640px) {
-  /* Minimum tap target */
-  button, [role="button"] { min-height: 44px; }
+  /* Prevent horizontal overflow */
+  body, #root {
+    overflow-x: hidden;
+    width: 100%;
+  }
 
-  /* Comfortable body text */
-  body { font-size: 14px; }
+  /* Safe page padding */
+  .page-container, main, [class*="container"] {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    box-sizing: border-box;
+  }
 
-  /* ₹ amounts should never break mid-number */
-  .no-wrap { white-space: nowrap; }
+  /* Prevent inputs from causing zoom on iOS */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* Space for floating nav */
+  body {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+
+  /* Prevent inventory grid tiles from being cut off */
+  .inventory-grid, [class*="grid"] {
+    padding-right: 16px;
+    box-sizing: border-box;
+    width: 100%;
+  }
 }
 
 
