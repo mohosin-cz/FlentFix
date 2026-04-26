@@ -32,34 +32,39 @@ export default function FloatingNav() {
 
   return (
     <>
-      {/* Spacer pushes content above the fixed nav on mobile */}
-      <div style={{ height: '100px', display: 'block' }} className="mobile-nav-spacer" />
-
       <style>{`
         @media (min-width: 641px) {
-          .flentfix-floating-nav { display: none !important; }
-          .mobile-nav-spacer { display: none !important; }
+          .pulse-bottom-nav { display: none !important; }
+        }
+        @media (max-width: 640px) {
+          .pulse-bottom-nav-spacer { display: block; }
         }
       `}</style>
+
+      {/* Spacer pushes page content above nav */}
       <div
-        className="flentfix-floating-nav"
+        className="pulse-bottom-nav-spacer"
+        style={{ height: '65px', display: 'none', flexShrink: 0 }}
+      />
+
+      {/* Fixed bottom bar */}
+      <div
+        className="pulse-bottom-nav"
         style={{
           position: 'fixed',
-          bottom: 'calc(20px + env(safe-area-inset-bottom))',
-          left: '50%',
-          transform: 'translateX(-50%)',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 'calc(56px + env(safe-area-inset-bottom))',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          background: 'rgba(18, 19, 26, 0.96)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderTop: '1px solid rgba(255,255,255,0.07)',
           display: 'flex',
           alignItems: 'center',
-          gap: '4px',
-          padding: '10px 16px',
-          background: 'rgba(20, 21, 28, 0.75)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          borderRadius: '100px',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05) inset',
+          justifyContent: 'space-around',
           zIndex: 9999,
-          userSelect: 'none',
         }}
       >
         {NAV_ITEMS.map(item => (
@@ -72,33 +77,42 @@ export default function FloatingNav() {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '3px',
-              padding: '6px 14px',
-              background: isActive(item.path) ? 'rgba(200, 150, 62, 0.2)' : 'transparent',
+              flex: 1,
+              height: '56px',
+              background: 'none',
               border: 'none',
-              borderRadius: '80px',
               cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              minWidth: '44px',
+              padding: 0,
+              position: 'relative',
               WebkitTapHighlightColor: 'transparent',
             }}
           >
             <span style={{
-              fontSize: '16px',
+              fontSize: '18px',
               lineHeight: 1,
-              color: isActive(item.path) ? '#c8963e' : 'rgba(255,255,255,0.5)',
-              fontFamily: 'system-ui',
+              color: isActive(item.path) ? '#c8963e' : 'rgba(255,255,255,0.4)',
             }}>
               {item.icon}
             </span>
             <span style={{
               fontSize: '9px',
               letterSpacing: '0.04em',
-              color: isActive(item.path) ? '#c8963e' : 'rgba(255,255,255,0.35)',
               fontFamily: 'var(--font-sans)',
+              color: isActive(item.path) ? '#c8963e' : 'rgba(255,255,255,0.3)',
               fontWeight: isActive(item.path) ? 600 : 400,
             }}>
               {item.label}
             </span>
+            {isActive(item.path) && (
+              <div style={{
+                position: 'absolute',
+                bottom: 'calc(4px + env(safe-area-inset-bottom))',
+                width: '4px',
+                height: '4px',
+                borderRadius: '50%',
+                background: '#c8963e',
+              }} />
+            )}
           </button>
         ))}
       </div>

@@ -21,9 +21,9 @@
     font-size: 16px !important;
   }
 
-  /* Space for floating nav */
-  body, #root {
-    padding-bottom: 100px !important;
+  /* Space for bottom nav bar */
+  body {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
   }
 
   /* Prevent inventory grid tiles from being cut off */
