@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { supabase } from './lib/supabase'
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import FloatingNav from './components/FloatingNav'
@@ -30,7 +32,20 @@ import Flentfit from './pages/Flentfit'
 import SOPs from './pages/SOPs'
 import SOPSetup from './pages/SOPSetup'
 
+function migrateLocalNotes() {
+  const keys = Object.keys(localStorage).filter(k => k.startsWith('flent_quick_notes_'))
+  for (const key of keys) {
+    const pid  = key.replace('flent_quick_notes_', '')
+    const note = localStorage.getItem(key)
+    if (note && note.trim()) {
+      supabase.from('quick_notes').upsert({ pid, note }, { onConflict: 'pid' }).then(() => {})
+    }
+  }
+}
+
 export default function App() {
+  useEffect(() => { migrateLocalNotes() }, [])
+
   return (
     <BrowserRouter>
       <AuthProvider>

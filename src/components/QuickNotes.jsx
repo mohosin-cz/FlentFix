@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
 
 const STORAGE_KEY  = pid => `flent_quick_notes_${pid}`
 const hasSpeech    = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -115,10 +116,14 @@ export default function QuickNotes({ pid }) {
     setNotes(saved)
   }, [pid])
 
-  // Persist on every change
+  // Persist on every change — localStorage + Supabase
   useEffect(() => {
     if (!pid) return
     localStorage.setItem(STORAGE_KEY(pid), notes)
+    supabase
+      .from('quick_notes')
+      .upsert({ pid, note: notes, updated_at: new Date().toISOString() }, { onConflict: 'pid' })
+      .then(() => {})
   }, [notes, pid])
 
   // Focus textarea when panel opens
