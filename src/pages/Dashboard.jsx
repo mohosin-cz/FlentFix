@@ -282,6 +282,8 @@ export default function Dashboard() {
           .mob-stats      { display: grid  !important; }
           .desk-stats     { display: none  !important; }
           .dash-quick     { display: none  !important; }
+          .dash-grid      { gap: 12px !important; padding: 12px 16px 80px !important; }
+          .ecg-line::-webkit-scrollbar { display: none; }
         }
         .prop-card:hover { border-color: var(--accent, #c8963e) !important; }
         .feed-item:hover { background: var(--bg-input, #252731) !important; }
@@ -331,11 +333,11 @@ export default function Dashboard() {
           </p>
 
           {/* Mobile stats 2×2 (hidden on desktop) */}
-          <div className="mob-stats" style={{ display: 'none', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden', gridColumn: '1 / -1' }}>
+          <div className="mob-stats" style={{ display: 'none', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border, #2e3040)', borderRadius: 12, overflow: 'hidden', gridColumn: '1 / -1' }}>
             {STATS.map(stat => (
-              <div key={stat.label} style={{ padding: '12px 14px', background: 'var(--bg-panel, #1e2028)' }}>
-                <div style={s.statNum}>{String(stat.n ?? '—')}</div>
-                <div style={s.statLabel}>{stat.label}</div>
+              <div key={stat.label} style={{ padding: 16, background: 'var(--bg-panel, #1e2028)' }}>
+                <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{String(stat.n ?? '—')}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 4 }}>{stat.label}</div>
               </div>
             ))}
           </div>
@@ -367,8 +369,11 @@ export default function Dashboard() {
                           <span style={s.propPid}>{prop.pid}</span>
                         </div>
                         <div style={s.propMeta}>
-                          {titleCase(prop.type || '')}
-                          {li?.house_type ? ` · ${titleCase(li.house_type)}` : ''}
+                          {(() => {
+                            const typeLabel   = titleCase(prop.type || li?.house_type || '')
+                            const layoutLabel = li?.config?.layout || prop.config?.layout || ''
+                            return typeLabel + (layoutLabel ? ` · ${layoutLabel}` : '')
+                          })()}
                         </div>
                         {li && (
                           <div style={s.propDate}>
@@ -385,21 +390,19 @@ export default function Dashboard() {
 
                 {/* Empty-state hint when fewer than 3 properties */}
                 {properties.length < 3 && (
-                  <div style={{ border: '1px dashed rgba(200,150,62,0.2)', borderRadius: 10, padding: 24, textAlign: 'center', color: 'var(--text-muted, #6b6d82)', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', marginTop: 12 }}>
-                    // no_more_properties · add new ones to see them here
-                    <div style={{ marginTop: 12 }}>
-                      <button
-                        onClick={() => navigate('/inspections/new')}
-                        style={{ color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--accent, #c8963e)', borderRadius: 6, padding: '6px 16px', cursor: 'pointer', fontSize: 11, fontFamily: 'var(--font-mono, monospace)' }}
-                      >+ Start New Inspection</button>
-                    </div>
+                  <div style={{ border: '1px dashed rgba(200,150,62,0.2)', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>// add more properties</span>
+                    <button
+                      onClick={() => navigate('/inspections/new')}
+                      style={{ color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 11, whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}
+                    >+ New</button>
                   </div>
                 )}
 
                 {/* Property journey pipeline */}
-                <div style={{ marginTop: 20, padding: '16px 0 4px' }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>// property_journey</div>
-                  <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', gap: 0, paddingBottom: 4 }}>
+                <div style={{ marginTop: 16, padding: '12px 0 4px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>// property_journey</div>
+                  <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', gap: 0, paddingBottom: 4, WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                     {[
                       { stage: 'T-5', label: 'INSPECTION',  color: '#c8963e' },
                       { stage: 'T-4', label: 'ESTIMATE',    color: '#6b8de6' },
@@ -564,12 +567,12 @@ const s = {
     marginBottom: 14,
   },
   panelTitle: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 600,
     color: 'var(--text-muted, #6b6d82)',
     fontFamily: 'var(--font-mono, monospace)',
     textTransform: 'uppercase',
-    letterSpacing: '0.1em',
+    letterSpacing: '0.08em',
   },
   btnAccent: {
     fontSize: 11,
