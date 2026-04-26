@@ -151,8 +151,8 @@ export default function PropertyDetail() {
       .from('quick_notes')
       .select('note, updated_at, created_by')
       .eq('pid', pid)
-      .single()
-      .then(({ data }) => { if (data) setQuickNote(data) })
+      .limit(1)
+      .then(({ data }) => { setQuickNote(data?.[0] || null) })
 
     supabase
       .from('inspection_line_items')
@@ -269,16 +269,27 @@ export default function PropertyDetail() {
             </div>
 
             {/* Quick Note */}
-            {quickNote?.note && (
-              <div style={{ margin: '16px 0', padding: 16, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderLeft: '3px solid var(--accent, #c8963e)', borderRadius: 10 }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 8 }}>
-                  // quick_note · {fmtDate(quickNote.updated_at)}
-                </div>
-                <div style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                  {quickNote.note}
-                </div>
+            <div style={{ margin: '16px 0' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 8 }}>
+                // quick_notes
               </div>
-            )}
+              {quickNote?.note ? (
+                <div style={{ padding: 16, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderLeft: '3px solid var(--accent, #c8963e)', borderRadius: 10 }}>
+                  <div style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                    {quickNote.note}
+                  </div>
+                  {quickNote.updated_at && (
+                    <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 8 }}>
+                      {new Date(quickNote.updated_at).toLocaleDateString('en-IN')}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ padding: '12px 16px', border: '1px dashed rgba(200,150,62,0.2)', borderRadius: 8, fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                  // no notes yet — use the ✏ button during inspection to add
+                </div>
+              )}
+            </div>
 
             {/* Inspection History — production has one record per inspection date per PID; multiple records here are test data for PID 123 */}
             {inspections.length > 0 && (() => {

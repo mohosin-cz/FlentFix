@@ -122,7 +122,10 @@ export default function QuickNotes({ pid }) {
     localStorage.setItem(STORAGE_KEY(pid), notes)
     supabase
       .from('quick_notes')
-      .upsert({ pid, note: notes, updated_at: new Date().toISOString() }, { onConflict: 'pid' })
+      .upsert(
+        { pid, note: notes, created_by: 'anonymous', updated_at: new Date().toISOString() },
+        { onConflict: 'pid', ignoreDuplicates: false }
+      )
       .then(() => {})
   }, [notes, pid])
 
