@@ -96,7 +96,7 @@ export default function Login() {
           </Link>
         </p>
 
-        <p style={s.footer}>flentfix v1.0 · Product Operations</p>
+        <p style={s.footer}>pulse v1.0 · Product Operations</p>
       </div>
     </div>
   )

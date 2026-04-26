@@ -60,7 +60,7 @@ export default function Signup() {
             <Link to="/login" style={s.backLink}>← Back to Sign In</Link>
           </div>
 
-          <p style={s.footer}>flentfix v1.0 · Product Operations</p>
+          <p style={s.footer}>pulse v1.0 · Product Operations</p>
         </div>
       </div>
     )
@@ -153,7 +153,7 @@ export default function Signup() {
           <Link to="/login" style={s.link}>Sign in →</Link>
         </p>
 
-        <p style={s.footer}>flentfix v1.0 · Product Operations</p>
+        <p style={s.footer}>pulse v1.0 · Product Operations</p>
       </div>
     </div>
   )
