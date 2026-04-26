@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 const PulseLogo = () => (
-  <svg width="110" height="22" viewBox="0 0 300 68" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block' }}>
+  <svg width="140" height="28" viewBox="0 0 300 68" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', maxWidth: '100%' }}>
     <style>{`.d1{fill:#c8963e}.d0{fill:#c8963e;opacity:.12}`}</style>
     {[[1,1,1,0],[1,0,0,1],[1,1,1,0],[1,0,0,0],[1,0,0,0],[1,0,0,0]].map((r,ri)=>r.map((on,ci)=><rect key={`p${ri}${ci}`} className={on?'d1':'d0'} x={ci*11} y={ri*11} width="8" height="8" rx="1.5"/>))}
     {[[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,1,1,1]].map((r,ri)=>r.map((on,ci)=><rect key={`u${ri}${ci}`} className={on?'d1':'d0'} x={52+ci*11} y={ri*11} width="8" height="8" rx="1.5"/>))}
