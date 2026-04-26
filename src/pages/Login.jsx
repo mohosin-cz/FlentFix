@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 const PulseLogo = () => (
   <svg width="140" height="28" viewBox="0 0 300 68" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', maxWidth: '100%' }}>
-    <style>{`.do{fill:#16171f;stroke:#c8963e;stroke-width:1.2}.dd{fill:none;stroke:#c8963e;stroke-width:0.5;opacity:0.15}`}</style>
+    <style>{`.do{fill:#16171f;stroke:#c8963e;stroke-width:1.2}.dd{fill:none;stroke:#c8963e;stroke-width:0.5;opacity:0.15}@keyframes pulse-dot{0%{r:2.5;opacity:1}50%{r:4.5;opacity:0.4}100%{r:2.5;opacity:1}}.pulse-dot{animation:pulse-dot 1.8s ease-in-out infinite;transform-origin:center}`}</style>
     {[[1,1,1,0],[1,0,0,1],[1,1,1,0],[1,0,0,0],[1,0,0,0],[1,0,0,0]].map((r,ri)=>r.map((on,ci)=><rect key={`p${ri}${ci}`} className={on?'do':'dd'} x={ci*11} y={ri*11} width="8" height="8" rx="1.5"/>))}
     {[[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,1,1,1]].map((r,ri)=>r.map((on,ci)=><rect key={`u${ri}${ci}`} className={on?'do':'dd'} x={52+ci*11} y={ri*11} width="8" height="8" rx="1.5"/>))}
     {[[1,0,0,0],[1,0,0,0],[1,0,0,0],[1,0,0,0],[1,0,0,0],[1,1,1,1]].map((r,ri)=>r.map((on,ci)=><rect key={`l${ri}${ci}`} className={on?'do':'dd'} x={100+ci*11} y={ri*11} width="8" height="8" rx="1.5"/>))}
@@ -12,7 +12,7 @@ const PulseLogo = () => (
     <line x1="248" y1="33" x2="258" y2="33" stroke="#c8963e" strokeWidth="1.5" opacity="0.4"/>
     <polyline points="258,33 264,12 268,54 274,20 278,33" fill="none" stroke="#c8963e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
     <line x1="278" y1="33" x2="296" y2="33" stroke="#c8963e" strokeWidth="1.5" opacity="0.4"/>
-    <circle cx="296" cy="33" r="2.5" fill="#c8963e"/>
+    <circle className="pulse-dot" cx="296" cy="33" r="2.5" fill="#c8963e"/>
   </svg>
 )
 
