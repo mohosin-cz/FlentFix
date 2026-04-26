@@ -270,10 +270,11 @@ export default function Dashboard() {
       <style>{`
         @media (min-width: 641px) {
           .dash-nav       { display: flex !important; }
-          .dash-grid      { display: grid !important; grid-template-columns: 2fr 1fr; gap: 24px; align-items: start; }
+          .dash-grid      { display: grid !important; grid-template-columns: 1fr 360px; gap: 20px; align-items: start; padding: 0; }
           .mob-stats      { display: none  !important; }
           .desk-stats     { display: block !important; }
           .dash-quick     { display: block !important; }
+          .dash-right-col { position: sticky; top: 76px; align-self: start; max-height: calc(100vh - 96px); overflow-y: auto; }
         }
         @media (max-width: 640px) {
           .dash-nav       { display: none  !important; }
@@ -350,40 +351,94 @@ export default function Dashboard() {
             ) : properties.length === 0 ? (
               <div style={s.empty}>No properties yet — start an inspection to add one.</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {properties.map(prop => {
-                  const li = inspMap[prop.pid]
-                  return (
-                    <div
-                      key={prop.pid}
-                      className="prop-card"
-                      onClick={() => navigate(`/properties/${prop.pid}`)}
-                      style={s.propCard}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                        <span style={s.propPid}>{prop.pid}</span>
-                      </div>
-                      <div style={s.propMeta}>
-                        {titleCase(prop.type || '')}
-                        {li?.house_type ? ` · ${titleCase(li.house_type)}` : ''}
-                      </div>
-                      {li && (
-                        <div style={s.propDate}>
-                          Last inspection: {fmt(li.inspection_date || li.created_at)}
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {properties.map(prop => {
+                    const li = inspMap[prop.pid]
+                    return (
+                      <div
+                        key={prop.pid}
+                        className="prop-card"
+                        onClick={() => navigate(`/properties/${prop.pid}`)}
+                        style={s.propCard}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <span style={s.propPid}>{prop.pid}</span>
                         </div>
-                      )}
-                      <div style={s.propNext}>
-                        ↳ Next: {getNextAction(prop.pid, inspMap)}
+                        <div style={s.propMeta}>
+                          {titleCase(prop.type || '')}
+                          {li?.house_type ? ` · ${titleCase(li.house_type)}` : ''}
+                        </div>
+                        {li && (
+                          <div style={s.propDate}>
+                            Last inspection: {fmt(li.inspection_date || li.created_at)}
+                          </div>
+                        )}
+                        <div style={s.propNext}>
+                          ↳ Next: {getNextAction(prop.pid, inspMap)}
+                        </div>
                       </div>
+                    )
+                  })}
+                </div>
+
+                {/* Empty-state hint when fewer than 3 properties */}
+                {properties.length < 3 && (
+                  <div style={{ border: '1px dashed rgba(200,150,62,0.2)', borderRadius: 10, padding: 24, textAlign: 'center', color: 'var(--text-muted, #6b6d82)', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', marginTop: 12 }}>
+                    // no_more_properties · add new ones to see them here
+                    <div style={{ marginTop: 12 }}>
+                      <button
+                        onClick={() => navigate('/inspections/new')}
+                        style={{ color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--accent, #c8963e)', borderRadius: 6, padding: '6px 16px', cursor: 'pointer', fontSize: 11, fontFamily: 'var(--font-mono, monospace)' }}
+                      >+ Start New Inspection</button>
                     </div>
-                  )
-                })}
-              </div>
+                  </div>
+                )}
+
+                {/* Property journey pipeline */}
+                <div style={{ marginTop: 20, padding: '16px 0 4px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>// property_journey</div>
+                  <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', gap: 0, paddingBottom: 4 }}>
+                    {[
+                      { stage: 'T-5', label: 'INSPECTION',  color: '#c8963e' },
+                      { stage: 'T-4', label: 'ESTIMATE',    color: '#6b8de6' },
+                      { stage: 'T-3', label: 'WORK ORDER',  color: '#9b6de6' },
+                      { stage: 'T-2', label: 'IN PROGRESS', color: '#e6923e' },
+                      { stage: 'T-1', label: 'SNAGGING',    color: '#e6d83e' },
+                      { stage: 'T',   label: 'READY',       color: '#3dba7a' },
+                    ].map((step, idx, arr) => {
+                      const activePid = properties[0]?.pid
+                      const isActive  = idx === 0
+                      return (
+                        <div key={step.stage} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                            <div style={{
+                              width: 28, height: 28, borderRadius: '50%',
+                              background: isActive ? step.color : 'transparent',
+                              border: `2px solid ${isActive ? step.color : 'var(--border-dash, #3a3d52)'}`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 8, fontWeight: 700, color: isActive ? '#16171f' : 'var(--text-muted, #6b6d82)',
+                              fontFamily: 'var(--font-mono, monospace)',
+                            }}>{step.stage}</div>
+                            <div style={{ fontSize: 8, color: isActive ? step.color : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', letterSpacing: '0.06em' }}>{step.label}</div>
+                            {isActive && activePid && (
+                              <div style={{ fontSize: 8, color: step.color, fontFamily: 'var(--font-mono, monospace)', opacity: 0.8 }}>{activePid}</div>
+                            )}
+                          </div>
+                          {idx < arr.length - 1 && (
+                            <div style={{ width: 24, height: 1, background: 'var(--border-dash, #3a3d52)', margin: '0 2px', marginBottom: 24, flexShrink: 0 }} />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
             )}
           </section>
 
           {/* RIGHT column */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="dash-right-col" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Snapshot stats — desktop only */}
             <section className="desk-stats" style={{ display: 'none' }}>
