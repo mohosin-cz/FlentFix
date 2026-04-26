@@ -196,28 +196,14 @@ export default function PropertyDetail() {
           </svg>
         </button>
         <div style={s.headerCenter}>
-          <span style={s.headerTitle}>{pid}</span>
-          {houseType && <span style={s.headerSub}>{houseType}</span>}
+          <span style={s.headerTitle}>PID {pid}</span>
+          <span style={s.headerSub}>
+            {houseType ? titleCase(houseType) : '—'}
+            {latest ? ` · ${fmtDate(latest.inspection_date)}` : ''}
+          </span>
         </div>
         <div style={{ width: 36 }} />
       </header>
-
-      {/* PID hero */}
-      <div style={s.heroStrip}>
-        <div style={s.heroInner}>
-          <div style={s.heroPid}>{pid}</div>
-          <div style={s.heroMeta}>
-            {houseType && <span style={s.heroBadge}>{titleCase(houseType)}</span>}
-            {address   && <span style={s.heroAddress}>{address}</span>}
-          </div>
-          {latest && (
-            <div style={s.heroStats}>
-              <span style={s.heroStat}>Last inspection: <span style={s.heroStatNum}>{fmtDate(latest.inspection_date)}</span></span>
-            </div>
-          )}
-        </div>
-        <div style={s.heroGrid} aria-hidden="true" />
-      </div>
 
       <main style={s.main}>
         {loading ? (

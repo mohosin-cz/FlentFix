@@ -231,7 +231,7 @@ export default function Properties() {
                   }}
                 >
                   <div style={s.cardTop}>
-                    <div style={s.pidText}>PID{row.pid}</div>
+                    <div style={s.pidText}>PID {row.pid}</div>
                     {row.house_type && <span style={s.houseTypeBadge}>{titleCase(row.house_type)}</span>}
                     <div style={s.dateLine}>last: {fmtDate(row.inspection_date)}</div>
                   </div>

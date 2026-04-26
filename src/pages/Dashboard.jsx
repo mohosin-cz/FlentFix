@@ -226,7 +226,7 @@ export default function Dashboard() {
 
         const feed = [
           ...insp.slice(0, 5).map(i => ({
-            title: `Inspection saved · ${i.pid}`,
+            title: `Inspection saved · PID ${i.pid}`,
             desc:  titleCase(i.house_type || ''),
             date:  i.created_at,
             link:  `/properties/${i.pid}`,
@@ -240,7 +240,7 @@ export default function Dashboard() {
             type:  'purchase',
           })),
           ...(recentPropsRes.data || []).map(p => ({
-            title: `Property created · ${p.pid}`,
+            title: `Property created · PID ${p.pid}`,
             desc:  titleCase(p.type || ''),
             date:  p.created_at,
             link:  `/properties/${p.pid}`,
@@ -366,7 +366,7 @@ export default function Dashboard() {
                         style={s.propCard}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                          <span style={s.propPid}>{prop.pid}</span>
+                          <span style={s.propPid}>PID {prop.pid}</span>
                         </div>
                         <div style={s.propMeta}>
                           {(() => {
