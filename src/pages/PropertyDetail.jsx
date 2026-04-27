@@ -151,8 +151,11 @@ export default function PropertyDetail() {
       .from('quick_notes')
       .select('note, updated_at, created_by')
       .eq('pid', pid)
-      .limit(1)
-      .then(({ data }) => { setQuickNote(data?.[0] || null) })
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) console.error('quick_notes fetch error:', error)
+        setQuickNote(data || null)
+      })
 
     supabase
       .from('inspection_line_items')

@@ -120,13 +120,27 @@ export default function QuickNotes({ pid }) {
   useEffect(() => {
     if (!pid) return
     localStorage.setItem(STORAGE_KEY(pid), notes)
-    supabase
-      .from('quick_notes')
-      .upsert(
-        { pid, note: notes, created_by: 'anonymous', updated_at: new Date().toISOString() },
-        { onConflict: 'pid', ignoreDuplicates: false }
-      )
-      .then(() => {})
+
+    const save = async () => {
+      const { data: existing } = await supabase
+        .from('quick_notes')
+        .select('id')
+        .eq('pid', pid)
+        .maybeSingle()
+
+      if (existing) {
+        await supabase
+          .from('quick_notes')
+          .update({ note: notes, updated_at: new Date().toISOString() })
+          .eq('pid', pid)
+      } else {
+        await supabase
+          .from('quick_notes')
+          .insert({ pid, note: notes, created_by: 'anonymous', updated_at: new Date().toISOString() })
+      }
+    }
+
+    save().catch(console.error)
   }, [notes, pid])
 
   // Focus textarea when panel opens

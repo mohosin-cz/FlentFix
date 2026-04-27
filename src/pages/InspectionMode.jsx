@@ -251,6 +251,27 @@ export default function InspectionMode() {
           { onConflict: 'pid' }
         )
 
+      // Sync quick note to Supabase on end
+      const noteText = localStorage.getItem(`flent_quick_notes_${pid}`)
+      if (noteText && noteText.trim()) {
+        const { data: existingNote } = await supabase
+          .from('quick_notes')
+          .select('id')
+          .eq('pid', pid)
+          .maybeSingle()
+
+        if (existingNote) {
+          await supabase
+            .from('quick_notes')
+            .update({ note: noteText, updated_at: new Date().toISOString() })
+            .eq('pid', pid)
+        } else {
+          await supabase
+            .from('quick_notes')
+            .insert({ pid, note: noteText, created_by: 'anonymous', updated_at: new Date().toISOString() })
+        }
+      }
+
       setShowEndModal(false)
       navigate(`/properties/${pid}`)
     } catch (err) {
