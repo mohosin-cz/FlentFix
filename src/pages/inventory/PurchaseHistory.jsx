@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
-const TRADES     = ['All', 'Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc']
-const TRADE_OPTS = ['electrical', 'plumbing', 'woodwork', 'cleaning', 'misc']
+const TRADES     = ['All', 'Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc', 'Appliances']
+const TRADE_OPTS = ['electrical', 'plumbing', 'woodwork', 'cleaning', 'misc', 'appliances']
 
 const TRADE_COLORS = {
   electrical: { color: '#f5c842', bg: 'rgba(245,200,66,0.1)', border: 'rgba(245,200,66,0.3)' },
@@ -11,6 +11,7 @@ const TRADE_COLORS = {
   woodwork:   { color: '#c8963e', bg: 'rgba(200,150,62,0.1)',  border: 'rgba(200,150,62,0.3)' },
   cleaning:   { color: '#3dba7a', bg: 'rgba(61,186,122,0.1)',  border: 'rgba(61,186,122,0.3)' },
   misc:       { color: '#9394a8', bg: 'rgba(147,148,168,0.1)', border: 'rgba(147,148,168,0.3)' },
+  appliances: { color: '#4a9eff', bg: 'rgba(74,158,255,0.1)',  border: 'rgba(74,158,255,0.3)'  },
 }
 
 function useIsMobile() {
