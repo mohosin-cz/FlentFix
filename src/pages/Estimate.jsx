@@ -450,6 +450,10 @@ export default function Estimate() {
   const [inspection, setInspection] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editedItems, setEditedItems] = useState({})
+  const [estimateNotes, setEstimateNotes] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     const prev = document.body.style.background
@@ -477,10 +481,50 @@ export default function Estimate() {
       .single()
       .then(({ data, error: err }) => {
         if (err) setError(err.message)
-        else setInspection(data)
+        else {
+          setInspection(data)
+          setEstimateNotes(data?.notes || '')
+        }
         setLoading(false)
       })
   }, [id])
+
+  function startEdit() {
+    const initial = {}
+    ;(inspection?.inspection_line_items || []).forEach(item => {
+      initial[item.id] = {
+        issue_description: item.issue_description || '',
+        material_cost: item.material_cost ?? 0,
+        labour_cost: item.labour_cost ?? 0,
+      }
+    })
+    setEditedItems(initial)
+    setIsEditing(true)
+  }
+
+  async function saveEdit() {
+    setIsSaving(true)
+    try {
+      const origItems = inspection?.inspection_line_items || []
+      for (const [itemId, vals] of Object.entries(editedItems)) {
+        const orig = origItems.find(i => String(i.id) === String(itemId))
+        if (!orig) continue
+        const mc = parseFloat(vals.material_cost) || 0
+        const lc = parseFloat(vals.labour_cost) || 0
+        if (vals.issue_description !== (orig.issue_description || '') || mc !== (orig.material_cost || 0) || lc !== (orig.labour_cost || 0)) {
+          await supabase.from('inspection_line_items').update({ issue_description: vals.issue_description, material_cost: mc, labour_cost: lc }).eq('id', itemId)
+        }
+      }
+      await supabase.from('inspections').update({ notes: estimateNotes }).eq('id', id)
+      const { data: refreshed } = await supabase.from('inspections').select('*, inspection_line_items(*, line_item_media(*))').eq('id', id).single()
+      if (refreshed) { setInspection(refreshed); setEstimateNotes(refreshed.notes || '') }
+      setIsEditing(false)
+    } catch (err) {
+      console.error('Save error:', err)
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: 'Inter, sans-serif', color: '#888', fontSize: 14 }}>
@@ -498,8 +542,15 @@ export default function Estimate() {
   const items = inspection.inspection_line_items || []
   const pid   = inspection.pid || ''
 
+  // Merge edits into items for real-time total updates during edit mode
+  const displayItems = isEditing
+    ? items.map(item => editedItems[item.id]
+        ? { ...item, issue_description: editedItems[item.id].issue_description, material_cost: parseFloat(editedItems[item.id].material_cost) || 0, labour_cost: parseFloat(editedItems[item.id].labour_cost) || 0 }
+        : item)
+    : items
+
   const sectionMap = {}
-  items.forEach(item => {
+  displayItems.forEach(item => {
     const s = item.section_name || 'Other'
     if (!sectionMap[s]) sectionMap[s] = []
     sectionMap[s].push(item)
@@ -522,13 +573,13 @@ export default function Estimate() {
   const overallBand   = band(overallScore)
   const overallColors = BAND[overallBand]
 
-  const totalMaterial = items.reduce((s, r) => s + (r.material_cost || 0), 0)
-  const totalLabour   = items.reduce((s, r) => s + (r.labour_cost   || 0), 0)
+  const totalMaterial = displayItems.reduce((s, r) => s + (r.material_cost || 0), 0)
+  const totalLabour   = displayItems.reduce((s, r) => s + (r.labour_cost   || 0), 0)
   const grandTotal    = totalMaterial + totalLabour
 
   function secTotal(rows) { return rows.reduce((s, r) => s + (r.material_cost || 0) + (r.labour_cost || 0), 0) }
 
-  const issueCount     = items.filter(r => r.availability_status !== 'not_available').length
+  const issueCount     = displayItems.filter(r => r.availability_status !== 'not_available').length
   const tradesAffected = sectionList.filter(([, rows]) =>
     rows.some(r => r.availability_status !== 'not_available' && ((r.material_cost || 0) + (r.labour_cost || 0)) > 0)
   ).length
@@ -555,7 +606,19 @@ export default function Estimate() {
       {/* Top controls */}
       <div className="er-topbar no-print">
         <button className="er-back" onClick={() => navigate(-1)}>← Back</button>
-        <button className="er-pdf-link" onClick={handlePrint}>Download PDF</button>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+          {isEditing ? (
+            <>
+              <button className="er-pdf-link" style={{ color: '#5C5C5C' }} onClick={() => setIsEditing(false)}>Cancel</button>
+              <button className="er-pdf-link" style={{ color: '#c8963e', fontWeight: 600 }} onClick={saveEdit} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save'}</button>
+            </>
+          ) : (
+            <>
+              <button className="er-pdf-link" style={{ color: '#c8963e' }} onClick={startEdit}>Edit Estimate</button>
+              <button className="er-pdf-link" onClick={handlePrint}>Download PDF</button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="er-doc">
@@ -696,12 +759,44 @@ export default function Estimate() {
               </div>
 
               {rows.map((item, idx) => {
+                const isNA      = item.availability_status === 'not_available'
+                const edited    = editedItems[item.id]
+
+                if (isEditing) {
+                  const mc = parseFloat(edited?.material_cost ?? item.material_cost) || 0
+                  const lc = parseFloat(edited?.labour_cost   ?? item.labour_cost)   || 0
+                  return (
+                    <div key={item.id || idx} className="er-item">
+                      <div className="er-item-row1" style={{ flexWrap: 'wrap', gap: 6 }}>
+                        <span className="er-item-num">{String(idx + 1).padStart(2, '0')}</span>
+                        {item.area && <span className="er-item-area">{item.area}</span>}
+                        <input
+                          value={edited?.issue_description ?? item.issue_description ?? ''}
+                          onChange={e => setEditedItems(p => ({ ...p, [item.id]: { ...p[item.id], issue_description: e.target.value } }))}
+                          style={{ flex: 1, minWidth: 120, fontSize: 13, padding: '4px 8px', border: '1px solid #D4CFC6', borderRadius: 3, fontFamily: 'Source Sans 3, sans-serif', background: '#FAFAF8', color: '#1E1E1E' }}
+                        />
+                        <span className="er-item-total">₹{fmt(mc + lc)}</span>
+                      </div>
+                      {!isNA && (
+                        <div className="er-item-row2" style={{ gap: 12 }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#5C5C5C', fontFamily: 'Source Sans 3, sans-serif' }}>
+                            Material ₹
+                            <input type="number" value={edited?.material_cost ?? item.material_cost ?? 0} onChange={e => setEditedItems(p => ({ ...p, [item.id]: { ...p[item.id], material_cost: e.target.value } }))} style={{ width: 80, fontSize: 12, padding: '3px 6px', border: '1px solid #D4CFC6', borderRadius: 3 }} />
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#5C5C5C', fontFamily: 'Source Sans 3, sans-serif' }}>
+                            Labour ₹
+                            <input type="number" value={edited?.labour_cost ?? item.labour_cost ?? 0} onChange={e => setEditedItems(p => ({ ...p, [item.id]: { ...p[item.id], labour_cost: e.target.value } }))} style={{ width: 80, fontSize: 12, padding: '3px 6px', border: '1px solid #D4CFC6', borderRadius: 3 }} />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+
                 const itemMat   = item.material_cost || 0
                 const itemLab   = item.labour_cost   || 0
                 const itemTotal = itemMat + itemLab
-                const isNA      = item.availability_status === 'not_available'
-
-                const fixType = item.issue_description?.match(/^(Install|Replace|Repair)/i)?.[1] ?? null
+                const fixType   = item.issue_description?.match(/^(Install|Replace|Repair)/i)?.[1] ?? null
 
                 return (
                   <div key={item.id || idx} className="er-item">
@@ -728,11 +823,7 @@ export default function Estimate() {
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           {item.line_item_media.filter(m => m.type === 'image').map((m, mi) => (
                             <a key={mi} href={m.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', flexShrink: 0 }}>
-                              <img
-                                src={m.url}
-                                alt={m.caption || ''}
-                                style={{ height: 80, width: 'auto', maxWidth: 120, objectFit: 'cover', borderRadius: 4, border: '1px solid #D4CFC6', display: 'block', cursor: 'pointer' }}
-                              />
+                              <img src={m.url} alt={m.caption || ''} style={{ height: 80, width: 'auto', maxWidth: 120, objectFit: 'cover', borderRadius: 4, border: '1px solid #D4CFC6', display: 'block', cursor: 'pointer' }} />
                             </a>
                           ))}
                         </div>
@@ -749,6 +840,23 @@ export default function Estimate() {
             </div>
           )
         })}
+
+        {/* ── NOTES ── */}
+        <div style={{ margin: '0 48px 32px', padding: '20px', background: '#F8F6F1', border: '1px solid #E0D9CC', borderRadius: '8px' }}>
+          <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'Source Sans 3, sans-serif', color: '#1E1E1E' }}>Notes</div>
+          {isEditing ? (
+            <textarea
+              value={estimateNotes}
+              onChange={e => setEstimateNotes(e.target.value)}
+              placeholder="Add notes for the property owner..."
+              style={{ width: '100%', minHeight: 80, border: '1px solid #D4CFC6', borderRadius: 4, padding: 8, fontFamily: 'Source Sans 3, sans-serif', fontSize: 13, resize: 'vertical', background: '#fff', color: '#1E1E1E', boxSizing: 'border-box' }}
+            />
+          ) : (
+            <div style={{ fontSize: 13, color: estimateNotes ? '#1E1E1E' : '#aaa', whiteSpace: 'pre-wrap', fontFamily: 'Source Sans 3, sans-serif', lineHeight: 1.7, fontStyle: estimateNotes ? 'normal' : 'italic' }}>
+              {estimateNotes || 'No notes added.'}
+            </div>
+          )}
+        </div>
 
         {/* ── COST SUMMARY ── */}
         <div className="er-cost-block">
@@ -776,9 +884,9 @@ export default function Estimate() {
           <p className="er-disclaimer">
             Costs estimated basis site inspection and prevailing Bangalore market rates. Final figures may vary subject to actual site conditions. This estimate is valid for 30 days from issue date. Work to commence only upon written approval from the property owner.
           </p>
-          <button className="er-rate-link no-print" onClick={() => window.open('/rate-card', '_blank')}>
-            Labour Rate Card ↗
-          </button>
+          <a href="/inventory/public-rc" target="_blank" rel="noopener noreferrer" className="er-rate-link no-print" style={{ color: '#c8963e' }}>
+            View Rate Card →
+          </a>
           <div className="er-prepared">
             Prepared by Flent Operations · ops@flent.in · flent.in
           </div>

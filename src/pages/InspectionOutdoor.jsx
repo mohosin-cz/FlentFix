@@ -533,6 +533,45 @@ const INITIAL = {
   security:    { cctvCamera: blankCard(), gateLock: blankCard() },
 }
 
+// ─── Draft flush helper (used by End Inspection) ─────────────────────────────
+export function flattenOutdoorDraftToRows(draft, inspectionId) {
+  const rows = []
+  const data   = draft.data || {}
+  const custom = draft.customItems || {}
+  sectionKeys.forEach((sk, ti) => {
+    const sName = TABS[ti]
+    SECTIONS[sk].forEach(({ key, title, trade }) => {
+      const item = data[sk]?.[key]
+      if (!item) return
+      const sel = item.selectedIssues || []
+      if (!item.notAvailable && sel.length === 0) return
+      const base = { inspection_id: inspectionId, section_name: sName, area: title, item_name: title, trade }
+      if (item.notAvailable) {
+        rows.push({ ...base, issue_description: item.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available' })
+        return
+      }
+      if (sel.includes('Functional')) {
+        rows.push({ ...base, issue_description: 'Functional', action: 'Functional', material_cost: 0, labour_cost: 0, item_score: item.health ?? 10 })
+      } else {
+        sel.forEach(issue => {
+          const cr = (item.costRows || {})[issue] || {}
+          rows.push({ ...base, issue_description: issue === 'Other' ? (item.otherIssue || 'Other') : issue, action: cr.action || '', material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: item.health ?? null })
+        })
+      }
+    })
+    ;(custom[sk] || []).forEach(ci => {
+      if (!ci.name) return
+      const ciRows = ci.issues || []
+      if (!ciRows.length) {
+        rows.push({ inspection_id: inspectionId, section_name: sName, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null })
+      } else {
+        ciRows.forEach(r => rows.push({ inspection_id: inspectionId, section_name: sName, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: r.issueDescription || '', action: r.action || '', material_cost: parseFloat(r.materialCost) || 0, labour_cost: parseFloat(r.labourCost) || 0, item_score: ci.health ?? null }))
+      }
+    })
+  })
+  return rows
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function InspectionOutdoor() {
   const navigate  = useNavigate()

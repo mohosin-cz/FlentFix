@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import { NavBar } from '../components/ui'
 import QuickNotes from '../components/QuickNotes'
 import { supabase } from '../lib/supabase'
+import { flattenOutdoorDraftToRows } from './InspectionOutdoor'
+import { flattenAppliancesDraftToRows } from './InspectionAppliances'
 
 const MODES = [
   {
@@ -71,6 +73,79 @@ const MODES = [
     areas: ['AC · Fridge', 'Geyser · Washer', 'Chimney · Hob', 'TV · Inverter'],
   },
 ]
+
+function flattenIndoorDraftToRows(draft, inspectionId) {
+  const BASICS = {
+    deepCleaning:  { label: 'Deep Cleaning',     trade: 'cleaning' },
+    pestControl:   { label: 'Pest Control',       trade: 'cleaning' },
+    painting:      { label: 'Full Home Painting', trade: 'misc'     },
+    floorBuffing:  { label: 'Floor Buffing',      trade: 'misc'     },
+    waterproofing: { label: 'Waterproofing',      trade: 'plumbing' },
+    carpentry:     { label: 'Carpentry Touch-up', trade: 'woodwork' },
+  }
+  function toTitle(key) {
+    return key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').replace(/\b\w/g, c => c.toUpperCase()).trim()
+  }
+  const rows = []
+  const data        = draft.data || {}
+  const customItems = draft.customItems || {}
+  Object.entries(data).forEach(([tabKey, tabData]) => {
+    if (tabKey === 'basics') {
+      Object.entries(tabData || {}).forEach(([key, d]) => {
+        if (!d?.enabled) return
+        if (key === 'deepCleaning') {
+          if (d.fullHome !== false) rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: 'Deep Cleaning - Full Home', trade: 'cleaning', issue_description: 'Full Home', material_cost: 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: null })
+          ;(d.specificAreas || []).forEach(sa => {
+            if (!sa.area) return
+            rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: `Deep Cleaning - ${sa.area}`, trade: 'cleaning', issue_description: sa.type || '', action: sa.notes || '', material_cost: 0, labour_cost: parseFloat(sa.cost) || 0, item_score: null })
+          })
+        } else {
+          const meta = BASICS[key]
+          if (!meta) return
+          const desc = d.description || (d.areas || []).join(', ')
+          rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: meta.trade, item_name: meta.label, trade: meta.trade, issue_description: desc, material_cost: 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: null })
+        }
+      })
+      return
+    }
+    const tabLabel = toTitle(tabKey)
+    Object.entries(tabData || {}).forEach(([secId, secData]) => {
+      const secLabel = toTitle(secId)
+      const trade    = secId === 'woodwork' ? 'woodwork' : secId === 'misc' ? 'misc' : secId === 'plumbing' ? 'plumbing' : 'electrical'
+      Object.entries(secData || {}).forEach(([itemKey, cards]) => {
+        if (!Array.isArray(cards)) return
+        cards.forEach((card, ci) => {
+          const sel    = card.selectedIssues || []
+          const suffix = cards.length > 1 ? ` (${ci + 1})` : ''
+          const base   = { inspection_id: inspectionId, section_name: tabLabel, area: secLabel, item_name: toTitle(itemKey) + suffix, trade }
+          if (!card.notAvailable && sel.length === 0) return
+          if (card.notAvailable) {
+            rows.push({ ...base, issue_description: card.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available' })
+            return
+          }
+          if (sel.includes('Functional')) {
+            rows.push({ ...base, issue_description: 'Functional', action: 'Functional', material_cost: 0, labour_cost: 0, item_score: card.health ?? 10 })
+          } else {
+            sel.forEach(issue => {
+              const cr = (card.costRows || {})[issue] || {}
+              rows.push({ ...base, issue_description: issue === 'Other' ? (card.otherIssue || 'Other') : issue, action: cr.action || '', material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: card.health ?? null })
+            })
+          }
+        })
+      })
+    })
+    ;(customItems[tabKey] || []).forEach(ci => {
+      if (!ci.name) return
+      const ciRows = ci.issues || []
+      if (!ciRows.length) {
+        rows.push({ inspection_id: inspectionId, section_name: tabLabel, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null })
+      } else {
+        ciRows.forEach(r => rows.push({ inspection_id: inspectionId, section_name: tabLabel, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: r.issueDescription || '', action: r.action || '', material_cost: parseFloat(r.materialCost) || 0, labour_cost: parseFloat(r.labourCost) || 0, item_score: ci.health ?? null }))
+      }
+    })
+  })
+  return rows
+}
 
 function readDraftProgress(pid) {
   try {
@@ -207,13 +282,16 @@ export default function InspectionMode() {
     setIsEnding(true)
     try {
       const pid = state.pid
-      const { data: existing } = await supabase
+
+      // Use the most recent inspection for this PID (may have been created by a per-section estimate)
+      const { data: existingRows } = await supabase
         .from('inspections')
         .select('id')
         .eq('pid', pid)
-        .single()
+        .order('created_at', { ascending: false })
+        .limit(1)
 
-      let inspectionId = existing?.id
+      let inspectionId = existingRows?.[0]?.id
 
       if (!inspectionId) {
         const { data: newInspection, error } = await supabase
@@ -236,13 +314,24 @@ export default function InspectionMode() {
           .eq('id', inspectionId)
       }
 
-      // Read drafts (for future batch-save logic)
-      // eslint-disable-next-line no-unused-vars
-      const _outdoorDraft   = JSON.parse(localStorage.getItem(`flentfix_outdoor_draft_${pid}`)    || '{}')
-      // eslint-disable-next-line no-unused-vars
-      const _indoorDraft    = JSON.parse(localStorage.getItem(`flentfix_indoor_draft_${pid}`)     || '{}')
-      // eslint-disable-next-line no-unused-vars
-      const _appliancesDraft = JSON.parse(localStorage.getItem(`flentfix_appliances_draft_${pid}`) || '{}')
+      // Flush any unsaved drafts to inspection_line_items
+      const outdoorDraft    = JSON.parse(localStorage.getItem(`flentfix_outdoor_draft_${pid}`)    || '{}')
+      const indoorDraft     = JSON.parse(localStorage.getItem(`flentfix_indoor_draft_${pid}`)     || '{}')
+      const appliancesDraft = JSON.parse(localStorage.getItem(`flentfix_appliances_draft_${pid}`) || '{}')
+
+      const allRows = [
+        ...flattenOutdoorDraftToRows(outdoorDraft, inspectionId),
+        ...flattenIndoorDraftToRows(indoorDraft, inspectionId),
+        ...flattenAppliancesDraftToRows(appliancesDraft, inspectionId),
+      ]
+      if (allRows.length > 0) {
+        await supabase.from('inspection_line_items').insert(allRows)
+      }
+
+      // Clear flushed drafts
+      localStorage.removeItem(`flentfix_outdoor_draft_${pid}`)
+      localStorage.removeItem(`flentfix_indoor_draft_${pid}`)
+      localStorage.removeItem(`flentfix_appliances_draft_${pid}`)
 
       await supabase
         .from('properties')

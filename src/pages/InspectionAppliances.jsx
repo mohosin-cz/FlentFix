@@ -317,6 +317,32 @@ function ApplianceCard({ appliance, appData, isOpen, onToggle, onUpdate, labourR
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
+// ─── Draft flush helper (used by End Inspection) ─────────────────────────────
+export function flattenAppliancesDraftToRows(draft, inspectionId) {
+  const rows = []
+  const data = draft.data || {}
+  const customApps = draft.customAppliances || []
+  APPLIANCES.forEach(({ name, trade, components }) => {
+    const appData = data[name]
+    if (!appData || appData.notPresent) return
+    const comps = appData.components || {}
+    ;[...components.map(c => ({ n: c, d: comps[c] || blankComp() })), ...(appData.customComponents || []).map(c => ({ n: c.name, d: c }))]
+      .forEach(({ n, d }) => {
+        if (!d.status || !n) return
+        rows.push({ inspection_id: inspectionId, section_name: 'Appliances', area: name, item_name: n, trade, issue_description: d.status === 'Faulty' ? (d.issueDescription || 'Faulty') : d.status, action: d.status === 'Faulty' ? (d.action || '') : '', material_cost: parseFloat(d.materialCost) || 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: appData.health ?? null, availability_status: d.status === 'N/A' ? 'not_available' : null })
+      })
+  })
+  customApps.forEach(ca => {
+    if (ca.notPresent) return
+    const name = ca.customName || 'Custom Appliance'
+    ;(ca.customComponents || []).forEach(cc => {
+      if (!cc.status || !cc.name) return
+      rows.push({ inspection_id: inspectionId, section_name: 'Appliances', area: name, item_name: cc.name, trade: ca.trade || 'electrical', issue_description: cc.status === 'Faulty' ? (cc.issueDescription || 'Faulty') : cc.status, action: cc.status === 'Faulty' ? (cc.action || '') : '', material_cost: parseFloat(cc.materialCost) || 0, labour_cost: parseFloat(cc.labourCost) || 0, item_score: ca.health ?? null, availability_status: cc.status === 'N/A' ? 'not_available' : null })
+    })
+  })
+  return rows
+}
+
 export default function InspectionAppliances() {
   const navigate       = useNavigate()
   const { state }      = useLocation()
