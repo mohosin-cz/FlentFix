@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
-const TRADES = ['All', 'Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc', 'Appliances']
-const TRADE_OPTS = ['electrical', 'plumbing', 'woodwork', 'cleaning', 'misc', 'appliances']
-const TRADE_CODES = { electrical: 'EL', plumbing: 'PLB', woodwork: 'WW', cleaning: 'CLN', misc: 'MSC', appliances: 'APL' }
+const TRADES = ['All', 'Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc', 'Appliances', 'Lights']
+const TRADE_OPTS = ['electrical', 'plumbing', 'woodwork', 'cleaning', 'misc', 'appliances', 'lights']
+const TRADE_CODES = { electrical: 'EL', plumbing: 'PLB', woodwork: 'WW', cleaning: 'CLN', misc: 'MSC', appliances: 'APL', lights: 'LGT' }
 
 const TRADE_META = {
   electrical: { color: '#f5c842', bg: 'rgba(245,200,66,0.08)', border: 'rgba(245,200,66,0.28)' },
@@ -13,6 +13,7 @@ const TRADE_META = {
   cleaning:   { color: '#3dba7a', bg: 'rgba(61,186,122,0.08)',  border: 'rgba(61,186,122,0.28)'  },
   misc:       { color: '#9394a8', bg: 'rgba(147,148,168,0.08)', border: 'rgba(147,148,168,0.28)' },
   appliances: { color: '#4a9eff', bg: 'rgba(74,158,255,0.08)',  border: 'rgba(74,158,255,0.28)'  },
+  lights:     { color: '#f0c040', bg: 'rgba(240,192,64,0.08)',  border: 'rgba(240,192,64,0.28)'  },
 }
 
 function useIsMobile() {

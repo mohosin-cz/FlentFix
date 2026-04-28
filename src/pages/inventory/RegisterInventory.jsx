@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
-const TRADES = ['Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc', 'Appliances']
-const TRADE_CODES = { electrical: 'EL', plumbing: 'PLB', woodwork: 'WW', cleaning: 'CLN', misc: 'MSC', appliances: 'APL' }
+const TRADES = ['Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc', 'Appliances', 'Lights']
+const TRADE_CODES = { electrical: 'EL', plumbing: 'PLB', woodwork: 'WW', cleaning: 'CLN', misc: 'MSC', appliances: 'APL', lights: 'LGT' }
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 640)
