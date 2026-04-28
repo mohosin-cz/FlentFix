@@ -283,6 +283,17 @@ export default function InspectionMode() {
     try {
       const pid = state.pid
 
+      // ── Step 2: dump ALL relevant localStorage keys so we can see exactly what's saved ──
+      const relevantKeys = Object.keys(localStorage).filter(k =>
+        k.includes(pid) || k.includes('draft') || k.includes('flentfix')
+      )
+      console.log('[EndInspection] pid:', pid)
+      console.log('[EndInspection] ALL RELEVANT KEYS:', relevantKeys)
+      relevantKeys.forEach(k => {
+        try { console.log(k, ':', JSON.parse(localStorage.getItem(k))) }
+        catch (_) { console.log(k, ':', localStorage.getItem(k)) }
+      })
+
       // Use the most recent inspection for this PID (may have been created by a per-section estimate)
       const { data: existingRows } = await supabase
         .from('inspections')
@@ -292,6 +303,7 @@ export default function InspectionMode() {
         .limit(1)
 
       let inspectionId = existingRows?.[0]?.id
+      console.log('[EndInspection] existing inspectionId:', inspectionId)
 
       if (!inspectionId) {
         const { data: newInspection, error } = await supabase
@@ -307,6 +319,7 @@ export default function InspectionMode() {
           .single()
         if (error) throw error
         inspectionId = newInspection.id
+        console.log('[EndInspection] created new inspectionId:', inspectionId)
       } else {
         await supabase
           .from('inspections')
@@ -319,13 +332,28 @@ export default function InspectionMode() {
       const indoorDraft     = JSON.parse(localStorage.getItem(`flentfix_indoor_draft_${pid}`)     || '{}')
       const appliancesDraft = JSON.parse(localStorage.getItem(`flentfix_appliances_draft_${pid}`) || '{}')
 
-      const allRows = [
-        ...flattenOutdoorDraftToRows(outdoorDraft, inspectionId),
-        ...flattenIndoorDraftToRows(indoorDraft, inspectionId),
-        ...flattenAppliancesDraftToRows(appliancesDraft, inspectionId),
-      ]
+      console.log('[EndInspection] outdoorDraft:', outdoorDraft)
+      console.log('[EndInspection] indoorDraft:', indoorDraft)
+      console.log('[EndInspection] appliancesDraft:', appliancesDraft)
+
+      const outdoorRows    = flattenOutdoorDraftToRows(outdoorDraft, inspectionId)
+      const indoorRows     = flattenIndoorDraftToRows(indoorDraft, inspectionId)
+      const appliancesRows = flattenAppliancesDraftToRows(appliancesDraft, inspectionId)
+
+      console.log('[EndInspection] outdoorRows:', outdoorRows.length, outdoorRows)
+      console.log('[EndInspection] indoorRows:', indoorRows.length, indoorRows)
+      console.log('[EndInspection] appliancesRows:', appliancesRows.length, appliancesRows)
+
+      // ── Step 4: insert with full error visibility ──
+      const allRows = [...outdoorRows, ...indoorRows, ...appliancesRows]
+      console.log('[EndInspection] total rows to insert:', allRows.length, allRows[0])
       if (allRows.length > 0) {
-        await supabase.from('inspection_line_items').insert(allRows)
+        const { data: insertedRows, error: insertErr } = await supabase
+          .from('inspection_line_items')
+          .insert(allRows)
+          .select()
+        console.log('[EndInspection] insert result:', insertedRows, insertErr)
+        if (insertErr) throw new Error('Line item insert failed: ' + insertErr.message)
       }
 
       // Clear flushed drafts
