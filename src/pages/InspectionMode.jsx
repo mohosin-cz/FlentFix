@@ -127,8 +127,9 @@ function flattenIndoorDraftToRows(draft, inspectionId) {
             rows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: card.health ?? 10 })
           } else {
             sel.forEach(issue => {
-              const cr = (card.costRows || {})[issue] || {}
-              rows.push({ ...base, issue_description: issue === 'Other' ? (card.otherIssue || 'Other') : issue, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: card.health ?? null })
+              const cr         = (card.costRows || {})[issue] || {}
+              const issueLabel = issue === 'Other' ? (card.otherIssue || 'Other') : issue
+              rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: card.health ?? null })
             })
           }
         })
@@ -344,8 +345,20 @@ export default function InspectionMode() {
       console.log('[EndInspection] indoorRows:', indoorRows.length, indoorRows)
       console.log('[EndInspection] appliancesRows:', appliancesRows.length, appliancesRows)
 
-      // ── Step 4: insert with full error visibility ──
-      const allRows = [...outdoorRows, ...indoorRows, ...appliancesRows]
+      // ── Step 4: sanitize + insert with full error visibility ──
+      const sanitize = (item) => ({
+        inspection_id:   item.inspection_id,
+        section_name:    item.section_name    || '',
+        area:            item.area            || '',
+        item_name:       item.item_name       || '',
+        item_score:      item.item_score      ?? null,
+        issue_description: item.issue_description || '',
+        trade:           item.trade           || '',
+        material_cost:   Number(item.material_cost || 0),
+        labour_cost:     Number(item.labour_cost   || 0),
+        notes:           item.notes           || '',
+      })
+      const allRows = [...outdoorRows, ...indoorRows, ...appliancesRows].map(sanitize)
       console.log('[EndInspection] total rows to insert:', allRows.length, allRows[0])
       if (allRows.length > 0) {
         const { data: insertedRows, error: insertErr } = await supabase

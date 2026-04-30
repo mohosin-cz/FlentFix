@@ -289,7 +289,7 @@ function LabourRateDropdown({ rates, value, labourCost, onSelect }) {
       <SearchableDropdown
         options={options}
         value={value}
-        onChange={id => { const r = rates.find(x => x.id === id); onSelect(id, r ? String(r.cost_per_unit) : '') }}
+        onChange={id => { const r = rates.find(x => x.id === id); onSelect(id, r ? String(r.cost_per_unit) : '', r?.work_type || '') }}
         placeholder="Select service…"
       />
     </Field>
@@ -321,7 +321,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate }) {
 
       {costRow.action === 'Repair' && (
         <>
-          <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }} />
+          <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={(id, cost, desc) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost); onUpdate('labourDescription', desc) }} />
           <Field label="Labour ₹">
             <Input value={costRow.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" />
           </Field>
@@ -334,7 +334,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate }) {
             <Field label="Material ₹"><Input value={costRow.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" /></Field>
             <Field label="Labour ₹"><Input value={costRow.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" /></Field>
           </div>
-          <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }} />
+          <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={(id, cost, desc) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost); onUpdate('labourDescription', desc) }} />
         </>
       )}
 
@@ -554,8 +554,9 @@ export function flattenOutdoorDraftToRows(draft, inspectionId) {
         rows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: item.health ?? 10 })
       } else {
         sel.forEach(issue => {
-          const cr = (item.costRows || {})[issue] || {}
-          rows.push({ ...base, issue_description: issue === 'Other' ? (item.otherIssue || 'Other') : issue, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: item.health ?? null })
+          const cr         = (item.costRows || {})[issue] || {}
+          const issueLabel = issue === 'Other' ? (item.otherIssue || 'Other') : issue
+          rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: item.health ?? null })
         })
       }
     })
@@ -685,7 +686,7 @@ export default function InspectionOutdoor() {
           selIssues.forEach((issue, ri) => {
             const cr = (item.costRows || {})[issue] || {}
             const issueLabel = issue === 'Other' ? (item.otherIssue || 'Other') : issue
-            lineItemRows.push({ ...base, issue_description: issueLabel, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: item.health ?? null, availability_status: null })
+            lineItemRows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: item.health ?? null, availability_status: null })
             mediaArrays.push(ri === 0 ? mediaFiles : [])
           })
         }
