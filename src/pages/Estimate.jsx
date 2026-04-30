@@ -454,6 +454,7 @@ export default function Estimate() {
   const [editedItems, setEditedItems] = useState({})
   const [estimateNotes, setEstimateNotes] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [quickNote, setQuickNote] = useState(null)
 
   useEffect(() => {
     const prev = document.body.style.background
@@ -489,6 +490,12 @@ export default function Estimate() {
         setLoading(false)
       })
   }, [id])
+
+  useEffect(() => {
+    if (!inspection?.pid) return
+    supabase.from('quick_notes').select('note, updated_at').eq('pid', inspection.pid).maybeSingle()
+      .then(({ data }) => setQuickNote(data || null))
+  }, [inspection?.pid])
 
   function startEdit() {
     const initial = {}
@@ -738,10 +745,19 @@ export default function Estimate() {
 
         {/* ── ITEMISED SECTIONS ── */}
         {sectionList.map(([name, rows]) => {
-          const sc   = sectionScores[name]
-          const b    = band(sc)
-          const c    = BAND[b]
-          const tot  = secTotal(rows)
+          const sc  = sectionScores[name]
+          const b   = band(sc)
+          const c   = BAND[b]
+          const tot = secTotal(rows)
+
+          // Group by area + item_name
+          const groupMap = {}
+          rows.forEach(item => {
+            const key = `${item.area || ''}||${item.item_name || item.issue_description || ''}`
+            if (!groupMap[key]) groupMap[key] = { area: item.area || '', item_name: item.item_name || '', items: [] }
+            groupMap[key].items.push(item)
+          })
+          const groups = Object.values(groupMap)
 
           return (
             <div key={name} className="er-trade-section">
@@ -752,83 +768,105 @@ export default function Estimate() {
                   {sc != null && (
                     <span className="er-score-dot">
                       <span style={{ width: 7, height: 7, borderRadius: '50%', background: c.dot, display: 'inline-block' }} />
-                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: c.text }}>{sc}/100 · {c.label}</span>
+                      <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: c.text }}>{sc}/100 · {c.label}</span>
                     </span>
                   )}
                   <span className="er-trade-head-total">₹{fmt(tot)}</span>
                 </div>
               </div>
 
-              {rows.map((item, idx) => {
-                const isNA      = item.availability_status === 'not_available'
-                const edited    = editedItems[item.id]
-
-                if (isEditing) {
-                  const mc = parseFloat(edited?.material_cost ?? item.material_cost) || 0
-                  const lc = parseFloat(edited?.labour_cost   ?? item.labour_cost)   || 0
-                  return (
-                    <div key={item.id || idx} className="er-item">
-                      <div className="er-item-row1" style={{ flexWrap: 'wrap', gap: 6 }}>
-                        <span className="er-item-num">{String(idx + 1).padStart(2, '0')}</span>
-                        {item.area && <span className="er-item-area">{item.area}</span>}
-                        <input
-                          value={edited?.issue_description ?? item.issue_description ?? ''}
-                          onChange={e => setEditedItems(p => ({ ...p, [item.id]: { ...p[item.id], issue_description: e.target.value } }))}
-                          style={{ flex: 1, minWidth: 120, fontSize: 13, padding: '4px 8px', border: '1px solid #D4CFC6', borderRadius: 3, fontFamily: 'Source Sans 3, sans-serif', background: '#FAFAF8', color: '#1E1E1E' }}
-                        />
-                        <span className="er-item-total">₹{fmt(mc + lc)}</span>
-                      </div>
-                      {!isNA && (
-                        <div className="er-item-row2" style={{ gap: 12 }}>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#5C5C5C', fontFamily: 'Source Sans 3, sans-serif' }}>
-                            Material ₹
-                            <input type="number" value={edited?.material_cost ?? item.material_cost ?? 0} onChange={e => setEditedItems(p => ({ ...p, [item.id]: { ...p[item.id], material_cost: e.target.value } }))} style={{ width: 80, fontSize: 12, padding: '3px 6px', border: '1px solid #D4CFC6', borderRadius: 3 }} />
-                          </label>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#5C5C5C', fontFamily: 'Source Sans 3, sans-serif' }}>
-                            Labour ₹
-                            <input type="number" value={edited?.labour_cost ?? item.labour_cost ?? 0} onChange={e => setEditedItems(p => ({ ...p, [item.id]: { ...p[item.id], labour_cost: e.target.value } }))} style={{ width: 80, fontSize: 12, padding: '3px 6px', border: '1px solid #D4CFC6', borderRadius: 3 }} />
-                          </label>
-                        </div>
-                      )}
-                    </div>
-                  )
-                }
-
-                const itemMat   = item.material_cost || 0
-                const itemLab   = item.labour_cost   || 0
-                const itemTotal = itemMat + itemLab
-                const fixType   = item.issue_description?.match(/^(Install|Replace|Repair)/i)?.[1] ?? null
+              {groups.map((group, gi) => {
+                const groupTotal = group.items.reduce((s, r) => s + (r.material_cost || 0) + (r.labour_cost || 0), 0)
+                const rawScore   = group.items.find(r => r.item_score != null)?.item_score ?? null
+                const dispScore  = rawScore != null ? rawScore * 10 : null
+                const gb = band(dispScore)
+                const gc = BAND[gb]
 
                 return (
-                  <div key={item.id || idx} className="er-item">
-                    <div className="er-item-row1">
-                      <span className="er-item-num">{String(idx + 1).padStart(2, '0')}</span>
-                      {item.area && <span className="er-item-area">{item.area}</span>}
-                      <span className="er-item-desc">{item.issue_description || '—'}</span>
-                      {!isNA && itemTotal > 0 && (
-                        <span className="er-item-total">₹{fmt(itemTotal)}</span>
+                  <div key={gi} style={{ borderBottom: gi < groups.length - 1 ? '1px solid #D4CFC6' : 'none', paddingBottom: 16, marginBottom: gi < groups.length - 1 ? 16 : 0, paddingTop: gi === 0 ? 0 : 0 }}>
+                    {/* Item group header */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 8, borderBottom: '1px solid #EEECE8', marginBottom: 6 }}>
+                      {group.area && <span className="er-item-area">{group.area}</span>}
+                      <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 14, fontWeight: 600, color: '#1E1E1E', flex: 1 }}>{group.item_name || '—'}</span>
+                      {dispScore != null && (
+                        <span className="er-score-dot">
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: gc.dot, display: 'inline-block' }} />
+                          <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: gc.text }}>{dispScore}/100</span>
+                        </span>
+                      )}
+                      {groupTotal > 0 && (
+                        <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 14, fontWeight: 600, color: '#1C1C1C', whiteSpace: 'nowrap' }}>₹{fmt(groupTotal)}</span>
                       )}
                     </div>
-                    {!isNA && (
-                      <div className="er-item-row2">
-                        {fixType && <span className="er-fix-type">{fixType}</span>}
-                        {fixType && (itemMat > 0 || itemLab > 0) && <span style={{ color: '#ddd' }}>·</span>}
-                        {itemMat > 0 && <span className="er-cost-detail">Material: ₹{fmt(itemMat)}</span>}
-                        {itemMat > 0 && itemLab > 0 && <span style={{ color: '#ddd' }}>·</span>}
-                        {itemLab > 0 && <span className="er-cost-detail">Labour: ₹{fmt(itemLab)}</span>}
-                      </div>
-                    )}
-                    {item.line_item_media?.filter(m => m.type === 'image').length > 0 && (
-                      <div style={{ paddingLeft: 28, marginTop: 10 }}>
-                        <div style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', marginBottom: 6 }}>Photos</div>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          {item.line_item_media.filter(m => m.type === 'image').map((m, mi) => (
-                            <a key={mi} href={m.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', flexShrink: 0 }}>
-                              <img src={m.url} alt={m.caption || ''} style={{ height: 80, width: 'auto', maxWidth: 120, objectFit: 'cover', borderRadius: 4, border: '1px solid #D4CFC6', display: 'block', cursor: 'pointer' }} />
-                            </a>
-                          ))}
-                        </div>
-                      </div>
+
+                    {/* Issue rows within the group */}
+                    {isEditing ? (
+                      group.items.map((item, iIdx) => {
+                        const edited = editedItems[item.id]
+                        const mc = parseFloat(edited?.material_cost ?? item.material_cost) || 0
+                        const lc = parseFloat(edited?.labour_cost   ?? item.labour_cost)   || 0
+                        return (
+                          <div key={item.id || iIdx} style={{ paddingLeft: 12, paddingTop: 6, paddingBottom: 6, borderBottom: iIdx < group.items.length - 1 ? '1px solid #EEECE8' : 'none' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+                              <input
+                                value={edited?.issue_description ?? item.issue_description ?? ''}
+                                onChange={e => setEditedItems(p => ({ ...p, [item.id]: { ...p[item.id], issue_description: e.target.value } }))}
+                                style={{ flex: 1, minWidth: 120, fontSize: 13, padding: '4px 8px', border: '1px solid #D4CFC6', borderRadius: 3, fontFamily: 'Source Sans 3, sans-serif', background: '#FAFAF8', color: '#1E1E1E' }}
+                              />
+                              <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 13, fontWeight: 600, color: '#1C1C1C' }}>₹{fmt(mc + lc)}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#5C5C5C', fontFamily: 'Source Sans 3, sans-serif' }}>
+                                Material ₹
+                                <input type="number" value={edited?.material_cost ?? item.material_cost ?? 0} onChange={e => setEditedItems(p => ({ ...p, [item.id]: { ...p[item.id], material_cost: e.target.value } }))} style={{ width: 80, fontSize: 12, padding: '3px 6px', border: '1px solid #D4CFC6', borderRadius: 3 }} />
+                              </label>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#5C5C5C', fontFamily: 'Source Sans 3, sans-serif' }}>
+                                Labour ₹
+                                <input type="number" value={edited?.labour_cost ?? item.labour_cost ?? 0} onChange={e => setEditedItems(p => ({ ...p, [item.id]: { ...p[item.id], labour_cost: e.target.value } }))} style={{ width: 80, fontSize: 12, padding: '3px 6px', border: '1px solid #D4CFC6', borderRadius: 3 }} />
+                              </label>
+                            </div>
+                          </div>
+                        )
+                      })
+                    ) : (
+                      group.items.map((item, iIdx) => {
+                        const isNA    = item.availability_status === 'not_available'
+                        const itemMat = item.material_cost || 0
+                        const itemLab = item.labour_cost   || 0
+                        const itemTot = itemMat + itemLab
+                        return (
+                          <div key={item.id || iIdx} style={{ paddingLeft: 12, paddingTop: 6, paddingBottom: 6, borderBottom: iIdx < group.items.length - 1 ? '1px solid #EEECE8' : 'none' }}>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                              <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: '#aaa', flexShrink: 0, minWidth: 18 }}>{String(iIdx + 1).padStart(2, '0')}</span>
+                              <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 13, color: isNA ? '#888' : '#1E1E1E', flex: 1, lineHeight: 1.6, fontStyle: isNA ? 'italic' : 'normal' }}>
+                                {item.issue_description || '—'}
+                              </span>
+                              {!isNA && itemTot > 0 && (
+                                <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 13, fontWeight: 600, color: '#1C1C1C', whiteSpace: 'nowrap' }}>₹{fmt(itemTot)}</span>
+                              )}
+                            </div>
+                            {!isNA && (itemMat > 0 || itemLab > 0) && (
+                              <div style={{ paddingLeft: 26, display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
+                                {itemMat > 0 && <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: '#5C5C5C' }}>Material: ₹{fmt(itemMat)}</span>}
+                                {itemMat > 0 && itemLab > 0 && <span style={{ color: '#ccc' }}>·</span>}
+                                {itemLab > 0 && <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: '#5C5C5C' }}>Labour: ₹{fmt(itemLab)}</span>}
+                              </div>
+                            )}
+                            {item.line_item_media?.filter(m => m.type === 'image').length > 0 && (
+                              <div style={{ paddingLeft: 26, marginTop: 8 }}>
+                                <div style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', marginBottom: 6 }}>Photos</div>
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                  {item.line_item_media.filter(m => m.type === 'image').map((m, mi) => (
+                                    <a key={mi} href={m.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', flexShrink: 0 }}>
+                                      <img src={m.url} alt={m.caption || ''} style={{ height: 80, width: 'auto', maxWidth: 120, objectFit: 'cover', borderRadius: 4, border: '1px solid #D4CFC6', display: 'block', cursor: 'pointer' }} />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })
                     )}
                   </div>
                 )
@@ -859,6 +897,17 @@ export default function Estimate() {
           )}
         </div>
 
+        {/* ── QUICK NOTES ── */}
+        {quickNote?.note && (
+          <div style={{ margin: '0 48px 32px', padding: '14px 18px', borderLeft: '3px solid #c8963e', background: '#FFFBF4' }}>
+            <div style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#c8963e', marginBottom: 8 }}>Quick Notes</div>
+            <div style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 13, color: '#1E1E1E', whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{quickNote.note}</div>
+            {quickNote.updated_at && (
+              <div style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 10, color: '#999', marginTop: 6 }}>Last updated {fmtDate(quickNote.updated_at)}</div>
+            )}
+          </div>
+        )}
+
         {/* ── COST SUMMARY ── */}
         <div className="er-cost-block">
           <div className="er-cs-head">
@@ -886,7 +935,7 @@ export default function Estimate() {
             Costs estimated basis site inspection and prevailing Bangalore market rates. Final figures may vary subject to actual site conditions. This estimate is valid for 30 days from issue date. Work to commence only upon written approval from the property owner.
           </p>
           <a href="/inventory/public-rc" target="_blank" rel="noopener noreferrer" className="er-rate-link no-print" style={{ color: '#c8963e' }}>
-            View Rate Card →
+            View Flent Rate Card →
           </a>
           <div className="er-prepared">
             Prepared by Flent Operations · ops@flent.in · flent.in
