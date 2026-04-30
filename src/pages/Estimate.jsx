@@ -482,6 +482,7 @@ export default function Estimate() {
       .then(({ data, error: err }) => {
         if (err) setError(err.message)
         else {
+          console.log('Line items fetched:', data?.inspection_line_items?.length, data?.inspection_line_items?.[0])
           setInspection(data)
           setEstimateNotes(data?.notes || '')
         }

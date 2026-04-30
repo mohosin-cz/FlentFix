@@ -551,11 +551,11 @@ export function flattenOutdoorDraftToRows(draft, inspectionId) {
         return
       }
       if (sel.includes('Functional')) {
-        rows.push({ ...base, issue_description: 'Functional', action: 'Functional', material_cost: 0, labour_cost: 0, item_score: item.health ?? 10 })
+        rows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: item.health ?? 10 })
       } else {
         sel.forEach(issue => {
           const cr = (item.costRows || {})[issue] || {}
-          rows.push({ ...base, issue_description: issue === 'Other' ? (item.otherIssue || 'Other') : issue, action: cr.action || '', material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: item.health ?? null })
+          rows.push({ ...base, issue_description: issue === 'Other' ? (item.otherIssue || 'Other') : issue, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: item.health ?? null })
         })
       }
     })
@@ -679,13 +679,13 @@ export default function InspectionOutdoor() {
         }
 
         if (selIssues.includes('Functional')) {
-          lineItemRows.push({ ...base, issue_description: 'Functional', action: 'Functional', material_cost: 0, labour_cost: 0, item_score: item.health ?? 10, availability_status: null })
+          lineItemRows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: item.health ?? 10, availability_status: null })
           mediaArrays.push(mediaFiles)
         } else {
           selIssues.forEach((issue, ri) => {
             const cr = (item.costRows || {})[issue] || {}
             const issueLabel = issue === 'Other' ? (item.otherIssue || 'Other') : issue
-            lineItemRows.push({ ...base, issue_description: issueLabel, action: cr.action || '', material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: item.health ?? null, availability_status: null })
+            lineItemRows.push({ ...base, issue_description: issueLabel, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: item.health ?? null, availability_status: null })
             mediaArrays.push(ri === 0 ? mediaFiles : [])
           })
         }

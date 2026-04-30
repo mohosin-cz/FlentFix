@@ -97,7 +97,7 @@ function flattenIndoorDraftToRows(draft, inspectionId) {
           if (d.fullHome !== false) rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: 'Deep Cleaning - Full Home', trade: 'cleaning', issue_description: 'Full Home', material_cost: 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: null })
           ;(d.specificAreas || []).forEach(sa => {
             if (!sa.area) return
-            rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: `Deep Cleaning - ${sa.area}`, trade: 'cleaning', issue_description: sa.type || '', action: sa.notes || '', material_cost: 0, labour_cost: parseFloat(sa.cost) || 0, item_score: null })
+            rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: `Deep Cleaning - ${sa.area}`, trade: 'cleaning', issue_description: sa.type || '', material_cost: 0, labour_cost: parseFloat(sa.cost) || 0, item_score: null })
           })
         } else {
           const meta = BASICS[key]
@@ -124,11 +124,11 @@ function flattenIndoorDraftToRows(draft, inspectionId) {
             return
           }
           if (sel.includes('Functional')) {
-            rows.push({ ...base, issue_description: 'Functional', action: 'Functional', material_cost: 0, labour_cost: 0, item_score: card.health ?? 10 })
+            rows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: card.health ?? 10 })
           } else {
             sel.forEach(issue => {
               const cr = (card.costRows || {})[issue] || {}
-              rows.push({ ...base, issue_description: issue === 'Other' ? (card.otherIssue || 'Other') : issue, action: cr.action || '', material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: card.health ?? null })
+              rows.push({ ...base, issue_description: issue === 'Other' ? (card.otherIssue || 'Other') : issue, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: card.health ?? null })
             })
           }
         })
@@ -140,7 +140,7 @@ function flattenIndoorDraftToRows(draft, inspectionId) {
       if (!ciRows.length) {
         rows.push({ inspection_id: inspectionId, section_name: tabLabel, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null })
       } else {
-        ciRows.forEach(r => rows.push({ inspection_id: inspectionId, section_name: tabLabel, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: r.issueDescription || '', action: r.action || '', material_cost: parseFloat(r.materialCost) || 0, labour_cost: parseFloat(r.labourCost) || 0, item_score: ci.health ?? null }))
+        ciRows.forEach(r => rows.push({ inspection_id: inspectionId, section_name: tabLabel, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: r.issueDescription || '', material_cost: parseFloat(r.materialCost) || 0, labour_cost: parseFloat(r.labourCost) || 0, item_score: ci.health ?? null }))
       }
     })
   })

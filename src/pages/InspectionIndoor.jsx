@@ -1029,7 +1029,7 @@ export default function InspectionIndoor() {
             }
             ;(d.specificAreas || []).forEach(sa => {
               if (!sa.area) return
-              lineItemRows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: `Deep Cleaning - ${sa.area}`, trade: 'cleaning', issue_description: sa.type || '', action: sa.notes || '', material_cost: 0, labour_cost: parseFloat(sa.cost) || 0, item_score: null })
+              lineItemRows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: `Deep Cleaning - ${sa.area}`, trade: 'cleaning', issue_description: sa.type || '', material_cost: 0, labour_cost: parseFloat(sa.cost) || 0, item_score: null })
               mediaArrays.push([])
             })
           } else {
@@ -1064,13 +1064,13 @@ export default function InspectionIndoor() {
             }
 
             if (selIssues.includes('Functional')) {
-              lineItemRows.push({ ...base, issue_description: 'Functional', action: 'Functional', material_cost: 0, labour_cost: 0, item_score: card.health ?? 10, availability_status: null })
+              lineItemRows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: card.health ?? 10, availability_status: null })
               mediaArrays.push(mediaFiles)
             } else {
               selIssues.forEach((issue, ri) => {
                 const cr = (card.costRows || {})[issue] || {}
                 const issueLabel = issue === 'Other' ? (card.otherIssue || 'Other') : issue
-                lineItemRows.push({ ...base, issue_description: issueLabel, action: cr.action || '', material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: card.health ?? null, availability_status: null })
+                lineItemRows.push({ ...base, issue_description: issueLabel, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: card.health ?? null, availability_status: null })
                 mediaArrays.push(ri === 0 ? mediaFiles : [])
               })
             }
@@ -1086,7 +1086,7 @@ export default function InspectionIndoor() {
           mediaArrays.push(ciMedia)
         } else {
           ciIssues.forEach((row, ri) => {
-            lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: row.issueDescription || '', action: row.action || '', material_cost: parseFloat(row.materialCost) || 0, labour_cost: parseFloat(row.labourCost) || 0, item_score: ci.health ?? null })
+            lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: row.issueDescription || '', material_cost: parseFloat(row.materialCost) || 0, labour_cost: parseFloat(row.labourCost) || 0, item_score: ci.health ?? null })
             mediaArrays.push(ri === 0 ? ciMedia : [])
           })
         }
