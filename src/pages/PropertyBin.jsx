@@ -37,20 +37,11 @@ export default function PropertyBin() {
 
   useEffect(() => {
     supabase
-      .from('inspections')
-      .select('pid, house_type, inspection_date, status, deleted_at')
-      .not('deleted_at', 'is', null)
+      .from('properties_bin')
+      .select('pid, name, type, deleted_by, deleted_at, original_data')
       .order('deleted_at', { ascending: false })
       .then(({ data }) => {
-        // group by pid, keep latest deleted_at per pid
-        const grouped = []
-        const seen = new Set()
-        for (const r of (data || [])) {
-          if (!r.pid || seen.has(r.pid)) continue
-          seen.add(r.pid)
-          grouped.push(r)
-        }
-        setRows(grouped)
+        setRows(data || [])
         setLoading(false)
       })
   }, [])
@@ -58,10 +49,8 @@ export default function PropertyBin() {
   async function handleRestore() {
     if (!modal) return
     setWorking(true)
-    await supabase
-      .from('inspections')
-      .update({ deleted_at: null })
-      .eq('pid', modal.pid)
+    await supabase.from('properties').update({ deleted_at: null, deleted_by: null }).eq('pid', modal.pid)
+    await supabase.from('properties_bin').delete().eq('pid', modal.pid)
     setRows(prev => prev.filter(r => r.pid !== modal.pid))
     setWorking(false)
     setModal(null)
@@ -71,6 +60,8 @@ export default function PropertyBin() {
     if (!modal) return
     setWorking(true)
     await supabase.from('inspections').delete().eq('pid', modal.pid)
+    await supabase.from('properties').delete().eq('pid', modal.pid)
+    await supabase.from('properties_bin').delete().eq('pid', modal.pid)
     setRows(prev => prev.filter(r => r.pid !== modal.pid))
     setWorking(false)
     setModal(null)
@@ -120,9 +111,9 @@ export default function PropertyBin() {
             {rows.map(row => (
               <div key={row.pid} style={s.card}>
                 <div style={s.cardInfo}>
-                  <div style={s.pidText}>PID{row.pid}</div>
-                  {row.house_type && <span style={s.houseTypeBadge}>{row.house_type}</span>}
-                  <div style={s.dateLine}>deleted: {fmtDate(row.deleted_at)}</div>
+                  <div style={s.pidText}>PID {row.pid}</div>
+                  {(row.name || row.type) && <span style={s.houseTypeBadge}>{row.name || row.type}</span>}
+                  <div style={s.dateLine}>deleted: {fmtDate(row.deleted_at)}{row.deleted_by ? ` · ${row.deleted_by}` : ''}</div>
                 </div>
                 <div style={s.cardActions}>
                   <button

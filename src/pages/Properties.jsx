@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -62,6 +63,7 @@ function DeleteModal({ pid, onConfirm, onCancel, deleting }) {
 
 export default function Properties() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [rows, setRows]             = useState([])
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
@@ -74,42 +76,35 @@ export default function Properties() {
       supabase
         .from('properties')
         .select('pid, name, type, address, created_at')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false }),
       supabase
         .from('inspections')
-        .select('pid, house_type, inspection_date, status, config, deleted_at')
+        .select('pid, house_type, inspection_date, status, config')
         .order('created_at', { ascending: false }),
-    ]).then(([{ data: props }, { data: insp }]) => {
+      supabase.from('properties_bin').select('pid', { count: 'exact', head: true }),
+    ]).then(([{ data: props }, { data: insp }, { count: binCnt }]) => {
       const inspections = insp || []
       const properties  = props || []
 
-      // Build merged map: inspections first (fallback), then properties override
       const map = new Map()
       inspections.forEach(i => {
         if (!map.has(i.pid)) {
-          map.set(i.pid, {
-            pid:             i.pid,
-            house_type:      i.house_type,
-            inspection_date: i.inspection_date,
-            status:          i.status,
-            deleted_at:      i.deleted_at,
-          })
+          map.set(i.pid, { pid: i.pid, name: null, house_type: i.house_type, inspection_date: i.inspection_date, status: i.status })
         }
       })
       properties.forEach(p => {
         map.set(p.pid, {
           pid:             p.pid,
+          name:            p.name,
           house_type:      p.type || map.get(p.pid)?.house_type,
           inspection_date: map.get(p.pid)?.inspection_date,
           status:          map.get(p.pid)?.status,
-          deleted_at:      null,
         })
       })
 
-      const all = [...map.values()]
-      setRows(all.filter(r => !r.deleted_at))
-      const binPids = new Set(inspections.filter(r => r.deleted_at).map(r => r.pid))
-      setBinCount(binPids.size)
+      setRows([...map.values()])
+      setBinCount(binCnt || 0)
       setLoading(false)
     })
   }, [])
@@ -129,10 +124,20 @@ export default function Properties() {
   async function handleSoftDelete() {
     if (!confirmPid) return
     setDeleting(true)
-    await supabase
-      .from('inspections')
-      .update({ deleted_at: new Date().toISOString() })
+    const prop = rows.find(r => r.pid === confirmPid)
+    const deletedBy = user?.email || 'admin'
+    const { error } = await supabase
+      .from('properties')
+      .update({ deleted_at: new Date().toISOString(), deleted_by: deletedBy })
       .eq('pid', confirmPid)
+    if (error) { alert('Delete failed: ' + error.message); setDeleting(false); return }
+    await supabase.from('properties_bin').insert({
+      pid:           confirmPid,
+      name:          prop?.name || confirmPid,
+      type:          prop?.house_type,
+      deleted_by:    deletedBy,
+      original_data: prop,
+    })
     setRows(prev => prev.filter(r => r.pid !== confirmPid))
     setBinCount(c => c + 1)
     setDeleting(false)
@@ -172,20 +177,24 @@ export default function Properties() {
       </header>
 
       {/* Search */}
-      <div style={s.searchWrap}>
-        <div style={s.searchInner}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, color: 'var(--text-muted, #6b6d82)' }}>
-            <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.4"/>
-            <path d="M9.5 9.5l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-          </svg>
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 20px', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
+        <div style={{ position: 'relative', width: '100%', maxWidth: 340 }}>
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #6b6d82)', pointerEvents: 'none', display: 'flex' }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M9.5 9.5l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+            </svg>
+          </span>
           <input
-            style={s.searchInput}
             type="text"
             placeholder="search by pid…"
             value={search}
             onChange={e => setSearch(e.target.value)}
+            style={{ width: '100%', padding: '9px 32px 9px 34px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 100, color: 'var(--text, #e8e8f0)', fontSize: 13, fontFamily: 'var(--font-mono, monospace)', outline: 'none', boxSizing: 'border-box' }}
           />
-          {search && <button style={s.clearBtn} onClick={() => setSearch('')}>×</button>}
+          {search && (
+            <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 16, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
+          )}
         </div>
       </div>
 
