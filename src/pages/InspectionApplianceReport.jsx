@@ -9,6 +9,53 @@ function fmtDate(str) {
 
 function fmt(n) { return (n || 0).toLocaleString('en-IN') }
 
+function ApplianceBackground() {
+  return (
+    <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0, opacity: 0.03 }}>
+      <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern id="appliance-grid" x="0" y="0" width="160" height="160" patternUnits="userSpaceOnUse">
+            {/* Washing Machine */}
+            <g transform="translate(10,10)">
+              <rect x="0" y="0" width="44" height="48" rx="3" fill="none" stroke="#2a2a2e" strokeWidth="2"/>
+              <rect x="4" y="4" width="36" height="10" rx="1" fill="none" stroke="#2a2a2e" strokeWidth="1.2"/>
+              <circle cx="22" cy="33" r="11" fill="none" stroke="#2a2a2e" strokeWidth="1.5"/>
+              <circle cx="22" cy="33" r="6" fill="none" stroke="#2a2a2e" strokeWidth="1"/>
+              <circle cx="8" cy="8" r="2" fill="#2a2a2e"/>
+              <circle cx="14" cy="8" r="1.5" fill="#2a2a2e"/>
+            </g>
+            {/* Refrigerator */}
+            <g transform="translate(90,5)">
+              <rect x="0" y="0" width="38" height="56" rx="3" fill="none" stroke="#2a2a2e" strokeWidth="2"/>
+              <line x1="0" y1="20" x2="38" y2="20" stroke="#2a2a2e" strokeWidth="1.5"/>
+              <rect x="4" y="8" width="4" height="8" rx="1" fill="#2a2a2e"/>
+              <rect x="4" y="26" width="4" height="12" rx="1" fill="#2a2a2e"/>
+            </g>
+            {/* AC Unit */}
+            <g transform="translate(8,90)">
+              <rect x="0" y="0" width="52" height="26" rx="4" fill="none" stroke="#2a2a2e" strokeWidth="2"/>
+              <line x1="6" y1="10" x2="46" y2="10" stroke="#2a2a2e" strokeWidth="1.2"/>
+              <line x1="6" y1="15" x2="46" y2="15" stroke="#2a2a2e" strokeWidth="1.2"/>
+              <line x1="6" y1="20" x2="46" y2="20" stroke="#2a2a2e" strokeWidth="1.2"/>
+              <circle cx="44" cy="6" r="2" fill="#2a2a2e"/>
+              <circle cx="38" cy="6" r="2" fill="#2a2a2e"/>
+            </g>
+            {/* Geyser */}
+            <g transform="translate(100,85)">
+              <rect x="8" y="0" width="24" height="36" rx="12" fill="none" stroke="#2a2a2e" strokeWidth="2"/>
+              <line x1="20" y1="36" x2="20" y2="46" stroke="#2a2a2e" strokeWidth="1.5"/>
+              <line x1="14" y1="36" x2="14" y2="44" stroke="#2a2a2e" strokeWidth="1.5"/>
+              <line x1="20" y1="0" x2="20" y2="-6" stroke="#2a2a2e" strokeWidth="1.5"/>
+              <circle cx="20" cy="18" r="6" fill="none" stroke="#2a2a2e" strokeWidth="1.2"/>
+            </g>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#appliance-grid)"/>
+      </svg>
+    </div>
+  )
+}
+
 function healthBand(score) {
   if (score == null) return { color: '#9898a4', label: 'N/A' }
   if (score >= 7) return { color: '#4a7a52', label: 'Good' }
@@ -127,7 +174,9 @@ export default function InspectionApplianceReport() {
   const grandTotal    = totalMaterial + totalLabour
 
   return (
-    <div className="ar-page" style={{ minHeight: '100dvh', background: '#f5f5f6', fontFamily: 'system-ui, -apple-system, sans-serif', color: '#2a2a2e', paddingBottom: 80 }}>
+    <div style={{ position: 'relative', minHeight: '100dvh', background: '#f5f5f6' }}>
+      <ApplianceBackground />
+      <div className="ar-page" style={{ position: 'relative', zIndex: 1, fontFamily: 'system-ui, -apple-system, sans-serif', color: '#2a2a2e', paddingBottom: 80 }}>
       <style dangerouslySetInnerHTML={{ __html: PRINT_CSS }} />
 
       {/* ── TOP BAR ── */}
@@ -326,6 +375,7 @@ export default function InspectionApplianceReport() {
           </div>
         )}
 
+      </div>
       </div>
     </div>
   )
