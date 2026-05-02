@@ -82,17 +82,20 @@ export default function Properties() {
         .from('inspections')
         .select('pid, house_type, inspection_date, status, config')
         .order('created_at', { ascending: false }),
-      supabase.from('properties_bin').select('pid', { count: 'exact', head: true }),
-    ]).then(([{ data: props }, { data: insp }, { count: binCnt }]) => {
+      supabase.from('properties_bin').select('pid'),
+    ]).then(([{ data: props }, { data: insp }, { data: binRows }]) => {
       const inspections = insp || []
       const properties  = props || []
+      const deletedPids = new Set((binRows || []).map(r => r.pid))
 
       const map = new Map()
-      inspections.forEach(i => {
-        if (!map.has(i.pid)) {
-          map.set(i.pid, { pid: i.pid, name: null, house_type: i.house_type, inspection_date: i.inspection_date, status: i.status })
-        }
-      })
+      inspections
+        .filter(i => !deletedPids.has(i.pid))
+        .forEach(i => {
+          if (!map.has(i.pid)) {
+            map.set(i.pid, { pid: i.pid, name: null, house_type: i.house_type, inspection_date: i.inspection_date, status: i.status })
+          }
+        })
       properties.forEach(p => {
         map.set(p.pid, {
           pid:             p.pid,
@@ -104,7 +107,7 @@ export default function Properties() {
       })
 
       setRows([...map.values()])
-      setBinCount(binCnt || 0)
+      setBinCount(binRows?.length || 0)
       setLoading(false)
     })
   }, [])
