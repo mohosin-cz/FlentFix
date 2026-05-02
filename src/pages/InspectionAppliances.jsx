@@ -420,7 +420,7 @@ export default function InspectionAppliances() {
     APPLIANCES.forEach(({ name, trade, components }) => {
       const appData  = data[name] || blankAppliance()
       if (appData.notPresent) return
-      const mediaFiles = Array.isArray(appData.media) ? appData.media.filter(f => f instanceof File) : []
+      const mediaFiles = Array.isArray(appData.media) ? appData.media.filter(f => typeof f === 'string' && f.startsWith('http')) : []
       const comps    = appData.components || {}
       const customC  = appData.customComponents || []
       let firstMedia = true
@@ -444,7 +444,7 @@ export default function InspectionAppliances() {
     customAppliances.forEach(ca => {
       const name = ca.customName || 'Custom Appliance'
       if (ca.notPresent) return
-      const mediaFiles = Array.isArray(ca.media) ? ca.media.filter(f => f instanceof File) : []
+      const mediaFiles = Array.isArray(ca.media) ? ca.media.filter(f => typeof f === 'string' && f.startsWith('http')) : []
       let firstMedia = true
       ;(ca.customComponents || []).forEach(cc => {
         if (!cc.status || !cc.name) return
@@ -464,10 +464,13 @@ export default function InspectionAppliances() {
     if (lineItemRows.length) {
       const { data: inserted, error: liErr } = await supabase.from('inspection_line_items').insert(lineItemRows).select('id')
       if (liErr) { setSaveError(liErr.message); setIsSaving(false); return }
+      const mediaInserts = []
       for (let i = 0; i < inserted.length; i++) {
-        const files = mediaArrays[i] || []
-        if (files.length) await uploadMediaFiles(inspectionId, inserted[i].id, files)
+        for (const url of (mediaArrays[i] || [])) {
+          mediaInserts.push({ line_item_id: inserted[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image' })
+        }
       }
+      if (mediaInserts.length) await supabase.from('line_item_media').insert(mediaInserts)
     }
 
     localStorage.removeItem(`flentfix_appliances_draft_${pid}`)

@@ -1046,7 +1046,7 @@ export default function InspectionIndoor() {
         GENERAL_ITEMS.forEach(gItem => {
           const d = data.basics?.[gItem.key]
           if (!d?.enabled) return
-          const mediaFiles = Array.isArray(d.media) ? d.media.filter(f => f instanceof File) : []
+          const mediaFiles = Array.isArray(d.media) ? d.media.filter(f => typeof f === 'string' && f.startsWith('http')) : []
 
           if (gItem.key === 'deepCleaning') {
             if (d.fullHome !== false) {
@@ -1072,7 +1072,7 @@ export default function InspectionIndoor() {
           cards.forEach((card, ci) => {
             const selIssues  = card.selectedIssues || []
             const suffix     = cards.length > 1 ? ` (${ci + 1})` : ''
-            const mediaFiles = Array.isArray(card.media) ? card.media.filter(f => f instanceof File) : []
+            const mediaFiles = Array.isArray(card.media) ? card.media.filter(f => typeof f === 'string' && f.startsWith('http')) : []
             const base       = { inspection_id: inspectionId, section_name: tab.label, area: sec.label, item_name: itemConfig.label + suffix, trade: itemConfig.trade }
 
             if (itemConfig.key === 'acPoint' && (card.acProvision || 'present') === 'not_present') {
@@ -1105,7 +1105,7 @@ export default function InspectionIndoor() {
       })
       getCI(tab.id).forEach(ci => {
         if (!ci.name) return
-        const ciMedia = Array.isArray(ci.media) ? ci.media.filter(f => f instanceof File) : []
+        const ciMedia = Array.isArray(ci.media) ? ci.media.filter(f => typeof f === 'string' && f.startsWith('http')) : []
         const ciIssues = ci.issues || []
         if (ciIssues.length === 0) {
           lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null })
@@ -1122,10 +1122,13 @@ export default function InspectionIndoor() {
     if (lineItemRows.length) {
       const { data: inserted, error: liErr } = await supabase.from('inspection_line_items').insert(lineItemRows).select('id')
       if (liErr) { setEstimateError(liErr.message); setIsEstimating(false); return }
+      const mediaInserts = []
       for (let i = 0; i < inserted.length; i++) {
-        const files = mediaArrays[i] || []
-        if (files.length) await uploadMediaFiles(inspectionId, inserted[i].id, files)
+        for (const url of (mediaArrays[i] || [])) {
+          mediaInserts.push({ line_item_id: inserted[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image' })
+        }
       }
+      if (mediaInserts.length) await supabase.from('line_item_media').insert(mediaInserts)
     }
 
     localStorage.removeItem(`flentfix_indoor_draft_${pid}`)

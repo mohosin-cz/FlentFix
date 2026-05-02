@@ -696,7 +696,7 @@ export default function InspectionOutdoor() {
         if (!item) return
         const selIssues = item.selectedIssues || []
         if (!item.notAvailable && selIssues.length === 0) return
-        const mediaFiles = Array.isArray(item.media) ? item.media.filter(f => f instanceof File) : []
+        const mediaFiles = Array.isArray(item.media) ? item.media.filter(f => typeof f === 'string' && f.startsWith('http')) : []
         const base = { inspection_id: inspectionId, section_name: sectionName, area: title, item_name: title, trade }
 
         if (item.notAvailable) {
@@ -720,7 +720,7 @@ export default function InspectionOutdoor() {
 
       getCI(sectionKey).forEach(ci => {
         if (!ci.name) return
-        const ciMedia = Array.isArray(ci.media) ? ci.media.filter(f => f instanceof File) : []
+        const ciMedia = Array.isArray(ci.media) ? ci.media.filter(f => typeof f === 'string' && f.startsWith('http')) : []
         const ciIssues = ci.issues || []
         if (ciIssues.length === 0) {
           lineItemRows.push({ inspection_id: inspectionId, section_name: sectionName, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null })
@@ -737,10 +737,13 @@ export default function InspectionOutdoor() {
     if (lineItemRows.length) {
       const { data: inserted, error: liErr } = await supabase.from('inspection_line_items').insert(lineItemRows).select('id')
       if (liErr) { setEstimateError(liErr.message); setIsEstimating(false); return }
+      const mediaInserts = []
       for (let i = 0; i < inserted.length; i++) {
-        const files = mediaArrays[i] || []
-        if (files.length) await uploadMediaFiles(inspectionId, inserted[i].id, files)
+        for (const url of (mediaArrays[i] || [])) {
+          mediaInserts.push({ line_item_id: inserted[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image' })
+        }
       }
+      if (mediaInserts.length) await supabase.from('line_item_media').insert(mediaInserts)
     }
 
     localStorage.removeItem(`flentfix_outdoor_draft_${pid}`)
