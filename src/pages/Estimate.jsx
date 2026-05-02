@@ -611,13 +611,28 @@ export default function Estimate() {
 
   const shareUrl = `${window.location.origin}/estimate/${id}`
 
+  async function handleCopyLink() {
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(shareUrl)
+        setCopied(true); setTimeout(() => setCopied(false), 2000)
+        return
+      } catch (_) {}
+    }
+    const ta = document.createElement('textarea')
+    ta.value = shareUrl
+    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0'
+    document.body.appendChild(ta)
+    ta.focus(); ta.select()
+    try { document.execCommand('copy'); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch (e) { console.error('Copy failed:', e) }
+    document.body.removeChild(ta)
+  }
+
   function handleShare() {
     if (navigator.share) {
       navigator.share({ title: `Flent Estimate — PID ${pid}`, text: `View estimate for property ${pid}`, url: shareUrl })
     } else {
-      navigator.clipboard.writeText(shareUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      handleCopyLink()
     }
   }
 
@@ -650,8 +665,8 @@ export default function Estimate() {
       <div className="er-share-bar no-print" style={{ maxWidth: 760, margin: '10px auto 0', padding: '0 48px' }}>
         <div style={{ background: '#f8f6f1', border: '1px solid #e8e0d0', borderRadius: 6, padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: '#999' }}>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 12 }}>🔗 {shareUrl}</span>
-          <button onClick={handleShare} style={{ color: '#c8963e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
-            {copied ? 'Copied!' : 'Copy link'}
+          <button onClick={handleCopyLink} style={{ color: copied ? '#22c55e' : '#c8963e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0, fontWeight: copied ? 600 : 400, transition: 'color 0.2s' }}>
+            {copied ? '✓ Copied!' : 'Copy link'}
           </button>
         </div>
       </div>
