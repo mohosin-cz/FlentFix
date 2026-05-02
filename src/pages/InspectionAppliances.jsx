@@ -53,29 +53,54 @@ function deepMerge(base, override) {
 // ── Thumb ─────────────────────────────────────────────────────────────────────
 function Thumb({ file }) {
   const [url, setUrl] = useState(null)
-  useEffect(() => { const u = URL.createObjectURL(file); setUrl(u); return () => URL.revokeObjectURL(u) }, [file])
+  useEffect(() => {
+    if (typeof file === 'string') { setUrl(file); return }
+    const u = URL.createObjectURL(file); setUrl(u); return () => URL.revokeObjectURL(u)
+  }, [file])
   if (!url) return null
-  if (file.type.startsWith('video')) return <video src={url} muted playsInline style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} />
-  return <img src={url} alt="" style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} />
+  const isVideo = typeof file === 'string' ? /\.(mp4|mov|webm)$/i.test(url) : file.type?.startsWith('video')
+  if (isVideo) return <video src={url} muted playsInline style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} />
+  return <img src={url} alt="" style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} onError={e => { e.target.style.display = 'none' }} />
 }
 
 // ── MediaUpload ───────────────────────────────────────────────────────────────
 const SHEET_BTN = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, width: '100%', padding: '12px 18px', border: '1px solid var(--border, #2e3040)', borderRadius: 8, background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }
 
-function MediaUpload({ files = [], onChange, label = 'Attach Photos / Videos' }) {
+function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photos / Videos' }) {
   const cameraRef  = useRef(null)
   const galleryRef = useRef(null)
-  const [sheet, setSheet] = useState(false)
-  function handleFiles(e) { const added = Array.from(e.target.files || []); if (added.length) onChange([...files, ...added]); e.target.value = ''; setSheet(false) }
+  const [sheet, setSheet]       = useState(false)
+  const [uploading, setUploading] = useState(false)
+
+  async function handleFiles(e) {
+    const selected = Array.from(e.target.files || [])
+    if (!selected.length) return
+    e.target.value = ''; setSheet(false)
+    if (!pid) { onChange([...files, ...selected]); return }
+    setUploading(true)
+    const newUrls = []
+    for (const file of selected) {
+      const ext = file.name.split('.').pop() || 'jpg'
+      const safe = (itemKey || 'item').replace(/[^a-zA-Z0-9]/g, '_')
+      const path = `${pid}/${safe}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const { data: up, error } = await supabase.storage.from('inspection-media').upload(path, file, { upsert: true })
+      if (error) { console.error('Media upload error:', error); continue }
+      const { data: { publicUrl } } = supabase.storage.from('inspection-media').getPublicUrl(up.path)
+      newUrls.push(publicUrl)
+    }
+    setUploading(false)
+    if (newUrls.length) onChange([...files, ...newUrls])
+  }
+
   function remove(idx) { onChange(files.filter((_, i) => i !== idx)) }
   return (
     <div>
       <input ref={cameraRef}  type="file" accept="image/*,video/*" capture="environment" style={{ display: 'none' }} onChange={handleFiles} />
       <input ref={galleryRef} type="file" accept="image/*,video/*" multiple            style={{ display: 'none' }} onChange={handleFiles} />
-      <button type="button" onClick={() => setSheet(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', border: `1px dashed ${files.length ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)'}`, borderRadius: 6, background: files.length ? 'rgba(61,186,122,0.08)' : 'var(--bg-input, #252731)', fontSize: 13, fontWeight: 500, color: files.length ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'inherit' }}>
+      <button type="button" onClick={() => !uploading && setSheet(true)} disabled={uploading} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', border: `1px dashed ${uploading ? 'var(--accent, #c8963e)' : files.length ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)'}`, borderRadius: 6, background: uploading ? 'rgba(200,150,62,0.08)' : files.length ? 'rgba(61,186,122,0.08)' : 'var(--bg-input, #252731)', fontSize: 13, fontWeight: 500, color: uploading ? 'var(--accent, #c8963e)' : files.length ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', cursor: uploading ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 11v2a1 1 0 001 1h12a1 1 0 001-1v-2M8 1v9M5 4l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        {label}
-        {files.length > 0 && <span style={{ marginLeft: 'auto', background: 'var(--accent, #c8963e)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3 }}>{files.length}</span>}
+        {uploading ? 'Uploading…' : label}
+        {!uploading && files.length > 0 && <span style={{ marginLeft: 'auto', background: 'var(--accent, #c8963e)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono, monospace)' }}>{files.length}</span>}
       </button>
       {files.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
@@ -225,7 +250,7 @@ function ComponentRow({ name, isCustom, data, tradeRates, onUpdate, onUpdateName
 }
 
 // ── ApplianceCard ─────────────────────────────────────────────────────────────
-function ApplianceCard({ appliance, appData, isOpen, onToggle, onUpdate, labourRates, isCustom, onRemove }) {
+function ApplianceCard({ appliance, appData, isOpen, onToggle, onUpdate, labourRates, isCustom, onRemove, pid }) {
   const tradeRates  = (labourRates || []).filter(r => r.trade === appliance.trade)
   const comps       = appData.components || {}
   const customC     = appData.customComponents || []
@@ -297,7 +322,7 @@ function ApplianceCard({ appliance, appData, isOpen, onToggle, onUpdate, labourR
               <button type="button" onClick={() => onUpdate('customComponents', [...customC, BLANK_CUSTOM_COMP()])} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', border: '1px dashed rgba(200,150,62,0.4)', borderRadius: 6, background: 'rgba(200,150,62,0.04)', fontSize: 11, fontWeight: 600, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ Add Custom Component</button>
             </div>
 
-            <MediaUpload files={appData.media || []} onChange={v => onUpdate('media', v)} />
+            <MediaUpload files={appData.media || []} onChange={v => onUpdate('media', v)} pid={pid} itemKey={(appliance.name || 'appliance').replace(/[^a-zA-Z0-9]/g, '_')} />
 
             <Field label="Notes" optional>
               <Textarea value={appData.notes || ''} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any observations…" />
@@ -518,6 +543,7 @@ export default function InspectionAppliances() {
               onToggle={() => toggleCard(appliance.name)}
               onUpdate={(field, value) => updateAppliance(appliance.name, field, value)}
               labourRates={labourRates}
+              pid={pid}
             />
           ))}
 
@@ -532,6 +558,7 @@ export default function InspectionAppliances() {
               labourRates={labourRates}
               isCustom
               onRemove={() => setCustomAppliances(prev => prev.filter((_, i) => i !== idx))}
+              pid={pid}
             />
           ))}
 
