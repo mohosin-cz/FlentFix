@@ -413,6 +413,7 @@ const CSS = `
   /* ── RESPONSIVE ── */
   @media (max-width: 600px) {
     .er-topbar { padding: 12px 20px 0; }
+    .er-share-bar { padding: 0 20px; }
     .er-doc    { margin: 10px auto 0; }
     .er-header { padding: 22px 20px 0; }
     .er-section { padding: 24px 20px; }
@@ -455,6 +456,7 @@ export default function Estimate() {
   const [estimateNotes, setEstimateNotes] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [quickNote, setQuickNote] = useState(null)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     const prev = document.body.style.background
@@ -607,6 +609,18 @@ export default function Estimate() {
     document.title = prev
   }
 
+  const shareUrl = `${window.location.origin}/estimate/${id}`
+
+  function handleShare() {
+    if (navigator.share) {
+      navigator.share({ title: `Flent Estimate — PID ${pid}`, text: `View estimate for property ${pid}`, url: shareUrl })
+    } else {
+      navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
   return (
     <div className="er-wrap">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
@@ -624,8 +638,21 @@ export default function Estimate() {
             <>
               <button className="er-pdf-link" style={{ color: '#c8963e' }} onClick={startEdit}>Edit Estimate</button>
               <button className="er-pdf-link" onClick={handlePrint}>Download PDF</button>
+              <button onClick={handleShare} style={{ padding: '6px 12px', border: '1px solid #c8963e', background: 'transparent', color: '#c8963e', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>
+                {copied ? '✓ Copied!' : '↗ Share'}
+              </button>
             </>
           )}
+        </div>
+      </div>
+
+      {/* Share link bar */}
+      <div className="er-share-bar no-print" style={{ maxWidth: 760, margin: '10px auto 0', padding: '0 48px' }}>
+        <div style={{ background: '#f8f6f1', border: '1px solid #e8e0d0', borderRadius: 6, padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: '#999' }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 12 }}>🔗 {shareUrl}</span>
+          <button onClick={handleShare} style={{ color: '#c8963e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {copied ? 'Copied!' : 'Copy link'}
+          </button>
         </div>
       </div>
 

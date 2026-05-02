@@ -117,14 +117,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/estimate/:id"
-            element={
-              <ProtectedRoute>
-                <Estimate />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/estimate/:id" element={<Estimate />} />
           <Route
             path="/properties"
             element={
