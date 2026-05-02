@@ -9,34 +9,34 @@ function fmtDate(str) {
 
 function fmt(n) { return (n || 0).toLocaleString('en-IN') }
 
-const BG_SVG = `<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'>
-  <g transform='translate(10,10)'>
-    <rect x='0' y='0' width='44' height='48' rx='3' fill='none' stroke='%232a2a2e' stroke-width='2'/>
-    <rect x='4' y='4' width='36' height='10' rx='1' fill='none' stroke='%232a2a2e' stroke-width='1.2'/>
-    <circle cx='22' cy='33' r='11' fill='none' stroke='%232a2a2e' stroke-width='1.5'/>
-    <circle cx='22' cy='33' r='6' fill='none' stroke='%232a2a2e' stroke-width='1'/>
-    <circle cx='8' cy='8' r='2' fill='%232a2a2e'/>
-    <circle cx='14' cy='8' r='1.5' fill='%232a2a2e'/>
+const BG_SVG = `<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'>
+  <g transform='translate(5,5)'>
+    <rect x='0' y='0' width='22' height='24' rx='1.5' fill='none' stroke='%232a2a2e' stroke-width='1'/>
+    <rect x='2' y='2' width='18' height='5' rx='0.5' fill='none' stroke='%232a2a2e' stroke-width='0.8'/>
+    <circle cx='11' cy='16.5' r='5.5' fill='none' stroke='%232a2a2e' stroke-width='0.8'/>
+    <circle cx='11' cy='16.5' r='3' fill='none' stroke='%232a2a2e' stroke-width='0.5'/>
+    <circle cx='4' cy='4' r='1' fill='%232a2a2e'/>
+    <circle cx='7' cy='4' r='0.75' fill='%232a2a2e'/>
   </g>
-  <g transform='translate(90,5)'>
-    <rect x='0' y='0' width='38' height='56' rx='3' fill='none' stroke='%232a2a2e' stroke-width='2'/>
-    <line x1='0' y1='20' x2='38' y2='20' stroke='%232a2a2e' stroke-width='1.5'/>
-    <rect x='4' y='8' width='4' height='8' rx='1' fill='%232a2a2e'/>
-    <rect x='4' y='26' width='4' height='12' rx='1' fill='%232a2a2e'/>
+  <g transform='translate(45,2.5)'>
+    <rect x='0' y='0' width='19' height='28' rx='1.5' fill='none' stroke='%232a2a2e' stroke-width='1'/>
+    <line x1='0' y1='10' x2='19' y2='10' stroke='%232a2a2e' stroke-width='0.8'/>
+    <rect x='2' y='4' width='2' height='4' rx='0.5' fill='%232a2a2e'/>
+    <rect x='2' y='13' width='2' height='6' rx='0.5' fill='%232a2a2e'/>
   </g>
-  <g transform='translate(8,90)'>
-    <rect x='0' y='0' width='52' height='26' rx='4' fill='none' stroke='%232a2a2e' stroke-width='2'/>
-    <line x1='6' y1='10' x2='46' y2='10' stroke='%232a2a2e' stroke-width='1.2'/>
-    <line x1='6' y1='15' x2='46' y2='15' stroke='%232a2a2e' stroke-width='1.2'/>
-    <line x1='6' y1='20' x2='46' y2='20' stroke='%232a2a2e' stroke-width='1.2'/>
-    <circle cx='44' cy='6' r='2' fill='%232a2a2e'/>
-    <circle cx='38' cy='6' r='2' fill='%232a2a2e'/>
+  <g transform='translate(4,45)'>
+    <rect x='0' y='0' width='26' height='13' rx='2' fill='none' stroke='%232a2a2e' stroke-width='1'/>
+    <line x1='3' y1='5' x2='23' y2='5' stroke='%232a2a2e' stroke-width='0.8'/>
+    <line x1='3' y1='7.5' x2='23' y2='7.5' stroke='%232a2a2e' stroke-width='0.8'/>
+    <line x1='3' y1='10' x2='23' y2='10' stroke='%232a2a2e' stroke-width='0.8'/>
+    <circle cx='22' cy='3' r='1' fill='%232a2a2e'/>
+    <circle cx='19' cy='3' r='1' fill='%232a2a2e'/>
   </g>
-  <g transform='translate(104,82)'>
-    <rect x='0' y='0' width='28' height='38' rx='14' fill='none' stroke='%232a2a2e' stroke-width='2'/>
-    <line x1='14' y1='38' x2='14' y2='48' stroke='%232a2a2e' stroke-width='1.5'/>
-    <line x1='8' y1='36' x2='8' y2='46' stroke='%232a2a2e' stroke-width='1.5'/>
-    <circle cx='14' cy='18' r='6' fill='none' stroke='%232a2a2e' stroke-width='1.2'/>
+  <g transform='translate(52,41)'>
+    <rect x='0' y='0' width='14' height='19' rx='7' fill='none' stroke='%232a2a2e' stroke-width='1'/>
+    <line x1='7' y1='19' x2='7' y2='24' stroke='%232a2a2e' stroke-width='0.8'/>
+    <line x1='4' y1='18' x2='4' y2='23' stroke='%232a2a2e' stroke-width='0.8'/>
+    <circle cx='7' cy='9' r='3' fill='none' stroke='%232a2a2e' stroke-width='0.8'/>
   </g>
 </svg>`
 
@@ -160,8 +160,9 @@ export default function InspectionApplianceReport() {
   const grandTotal    = totalMaterial + totalLabour
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#f5f5f6', backgroundImage: BG_DATA_URL, backgroundRepeat: 'repeat', backgroundSize: '160px 160px' }}>
-      <div className="ar-page" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', color: '#2a2a2e', paddingBottom: 80 }}>
+    <div style={{ minHeight: '100dvh', background: '#f5f5f6', position: 'relative' }}>
+      <div style={{ position: 'fixed', inset: 0, backgroundImage: BG_DATA_URL, backgroundRepeat: 'repeat', backgroundSize: '80px 80px', opacity: 0.04, pointerEvents: 'none', zIndex: 0 }} />
+      <div className="ar-page" style={{ position: 'relative', zIndex: 1, fontFamily: 'system-ui, -apple-system, sans-serif', color: '#2a2a2e', paddingBottom: 80 }}>
       <style dangerouslySetInnerHTML={{ __html: PRINT_CSS }} />
 
       {/* ── TOP BAR ── */}
