@@ -547,16 +547,16 @@ export function flattenOutdoorDraftToRows(draft, inspectionId) {
       if (!item.notAvailable && sel.length === 0) return
       const base = { inspection_id: inspectionId, section_name: sName, area: title, item_name: title, trade }
       if (item.notAvailable) {
-        rows.push({ ...base, issue_description: item.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available' })
+        rows.push({ ...base, issue_description: item.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available', _media: item.media || [] })
         return
       }
       if (sel.includes('Functional')) {
-        rows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: item.health ?? 10 })
+        rows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: item.health ?? 10, _media: item.media || [] })
       } else {
-        sel.forEach(issue => {
+        sel.forEach((issue, ri) => {
           const cr         = (item.costRows || {})[issue] || {}
           const issueLabel = issue === 'Other' ? (item.otherIssue || 'Other') : issue
-          rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: item.health ?? null })
+          rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: item.health ?? null, _media: ri === 0 ? (item.media || []) : [] })
         })
       }
     })
@@ -564,9 +564,9 @@ export function flattenOutdoorDraftToRows(draft, inspectionId) {
       if (!ci.name) return
       const ciRows = ci.issues || []
       if (!ciRows.length) {
-        rows.push({ inspection_id: inspectionId, section_name: sName, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null })
+        rows.push({ inspection_id: inspectionId, section_name: sName, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null, _media: ci.media || [] })
       } else {
-        ciRows.forEach(r => rows.push({ inspection_id: inspectionId, section_name: sName, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: r.issueDescription || '', action: r.action || '', material_cost: parseFloat(r.materialCost) || 0, labour_cost: parseFloat(r.labourCost) || 0, item_score: ci.health ?? null }))
+        ciRows.forEach((r, ri) => rows.push({ inspection_id: inspectionId, section_name: sName, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: r.issueDescription || '', material_cost: parseFloat(r.materialCost) || 0, labour_cost: parseFloat(r.labourCost) || 0, item_score: ci.health ?? null, _media: ri === 0 ? (ci.media || []) : [] }))
       }
     })
   })

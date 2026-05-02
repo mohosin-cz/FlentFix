@@ -882,7 +882,7 @@ export default function Estimate() {
 
         {/* ── NOTES ── */}
         <div style={{ margin: '0 48px 32px', padding: '20px', background: '#F8F6F1', border: '1px solid #E0D9CC', borderRadius: '8px' }}>
-          <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'Source Sans 3, sans-serif', color: '#1E1E1E' }}>Notes</div>
+          <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'Source Sans 3, sans-serif', color: '#1E1E1E' }}>Notes</div>
           {isEditing ? (
             <textarea
               value={estimateNotes}
@@ -891,22 +891,14 @@ export default function Estimate() {
               style={{ width: '100%', minHeight: 80, border: '1px solid #D4CFC6', borderRadius: 4, padding: 8, fontFamily: 'Source Sans 3, sans-serif', fontSize: 13, resize: 'vertical', background: '#fff', color: '#1E1E1E', boxSizing: 'border-box' }}
             />
           ) : (
-            <div style={{ fontSize: 13, color: estimateNotes ? '#1E1E1E' : '#aaa', whiteSpace: 'pre-wrap', fontFamily: 'Source Sans 3, sans-serif', lineHeight: 1.7, fontStyle: estimateNotes ? 'normal' : 'italic' }}>
-              {estimateNotes || 'No notes added.'}
+            <div style={{ fontSize: 13, color: (quickNote?.note || estimateNotes) ? '#555' : '#aaa', whiteSpace: 'pre-wrap', fontFamily: 'Source Sans 3, sans-serif', lineHeight: 1.7, fontStyle: (quickNote?.note || estimateNotes) ? 'normal' : 'italic' }}>
+              {quickNote?.note || estimateNotes || 'No notes added.'}
             </div>
           )}
+          {quickNote?.updated_at && !isEditing && (
+            <div style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 10, color: '#999', marginTop: 6 }}>Last updated {fmtDate(quickNote.updated_at)}</div>
+          )}
         </div>
-
-        {/* ── QUICK NOTES ── */}
-        {quickNote?.note && (
-          <div style={{ margin: '0 48px 32px', padding: '14px 18px', borderLeft: '3px solid #c8963e', background: '#FFFBF4' }}>
-            <div style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#c8963e', marginBottom: 8 }}>Quick Notes</div>
-            <div style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 13, color: '#1E1E1E', whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{quickNote.note}</div>
-            {quickNote.updated_at && (
-              <div style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 10, color: '#999', marginTop: 6 }}>Last updated {fmtDate(quickNote.updated_at)}</div>
-            )}
-          </div>
-        )}
 
         {/* ── COST SUMMARY ── */}
         <div className="er-cost-block">

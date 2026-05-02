@@ -74,7 +74,7 @@ const MODES = [
   },
 ]
 
-function flattenIndoorDraftToRows(draft, inspectionId) {
+function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
   const BASICS = {
     deepCleaning:  { label: 'Deep Cleaning',     trade: 'cleaning' },
     pestControl:   { label: 'Pest Control',       trade: 'cleaning' },
@@ -94,16 +94,21 @@ function flattenIndoorDraftToRows(draft, inspectionId) {
       Object.entries(tabData || {}).forEach(([key, d]) => {
         if (!d?.enabled) return
         if (key === 'deepCleaning') {
-          if (d.fullHome !== false) rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: 'Deep Cleaning - Full Home', trade: 'cleaning', issue_description: 'Full Home', material_cost: 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: null })
+          const descLabel = (d.rateId && rateMap[d.rateId]) ? rateMap[d.rateId] : 'Deep Cleaning'
+          if (d.fullHome !== false) {
+            rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: 'Deep Cleaning', trade: 'cleaning', issue_description: descLabel, notes: 'Full Home', material_cost: 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: null, _media: d.media || [] })
+          }
           ;(d.specificAreas || []).forEach(sa => {
             if (!sa.area) return
-            rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: `Deep Cleaning - ${sa.area}`, trade: 'cleaning', issue_description: sa.type || '', material_cost: 0, labour_cost: parseFloat(sa.cost) || 0, item_score: null })
+            const saDesc = (sa.rateId && rateMap[sa.rateId]) ? rateMap[sa.rateId] : descLabel
+            rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: 'Deep Cleaning', trade: 'cleaning', issue_description: saDesc, notes: sa.area, material_cost: 0, labour_cost: parseFloat(sa.cost) || 0, item_score: null, _media: sa.media || [] })
           })
         } else {
           const meta = BASICS[key]
           if (!meta) return
-          const desc = d.description || (d.areas || []).join(', ')
-          rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: meta.trade, item_name: meta.label, trade: meta.trade, issue_description: desc, material_cost: 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: null })
+          const desc = (d.rateId && rateMap[d.rateId]) ? rateMap[d.rateId] : meta.label
+          const areaNote = (d.areas || []).join(', ') || (d.fullHome ? 'Full Home' : '')
+          rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: meta.trade, item_name: meta.label, trade: meta.trade, issue_description: desc, notes: areaNote, material_cost: 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: null, _media: d.media || [] })
         }
       })
       return
@@ -120,16 +125,16 @@ function flattenIndoorDraftToRows(draft, inspectionId) {
           const base   = { inspection_id: inspectionId, section_name: tabLabel, area: secLabel, item_name: toTitle(itemKey) + suffix, trade }
           if (!card.notAvailable && sel.length === 0) return
           if (card.notAvailable) {
-            rows.push({ ...base, issue_description: card.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available' })
+            rows.push({ ...base, issue_description: card.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available', _media: card.media || [] })
             return
           }
           if (sel.includes('Functional')) {
-            rows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: card.health ?? 10 })
+            rows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: card.health ?? 10, _media: card.media || [] })
           } else {
-            sel.forEach(issue => {
+            sel.forEach((issue, ri) => {
               const cr         = (card.costRows || {})[issue] || {}
               const issueLabel = issue === 'Other' ? (card.otherIssue || 'Other') : issue
-              rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: card.health ?? null })
+              rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: card.health ?? null, _media: ri === 0 ? (card.media || []) : [] })
             })
           }
         })
@@ -139,9 +144,9 @@ function flattenIndoorDraftToRows(draft, inspectionId) {
       if (!ci.name) return
       const ciRows = ci.issues || []
       if (!ciRows.length) {
-        rows.push({ inspection_id: inspectionId, section_name: tabLabel, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null })
+        rows.push({ inspection_id: inspectionId, section_name: tabLabel, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null, _media: ci.media || [] })
       } else {
-        ciRows.forEach(r => rows.push({ inspection_id: inspectionId, section_name: tabLabel, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: r.issueDescription || '', material_cost: parseFloat(r.materialCost) || 0, labour_cost: parseFloat(r.labourCost) || 0, item_score: ci.health ?? null }))
+        ciRows.forEach((r, ri) => rows.push({ inspection_id: inspectionId, section_name: tabLabel, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: r.issueDescription || '', material_cost: parseFloat(r.materialCost) || 0, labour_cost: parseFloat(r.labourCost) || 0, item_score: ci.health ?? null, _media: ri === 0 ? (ci.media || []) : [] }))
       }
     })
   })
@@ -337,28 +342,39 @@ export default function InspectionMode() {
       console.log('[EndInspection] indoorDraft:', indoorDraft)
       console.log('[EndInspection] appliancesDraft:', appliancesDraft)
 
+      // Fetch labour rate names for basics items (Fix 1)
+      const rateMap = {}
+      const basicsData = (indoorDraft.data || {}).basics || {}
+      const rateIds = []
+      Object.values(basicsData).forEach(d => { if (d?.rateId) rateIds.push(d.rateId) })
+      if (rateIds.length > 0) {
+        const { data: rates } = await supabase.from('labour_rates').select('id, work_type').in('id', [...new Set(rateIds)])
+        if (rates) rates.forEach(r => { rateMap[r.id] = r.work_type })
+      }
+
       const outdoorRows    = flattenOutdoorDraftToRows(outdoorDraft, inspectionId)
-      const indoorRows     = flattenIndoorDraftToRows(indoorDraft, inspectionId)
+      const indoorRows     = flattenIndoorDraftToRows(indoorDraft, inspectionId, rateMap)
       const appliancesRows = flattenAppliancesDraftToRows(appliancesDraft, inspectionId)
 
       console.log('[EndInspection] outdoorRows:', outdoorRows.length, outdoorRows)
       console.log('[EndInspection] indoorRows:', indoorRows.length, indoorRows)
       console.log('[EndInspection] appliancesRows:', appliancesRows.length, appliancesRows)
 
-      // ── Step 4: sanitize + insert with full error visibility ──
+      // ── Sanitize + insert with full error visibility ──
+      const rawAllRows = [...outdoorRows, ...indoorRows, ...appliancesRows]
       const sanitize = (item) => ({
-        inspection_id:   item.inspection_id,
-        section_name:    item.section_name    || '',
-        area:            item.area            || '',
-        item_name:       item.item_name       || '',
-        item_score:      item.item_score      ?? null,
+        inspection_id:     item.inspection_id,
+        section_name:      item.section_name    || '',
+        area:              item.area            || '',
+        item_name:         item.item_name       || '',
+        item_score:        item.item_score      ?? null,
         issue_description: item.issue_description || '',
-        trade:           item.trade           || '',
-        material_cost:   Number(item.material_cost || 0),
-        labour_cost:     Number(item.labour_cost   || 0),
-        notes:           item.notes           || '',
+        trade:             item.trade           || '',
+        material_cost:     Number(item.material_cost || 0),
+        labour_cost:       Number(item.labour_cost   || 0),
+        notes:             item.notes           || '',
       })
-      const allRows = [...outdoorRows, ...indoorRows, ...appliancesRows].map(sanitize)
+      const allRows = rawAllRows.map(sanitize)
       console.log('[EndInspection] total rows to insert:', allRows.length, allRows[0])
       if (allRows.length > 0) {
         const { data: insertedRows, error: insertErr } = await supabase
@@ -367,6 +383,21 @@ export default function InspectionMode() {
           .select()
         console.log('[EndInspection] insert result:', insertedRows, insertErr)
         if (insertErr) throw new Error('Line item insert failed: ' + insertErr.message)
+
+        // Save media from draft to line_item_media (Fix 2)
+        if (insertedRows?.length) {
+          const mediaInserts = []
+          for (let i = 0; i < insertedRows.length; i++) {
+            const media = rawAllRows[i]?._media || []
+            for (const url of media) {
+              if (typeof url !== 'string' || !url.startsWith('http')) continue
+              mediaInserts.push({ line_item_id: insertedRows[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image' })
+            }
+          }
+          if (mediaInserts.length > 0) {
+            await supabase.from('line_item_media').insert(mediaInserts)
+          }
+        }
       }
 
       // Clear flushed drafts
