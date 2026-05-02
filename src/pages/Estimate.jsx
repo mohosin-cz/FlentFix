@@ -457,7 +457,7 @@ export default function Estimate() {
   const [isSaving, setIsSaving] = useState(false)
   const [quickNote, setQuickNote] = useState(null)
   const [copied, setCopied] = useState(false)
-  const [removedIds, setRemovedIds] = useState(new Set())
+  const [lineItems, setLineItems] = useState([])
 
   useEffect(() => {
     const prev = document.body.style.background
@@ -486,9 +486,9 @@ export default function Estimate() {
       .then(({ data, error: err }) => {
         if (err) setError(err.message)
         else {
-          console.log('Line items fetched:', data?.inspection_line_items?.length, data?.inspection_line_items?.[0])
           setInspection(data)
           setEstimateNotes(data?.notes || '')
+          setLineItems((data?.inspection_line_items || []).filter(i => !i.excluded_from_estimate))
         }
         setLoading(false)
       })
@@ -502,7 +502,7 @@ export default function Estimate() {
 
   function startEdit() {
     const initial = {}
-    ;(inspection?.inspection_line_items || []).forEach(item => {
+    lineItems.forEach(item => {
       initial[item.id] = {
         issue_description: item.issue_description || '',
         material_cost: item.material_cost ?? 0,
@@ -510,19 +510,20 @@ export default function Estimate() {
       }
     })
     setEditedItems(initial)
-    setRemovedIds(new Set())
     setIsEditing(true)
   }
 
   async function handleRemoveLineItem(itemId) {
-    setRemovedIds(prev => new Set([...prev, itemId]))
+    const removed = lineItems.find(i => i.id === itemId)
+    setLineItems(prev => prev.filter(i => i.id !== itemId))
     const { error } = await supabase
       .from('inspection_line_items')
       .update({ excluded_from_estimate: true })
       .eq('id', itemId)
     if (error) {
-      console.error('Remove failed:', error)
-      setRemovedIds(prev => { const next = new Set(prev); next.delete(itemId); return next })
+      console.error('Remove failed:', error.message)
+      setLineItems(prev => [...prev, removed].sort((a, b) => String(a.id).localeCompare(String(b.id))))
+      alert('Failed to remove item: ' + error.message)
     }
   }
 
@@ -541,7 +542,11 @@ export default function Estimate() {
       }
       await supabase.from('inspections').update({ notes: estimateNotes }).eq('id', id)
       const { data: refreshed } = await supabase.from('inspections').select('*, inspection_line_items(*, line_item_media(*))').eq('id', id).single()
-      if (refreshed) { setInspection(refreshed); setEstimateNotes(refreshed.notes || '') }
+      if (refreshed) {
+        setInspection(refreshed)
+        setEstimateNotes(refreshed.notes || '')
+        setLineItems((refreshed.inspection_line_items || []).filter(i => !i.excluded_from_estimate))
+      }
       setIsEditing(false)
     } catch (err) {
       console.error('Save error:', err)
@@ -563,17 +568,15 @@ export default function Estimate() {
   )
 
   // ── Derived data ─────────────────────────────────────────────────────────────
-  const items = (inspection.inspection_line_items || []).filter(i => !i.excluded_from_estimate)
+  const items = lineItems
   const pid   = inspection.pid || ''
 
-  // Merge edits into items; also hide optimistically-removed rows during edit
+  // Merge edits into items for real-time total updates during edit mode
   const displayItems = isEditing
-    ? items
-        .filter(i => !removedIds.has(i.id))
-        .map(item => editedItems[item.id]
-          ? { ...item, issue_description: editedItems[item.id].issue_description, material_cost: parseFloat(editedItems[item.id].material_cost) || 0, labour_cost: parseFloat(editedItems[item.id].labour_cost) || 0 }
-          : item)
-    : items
+    ? lineItems.map(item => editedItems[item.id]
+        ? { ...item, issue_description: editedItems[item.id].issue_description, material_cost: parseFloat(editedItems[item.id].material_cost) || 0, labour_cost: parseFloat(editedItems[item.id].labour_cost) || 0 }
+        : item)
+    : lineItems
 
   const sectionMap = {}
   displayItems.forEach(item => {
