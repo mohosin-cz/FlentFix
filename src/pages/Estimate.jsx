@@ -457,6 +457,7 @@ export default function Estimate() {
   const [isSaving, setIsSaving] = useState(false)
   const [quickNote, setQuickNote] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [removedIds, setRemovedIds] = useState(new Set())
 
   useEffect(() => {
     const prev = document.body.style.background
@@ -509,7 +510,20 @@ export default function Estimate() {
       }
     })
     setEditedItems(initial)
+    setRemovedIds(new Set())
     setIsEditing(true)
+  }
+
+  async function handleRemoveLineItem(itemId) {
+    setRemovedIds(prev => new Set([...prev, itemId]))
+    const { error } = await supabase
+      .from('inspection_line_items')
+      .update({ excluded_from_estimate: true })
+      .eq('id', itemId)
+    if (error) {
+      console.error('Remove failed:', error)
+      setRemovedIds(prev => { const next = new Set(prev); next.delete(itemId); return next })
+    }
   }
 
   async function saveEdit() {
@@ -549,14 +563,16 @@ export default function Estimate() {
   )
 
   // ── Derived data ─────────────────────────────────────────────────────────────
-  const items = inspection.inspection_line_items || []
+  const items = (inspection.inspection_line_items || []).filter(i => !i.excluded_from_estimate)
   const pid   = inspection.pid || ''
 
-  // Merge edits into items for real-time total updates during edit mode
+  // Merge edits into items; also hide optimistically-removed rows during edit
   const displayItems = isEditing
-    ? items.map(item => editedItems[item.id]
-        ? { ...item, issue_description: editedItems[item.id].issue_description, material_cost: parseFloat(editedItems[item.id].material_cost) || 0, labour_cost: parseFloat(editedItems[item.id].labour_cost) || 0 }
-        : item)
+    ? items
+        .filter(i => !removedIds.has(i.id))
+        .map(item => editedItems[item.id]
+          ? { ...item, issue_description: editedItems[item.id].issue_description, material_cost: parseFloat(editedItems[item.id].material_cost) || 0, labour_cost: parseFloat(editedItems[item.id].labour_cost) || 0 }
+          : item)
     : items
 
   const sectionMap = {}
@@ -786,7 +802,7 @@ export default function Estimate() {
         </div>
 
         {/* ── ITEMISED SECTIONS ── */}
-        {sectionList.map(([name, rows]) => {
+        {(() => { let serial = 0; return sectionList.map(([name, rows]) => {
           const sc  = sectionScores[name]
           const b   = band(sc)
           const c   = BAND[b]
@@ -856,6 +872,13 @@ export default function Estimate() {
                                 style={{ flex: 1, minWidth: 120, fontSize: 13, padding: '4px 8px', border: '1px solid #D4CFC6', borderRadius: 3, fontFamily: 'Source Sans 3, sans-serif', background: '#FAFAF8', color: '#1E1E1E' }}
                               />
                               <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 13, fontWeight: 600, color: '#1C1C1C' }}>₹{fmt(mc + lc)}</span>
+                              <button
+                                onClick={() => handleRemoveLineItem(item.id)}
+                                title="Remove from estimate"
+                                style={{ background: 'none', border: 'none', color: '#cc4444', fontSize: 16, cursor: 'pointer', padding: '0 4px', opacity: 0.6, lineHeight: 1, flexShrink: 0 }}
+                                onMouseEnter={e => { e.currentTarget.style.opacity = '1' }}
+                                onMouseLeave={e => { e.currentTarget.style.opacity = '0.6' }}
+                              >×</button>
                             </div>
                             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                               <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#5C5C5C', fontFamily: 'Source Sans 3, sans-serif' }}>
@@ -872,6 +895,7 @@ export default function Estimate() {
                       })
                     ) : (
                       group.items.map((item, iIdx) => {
+                        const sl      = String(++serial).padStart(2, '0')
                         const isNA    = item.availability_status === 'not_available'
                         const itemMat = item.material_cost || 0
                         const itemLab = item.labour_cost   || 0
@@ -879,7 +903,7 @@ export default function Estimate() {
                         return (
                           <div key={item.id || iIdx} style={{ paddingLeft: 12, paddingTop: 6, paddingBottom: 6, borderBottom: iIdx < group.items.length - 1 ? '1px solid #EEECE8' : 'none' }}>
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                              <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: '#aaa', flexShrink: 0, minWidth: 18 }}>{String(iIdx + 1).padStart(2, '0')}</span>
+                              <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: '#aaa', flexShrink: 0, minWidth: 18 }}>{sl}</span>
                               <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 13, color: isNA ? '#888' : '#1E1E1E', flex: 1, lineHeight: 1.6, fontStyle: isNA ? 'italic' : 'normal' }}>
                                 {item.issue_description || '—'}
                               </span>
@@ -920,7 +944,7 @@ export default function Estimate() {
               </div>
             </div>
           )
-        })}
+        })})()}
 
         {/* ── NOTES ── */}
         <div style={{ margin: '0 48px 32px', padding: '20px', background: '#F8F6F1', border: '1px solid #E0D9CC', borderRadius: '8px' }}>
