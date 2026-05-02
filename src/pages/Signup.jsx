@@ -84,7 +84,7 @@ export default function Signup() {
       <div style={s.card}>
 
         <div style={s.logoWrap}>
-          <PixelLogo bg={null} width={160} height={38} />
+          <PulseLogo />
         </div>
         <p style={s.tagline}>Property Inspection Platform</p>
 
