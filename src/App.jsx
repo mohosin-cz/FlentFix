@@ -118,6 +118,7 @@ export default function App() {
             }
           />
           <Route path="/estimate/:id" element={<Estimate />} />
+          <Route path="/appliance-report/:id" element={<InspectionApplianceReport />} />
           <Route
             path="/properties"
             element={
