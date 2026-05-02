@@ -287,26 +287,52 @@ const SHEET_BTN = { display: 'flex', alignItems: 'center', justifyContent: 'cent
 
 function Thumb({ file }) {
   const [url, setUrl] = useState(null)
-  useEffect(() => { const u = URL.createObjectURL(file); setUrl(u); return () => URL.revokeObjectURL(u) }, [file])
+  useEffect(() => {
+    if (typeof file === 'string') { setUrl(file); return }
+    const u = URL.createObjectURL(file); setUrl(u); return () => URL.revokeObjectURL(u)
+  }, [file])
   if (!url) return null
-  if (file.type.startsWith('video')) return <video src={url} muted playsInline style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} />
-  return <img src={url} alt="" style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} />
+  const isVideo = typeof file === 'string' ? /\.(mp4|mov|webm)$/i.test(url) : file.type?.startsWith('video')
+  if (isVideo) return <video src={url} muted playsInline style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} />
+  return <img src={url} alt="" style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} onError={e => { e.target.style.display = 'none' }} />
 }
 
-function MediaUpload({ files = [], onChange, label = 'Attach Photos / Videos' }) {
-  const cameraRef = useRef(null)
+function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photos / Videos' }) {
+  const cameraRef  = useRef(null)
   const galleryRef = useRef(null)
-  const [sheet, setSheet] = useState(false)
-  function handleFiles(e) { const added = Array.from(e.target.files || []); if (added.length) onChange([...files, ...added]); e.target.value = ''; setSheet(false) }
+  const [sheet, setSheet]       = useState(false)
+  const [uploading, setUploading] = useState(false)
+
+  async function handleFiles(e) {
+    const selected = Array.from(e.target.files || [])
+    if (!selected.length) return
+    e.target.value = ''
+    setSheet(false)
+    if (!pid) { onChange([...files, ...selected]); return }
+    setUploading(true)
+    const newUrls = []
+    for (const file of selected) {
+      const ext = file.name.split('.').pop()
+      const safe = (itemKey || 'item').replace(/[^a-zA-Z0-9]/g, '_')
+      const path = `${pid}/${safe}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const { data: up, error } = await supabase.storage.from('inspection-media').upload(path, file, { upsert: true })
+      if (error) { console.error('Media upload error:', error); continue }
+      const { data: { publicUrl } } = supabase.storage.from('inspection-media').getPublicUrl(up.path)
+      newUrls.push(publicUrl)
+    }
+    setUploading(false)
+    if (newUrls.length) onChange([...files, ...newUrls])
+  }
+
   function remove(idx) { onChange(files.filter((_, i) => i !== idx)) }
   return (
     <div>
       <input ref={cameraRef}  type="file" accept="image/*,video/*" capture="environment" style={{ display: 'none' }} onChange={handleFiles} />
       <input ref={galleryRef} type="file" accept="image/*,video/*" multiple            style={{ display: 'none' }} onChange={handleFiles} />
-      <button type="button" onClick={() => setSheet(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', border: `1px dashed ${files.length ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)'}`, borderRadius: 6, background: files.length ? 'rgba(61,186,122,0.08)' : 'var(--bg-input, #252731)', fontSize: 13, fontWeight: 500, color: files.length ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'inherit' }}>
+      <button type="button" onClick={() => !uploading && setSheet(true)} disabled={uploading} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', border: `1px dashed ${uploading ? 'var(--accent, #c8963e)' : files.length ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)'}`, borderRadius: 6, background: uploading ? 'rgba(200,150,62,0.08)' : files.length ? 'rgba(61,186,122,0.08)' : 'var(--bg-input, #252731)', fontSize: 13, fontWeight: 500, color: uploading ? 'var(--accent, #c8963e)' : files.length ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', cursor: uploading ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 11v2a1 1 0 001 1h12a1 1 0 001-1v-2M8 1v9M5 4l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        {label}
-        {files.length > 0 && <span style={{ marginLeft: 'auto', background: 'var(--accent, #c8963e)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono, monospace)' }}>{files.length}</span>}
+        {uploading ? 'Uploading…' : label}
+        {!uploading && files.length > 0 && <span style={{ marginLeft: 'auto', background: 'var(--accent, #c8963e)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono, monospace)' }}>{files.length}</span>}
       </button>
       {files.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
@@ -504,7 +530,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate }) {
 }
 
 // ── Item card ─────────────────────────────────────────────────────────────────
-function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onUpdate, onDuplicate, onRemove, labourRates }) {
+function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onUpdate, onDuplicate, onRemove, labourRates, pid }) {
   const { label, trade, issues: presets } = itemConfig
   const isAcPoint      = itemConfig.key === 'acPoint'
   const acProvision    = card.acProvision || 'present'
@@ -594,7 +620,7 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
               <HealthSlider value={card.health} onChange={v => onUpdate('health', v)} />
             </Field>
 
-            <MediaUpload files={card.media} onChange={v => onUpdate('media', v)} />
+            <MediaUpload files={card.media} onChange={v => onUpdate('media', v)} pid={pid} itemKey={`${itemConfig.key}_${cardIdx}`} />
 
             <Field label="Notes" optional>
               <Textarea value={card.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any observations…" />
@@ -629,7 +655,7 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
 }
 
 // ── Basics toggle item ────────────────────────────────────────────────────────
-function GeneralToggleItem({ config, data, onUpdate, cleaningRates }) {
+function GeneralToggleItem({ config, data, onUpdate, cleaningRates, pid }) {
   const { key, label, areaOptions, multiSelect, freeText, hasPartialRooms, trade } = config
   const isCleaning    = trade === 'cleaning'
   const isDeepCleaning = key === 'deepCleaning'
@@ -738,7 +764,7 @@ function GeneralToggleItem({ config, data, onUpdate, cleaningRates }) {
               <Field label="Notes" optional>
                 <Textarea value={data.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Notes…" />
               </Field>
-              <MediaUpload files={data.media} onChange={v => onUpdate('media', v)} />
+              <MediaUpload files={data.media} onChange={v => onUpdate('media', v)} pid={pid} itemKey={key} />
             </>
           ) : freeText ? (
             <>
@@ -751,7 +777,7 @@ function GeneralToggleItem({ config, data, onUpdate, cleaningRates }) {
               <Field label="Notes" optional>
                 <Textarea value={data.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Notes…" />
               </Field>
-              <MediaUpload files={data.media} onChange={v => onUpdate('media', v)} />
+              <MediaUpload files={data.media} onChange={v => onUpdate('media', v)} pid={pid} itemKey={key} />
             </>
           ) : (
             <>
@@ -782,7 +808,7 @@ function GeneralToggleItem({ config, data, onUpdate, cleaningRates }) {
               <Field label="Notes" optional>
                 <Textarea value={data.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Notes…" />
               </Field>
-              <MediaUpload files={data.media} onChange={v => onUpdate('media', v)} />
+              <MediaUpload files={data.media} onChange={v => onUpdate('media', v)} pid={pid} itemKey={key} />
             </>
           )}
 
@@ -795,7 +821,7 @@ function GeneralToggleItem({ config, data, onUpdate, cleaningRates }) {
 // ── Custom item ───────────────────────────────────────────────────────────────
 const BLANK_CUSTOM = () => ({ id: `ci_${Date.now()}_${Math.random().toString(36).slice(2)}`, name: '', health: null, notes: '', media: [], issues: [] })
 
-function CustomItemCard({ item, onChange, onRemove }) {
+function CustomItemCard({ item, onChange, onRemove, pid }) {
   const issueRows = item.issues || []
   const itemTotal = issueRows.reduce((sum, r) => sum + (parseFloat(r.materialCost) || 0) + (parseFloat(r.labourCost) || 0), 0)
 
@@ -820,7 +846,7 @@ function CustomItemCard({ item, onChange, onRemove }) {
         <HealthSlider value={item.health} onChange={v => onChange('health', v)} />
       </Field>
 
-      <MediaUpload files={item.media} onChange={v => onChange('media', v)} />
+      <MediaUpload files={item.media} onChange={v => onChange('media', v)} pid={pid} itemKey={item.id} />
 
       <Field label="Notes" optional>
         <Textarea value={item.notes} onChange={v => onChange('notes', v)} rows={2} placeholder="Notes…" />
@@ -1157,10 +1183,11 @@ export default function InspectionIndoor() {
                   data={data.basics?.[gItem.key] || blankGeneral()}
                   onUpdate={(field, value) => updateGeneral(gItem.key, field, value)}
                   cleaningRates={cleaningRates}
+                  pid={pid}
                 />
               ))}
               {getCI('basics').map((ci, idx) => (
-                <CustomItemCard key={ci.id} item={ci} onChange={(f, v) => updateCI('basics', idx, f, v)} onRemove={() => removeCI('basics', idx)} />
+                <CustomItemCard key={ci.id} item={ci} onChange={(f, v) => updateCI('basics', idx, f, v)} onRemove={() => removeCI('basics', idx)} pid={pid} />
               ))}
               <button type="button" onClick={() => addCI('basics')} style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '11px 14px', border: '1px dashed var(--accent, #c8963e)', borderRadius: 8, background: 'rgba(200,150,62,0.04)', fontSize: 12, fontWeight: 600, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ Add Custom Item</button>
             </>
@@ -1196,6 +1223,7 @@ export default function InspectionIndoor() {
                       onDuplicate={() => duplicateCard(currentTab.id, sec.id, itemConfig.key, cardIdx)}
                       onRemove={() => removeCard(currentTab.id, sec.id, itemConfig.key, cardIdx)}
                       labourRates={labourRates}
+                      pid={pid}
                     />
                   )
                 })
@@ -1205,7 +1233,7 @@ export default function InspectionIndoor() {
 
           {/* Custom items for this tab */}
           {currentTab.id !== 'basics' && getCI(currentTab.id).map((ci, idx) => (
-            <CustomItemCard key={ci.id} item={ci} onChange={(f, v) => updateCI(currentTab.id, idx, f, v)} onRemove={() => removeCI(currentTab.id, idx)} />
+            <CustomItemCard key={ci.id} item={ci} onChange={(f, v) => updateCI(currentTab.id, idx, f, v)} onRemove={() => removeCI(currentTab.id, idx)} pid={pid} />
           ))}
           {currentTab.id !== 'basics' && (
             <button type="button" onClick={() => addCI(currentTab.id)} style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '11px 14px', border: '1px dashed var(--accent, #c8963e)', borderRadius: 8, background: 'rgba(200,150,62,0.04)', fontSize: 12, fontWeight: 600, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ Add Custom Item</button>

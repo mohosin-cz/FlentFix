@@ -136,7 +136,7 @@ export default function QuickNotes({ pid }) {
       } else {
         await supabase
           .from('quick_notes')
-          .insert({ pid, note: notes, created_by: 'anonymous', updated_at: new Date().toISOString() })
+          .insert({ pid, note: notes, created_by: 'anonymous' })
       }
     }
 

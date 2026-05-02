@@ -852,13 +852,13 @@ export default function Estimate() {
                                 {itemLab > 0 && <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: '#5C5C5C' }}>Labour: ₹{fmt(itemLab)}</span>}
                               </div>
                             )}
-                            {item.line_item_media?.filter(m => m.type === 'image').length > 0 && (
+                            {item.line_item_media?.length > 0 && (
                               <div style={{ paddingLeft: 26, marginTop: 8 }}>
                                 <div style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', marginBottom: 6 }}>Photos</div>
                                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                  {item.line_item_media.filter(m => m.type === 'image').map((m, mi) => (
-                                    <a key={mi} href={m.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', flexShrink: 0 }}>
-                                      <img src={m.url} alt={m.caption || ''} style={{ height: 80, width: 'auto', maxWidth: 120, objectFit: 'cover', borderRadius: 4, border: '1px solid #D4CFC6', display: 'block', cursor: 'pointer' }} />
+                                  {item.line_item_media.map((m, mi) => (
+                                    <a key={mi} href={m.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', flexShrink: 0 }} title={m.caption || 'View photo'}>
+                                      <img src={m.url} alt={m.caption || ''} style={{ height: 80, width: 80, objectFit: 'cover', borderRadius: 4, border: '1px solid #D4CFC6', display: 'block', cursor: 'pointer' }} onError={e => { e.target.style.display = 'none' }} />
                                     </a>
                                   ))}
                                 </div>

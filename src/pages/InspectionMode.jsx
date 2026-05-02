@@ -429,7 +429,7 @@ export default function InspectionMode() {
         } else {
           await supabase
             .from('quick_notes')
-            .insert({ pid, note: noteText, created_by: 'anonymous', updated_at: new Date().toISOString() })
+            .insert({ pid, note: noteText, created_by: 'anonymous' })
         }
       }
 
