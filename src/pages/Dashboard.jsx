@@ -294,7 +294,9 @@ export default function Dashboard() {
       {/* ── Header ── */}
       <header style={s.header}>
         <div style={s.headerLeft}>
-          <PulseLogo />
+          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
+            <PulseLogo />
+          </button>
           <nav className="dash-nav" style={{ display: 'none', alignItems: 'center', gap: 2, marginLeft: 28 }}>
             {NAV_ITEMS.map(item => (
               <button
