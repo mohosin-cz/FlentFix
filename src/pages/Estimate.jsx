@@ -488,7 +488,7 @@ export default function Estimate() {
         else {
           setInspection(data)
           setEstimateNotes(data?.notes || '')
-          setLineItems((data?.inspection_line_items || []).filter(i => !i.excluded_from_estimate))
+          setLineItems((data?.inspection_line_items || []).filter(i => !i.excluded_from_estimate && i.section_name?.toLowerCase() !== 'appliances'))
         }
         setLoading(false)
       })
@@ -545,7 +545,7 @@ export default function Estimate() {
       if (refreshed) {
         setInspection(refreshed)
         setEstimateNotes(refreshed.notes || '')
-        setLineItems((refreshed.inspection_line_items || []).filter(i => !i.excluded_from_estimate))
+        setLineItems((refreshed.inspection_line_items || []).filter(i => !i.excluded_from_estimate && i.section_name?.toLowerCase() !== 'appliances'))
       }
       setIsEditing(false)
     } catch (err) {
