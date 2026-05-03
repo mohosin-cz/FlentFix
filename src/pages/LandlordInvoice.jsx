@@ -1,6 +1,22 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+
+// ─── Column sanitizers ────────────────────────────────────────────────────────
+const INVOICE_COLUMNS = [
+  'invoice_number', 'pid', 'inspection_id', 'status',
+  'issue_date', 'due_date', 'landlord_name', 'landlord_email',
+  'landlord_phone', 'property_address', 'subtotal',
+  'tax_rate', 'tax_amount', 'total', 'notes', 'terms',
+]
+const sanitizeInvoice = (data) => Object.fromEntries(
+  Object.entries(data).filter(([k]) => INVOICE_COLUMNS.includes(k))
+)
+
+const LINE_ITEM_COLUMNS = ['invoice_id', 'sl_no', 'description', 'category', 'qty', 'unit', 'unit_price']
+const sanitizeLineItem = (data) => Object.fromEntries(
+  Object.entries(data).filter(([k]) => LINE_ITEM_COLUMNS.includes(k))
+)
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtDate(str) {
@@ -146,22 +162,25 @@ export default function LandlordInvoice() {
       .eq('id', inspectionId)
       .single()
 
+    const issueDate = new Date().toISOString().split('T')[0]
+    const dueDate   = new Date(Date.now() + 15 * 864e5).toISOString().split('T')[0]
+
     const { data: newInv, error: createErr } = await supabase
       .from('landlord_invoices')
-      .insert({
-        inspection_id:  inspectionId,
-        invoice_number: invoiceNumber,
-        pid:            insp?.pid || '',
-        house_type:     insp?.house_type || '',
-        address:        insp?.config?.address || '',
-        invoice_date:   new Date().toISOString().split('T')[0],
-        status:         'draft',
-        tax_rate:       18,
-        notes:          '',
-        landlord_name:  '',
-        landlord_email: '',
-        landlord_phone: '',
-      })
+      .insert(sanitizeInvoice({
+        inspection_id:    inspectionId,
+        invoice_number:   invoiceNumber,
+        pid:              insp?.pid || '',
+        property_address: insp?.config?.address || '',
+        issue_date:       issueDate,
+        due_date:         dueDate,
+        status:           'draft',
+        tax_rate:         18,
+        notes:            '',
+        landlord_name:    '',
+        landlord_email:   '',
+        landlord_phone:   '',
+      }))
       .select()
       .single()
 
@@ -189,7 +208,7 @@ export default function LandlordInvoice() {
     if (seedItems.length > 0) {
       const { data: createdItems } = await supabase
         .from('landlord_invoice_items')
-        .insert(seedItems)
+        .insert(seedItems.map(sanitizeLineItem))
         .select()
       setLineItems(createdItems || [])
     }
@@ -251,25 +270,27 @@ export default function LandlordInvoice() {
     if (!invoice) return
     setSaving(true)
     try {
-      await supabase.from('landlord_invoices').update({
-        landlord_name:  landlordName,
-        landlord_email: landlordEmail,
-        landlord_phone: landlordPhone,
-        notes,
-        tax_rate:  Number(taxRate),
-        status,
-      }).eq('id', invoice.id)
+      const sub = lineItems.reduce((s, i) => s + (Number(i.qty) || 1) * (Number(i.unit_price) || 0), 0)
+      const tax = sub * (Number(taxRate) / 100)
 
-      // Upsert line items
-      const toDelete = lineItems.filter(i => String(i.id).startsWith('new_') === false)
-      const existing = toDelete.map(i => i.id)
+      await supabase.from('landlord_invoices')
+        .update(sanitizeInvoice({
+          landlord_name:  landlordName,
+          landlord_email: landlordEmail,
+          landlord_phone: landlordPhone,
+          notes,
+          tax_rate:   Number(taxRate),
+          status,
+          subtotal:   Math.round(sub),
+          tax_amount: Math.round(tax),
+          total:      Math.round(sub + tax),
+        }))
+        .eq('id', invoice.id)
 
-      // Delete all old items and re-insert to handle deletes + reorders cleanly
-      if (existing.length > 0) {
-        await supabase.from('landlord_invoice_items').delete().eq('invoice_id', invoice.id)
-      }
+      // Delete all existing items and re-insert (handles deletes + reorders cleanly)
+      await supabase.from('landlord_invoice_items').delete().eq('invoice_id', invoice.id)
 
-      const numbered = lineItems.map((item, idx) => ({
+      const numbered = lineItems.map((item, idx) => sanitizeLineItem({
         invoice_id:  invoice.id,
         sl_no:       idx + 1,
         description: item.description || '',
@@ -444,8 +465,7 @@ export default function LandlordInvoice() {
             <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#999', marginBottom: 12 }}>Property Details</div>
             <div style={{ fontSize: 13, color: '#555', lineHeight: 1.9 }}>
               <div><span style={{ color: '#999', fontSize: 11 }}>PID</span>  <span style={{ color: '#1a1a1a', fontWeight: 600, marginLeft: 8 }}>{invoice?.pid || '—'}</span></div>
-              <div><span style={{ color: '#999', fontSize: 11 }}>Type</span> <span style={{ color: '#1a1a1a', marginLeft: 8 }}>{invoice?.house_type || '—'}</span></div>
-              {invoice?.address && <div style={{ marginTop: 4, fontSize: 12 }}>{invoice.address}</div>}
+              {invoice?.property_address && <div style={{ marginTop: 4, fontSize: 12 }}>{invoice.property_address}</div>}
             </div>
           </div>
         </div>
@@ -453,8 +473,8 @@ export default function LandlordInvoice() {
         {/* ── DATE STRIP ── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '1px solid #e8e8e8' }}>
           {[
-            { label: 'Invoice Date', val: fmtDate(invoice?.invoice_date) },
-            { label: 'Due Date',     val: addDays(invoice?.invoice_date, 15) },
+            { label: 'Invoice Date', val: fmtDate(invoice?.issue_date) },
+            { label: 'Due Date',     val: addDays(invoice?.issue_date, 15) },
             { label: 'Status',       val: st.label, color: st.color },
           ].map(({ label, val, color }, i) => (
             <div key={label} style={{ padding: '14px 48px', borderRight: i < 2 ? '1px solid #e8e8e8' : 'none' }}>
