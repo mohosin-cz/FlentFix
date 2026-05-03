@@ -83,7 +83,7 @@ const TILES = [
   {
     key: 'invoice',
     title: 'Landlord Invoice',
-    sub: 'Coming soon',
+    sub: 'Generate invoice',
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
         <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.8"/>
@@ -91,10 +91,9 @@ const TILES = [
         <path d="M8 17h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
       </svg>
     ),
-    color: 'var(--text-muted, #6b6d82)',
-    bg: 'var(--bg-input, #252731)',
-    border: 'var(--border, #2e3040)',
-    disabled: true,
+    color: '#3b82f6',
+    bg: 'rgba(59,130,246,0.08)',
+    border: 'rgba(59,130,246,0.25)',
   },
   {
     key: 'raw',
@@ -189,6 +188,9 @@ export default function PropertyDetail() {
       navigate(`/estimate/${latestId}`)
     } else if (key === 'appliance') {
       navigate('/inspections/appliance-report', { state: { inspectionId: latestId, pid } })
+    } else if (key === 'invoice') {
+      if (!latestId) { setToast('No inspection found for this property.'); return }
+      navigate(`/invoice/${latestId}`)
     } else if (key === 'raw') {
       navigate(`/properties/${pid}/raw`)
     } else {
