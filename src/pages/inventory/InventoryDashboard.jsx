@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { usePullToRefresh } from '../../hooks/usePullToRefresh'
+import { PullToRefreshIndicator } from '../../components/PullToRefreshIndicator'
 
 const TRADES = ['All', 'Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc', 'Appliances', 'Lights']
 const TRADE_OPTS = ['electrical', 'plumbing', 'woodwork', 'cleaning', 'misc', 'appliances', 'lights']
@@ -131,10 +133,11 @@ export default function InventoryDashboard() {
     setLoading(false)
   }
 
-  useEffect(() => {
-    fetchItems()
-    fetchStats()
-  }, [])
+  const fetchAll = useCallback(() => Promise.all([fetchItems(), fetchStats()]), [])
+
+  const { pullDistance, isRefreshing } = usePullToRefresh(fetchAll)
+
+  useEffect(() => { fetchAll() }, [fetchAll])
 
   const filtered = items
     .filter(r => tradePill === 'All' || (r.trade || '').toLowerCase() === tradePill.toLowerCase())
@@ -226,7 +229,9 @@ export default function InventoryDashboard() {
   const inpS = { padding: '6px 8px', fontSize: 12, color: 'var(--text, #e8e8f0)', background: 'rgba(200,150,62,0.08)', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 5, outline: 'none', fontFamily: 'var(--font-mono, monospace)', boxSizing: 'border-box', width: '100%' }
 
   return (
-    <div style={s.page}>
+    <>
+      <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
+      <div style={s.page}>
       <header style={s.header}>
         <button style={s.backBtn} onClick={() => navigate('/inventory')}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 5l-5 5 5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -498,6 +503,7 @@ export default function InventoryDashboard() {
 
       <Toasts toasts={toasts} />
     </div>
+    </>
   )
 }
 

@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { usePullToRefresh } from '../hooks/usePullToRefresh'
+import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -71,7 +73,7 @@ export default function Properties() {
   const [deleting, setDeleting]     = useState(false)
   const [binCount, setBinCount]     = useState(0)
 
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     Promise.all([
       supabase
         .from('properties')
@@ -112,6 +114,10 @@ export default function Properties() {
     })
   }, [])
 
+  const { pullDistance, isRefreshing } = usePullToRefresh(fetchData)
+
+  useEffect(() => { fetchData() }, [fetchData])
+
   const grouped = []
   const seen = new Set()
   for (const row of rows) {
@@ -148,7 +154,9 @@ export default function Properties() {
   }
 
   return (
-    <div style={s.page}>
+    <>
+      <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
+      <div style={s.page}>
 
       {/* Header */}
       <header style={s.header}>
@@ -269,6 +277,7 @@ export default function Properties() {
         />
       )}
     </div>
+    </>
   )
 }
 

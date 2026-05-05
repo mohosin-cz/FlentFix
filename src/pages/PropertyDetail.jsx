@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { usePullToRefresh } from '../hooks/usePullToRefresh'
+import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -135,7 +137,7 @@ export default function PropertyDetail() {
   const [showAllInspections, setShowAllInspections] = useState(false)
   const [quickNote, setQuickNote]     = useState(null)
 
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     supabase
       .from('inspections')
       .select('*')
@@ -161,7 +163,6 @@ export default function PropertyDetail() {
       .select('id, inspection_id, material_cost, labour_cost, issue_description')
       .then(({ data: allItems }) => {
         if (!allItems) return
-        // get inspection IDs for this pid
         supabase
           .from('inspections')
           .select('id')
@@ -176,6 +177,10 @@ export default function PropertyDetail() {
           })
       })
   }, [pid])
+
+  const { pullDistance, isRefreshing } = usePullToRefresh(fetchData)
+
+  useEffect(() => { fetchData() }, [fetchData])
 
   const latest    = inspections[0]
   const houseType = latest?.house_type || ''
@@ -199,7 +204,9 @@ export default function PropertyDetail() {
   }
 
   return (
-    <div style={s.page}>
+    <>
+      <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
+      <div style={s.page}>
 
       {/* Header */}
       <header style={s.header}>
@@ -348,6 +355,7 @@ export default function PropertyDetail() {
 
       {toast && <Toast msg={toast} onClose={() => setToast('')} />}
     </div>
+    </>
   )
 }
 

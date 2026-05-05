@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { usePullToRefresh } from '../../hooks/usePullToRefresh'
+import { PullToRefreshIndicator } from '../../components/PullToRefreshIndicator'
 
 const TRADES     = ['All', 'Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc', 'Appliances', 'Lights']
 const TRADE_OPTS = ['electrical', 'plumbing', 'woodwork', 'cleaning', 'misc', 'appliances', 'lights']
@@ -109,17 +111,17 @@ export default function PurchaseHistory() {
     })
   }, [])
 
-  useEffect(() => {
-    load()
-  }, [])
-
-  function load() {
+  const load = useCallback(() => {
     supabase
       .from('inventory_registry')
       .select('*, inventory_items(*)')
       .order('purchase_date', { ascending: false })
       .then(({ data }) => { setRecords(data || []); setLoading(false) })
-  }
+  }, [])
+
+  const { pullDistance, isRefreshing } = usePullToRefresh(load)
+
+  useEffect(() => { load() }, [load])
 
   const filtered = records.filter(r => {
     if (trade !== 'All' && r.trade?.toLowerCase() !== trade.toLowerCase()) return false
@@ -236,7 +238,9 @@ export default function PurchaseHistory() {
   if (loading) return <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 13 }}>loading history…</div>
 
   return (
-    <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', fontFamily: 'var(--font-sans, Poppins, sans-serif)', color: 'var(--text, #e8e8f0)' }}>
+    <>
+      <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
+      <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', fontFamily: 'var(--font-sans, Poppins, sans-serif)', color: 'var(--text, #e8e8f0)' }}>
       <header style={s.header}>
         <button style={s.backBtn} onClick={() => navigate('/inventory')}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 5l-5 5 5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -490,6 +494,7 @@ export default function PurchaseHistory() {
       {confirmDelItem && <ConfirmDialog message={`Delete "${confirmDelItem.name}"? This cannot be undone.`} onConfirm={deleteItem} onCancel={() => setConfirmDelItem(null)} />}
       <Toasts toasts={toasts} />
     </div>
+    </>
   )
 }
 

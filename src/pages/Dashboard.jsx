@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { usePullToRefresh } from '../hooks/usePullToRefresh'
+import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 
 // ─── Pulse dot-matrix logo ─────────────────────────────────────────────────────
 const PulseLogo = () => (
@@ -187,76 +189,77 @@ export default function Dashboard() {
     navigate('/login', { replace: true })
   }
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true)
-      try {
-        const [propsRes, inspRes] = await Promise.all([
-          supabase.from('properties').select('pid,name,type,address,created_at').order('created_at', { ascending: false }),
-          supabase.from('inspections').select('pid,house_type,inspection_date,status,created_at').order('created_at', { ascending: false }),
-        ])
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [propsRes, inspRes] = await Promise.all([
+        supabase.from('properties').select('pid,name,type,address,created_at').order('created_at', { ascending: false }),
+        supabase.from('inspections').select('pid,house_type,inspection_date,status,created_at').order('created_at', { ascending: false }),
+      ])
 
-        const props = propsRes.data || []
-        const insp  = inspRes.data  || []
+      const props = propsRes.data || []
+      const insp  = inspRes.data  || []
 
-        // Build latest-inspection-per-pid map
-        const map = {}
-        insp.forEach(i => { if (!map[i.pid]) map[i.pid] = i })
-        setProperties(props)
-        setInspMap(map)
+      // Build latest-inspection-per-pid map
+      const map = {}
+      insp.forEach(i => { if (!map[i.pid]) map[i.pid] = i })
+      setProperties(props)
+      setInspMap(map)
 
-        // Stats
-        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-        const inspThisMonth = insp.filter(i => i.created_at >= monthStart).length
+      // Stats
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+      const inspThisMonth = insp.filter(i => i.created_at >= monthStart).length
 
-        const invRes = await supabase.from('inventory_registry').select('total_amount')
-        const invTotal = (invRes.data || []).reduce((s, r) => s + (r.total_amount || 0), 0)
+      const invRes = await supabase.from('inventory_registry').select('total_amount')
+      const invTotal = (invRes.data || []).reduce((s, r) => s + (r.total_amount || 0), 0)
 
-        setStats({
-          inspMonth:   inspThisMonth,
-          activeProps: props.length,
-          invValue:    invTotal ? `₹${invTotal.toLocaleString('en-IN')}` : '₹0',
-        })
+      setStats({
+        inspMonth:   inspThisMonth,
+        activeProps: props.length,
+        invValue:    invTotal ? `₹${invTotal.toLocaleString('en-IN')}` : '₹0',
+      })
 
-        // Activity feed
-        const [purchRes, recentPropsRes] = await Promise.all([
-          supabase.from('inventory_registry').select('trade,total_amount,vendor_name,created_at').order('created_at', { ascending: false }).limit(5),
-          supabase.from('properties').select('pid,created_at,type').order('created_at', { ascending: false }).limit(3),
-        ])
+      // Activity feed
+      const [purchRes, recentPropsRes] = await Promise.all([
+        supabase.from('inventory_registry').select('trade,total_amount,vendor_name,created_at').order('created_at', { ascending: false }).limit(5),
+        supabase.from('properties').select('pid,created_at,type').order('created_at', { ascending: false }).limit(3),
+      ])
 
-        const feed = [
-          ...insp.slice(0, 5).map(i => ({
-            title: `Inspection saved · PID ${i.pid}`,
-            desc:  titleCase(i.house_type || ''),
-            date:  i.created_at,
-            link:  `/properties/${i.pid}`,
-            type:  'inspection',
-          })),
-          ...(purchRes.data || []).map(p => ({
-            title: `Purchase logged · ${p.trade}`,
-            desc:  `${p.vendor_name || ''} · ₹${(p.total_amount || 0).toLocaleString('en-IN')}`,
-            date:  p.created_at,
-            link:  '/inventory/history',
-            type:  'purchase',
-          })),
-          ...(recentPropsRes.data || []).map(p => ({
-            title: `Property created · PID ${p.pid}`,
-            desc:  titleCase(p.type || ''),
-            date:  p.created_at,
-            link:  `/properties/${p.pid}`,
-            type:  'property',
-          })),
-        ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8)
+      const feed = [
+        ...insp.slice(0, 5).map(i => ({
+          title: `Inspection saved · PID ${i.pid}`,
+          desc:  titleCase(i.house_type || ''),
+          date:  i.created_at,
+          link:  `/properties/${i.pid}`,
+          type:  'inspection',
+        })),
+        ...(purchRes.data || []).map(p => ({
+          title: `Purchase logged · ${p.trade}`,
+          desc:  `${p.vendor_name || ''} · ₹${(p.total_amount || 0).toLocaleString('en-IN')}`,
+          date:  p.created_at,
+          link:  '/inventory/history',
+          type:  'purchase',
+        })),
+        ...(recentPropsRes.data || []).map(p => ({
+          title: `Property created · PID ${p.pid}`,
+          desc:  titleCase(p.type || ''),
+          date:  p.created_at,
+          link:  `/properties/${p.pid}`,
+          type:  'property',
+        })),
+      ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8)
 
-        setActivity(feed)
-      } catch (err) {
-        console.error('Dashboard load error:', err)
-      } finally {
-        setLoading(false)
-      }
+      setActivity(feed)
+    } catch (err) {
+      console.error('Dashboard load error:', err)
+    } finally {
+      setLoading(false)
     }
-    load()
   }, [])
+
+  const { pullDistance, isRefreshing } = usePullToRefresh(load)
+
+  useEffect(() => { load() }, [load])
 
   const STATS = [
     { n: stats.inspMonth,   label: 'Inspections this month' },
@@ -266,7 +269,9 @@ export default function Dashboard() {
   ]
 
   return (
-    <div style={s.page}>
+    <>
+      <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
+      <div style={s.page}>
       <style>{`
         @media (min-width: 641px) {
           .dash-nav       { display: flex !important; }
@@ -511,6 +516,7 @@ export default function Dashboard() {
         </div>
       </main>
     </div>
+    </>
   )
 }
 
