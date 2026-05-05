@@ -78,9 +78,9 @@ export default function InventoryDashboard() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
   const [toasts, showToast] = useToast()
-  const [items, setItems]       = useState([])
-  const [registry, setRegistry] = useState([])
-  const [loading, setLoading]   = useState(true)
+  const [items, setItems]     = useState([])
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats]     = useState({ availableUnits: 0, totalValue: 0, unitsUsed: 0, valueUsed: 0 })
   const [tradePill, setTradePill] = useState('All')
   const [filter, setFilter] = useState('')
 
@@ -108,34 +108,39 @@ export default function InventoryDashboard() {
     })
   }, [])
 
+  const fetchStats = async () => {
+    const [{ data: itemData }, { data: usageData }, { data: usageWithPrice }] = await Promise.all([
+      supabase.from('inventory_items').select('quantity_remaining, flent_price, market_price, price_inc'),
+      supabase.from('inventory_usage').select('qty_used'),
+      supabase.from('inventory_usage').select('qty_used, inventory_items(flent_price, market_price, price_inc)'),
+    ])
+    const availableUnits = itemData?.reduce((s, i) => s + (i.quantity_remaining || 0), 0) || 0
+    const totalValue     = itemData?.reduce((s, i) => s + ((i.quantity_remaining || 0) * (i.flent_price || i.market_price || i.price_inc || 0)), 0) || 0
+    const unitsUsed      = usageData?.reduce((s, u) => s + (u.qty_used || 0), 0) || 0
+    const valueUsed      = usageWithPrice?.reduce((s, u) => s + ((u.qty_used || 0) * (u.inventory_items?.flent_price || u.inventory_items?.market_price || u.inventory_items?.price_inc || 0)), 0) || 0
+    setStats({ availableUnits, totalValue, unitsUsed, valueUsed })
+  }
+
+  const fetchItems = async () => {
+    const { data, error } = await supabase
+      .from('inventory_items')
+      .select('*, inventory_registry(vendor_name, vendor_contact, purchase_date, trade)')
+      .order('created_at', { ascending: false })
+    if (error) console.error('Dashboard fetch error:', error)
+    setItems(data || [])
+    setLoading(false)
+  }
+
   useEffect(() => {
-    async function load() {
-      const [{ data, error }, { data: regData }] = await Promise.all([
-        supabase
-          .from('inventory_items')
-          .select('*, inventory_registry(vendor_name, vendor_contact, purchase_date, trade)')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('inventory_registry')
-          .select('total_amount, trade'),
-      ])
-      if (error) console.error('Dashboard fetch error:', error)
-      setItems(data || [])
-      setRegistry(regData || [])
-      setLoading(false)
-    }
-    load()
+    fetchItems()
+    fetchStats()
   }, [])
 
   const filtered = items
     .filter(r => tradePill === 'All' || (r.trade || '').toLowerCase() === tradePill.toLowerCase())
     .filter(r => !filter || r.fxin?.toLowerCase().includes(filter.toLowerCase()) || r.item_name?.toLowerCase().includes(filter.toLowerCase()))
 
-  const availableUnits = filtered.reduce((sum, item) => sum + (item.quantity_remaining ?? 0), 0)
-  const totalValue     = registry
-    .filter(r => tradePill === 'All' || (r.trade || '').toLowerCase() === tradePill.toLowerCase())
-    .reduce((sum, r) => sum + (r.total_amount ?? 0), 0)
-  const unitsUsed      = filtered.reduce((sum, item) => sum + (item.quantity_used ?? 0), 0)
+  const { availableUnits, totalValue, unitsUsed, valueUsed } = stats
 
   function startEdit(row) {
     setEditing(row.id)
@@ -168,7 +173,7 @@ export default function InventoryDashboard() {
     cancelEdit()
     const { error } = await supabase.from('inventory_items').update(patch).eq('id', row.id)
     if (error) { setItems(p => p.map(r => r.id === row.id ? prev : r)); showToast('Save failed', 'error') }
-    else showToast('Item updated')
+    else { showToast('Item updated'); fetchStats() }
     setSaving(false)
   }
 
@@ -180,7 +185,7 @@ export default function InventoryDashboard() {
     setConfirmDelete(null)
     const { error } = await supabase.from('inventory_items').delete().eq('id', id)
     if (error) { setItems(p => [prev, ...p]); showToast('Delete failed', 'error') }
-    else showToast(`Deleted "${name}"`)
+    else { showToast(`Deleted "${name}"`); fetchStats() }
   }
 
   async function handleAddItem() {
@@ -208,6 +213,7 @@ export default function InventoryDashboard() {
       setShowAdd(false)
       setAddForm(blankAddForm())
       showToast('Item added')
+      fetchStats()
     } catch (e) {
       showToast(e.message || 'Failed to add item', 'error')
     }
@@ -239,11 +245,12 @@ export default function InventoryDashboard() {
       <div style={{ flex: 1, padding: isMobile ? '16px 16px 60px' : '20px 24px 60px', maxWidth: 1100, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
           {[
-            { label: 'Available Units', value: availableUnits.toLocaleString('en-IN'),                color: 'var(--text, #e8e8f0)' },
-            { label: 'Total Value',     value: `₹${Math.round(totalValue).toLocaleString('en-IN')}`, color: 'var(--accent, #c8963e)' },
-            { label: 'Units Used',      value: unitsUsed.toLocaleString('en-IN'),                    color: '#5ba8e5' },
+            { label: 'Available Units',  value: availableUnits.toLocaleString('en-IN'),                    color: 'var(--text, #e8e8f0)' },
+            { label: 'Remaining Value',  value: `₹${Math.round(totalValue).toLocaleString('en-IN')}`,      color: 'var(--accent, #c8963e)' },
+            { label: 'Units Used',       value: unitsUsed.toLocaleString('en-IN'),                         color: '#5ba8e5' },
+            { label: 'Value Used',       value: `₹${Math.round(valueUsed).toLocaleString('en-IN')}`,       color: '#e05c6a' },
           ].map(stat => (
             <div key={stat.label} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, padding: isMobile ? '12px 14px' : '16px 18px' }}>
               <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: stat.color, fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.2 }}>{stat.value}</div>
