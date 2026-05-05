@@ -417,7 +417,9 @@ function IssueCheckboxGrid({ presets, selectedIssues, otherIssue, onSetIssues, o
 function SearchableDropdown({ options, value, onChange, placeholder }) {
   const [search, setSearch] = useState('')
   const [open, setOpen]     = useState(false)
-  const ref = useRef(null)
+  const [dropPos, setDropPos] = useState({})
+  const ref        = useRef(null)
+  const triggerRef = useRef(null)
 
   useEffect(() => {
     function handleOutside(e) {
@@ -427,12 +429,26 @@ function SearchableDropdown({ options, value, onChange, placeholder }) {
     return () => document.removeEventListener('mousedown', handleOutside)
   }, [open])
 
+  function openDropdown() {
+    if (open) { setOpen(false); setSearch(''); return }
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (rect) {
+      const spaceBelow = window.innerHeight - rect.bottom
+      if (spaceBelow < 264 && rect.top > 264) {
+        setDropPos({ position: 'fixed', bottom: window.innerHeight - rect.top, top: 'auto', left: rect.left, width: rect.width })
+      } else {
+        setDropPos({ position: 'fixed', top: rect.bottom + 4, left: rect.left, width: rect.width })
+      }
+    }
+    setOpen(true); setSearch('')
+  }
+
   const selected = options.find(o => o.value === value)
   const filtered = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <div onClick={() => { setOpen(p => !p); setSearch('') }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', border: `1px solid ${value ? 'rgba(200,150,62,0.5)' : 'var(--border, #2e3040)'}`, borderRadius: 6, background: 'var(--bg-input, #252731)', fontSize: 12, color: value ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'inherit', gap: 6 }}>
+      <div ref={triggerRef} onClick={openDropdown} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', border: `1px solid ${value ? 'rgba(200,150,62,0.5)' : 'var(--border, #2e3040)'}`, borderRadius: 6, background: 'var(--bg-input, #252731)', fontSize: 12, color: value ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'inherit', gap: 6 }}>
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {selected ? selected.label : placeholder}
         </span>
@@ -440,7 +456,7 @@ function SearchableDropdown({ options, value, onChange, placeholder }) {
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}><path d="M2 4l4 4 4-4" stroke="#B0B0B0" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
       </div>
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, zIndex: 200, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
+        <div style={{ ...dropPos, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, zIndex: 9999, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
           <input autoFocus value={search} onChange={e => setSearch(e.target.value)} onClick={e => e.stopPropagation()} placeholder="Search…" style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-input, #252731)', border: 'none', borderBottom: '1px solid var(--border, #2e3040)', color: 'var(--text, #e8e8f0)', fontSize: 12, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
           {filtered.map(o => (
             <div key={o.value} onClick={() => { onChange(o.value); setOpen(false); setSearch('') }}
@@ -490,7 +506,7 @@ function NotAvailableNote({ value, onChange }) {
 }
 
 // ── Issue cost row (one per selected non-Functional issue) ────────────────────
-function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate }) {
+function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelectRate }) {
   const rowTotal = (parseFloat(costRow.materialCost) || 0) + (parseFloat(costRow.labourCost) || 0)
   return (
     <div style={{ background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -502,7 +518,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate }) {
 
       {costRow.action === 'Repair' && (
         <>
-          <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={(id, cost, desc) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost); onUpdate('labourDescription', desc) }} />
+          <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={onSelectRate} />
           <Field label="Labour ₹">
             <Input value={costRow.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" />
           </Field>
@@ -515,7 +531,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate }) {
             <Field label="Material ₹"><Input value={costRow.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" /></Field>
             <Field label="Labour ₹"><Input value={costRow.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" /></Field>
           </div>
-          <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={(id, cost, desc) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost); onUpdate('labourDescription', desc) }} />
+          <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={onSelectRate} />
         </>
       )}
 
@@ -555,8 +571,8 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
     onUpdate('costRows', newCostRows)
   }
 
-  function updateCostRow(issue, field, value) {
-    onUpdate('costRows', { ...costRows, [issue]: { ...(costRows[issue] || {}), [field]: value } })
+  function updateCostRow(issue, partial) {
+    onUpdate('costRows', { ...costRows, [issue]: { ...(costRows[issue] || {}), ...partial } })
   }
 
   const naToggle = (
@@ -635,7 +651,8 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
                     issueLabel={issue === 'Other' ? (card.otherIssue || 'Other') : issue}
                     costRow={costRows[issue] || {}}
                     tradeRates={tradeRates}
-                    onUpdate={(field, value) => updateCostRow(issue, field, value)}
+                    onUpdate={(field, value) => updateCostRow(issue, { [field]: value })}
+                    onSelectRate={(id, cost, desc) => updateCostRow(issue, { labourRateId: id, labourCost: cost, labourDescription: desc })}
                   />
                 ))}
               </div>
