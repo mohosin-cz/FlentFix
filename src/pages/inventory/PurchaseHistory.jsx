@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
@@ -73,6 +73,85 @@ function formatDate(d) {
 const inpS = { padding: '7px 9px', fontSize: 12, color: 'var(--text, #e8e8f0)', background: 'rgba(200,150,62,0.08)', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 5, outline: 'none', fontFamily: 'var(--font-mono, monospace)', boxSizing: 'border-box', width: '100%' }
 const lbl  = { fontSize: 10, fontWeight: 600, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: 'var(--font-mono, monospace)', display: 'block', marginBottom: 4 }
 
+const ANALYTICS_TRADE_COLORS = {
+  electrical: '#4a9eff', plumbing: '#4dd9c0', woodwork: '#c8963e',
+  cleaning: '#a78bfa', misc: '#9898a4', appliances: '#f0a050', lights: '#f0c040',
+}
+
+function AnalyticsPanel({ analytics, style = {} }) {
+  const panelStyle = {
+    width: 320, flexShrink: 0, background: 'var(--bg-panel, #1e2028)',
+    border: '1px solid var(--border, #2e3040)', borderRadius: 12,
+    padding: 20, height: 'fit-content', position: 'sticky', top: 80, ...style,
+  }
+  return (
+    <div style={panelStyle}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 16 }}>// PURCHASE ANALYTICS</div>
+
+      <div style={{ background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.15)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginBottom: 4 }}>TOTAL SPEND</div>
+        <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', color: 'var(--accent, #c8963e)' }}>
+          ₹{(analytics.totalSpend || 0).toLocaleString('en-IN')}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginTop: 6 }}>
+          {analytics.totalOrders || 0} orders · {analytics.totalItems || 0} items
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', letterSpacing: '0.08em', marginBottom: 10 }}>BY TRADE</div>
+        {Object.entries(analytics.byTrade || {})
+          .sort((a, b) => b[1] - a[1])
+          .map(([trade, amount]) => {
+            const pct = analytics.totalSpend ? Math.round((amount / analytics.totalSpend) * 100) : 0
+            const color = ANALYTICS_TRADE_COLORS[trade] || 'var(--accent, #c8963e)'
+            return (
+              <div key={trade} style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                  <span style={{ textTransform: 'capitalize', color }}>{trade}</span>
+                  <span style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--text, #e8e8f0)' }}>₹{amount.toLocaleString('en-IN')}</span>
+                </div>
+                <div style={{ height: 4, background: 'var(--border, #2e3040)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 2, transition: 'width 0.6s ease' }} />
+                </div>
+              </div>
+            )
+          })}
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', letterSpacing: '0.08em', marginBottom: 10 }}>BY MONTH</div>
+        {Object.entries(analytics.byMonth || {})
+          .sort((a, b) => new Date('01 ' + b[0]) - new Date('01 ' + a[0]))
+          .slice(0, 6)
+          .map(([month, amount]) => (
+            <div key={month} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border, #2e3040)', fontSize: 12 }}>
+              <span style={{ color: 'var(--text-muted, #6b6d82)' }}>{month}</span>
+              <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>₹{amount.toLocaleString('en-IN')}</span>
+            </div>
+          ))}
+      </div>
+
+      <div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', letterSpacing: '0.08em', marginBottom: 10 }}>TOP VENDORS</div>
+        {Object.entries(analytics.byVendor || {})
+          .filter(([v]) => v && v !== 'null' && v !== 'undefined')
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 4)
+          .map(([vendor, amount], i) => (
+            <div key={vendor} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border, #2e3040)', fontSize: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', minWidth: 16 }}>#{i + 1}</span>
+                <span style={{ color: 'var(--text, #e8e8f0)' }}>{vendor}</span>
+              </div>
+              <span style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--text-muted, #6b6d82)' }}>₹{amount.toLocaleString('en-IN')}</span>
+            </div>
+          ))}
+      </div>
+    </div>
+  )
+}
+
 export default function PurchaseHistory() {
   const navigate  = useNavigate()
   const isMobile  = useIsMobile()
@@ -104,6 +183,27 @@ export default function PurchaseHistory() {
   const [hoveredInvoice, setHoveredInvoice] = useState(null)
 
   const [isAdmin, setIsAdmin] = useState(false)
+  const [mobileTab, setMobileTab] = useState('history')
+
+  const analytics = useMemo(() => {
+    if (!records.length) return {}
+    const totalSpend = records.reduce((s, r) => s + (r.total_amount || 0), 0)
+    const byTrade = records.reduce((acc, r) => {
+      if (r.trade) acc[r.trade] = (acc[r.trade] || 0) + (r.total_amount || 0)
+      return acc
+    }, {})
+    const byMonth = records.reduce((acc, r) => {
+      const month = new Date(r.created_at || r.purchase_date).toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
+      acc[month] = (acc[month] || 0) + (r.total_amount || 0)
+      return acc
+    }, {})
+    const byVendor = records.reduce((acc, r) => {
+      if (r.vendor_name) acc[r.vendor_name] = (acc[r.vendor_name] || 0) + (r.total_amount || 0)
+      return acc
+    }, {})
+    const totalItems = records.reduce((s, r) => s + (r.inventory_items?.length || 0), 0)
+    return { totalSpend, byTrade, byMonth, byVendor, totalItems, totalOrders: records.length }
+  }, [records])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -239,6 +339,10 @@ export default function PurchaseHistory() {
 
   return (
     <>
+      <style>{`
+        @media (max-width: 640px)  { .ph-sidebar { display: none !important; } }
+        @media (min-width: 641px)  { .ph-mobile-tabs { display: none !important; } }
+      `}</style>
       <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
       <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', fontFamily: 'var(--font-sans, Poppins, sans-serif)', color: 'var(--text, #e8e8f0)' }}>
       <header style={s.header}>
@@ -256,8 +360,28 @@ export default function PurchaseHistory() {
         ) : <div style={{ width: 36 }} />}
       </header>
 
-      <div style={{ maxWidth: 760, margin: '0 auto', padding: '20px 16px 60px' }}>
+      <div style={{ maxWidth: 1120, margin: '0 auto', padding: '20px 16px 60px', display: 'flex', gap: 24, alignItems: 'flex-start' }}>
 
+        {/* ── Left: history list ── */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+
+          {/* Mobile tab bar */}
+          <div className="ph-mobile-tabs" style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border, #2e3040)', marginBottom: 12 }}>
+            {['history', 'analytics'].map(tab => (
+              <button key={tab} onClick={() => setMobileTab(tab)} style={{ flex: 1, padding: '10px', background: 'none', border: 'none', borderBottom: mobileTab === tab ? '2px solid var(--accent, #c8963e)' : '2px solid transparent', color: mobileTab === tab ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer' }}>
+                {tab === 'history' ? '// History' : '// Analytics'}
+              </button>
+            ))}
+          </div>
+
+          {/* Mobile analytics tab content */}
+          {isMobile && mobileTab === 'analytics' && (
+            <AnalyticsPanel analytics={analytics} style={{ width: '100%', position: 'static', top: 'auto' }} />
+          )}
+
+          {/* History content — hidden on mobile when analytics tab active */}
+          {(!isMobile || mobileTab === 'history') && (
+            <>
         {/* Filters */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           {TRADES.map(t => (
@@ -488,6 +612,15 @@ export default function PurchaseHistory() {
             )
           })}
         </div>
+            </>
+          )}
+        </div>{/* end left panel */}
+
+        {/* ── Right: analytics sidebar (desktop only) ── */}
+        <div className="ph-sidebar">
+          <AnalyticsPanel analytics={analytics} />
+        </div>
+
       </div>
 
       {confirmDelRec && <ConfirmDialog message={`Delete purchase from ${confirmDelRec.date}? All items in this purchase will also be deleted.`} onConfirm={deletePurchase} onCancel={() => setConfirmDelRec(null)} />}
