@@ -309,10 +309,25 @@ export default function LogUsage() {
             </div>
 
             <div style={{ border: '1px solid var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
-              {cart.map((c, i) => (
-                <div key={c.item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: i < cart.length - 1 ? '1px solid var(--border, #2e3040)' : 'none', background: i % 2 === 0 ? 'var(--bg-input, #252731)' : 'var(--bg-panel, #1e2028)', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+              {cart.map((c, i) => isMobile ? (
+                <div key={c.item.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '12px 14px', borderBottom: i < cart.length - 1 ? '1px solid var(--border, #2e3040)' : 'none', background: i % 2 === 0 ? 'var(--bg-input, #252731)' : 'var(--bg-panel, #1e2028)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.1)', padding: '2px 8px', borderRadius: 4, flexShrink: 0 }}>{c.item.fxin || '—'}</span>
+                    <span style={{ fontSize: 13, fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.item.item_name}</span>
+                    <button onClick={() => removeFromCart(c.item.id)} style={{ color: '#cc4444', background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', padding: '0 4px', lineHeight: 1, flexShrink: 0 }}>×</button>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 4 }}>
+                    <button onClick={() => updateQty(c.item.id, c.qty - 1)} style={{ width: 44, height: 44, borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text, #e8e8f0)', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                    <input type="number" value={c.qty} onChange={e => updateQty(c.item.id, parseInt(e.target.value) || 1)}
+                      style={{ width: 52, height: 44, textAlign: 'center', border: '1px solid var(--border, #2e3040)', borderRadius: 6, background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+                    <button onClick={() => updateQty(c.item.id, c.qty + 1)} style={{ width: 44, height: 44, borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text, #e8e8f0)', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginLeft: 'auto', fontFamily: 'var(--font-mono, monospace)' }}>{c.item.quantity_remaining} in stock</span>
+                  </div>
+                </div>
+              ) : (
+                <div key={c.item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: i < cart.length - 1 ? '1px solid var(--border, #2e3040)' : 'none', background: i % 2 === 0 ? 'var(--bg-input, #252731)' : 'var(--bg-panel, #1e2028)' }}>
                   <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.1)', padding: '2px 8px', borderRadius: 4, flexShrink: 0 }}>{c.item.fxin || '—'}</span>
-                  <span style={{ flex: 1, fontSize: 13, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: isMobile ? 'calc(100% - 120px)' : 0 }}>{c.item.item_name}</span>
+                  <span style={{ flex: 1, fontSize: 13, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.item.item_name}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                     <button onClick={() => updateQty(c.item.id, c.qty - 1)} style={{ width: 28, height: 28, borderRadius: 4, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text, #e8e8f0)', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
                     <input type="number" value={c.qty} onChange={e => updateQty(c.item.id, parseInt(e.target.value) || 1)}
@@ -325,10 +340,14 @@ export default function LogUsage() {
               ))}
             </div>
 
-            <button onClick={handleLogAll} disabled={!canLog || loading} style={{ marginTop: 14, width: '100%', padding: '13px 20px', background: canLog ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)', color: canLog ? '#fff' : 'var(--text-muted, #6b6d82)', border: canLog ? 'none' : '1px solid var(--border, #2e3040)', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: canLog && !loading ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-mono, monospace)', opacity: loading ? 0.7 : 1, transition: 'background 0.15s' }}>
-              {loading ? 'Saving…' : `Log ${cart.length} Item${cart.length > 1 ? 's' : ''} →`}
-            </button>
-            {!pid.trim() && <p style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', marginTop: 8, textAlign: 'center' }}>Enter a PID in Job Details to enable logging</p>}
+            {!isMobile && (
+              <>
+                <button onClick={handleLogAll} disabled={!canLog || loading} style={{ marginTop: 14, width: '100%', padding: '13px 20px', background: canLog ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)', color: canLog ? '#fff' : 'var(--text-muted, #6b6d82)', border: canLog ? 'none' : '1px solid var(--border, #2e3040)', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: canLog && !loading ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-mono, monospace)', opacity: loading ? 0.7 : 1, transition: 'background 0.15s' }}>
+                  {loading ? 'Saving…' : `Log ${cart.length} Item${cart.length > 1 ? 's' : ''} →`}
+                </button>
+                {!pid.trim() && <p style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', marginTop: 8, textAlign: 'center' }}>Enter a PID in Job Details to enable logging</p>}
+              </>
+            )}
           </div>
         )}
 
@@ -399,6 +418,16 @@ export default function LogUsage() {
 
       {confirmDel && <ConfirmDialog message={`Delete this usage entry (${confirmDel.qty_used}× "${confirmDel.item_name}")? Stock will be reversed.`} onConfirm={deleteUsage} onCancel={() => setConfirmDel(null)} />}
       <Toasts toasts={toasts} />
+
+      {/* Sticky Log button on mobile */}
+      {isMobile && cart.length > 0 && (
+        <div style={{ position: 'fixed', bottom: 64, left: 0, right: 0, padding: '10px 16px', background: 'var(--bg-panel, #1e2028)', borderTop: '1px solid var(--border, #2e3040)', zIndex: 90 }}>
+          <button onClick={handleLogAll} disabled={!canLog || loading} style={{ width: '100%', padding: '14px', background: canLog ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)', color: canLog ? '#fff' : 'var(--text-muted, #6b6d82)', border: canLog ? 'none' : '1px solid var(--border, #2e3040)', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: canLog && !loading ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-mono, monospace)', opacity: loading ? 0.7 : 1 }}>
+            {loading ? 'Saving…' : `Log ${cart.length} Item${cart.length > 1 ? 's' : ''} →`}
+          </button>
+          {!pid.trim() && <p style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', marginTop: 6, textAlign: 'center' }}>Enter a PID in Job Details to enable logging</p>}
+        </div>
+      )}
     </div>
   )
 }

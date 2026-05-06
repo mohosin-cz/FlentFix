@@ -102,6 +102,10 @@ export default function InventoryDashboard() {
   // Row hover (for subtle table hover without CSS classes)
   const [hoveredRow, setHoveredRow] = useState(null)
 
+  // Expandable row detail
+  const [expandedId, setExpandedId] = useState(null)
+  const toggleExpand = (id) => setExpandedId(prev => prev === id ? null : id)
+
   const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
@@ -393,30 +397,55 @@ export default function InventoryDashboard() {
                       </div>
                     </div>
                   ) : (
-                    <div
-                      onMouseEnter={() => setHoveredRow(row.id)}
-                      onMouseLeave={() => setHoveredRow(null)}
-                      style={{ display: 'grid', gridTemplateColumns: '110px minmax(150px,1fr) 180px 100px 90px 90px 70px', padding: '14px 16px', borderTop: '1px solid var(--border, #2e3040)', alignItems: 'center', gap: 8, background: hoveredRow === row.id ? 'rgba(200,150,62,0.04)' : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent', transition: 'background 0.1s' }}
-                    >
-                      <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>{row.fxin ? <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.1)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 4, padding: '2px 6px' }}>{row.fxin}</span> : '—'}</span>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.item_name}</span>
-                      <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.spec || '—'}</span>
-                      <span style={{ textAlign: 'center' }}><QtyBadge qty={row.quantity_remaining ?? row.qty ?? 0} /></span>
-                      <span style={{ fontSize: 12, color: row.warranty_months > 0 ? '#3dba7a' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textAlign: 'center' }}>{row.warranty_months > 0 ? `${row.warranty_months}mo` : '—'}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text, #e8e8f0)', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)' }}>₹{(parseFloat(row.price_inc) || 0).toLocaleString('en-IN')}</span>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
-                        {isAdmin && (
-                          <button onClick={() => startEdit(row)} style={s.iconBtn} title="Edit">
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                          </button>
-                        )}
-                        {isAdmin && (
-                          <button onClick={() => setConfirmDelete({ id: row.id, name: row.item_name })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }} title="Delete">
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                          </button>
-                        )}
+                    <>
+                      <div
+                        onClick={() => toggleExpand(row.id)}
+                        onMouseEnter={() => setHoveredRow(row.id)}
+                        onMouseLeave={() => setHoveredRow(null)}
+                        style={{ display: 'grid', gridTemplateColumns: '110px minmax(150px,1fr) 180px 100px 90px 90px 70px', padding: '14px 16px', borderTop: '1px solid var(--border, #2e3040)', alignItems: 'center', gap: 8, background: expandedId === row.id ? 'rgba(200,150,62,0.06)' : hoveredRow === row.id ? 'rgba(200,150,62,0.04)' : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent', transition: 'background 0.1s', cursor: 'pointer' }}
+                      >
+                        <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>{row.fxin ? <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.1)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 4, padding: '2px 6px' }}>{row.fxin}</span> : '—'}</span>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.item_name}</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.spec || '—'}</span>
+                        <span style={{ textAlign: 'center' }}><QtyBadge qty={row.quantity_remaining ?? row.qty ?? 0} /></span>
+                        <span style={{ fontSize: 12, color: row.warranty_months > 0 ? '#3dba7a' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textAlign: 'center' }}>{row.warranty_months > 0 ? `${row.warranty_months}mo` : '—'}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text, #e8e8f0)', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)' }}>₹{(parseFloat(row.price_inc) || 0).toLocaleString('en-IN')}</span>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
+                          <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', display: 'inline-block', transition: 'transform 0.2s', transform: expandedId === row.id ? 'rotate(180deg)' : 'rotate(0deg)', marginRight: 2 }}>▼</span>
+                          {isAdmin && (
+                            <button onClick={e => { e.stopPropagation(); startEdit(row) }} style={s.iconBtn} title="Edit">
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button onClick={e => { e.stopPropagation(); setConfirmDelete({ id: row.id, name: row.item_name }) }} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }} title="Delete">
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                      {expandedId === row.id && (
+                        <div style={{ background: 'rgba(200,150,62,0.04)', borderTop: '1px solid rgba(200,150,62,0.15)', borderBottom: '1px solid rgba(200,150,62,0.1)', padding: '16px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '16px' }}>
+                          {[
+                            { label: 'FXIN',         val: <span style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--accent, #c8963e)' }}>{row.fxin || '—'}</span> },
+                            { label: 'TRADE',        val: <span style={{ textTransform: 'capitalize' }}>{row.trade || '—'}</span> },
+                            { label: 'SPEC',         val: <span style={{ color: 'var(--text-muted, #6b6d82)', fontSize: 12 }}>{row.spec || '—'}</span> },
+                            { label: 'MARKET PRICE', val: <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>₹{row.market_price?.toLocaleString('en-IN') || '—'}</span> },
+                            { label: 'FLENT PRICE',  val: <span style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--accent, #c8963e)' }}>₹{row.flent_price?.toLocaleString('en-IN') || '—'}</span> },
+                            { label: 'AVAILABLE',    val: <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>{row.quantity_remaining} units</span> },
+                            { label: 'TOTAL QTY',    val: <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>{row.qty || '—'}</span> },
+                            { label: 'WARRANTY',     val: row.warranty_months ? `${row.warranty_months} months` : '—' },
+                            { label: 'STOCK VALUE',  val: <span style={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 600 }}>₹{((row.quantity_remaining || 0) * (row.flent_price || row.market_price || row.price_inc || 0)).toLocaleString('en-IN')}</span> },
+                            { label: 'VENDOR',       val: <span style={{ fontSize: 12 }}>{row.inventory_registry?.vendor_name || '—'}</span> },
+                          ].map(({ label, val }) => (
+                            <div key={label}>
+                              <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4, fontFamily: 'var(--font-mono, monospace)' }}>{label}</div>
+                              <div style={{ fontSize: 13, color: 'var(--text, #e8e8f0)' }}>{val}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )
