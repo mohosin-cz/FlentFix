@@ -4,12 +4,6 @@ import { supabase } from '../../lib/supabase'
 
 const today = new Date().toISOString().split('T')[0]
 
-function useIsMobile() {
-  const [m, setM] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 640)
-  useEffect(() => { const h = () => setM(window.innerWidth <= 640); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h) }, [])
-  return m
-}
-
 function useToast() {
   const [toasts, setToasts] = useState([])
   function showToast(msg, type = 'success') {
@@ -63,24 +57,19 @@ const edInp = { padding: '6px 8px', fontSize: 12, color: 'var(--text, #e8e8f0)',
 
 export default function LogUsage() {
   const navigate = useNavigate()
-  const isMobile = useIsMobile()
   const [toasts, showToast] = useToast()
 
-  // Job context
   const [pid, setPid]     = useState('')
   const [date, setDate]   = useState(today)
   const [notes, setNotes] = useState('')
 
-  // Search
-  const [search, setSearch]           = useState('')
+  const [search, setSearch]               = useState('')
   const [searchResults, setSearchResults] = useState([])
-  const [searching, setSearching]     = useState(false)
+  const [searching, setSearching]         = useState(false)
 
-  // Cart
   const [cart, setCart]       = useState([])
   const [loading, setLoading] = useState(false)
 
-  // History
   const [history, setHistory]         = useState([])
   const [histLoading, setHistLoading] = useState(true)
   const [editingId, setEditingId]     = useState(null)
@@ -136,13 +125,13 @@ export default function LogUsage() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       const entries = cart.map(c => ({
-        item_id: c.item.id,
-        fxin: c.item.fxin,
+        item_id:   c.item.id,
+        fxin:      c.item.fxin,
         item_name: c.item.item_name,
-        pid: pid.trim(),
-        qty_used: c.qty,
-        use_date: date,
-        notes: notes.trim() || null,
+        pid:       pid.trim(),
+        qty_used:  c.qty,
+        use_date:  date,
+        notes:     notes.trim() || null,
         logged_by: user?.email || null,
       }))
       const { data: inserted, error: insErr } = await supabase.from('inventory_usage').insert(entries).select()
@@ -166,7 +155,6 @@ export default function LogUsage() {
     setLoading(false)
   }
 
-  // Edit history entry
   function startEditUsage(entry) {
     setEditingId(entry.id)
     setEditForm({ qty_used: String(entry.qty_used || ''), pid: entry.pid || '', use_date: entry.use_date || today, notes: entry.notes || '' })
@@ -216,9 +204,16 @@ export default function LogUsage() {
   }
 
   const canLog = pid.trim() && cart.length > 0
+  const ef     = editForm
 
   return (
     <div style={s.page}>
+      <style>{`
+        @media (max-width: 640px)  { .log-usage-desktop-layout { display: none    !important; } }
+        @media (min-width: 641px)  { .log-usage-mobile-layout  { display: none    !important; } }
+      `}</style>
+
+      {/* ── Header ── */}
       <header style={s.header}>
         <button style={s.backBtn} onClick={() => navigate('/inventory')}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 5l-5 5 5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -230,18 +225,22 @@ export default function LogUsage() {
         <div style={{ width: 36 }} />
       </header>
 
-      <div style={{ flex: 1, padding: isMobile ? '16px 16px 80px' : '20px 24px 80px', maxWidth: 900, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+      {/* ════════════════════════════════════════
+          DESKTOP LAYOUT  (hidden on ≤640px)
+          ════════════════════════════════════════ */}
+      <div className="log-usage-desktop-layout" style={{ flex: 1, padding: '20px 24px 80px', maxWidth: 900, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
-        {/* ── Top two-panel row ── */}
-        <div style={{ display: 'flex', gap: 14, marginBottom: 14, flexDirection: isMobile ? 'column' : 'row', alignItems: 'flex-start' }}>
+        {/* Two-panel row */}
+        <div style={{ display: 'flex', gap: 14, marginBottom: 14, alignItems: 'flex-start' }}>
 
-          {/* Left — Job Details */}
-          <div style={{ ...s.card, width: isMobile ? '100%' : 280, flexShrink: 0, boxSizing: 'border-box' }}>
+          {/* Job Details */}
+          <div style={{ ...s.card, width: 280, flexShrink: 0, boxSizing: 'border-box' }}>
             <p style={s.sectionLabel}>Job Details</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div>
                 <span style={s.lbl}>PID *</span>
-                <input value={pid} onChange={e => setPid(e.target.value)} placeholder="e.g. FLT-2024-001" style={{ ...inpS, borderColor: pid.trim() ? 'rgba(200,150,62,0.5)' : undefined }} />
+                <input value={pid} onChange={e => setPid(e.target.value)} placeholder="e.g. FLT-2024-001"
+                  style={{ ...inpS, borderColor: pid.trim() ? 'rgba(200,150,62,0.5)' : undefined }} />
               </div>
               <div>
                 <span style={s.lbl}>Date *</span>
@@ -254,7 +253,7 @@ export default function LogUsage() {
             </div>
           </div>
 
-          {/* Right — Search */}
+          {/* Search */}
           <div style={{ ...s.card, flex: 1, minWidth: 0, boxSizing: 'border-box' }}>
             <p style={s.sectionLabel}>Add Items</p>
             <div style={{ position: 'relative' }}>
@@ -264,9 +263,7 @@ export default function LogUsage() {
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search inventory by name or FXIN…"
                 style={{ ...inpS, paddingLeft: 32 }} />
             </div>
-
             {searching && <p style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 8 }}>searching…</p>}
-
             {searchResults.length > 0 && (
               <div style={{ marginTop: 8, border: '1px solid var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
                 {searchResults.map((item, i) => {
@@ -289,42 +286,24 @@ export default function LogUsage() {
                 })}
               </div>
             )}
-
             {search.trim() && !searching && searchResults.length === 0 && (
               <p style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 8 }}>No items found for "{search}"</p>
             )}
-
             {!search.trim() && cart.length === 0 && (
               <p style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 10 }}>Search above to add items to the session</p>
             )}
           </div>
         </div>
 
-        {/* ── Cart ── */}
+        {/* Desktop Cart */}
         {cart.length > 0 && (
           <div style={{ ...s.card, marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
               <p style={{ ...s.sectionLabel, marginBottom: 0 }}>Items to Log</p>
               <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.12)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 10, padding: '1px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{cart.length}</span>
             </div>
-
             <div style={{ border: '1px solid var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
-              {cart.map((c, i) => isMobile ? (
-                <div key={c.item.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '12px 14px', borderBottom: i < cart.length - 1 ? '1px solid var(--border, #2e3040)' : 'none', background: i % 2 === 0 ? 'var(--bg-input, #252731)' : 'var(--bg-panel, #1e2028)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.1)', padding: '2px 8px', borderRadius: 4, flexShrink: 0 }}>{c.item.fxin || '—'}</span>
-                    <span style={{ fontSize: 13, fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.item.item_name}</span>
-                    <button onClick={() => removeFromCart(c.item.id)} style={{ color: '#cc4444', background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', padding: '0 4px', lineHeight: 1, flexShrink: 0 }}>×</button>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 4 }}>
-                    <button onClick={() => updateQty(c.item.id, c.qty - 1)} style={{ width: 44, height: 44, borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text, #e8e8f0)', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                    <input type="number" value={c.qty} onChange={e => updateQty(c.item.id, parseInt(e.target.value) || 1)}
-                      style={{ width: 52, height: 44, textAlign: 'center', border: '1px solid var(--border, #2e3040)', borderRadius: 6, background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
-                    <button onClick={() => updateQty(c.item.id, c.qty + 1)} style={{ width: 44, height: 44, borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text, #e8e8f0)', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginLeft: 'auto', fontFamily: 'var(--font-mono, monospace)' }}>{c.item.quantity_remaining} in stock</span>
-                  </div>
-                </div>
-              ) : (
+              {cart.map((c, i) => (
                 <div key={c.item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: i < cart.length - 1 ? '1px solid var(--border, #2e3040)' : 'none', background: i % 2 === 0 ? 'var(--bg-input, #252731)' : 'var(--bg-panel, #1e2028)' }}>
                   <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.1)', padding: '2px 8px', borderRadius: 4, flexShrink: 0 }}>{c.item.fxin || '—'}</span>
                   <span style={{ flex: 1, fontSize: 13, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.item.item_name}</span>
@@ -339,26 +318,20 @@ export default function LogUsage() {
                 </div>
               ))}
             </div>
-
-            {!isMobile && (
-              <>
-                <button onClick={handleLogAll} disabled={!canLog || loading} style={{ marginTop: 14, width: '100%', padding: '13px 20px', background: canLog ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)', color: canLog ? '#fff' : 'var(--text-muted, #6b6d82)', border: canLog ? 'none' : '1px solid var(--border, #2e3040)', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: canLog && !loading ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-mono, monospace)', opacity: loading ? 0.7 : 1, transition: 'background 0.15s' }}>
-                  {loading ? 'Saving…' : `Log ${cart.length} Item${cart.length > 1 ? 's' : ''} →`}
-                </button>
-                {!pid.trim() && <p style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', marginTop: 8, textAlign: 'center' }}>Enter a PID in Job Details to enable logging</p>}
-              </>
-            )}
+            <button onClick={handleLogAll} disabled={!canLog || loading} style={{ marginTop: 14, width: '100%', padding: '13px 20px', background: canLog ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)', color: canLog ? '#fff' : 'var(--text-muted, #6b6d82)', border: canLog ? 'none' : '1px solid var(--border, #2e3040)', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: canLog && !loading ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-mono, monospace)', opacity: loading ? 0.7 : 1, transition: 'background 0.15s' }}>
+              {loading ? 'Saving…' : `Log ${cart.length} Item${cart.length > 1 ? 's' : ''} →`}
+            </button>
+            {!pid.trim() && <p style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', marginTop: 8, textAlign: 'center' }}>Enter a PID in Job Details to enable logging</p>}
           </div>
         )}
 
-        {/* ── Usage History ── */}
+        {/* Desktop History */}
         <div style={{ marginTop: cart.length > 0 ? 8 : 32 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)' }}>Usage History</span>
             <div style={{ flex: 1, height: 1, background: 'var(--border, #2e3040)' }} />
             <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{history.length} entries</span>
           </div>
-
           {histLoading ? (
             <p style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>loading…</p>
           ) : history.length === 0 ? (
@@ -367,16 +340,15 @@ export default function LogUsage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {history.map(entry => {
                 const isEd = editingId === entry.id
-                const ef   = editForm
                 return (
                   <div key={entry.id} style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${isEd ? 'rgba(200,150,62,0.35)' : 'var(--border, #2e3040)'}`, borderRadius: 9, padding: '12px 14px' }}>
                     {isEd ? (
                       <>
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 8, marginBottom: 8 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 8 }}>
                           <div><span style={s.lbl}>Qty Used</span><input type="number" value={ef.qty_used} onChange={e => setEditForm(p => ({ ...p, qty_used: e.target.value }))} style={edInp} /></div>
                           <div><span style={s.lbl}>PID</span><input value={ef.pid} onChange={e => setEditForm(p => ({ ...p, pid: e.target.value }))} style={edInp} /></div>
                           <div><span style={s.lbl}>Date</span><input type="date" value={ef.use_date} onChange={e => setEditForm(p => ({ ...p, use_date: e.target.value }))} style={edInp} /></div>
-                          <div style={{ gridColumn: isMobile ? '1/-1' : 'auto' }}><span style={s.lbl}>Notes</span><input value={ef.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} placeholder="—" style={edInp} /></div>
+                          <div><span style={s.lbl}>Notes</span><input value={ef.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} placeholder="—" style={edInp} /></div>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button onClick={() => saveEditUsage(entry)} disabled={editSaving} style={{ padding: '6px 16px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{editSaving ? '…' : '✓ Save'}</button>
@@ -416,18 +388,153 @@ export default function LogUsage() {
         </div>
       </div>
 
+      {/* ════════════════════════════════════════
+          MOBILE LAYOUT  (hidden on ≥641px)
+          ════════════════════════════════════════ */}
+      <div className="log-usage-mobile-layout" style={{ flex: 1, overflowY: 'auto', paddingBottom: 80, display: 'flex', flexDirection: 'column' }}>
+
+        {/* ── Section 1: Job Details ── */}
+        <div style={{ padding: '12px 16px', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 8 }}>JOB DETAILS</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <input value={pid} onChange={e => setPid(e.target.value)} placeholder="PID *"
+              style={{ flex: 1, padding: '10px 12px', background: 'var(--bg-input, #252731)', border: `1px solid ${pid.trim() ? 'rgba(200,150,62,0.5)' : 'var(--border, #2e3040)'}`, borderRadius: 8, color: 'var(--text, #e8e8f0)', fontSize: 16, outline: 'none', fontFamily: 'inherit' }} />
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              style={{ flex: 1, padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text, #e8e8f0)', fontSize: 16, outline: 'none', fontFamily: 'inherit' }} />
+          </div>
+          <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (optional)"
+            style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text, #e8e8f0)', fontSize: 16, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+        </div>
+
+        {/* ── Section 2: Add Items ── */}
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border, #2e3040)' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 8 }}>ADD ITEMS</div>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍  Search by name or FXIN..."
+            style={{ width: '100%', padding: '12px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text, #e8e8f0)', fontSize: 16, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+          {searching && <p style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 8 }}>searching…</p>}
+          {searchResults.length > 0 && (
+            <div style={{ marginTop: 8, border: '1px solid var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
+              {searchResults.map((item, i) => {
+                const inCart = !!cart.find(c => c.item.id === item.id)
+                return (
+                  <div key={item.id}
+                    onClick={() => !inCart && addToCart(item)}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderTop: i > 0 ? '1px solid var(--border, #2e3040)' : 'none', background: i % 2 === 0 ? 'var(--bg-input, #252731)' : 'var(--bg-panel, #1e2028)', cursor: inCart ? 'default' : 'pointer' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 10, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>{item.fxin}</span>
+                      <div style={{ fontSize: 13, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.item_name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginTop: 1 }}>
+                        {item.quantity_remaining} in stock{(item.spec || item.size) ? ` · ${[item.spec, item.size].filter(Boolean).join(' ')}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: inCart ? 'rgba(61,186,122,0.15)' : 'rgba(200,150,62,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: inCart ? '#3dba7a' : 'var(--accent, #c8963e)', fontSize: 20, flexShrink: 0, marginLeft: 12 }}>
+                      {inCart ? '✓' : '+'}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {search.trim() && !searching && searchResults.length === 0 && (
+            <p style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 8 }}>No items found for "{search}"</p>
+          )}
+        </div>
+
+        {/* ── Section 3: Cart ── */}
+        {cart.length > 0 && (
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border, #2e3040)' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 8 }}>
+              ITEMS TO LOG · {cart.length} item{cart.length > 1 ? 's' : ''}
+            </div>
+            {cart.map(c => (
+              <div key={c.item.id} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 10, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>{c.item.fxin}</span>
+                    <div style={{ fontSize: 13, fontWeight: 500, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.item.item_name}</div>
+                  </div>
+                  <button onClick={() => removeFromCart(c.item.id)}
+                    style={{ background: 'none', border: 'none', color: '#cc4444', fontSize: 22, cursor: 'pointer', padding: '0 4px', lineHeight: 1, flexShrink: 0 }}>×</button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button onClick={() => updateQty(c.item.id, c.qty - 1)}
+                    style={{ width: 36, height: 36, borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text, #e8e8f0)', fontSize: 18, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                  <input type="number" value={c.qty} min={1}
+                    onChange={e => updateQty(c.item.id, parseInt(e.target.value) || 1)}
+                    style={{ width: 56, height: 36, textAlign: 'center', border: '1px solid var(--border, #2e3040)', borderRadius: 6, background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontSize: 15, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+                  <button onClick={() => updateQty(c.item.id, c.qty + 1)}
+                    style={{ width: 36, height: 36, borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text, #e8e8f0)', fontSize: 18, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginLeft: 'auto', fontFamily: 'var(--font-mono, monospace)' }}>{c.item.quantity_remaining} in stock</span>
+                </div>
+              </div>
+            ))}
+            <button onClick={handleLogAll} disabled={loading || !pid.trim()}
+              style={{ width: '100%', padding: '14px', background: pid.trim() ? 'var(--accent, #c8963e)' : 'rgba(200,150,62,0.3)', color: pid.trim() ? '#fff' : 'rgba(255,255,255,0.5)', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: pid.trim() ? 'pointer' : 'not-allowed', marginTop: 4, fontFamily: 'var(--font-mono, monospace)', opacity: loading ? 0.7 : 1 }}>
+              {loading ? 'Logging…' : `Log ${cart.length} Item${cart.length > 1 ? 's' : ''} →`}
+            </button>
+            {!pid.trim() && <p style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', marginTop: 6, textAlign: 'center' }}>Enter a PID above to enable logging</p>}
+          </div>
+        )}
+
+        {/* ── Section 4: Usage History ── */}
+        <div style={{ padding: '12px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)' }}>Usage History</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border, #2e3040)' }} />
+            <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{history.length}</span>
+          </div>
+          {histLoading ? (
+            <p style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>loading…</p>
+          ) : history.length === 0 ? (
+            <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 12, background: 'var(--bg-panel, #1e2028)', borderRadius: 10, border: '1px solid var(--border, #2e3040)' }}>No usage entries yet.</div>
+          ) : (
+            <div>
+              {history.map(entry => {
+                const isEd = editingId === entry.id
+                return (
+                  <div key={entry.id} style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${isEd ? 'rgba(200,150,62,0.35)' : 'var(--border, #2e3040)'}`, borderRadius: 8, padding: '10px 14px', marginBottom: 8 }}>
+                    {isEd ? (
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                          <div><span style={s.lbl}>Qty Used</span><input type="number" value={ef.qty_used} onChange={e => setEditForm(p => ({ ...p, qty_used: e.target.value }))} style={edInp} /></div>
+                          <div><span style={s.lbl}>PID</span><input value={ef.pid} onChange={e => setEditForm(p => ({ ...p, pid: e.target.value }))} style={edInp} /></div>
+                          <div><span style={s.lbl}>Date</span><input type="date" value={ef.use_date} onChange={e => setEditForm(p => ({ ...p, use_date: e.target.value }))} style={edInp} /></div>
+                          <div><span style={s.lbl}>Notes</span><input value={ef.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} placeholder="—" style={edInp} /></div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button onClick={() => saveEditUsage(entry)} disabled={editSaving} style={{ padding: '8px 16px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{editSaving ? '…' : '✓ Save'}</button>
+                          <button onClick={() => setEditingId(null)} style={{ padding: '8px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>✕ Cancel</button>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1, paddingRight: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+                            {entry.fxin && <span style={{ fontSize: 10, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', background: 'rgba(200,150,62,0.1)', padding: '1px 6px', borderRadius: 3, flexShrink: 0 }}>{entry.fxin}</span>}
+                            <span style={{ fontSize: 13, fontWeight: 500 }}>{entry.item_name}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#f87171', background: 'rgba(248,113,113,0.1)', padding: '1px 7px', borderRadius: 4, flexShrink: 0 }}>−{entry.qty_used}</span>
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                            PID {entry.pid} · {formatDate(entry.use_date)}{entry.logged_by ? ` · ${entry.logged_by.split('@')[0]}` : ''}
+                          </div>
+                          {entry.notes && <div style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', marginTop: 2, fontStyle: 'italic' }}>{entry.notes}</div>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                          <button onClick={() => startEditUsage(entry)} style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent, #c8963e)' }}>✏</button>
+                          <button onClick={() => setConfirmDel({ id: entry.id, item_id: entry.item_id, qty_used: entry.qty_used, item_name: entry.item_name })} style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid rgba(204,68,68,0.3)', background: 'none', color: '#cc4444', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🗑</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
       {confirmDel && <ConfirmDialog message={`Delete this usage entry (${confirmDel.qty_used}× "${confirmDel.item_name}")? Stock will be reversed.`} onConfirm={deleteUsage} onCancel={() => setConfirmDel(null)} />}
       <Toasts toasts={toasts} />
-
-      {/* Sticky Log button on mobile */}
-      {isMobile && cart.length > 0 && (
-        <div style={{ position: 'fixed', bottom: 64, left: 0, right: 0, padding: '10px 16px', background: 'var(--bg-panel, #1e2028)', borderTop: '1px solid var(--border, #2e3040)', zIndex: 90 }}>
-          <button onClick={handleLogAll} disabled={!canLog || loading} style={{ width: '100%', padding: '14px', background: canLog ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)', color: canLog ? '#fff' : 'var(--text-muted, #6b6d82)', border: canLog ? 'none' : '1px solid var(--border, #2e3040)', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: canLog && !loading ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-mono, monospace)', opacity: loading ? 0.7 : 1 }}>
-            {loading ? 'Saving…' : `Log ${cart.length} Item${cart.length > 1 ? 's' : ''} →`}
-          </button>
-          {!pid.trim() && <p style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', marginTop: 6, textAlign: 'center' }}>Enter a PID in Job Details to enable logging</p>}
-        </div>
-      )}
     </div>
   )
 }
