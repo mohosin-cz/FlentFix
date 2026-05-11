@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../../components/PullToRefreshIndicator'
+import { Chart, registerables } from 'chart.js'
+Chart.register(...registerables)
 
 const TRADES     = ['All', 'Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc', 'Appliances', 'Lights']
 const TRADE_OPTS = ['electrical', 'plumbing', 'woodwork', 'cleaning', 'misc', 'appliances', 'lights']
@@ -15,6 +17,11 @@ const TRADE_COLORS = {
   misc:       { color: '#9394a8', bg: 'rgba(147,148,168,0.1)', border: 'rgba(147,148,168,0.3)' },
   appliances: { color: '#4a9eff', bg: 'rgba(74,158,255,0.1)',  border: 'rgba(74,158,255,0.3)'  },
   lights:     { color: '#f0c040', bg: 'rgba(240,192,64,0.1)',  border: 'rgba(240,192,64,0.3)'  },
+}
+
+const CHART_COLORS = {
+  electrical: '#4a9eff', plumbing: '#4dd9c0', woodwork: '#c8963e',
+  cleaning: '#a78bfa', misc: '#888780', appliances: '#f0a050', lights: '#f0c040',
 }
 
 function useIsMobile() {
@@ -73,68 +80,96 @@ function formatDate(d) {
 const inpS = { padding: '7px 9px', fontSize: 12, color: 'var(--text, #e8e8f0)', background: 'rgba(200,150,62,0.08)', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 5, outline: 'none', fontFamily: 'var(--font-mono, monospace)', boxSizing: 'border-box', width: '100%' }
 const lbl  = { fontSize: 10, fontWeight: 600, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: 'var(--font-mono, monospace)', display: 'block', marginBottom: 4 }
 
-const ANALYTICS_TRADE_COLORS = {
-  electrical: '#4a9eff', plumbing: '#4dd9c0', woodwork: '#c8963e',
-  cleaning: '#a78bfa', misc: '#9898a4', appliances: '#f0a050', lights: '#f0c040',
-}
+function AnalyticsPanel({ analytics }) {
+  const donutRef  = useRef(null)
+  const barRef    = useRef(null)
+  const donutInst = useRef(null)
+  const barInst   = useRef(null)
 
-function AnalyticsPanel({ analytics, style = {} }) {
-  const panelStyle = {
-    width: 320, flexShrink: 0, background: 'var(--bg-panel, #1e2028)',
-    border: '1px solid var(--border, #2e3040)', borderRadius: 12,
-    padding: 20, height: 'fit-content', position: 'sticky', top: 80, ...style,
-  }
+  useEffect(() => {
+    if (!analytics?.byTrade || !donutRef.current || !barRef.current) return
+
+    const textColor = '#6b6d82'
+    const gridColor = 'rgba(46,48,64,0.8)'
+
+    if (donutInst.current) { donutInst.current.destroy(); donutInst.current = null }
+    if (barInst.current)   { barInst.current.destroy();   barInst.current = null }
+
+    const tradeEntries = Object.entries(analytics.byTrade).sort((a, b) => b[1] - a[1])
+    donutInst.current = new Chart(donutRef.current, {
+      type: 'doughnut',
+      data: {
+        labels: tradeEntries.map(([t]) => t),
+        datasets: [{ data: tradeEntries.map(([, v]) => v), backgroundColor: tradeEntries.map(([t]) => CHART_COLORS[t] || '#888'), borderWidth: 0, hoverOffset: 4 }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '65%',
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `₹${Math.round(ctx.raw).toLocaleString('en-IN')}` } } },
+      },
+    })
+
+    const months = Object.entries(analytics.byMonth || {}).sort((a, b) => new Date('01 ' + a[0]) - new Date('01 ' + b[0]))
+    barInst.current = new Chart(barRef.current, {
+      type: 'bar',
+      data: {
+        labels: months.map(([m]) => m),
+        datasets: [{ data: months.map(([, v]) => v), backgroundColor: '#c8963e', borderRadius: 3, borderSkipped: false }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `₹${Math.round(ctx.raw).toLocaleString('en-IN')}` } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: textColor, font: { size: 10 } } },
+          y: { display: false, grid: { color: gridColor } },
+        },
+      },
+    })
+
+    return () => {
+      if (donutInst.current) { donutInst.current.destroy(); donutInst.current = null }
+      if (barInst.current)   { barInst.current.destroy();   barInst.current = null }
+    }
+  }, [analytics])
+
   return (
-    <div style={panelStyle}>
+    <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: 20 }}>
       <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 16 }}>// PURCHASE ANALYTICS</div>
 
+      {/* Total spend hero */}
       <div style={{ background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.15)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
         <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginBottom: 4 }}>TOTAL SPEND</div>
         <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', color: 'var(--accent, #c8963e)' }}>
-          ₹{(analytics.totalSpend || 0).toLocaleString('en-IN')}
+          ₹{(analytics?.totalSpend || 0).toLocaleString('en-IN')}
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginTop: 6 }}>
-          {analytics.totalOrders || 0} orders · {analytics.totalItems || 0} items
+          {analytics?.totalOrders || 0} orders · {analytics?.totalItems || 0} items
         </div>
       </div>
 
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', letterSpacing: '0.08em', marginBottom: 10 }}>BY TRADE</div>
-        {Object.entries(analytics.byTrade || {})
-          .sort((a, b) => b[1] - a[1])
-          .map(([trade, amount]) => {
-            const pct = analytics.totalSpend ? Math.round((amount / analytics.totalSpend) * 100) : 0
-            const color = ANALYTICS_TRADE_COLORS[trade] || 'var(--accent, #c8963e)'
-            return (
-              <div key={trade} style={{ marginBottom: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                  <span style={{ textTransform: 'capitalize', color }}>{trade}</span>
-                  <span style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--text, #e8e8f0)' }}>₹{amount.toLocaleString('en-IN')}</span>
-                </div>
-                <div style={{ height: 4, background: 'var(--border, #2e3040)', borderRadius: 2, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 2, transition: 'width 0.6s ease' }} />
-                </div>
-              </div>
-            )
-          })}
+      {/* Trade donut */}
+      <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', letterSpacing: '0.08em', marginBottom: 10 }}>BY TRADE</div>
+      <div style={{ height: 180, position: 'relative', marginBottom: 12 }}>
+        <canvas ref={donutRef} role="img" aria-label="Spend by trade" />
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>
+        {Object.entries(analytics?.byTrade || {}).map(([trade]) => (
+          <span key={trade} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: CHART_COLORS[trade] || '#888', flexShrink: 0 }} />
+            <span style={{ textTransform: 'capitalize' }}>{trade}</span>
+          </span>
+        ))}
       </div>
 
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', letterSpacing: '0.08em', marginBottom: 10 }}>BY MONTH</div>
-        {Object.entries(analytics.byMonth || {})
-          .sort((a, b) => new Date('01 ' + b[0]) - new Date('01 ' + a[0]))
-          .slice(0, 6)
-          .map(([month, amount]) => (
-            <div key={month} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border, #2e3040)', fontSize: 12 }}>
-              <span style={{ color: 'var(--text-muted, #6b6d82)' }}>{month}</span>
-              <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>₹{amount.toLocaleString('en-IN')}</span>
-            </div>
-          ))}
+      {/* Monthly bar */}
+      <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', letterSpacing: '0.08em', marginBottom: 10 }}>BY MONTH</div>
+      <div style={{ height: 120, position: 'relative', marginBottom: 20 }}>
+        <canvas ref={barRef} role="img" aria-label="Monthly spend" />
       </div>
 
+      {/* Top vendors */}
       <div>
         <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', letterSpacing: '0.08em', marginBottom: 10 }}>TOP VENDORS</div>
-        {Object.entries(analytics.byVendor || {})
+        {Object.entries(analytics?.byVendor || {})
           .filter(([v]) => v && v !== 'null' && v !== 'undefined')
           .sort((a, b) => b[1] - a[1])
           .slice(0, 4)
@@ -163,25 +198,17 @@ export default function PurchaseHistory() {
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate]     = useState('')
 
-  // Edit registry
-  const [editingRec, setEditingRec] = useState(null) // id
+  const [editingRec, setEditingRec] = useState(null)
   const [recForm, setRecForm]       = useState({})
   const [recSaving, setRecSaving]   = useState(false)
+  const [confirmDelRec, setConfirmDelRec] = useState(null)
 
-  // Delete registry
-  const [confirmDelRec, setConfirmDelRec] = useState(null) // { id, date }
-
-  // Edit item
-  const [editingItem, setEditingItem] = useState(null) // item id
+  const [editingItem, setEditingItem] = useState(null)
   const [itemForm, setItemForm]       = useState({})
   const [itemSaving, setItemSaving]   = useState(false)
+  const [confirmDelItem, setConfirmDelItem] = useState(null)
 
-  // Delete item
-  const [confirmDelItem, setConfirmDelItem] = useState(null) // { id, name, registry_id }
-
-  // Invoice hover
   const [hoveredInvoice, setHoveredInvoice] = useState(null)
-
   const [isAdmin, setIsAdmin] = useState(false)
   const [mobileTab, setMobileTab] = useState('history')
 
@@ -230,7 +257,6 @@ export default function PurchaseHistory() {
     return true
   })
 
-  // ── Registry edit ──
   function startEditRec(rec) {
     setEditingRec(rec.id)
     setExpanded(rec.id)
@@ -265,7 +291,6 @@ export default function PurchaseHistory() {
     setRecSaving(false)
   }
 
-  // ── Registry delete ──
   async function deletePurchase() {
     if (!confirmDelRec) return
     const { id } = confirmDelRec
@@ -273,24 +298,22 @@ export default function PurchaseHistory() {
     setRecords(p => p.filter(r => r.id !== id))
     setConfirmDelRec(null)
     if (expanded === id) setExpanded(null)
-    // Delete items first, then registry
     await supabase.from('inventory_items').delete().eq('registry_id', id)
     const { error } = await supabase.from('inventory_registry').delete().eq('id', id)
     if (error) { setRecords(p => [prev, ...p]); showToast('Delete failed', 'error') }
     else showToast('Purchase deleted')
   }
 
-  // ── Item edit ──
   function startEditItem(item) {
     setEditingItem(item.id)
     setItemForm({
-      item_name:         item.item_name || '',
-      spec:              item.spec || '',
-      size:              item.size || '',
-      qty:               String(item.qty || ''),
-      price_inc:         String(item.price_inc || ''),
-      warranty_months:   String(item.warranty_months || ''),
-      margin_percent:    String(item.margin_percent || ''),
+      item_name:       item.item_name || '',
+      spec:            item.spec || '',
+      size:            item.size || '',
+      qty:             String(item.qty || ''),
+      price_inc:       String(item.price_inc || ''),
+      warranty_months: String(item.warranty_months || ''),
+      margin_percent:  String(item.margin_percent || ''),
     })
   }
 
@@ -321,7 +344,6 @@ export default function PurchaseHistory() {
     setItemSaving(false)
   }
 
-  // ── Item delete ──
   async function deleteItem() {
     if (!confirmDelItem) return
     const { id, name, registry_id } = confirmDelItem
@@ -337,296 +359,231 @@ export default function PurchaseHistory() {
 
   if (loading) return <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 13 }}>loading history…</div>
 
-  return (
+  const historyList = (
     <>
-      <style>{`
-        @media (max-width: 640px)  { .ph-sidebar { display: none !important; } }
-        @media (min-width: 641px)  { .ph-mobile-tabs { display: none !important; } }
-      `}</style>
-      <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
-      <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', fontFamily: 'var(--font-sans, Poppins, sans-serif)', color: 'var(--text, #e8e8f0)' }}>
-      <header style={s.header}>
-        <button style={s.backBtn} onClick={() => navigate('/inventory')}>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 5l-5 5 5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        </button>
-        <div style={s.headerCenter}>
-          <span style={s.headerTitle}>Purchase History</span>
-          <span style={s.headerSub}>{records.length} entries</span>
-        </div>
-        {isAdmin ? (
-          <button style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer' }} onClick={() => navigate('/inventory/register')} title="New Purchase">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        {TRADES.map(t => (
+          <button key={t} onClick={() => setTrade(t)} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', border: '1px solid', borderColor: trade === t ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)', background: trade === t ? 'rgba(200,150,62,0.12)' : 'var(--bg-input, #252731)', color: trade === t ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)' }}>
+            {t}
           </button>
-        ) : <div style={{ width: 36 }} />}
-      </header>
-
-      <div style={{ maxWidth: 1120, margin: '0 auto', padding: '20px 16px 60px', display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-
-        {/* ── Left: history list ── */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-
-          {/* Mobile tab bar */}
-          <div className="ph-mobile-tabs" style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border, #2e3040)', marginBottom: 12 }}>
-            {['history', 'analytics'].map(tab => (
-              <button key={tab} onClick={() => setMobileTab(tab)} style={{ flex: 1, padding: '10px', background: 'none', border: 'none', borderBottom: mobileTab === tab ? '2px solid var(--accent, #c8963e)' : '2px solid transparent', color: mobileTab === tab ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer' }}>
-                {tab === 'history' ? '// History' : '// Analytics'}
-              </button>
-            ))}
-          </div>
-
-          {/* Mobile analytics tab content */}
-          {isMobile && mobileTab === 'analytics' && (
-            <AnalyticsPanel analytics={analytics} style={{ width: '100%', position: 'static', top: 'auto' }} />
-          )}
-
-          {/* History content — hidden on mobile when analytics tab active */}
-          {(!isMobile || mobileTab === 'history') && (
-            <>
-        {/* Filters */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-          {TRADES.map(t => (
-            <button key={t} onClick={() => setTrade(t)} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', border: '1px solid', borderColor: trade === t ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)', background: trade === t ? 'rgba(200,150,62,0.12)' : 'var(--bg-input, #252731)', color: trade === t ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)' }}>
-              {t}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} style={{ flex: 1, padding: '7px 10px', fontSize: 12, color: fromDate ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, outline: 'none', fontFamily: 'inherit' }} />
-          <input type="date" value={toDate}   onChange={e => setToDate(e.target.value)}   style={{ flex: 1, padding: '7px 10px', fontSize: 12, color: toDate   ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, outline: 'none', fontFamily: 'inherit' }} />
-          {(fromDate || toDate) && <button onClick={() => { setFromDate(''); setToDate('') }} style={{ padding: '7px 12px', fontSize: 11, color: 'var(--text-muted, #6b6d82)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Clear</button>}
-        </div>
-
-        {filtered.length === 0 && <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>No purchase records found.</div>}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {filtered.map(rec => {
-            const items  = rec.inventory_items || []
-            const isOpen = expanded === rec.id
-            const isEdRec = editingRec === rec.id
-            const rf = recForm
-
-            return (
-              <div key={rec.id} style={{ background: 'var(--bg-panel, #1e2028)', borderRadius: 10, border: `1px solid ${isEdRec ? 'rgba(200,150,62,0.4)' : 'var(--border, #2e3040)'}`, overflow: 'hidden' }}>
-
-                {/* ── Entry header ── */}
-                {isEdRec ? (
-                  <div style={{ padding: '14px 16px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 10, marginBottom: 10 }}>
-                      <div>
-                        <span style={lbl}>Date</span>
-                        <input type="date" value={rf.purchase_date} onChange={e => setRecForm(p => ({ ...p, purchase_date: e.target.value }))} style={inpS} />
-                      </div>
-                      <div>
-                        <span style={lbl}>Trade</span>
-                        <select value={rf.trade} onChange={e => setRecForm(p => ({ ...p, trade: e.target.value }))} style={{ ...inpS, appearance: 'none', cursor: 'pointer' }}>
-                          {TRADE_OPTS.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <span style={lbl}>Total Amount ₹</span>
-                        <input type="number" value={rf.total_amount} onChange={e => setRecForm(p => ({ ...p, total_amount: e.target.value }))} style={inpS} />
-                      </div>
-                      <div>
-                        <span style={lbl}>Vendor Name</span>
-                        <input value={rf.vendor_name} onChange={e => setRecForm(p => ({ ...p, vendor_name: e.target.value }))} placeholder="—" style={inpS} />
-                      </div>
-                      <div>
-                        <span style={lbl}>Vendor Contact</span>
-                        <input value={rf.vendor_contact} onChange={e => setRecForm(p => ({ ...p, vendor_contact: e.target.value }))} placeholder="—" style={inpS} />
-                      </div>
-                      <div>
-                        <span style={lbl}>Vendor GSTIN</span>
-                        <input value={rf.vendor_gstin} onChange={e => setRecForm(p => ({ ...p, vendor_gstin: e.target.value }))} placeholder="—" style={inpS} />
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => saveRec(rec)} disabled={recSaving} style={{ padding: '7px 20px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{recSaving ? '…' : '✓ Save'}</button>
-                      <button onClick={cancelEditRec} style={{ padding: '7px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>✕ Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px' }}>
-                    <button type="button" onClick={() => setExpanded(isOpen ? null : rec.id)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', color: 'var(--text, #e8e8f0)', padding: 0 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)' }}>{formatDate(rec.purchase_date)}</span>
-                          <TradeBadge trade={rec.trade} />
-                          {rec.vendor_name && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{rec.vendor_name}</span>}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{items.length} item{items.length !== 1 ? 's' : ''}</span>
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right', marginRight: 4 }}>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text, #e8e8f0)', whiteSpace: 'nowrap' }}>₹{(rec.total_amount || 0).toLocaleString('en-IN')}</div>
-                      </div>
-                      {rec.invoice_url ? (
-                        <a
-                          href={rec.invoice_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.08)', border: '1px solid var(--accent, #c8963e)', borderRadius: 4, padding: '3px 8px', textDecoration: 'none', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', flexShrink: 0 }}
-                        >📄 Invoice</a>
-                      ) : (
-                        <span onClick={e => e.stopPropagation()} style={{ flexShrink: 0 }}>
-                          <label
-                            htmlFor={`invoice-upload-${rec.id}`}
-                            style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', border: '1px dashed var(--border, #2e3040)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}
-                          >⬆ Upload</label>
-                          <input
-                            id={`invoice-upload-${rec.id}`}
-                            type="file"
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            style={{ display: 'none' }}
-                            onChange={async e => {
-                              const file = e.target.files[0]; if (!file) return
-                              const fileExt = file.name.split('.').pop()
-                              const filePath = `invoices/${Date.now()}.${fileExt}`
-                              const { data: uploadData, error: upErr } = await supabase.storage
-                                .from('inventory-invoices')
-                                .upload(filePath, file, { upsert: true })
-                              if (upErr) { showToast('Upload failed: ' + upErr.message, 'error'); return }
-                              const { data: { publicUrl } } = supabase.storage
-                                .from('inventory-invoices')
-                                .getPublicUrl(uploadData.path)
-                              const { error: dbErr } = await supabase
-                                .from('inventory_registry')
-                                .update({ invoice_url: publicUrl })
-                                .eq('id', rec.id)
-                              if (dbErr) { showToast('Save failed: ' + dbErr.message, 'error'); return }
-                              showToast('Invoice uploaded')
-                              load()
-                            }}
-                          />
-                        </span>
-                      )}
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, color: 'var(--text-muted, #6b6d82)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                        <path d="M2.5 5l4.5 4 4.5-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
-                    {/* Actions */}
-                    {isAdmin && (
-                      <button onClick={() => startEditRec(rec)} style={s.iconBtn} title="Edit purchase">
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      </button>
-                    )}
-                    {isAdmin && (
-                      <button onClick={() => setConfirmDelRec({ id: rec.id, date: formatDate(rec.purchase_date) })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }} title="Delete purchase">
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* ── Expanded items ── */}
-                {isOpen && !isEdRec && (
-                  <div style={{ borderTop: '1px solid var(--border, #2e3040)' }}>
-                    {items.length === 0 ? (
-                      <div style={{ padding: '12px 16px', fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No items recorded.</div>
-                    ) : (
-                      <>
-                        {!isMobile && (
-                          <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 80px 50px 80px 64px', gap: 6, padding: '8px 16px', fontSize: 9, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)' }}>
-                            <span>FXIN</span><span>Item</span><span>Spec</span>
-                            <span style={{ textAlign: 'right' }}>Qty</span>
-                            <span style={{ textAlign: 'right' }}>Price</span>
-                            <span style={{ textAlign: 'right' }}>Actions</span>
-                          </div>
-                        )}
-                        {items.map(item => {
-                          const isEdItem = editingItem === item.id
-                          const itf = itemForm
-                          return (
-                            <div key={item.id} style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                              {isEdItem ? (
-                                <div style={{ padding: '10px 16px', background: 'rgba(200,150,62,0.03)' }}>
-                                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 8, marginBottom: 8 }}>
-                                    <div style={{ gridColumn: isMobile ? '1/-1' : '1/3' }}>
-                                      <span style={lbl}>Item Name</span>
-                                      <input value={itf.item_name} onChange={e => setItemForm(p => ({ ...p, item_name: e.target.value }))} style={inpS} />
-                                    </div>
-                                    <div><span style={lbl}>Spec</span><input value={itf.spec} onChange={e => setItemForm(p => ({ ...p, spec: e.target.value }))} placeholder="—" style={inpS} /></div>
-                                    <div><span style={lbl}>Size</span><input value={itf.size} onChange={e => setItemForm(p => ({ ...p, size: e.target.value }))} placeholder="—" style={inpS} /></div>
-                                    <div><span style={lbl}>Qty</span><input type="number" value={itf.qty} onChange={e => setItemForm(p => ({ ...p, qty: e.target.value }))} style={inpS} /></div>
-                                    <div><span style={lbl}>Price ₹</span><input type="number" value={itf.price_inc} onChange={e => setItemForm(p => ({ ...p, price_inc: e.target.value }))} style={inpS} /></div>
-                                    <div><span style={lbl}>Warranty (mo)</span><input type="number" value={itf.warranty_months} onChange={e => setItemForm(p => ({ ...p, warranty_months: e.target.value }))} style={inpS} /></div>
-                                    <div><span style={lbl}>Margin %</span><input type="number" value={itf.margin_percent} onChange={e => setItemForm(p => ({ ...p, margin_percent: e.target.value }))} style={inpS} /></div>
-                                  </div>
-                                  <div style={{ display: 'flex', gap: 8 }}>
-                                    <button onClick={() => saveItem(item)} disabled={itemSaving} style={{ padding: '6px 16px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{itemSaving ? '…' : '✓ Save'}</button>
-                                    <button onClick={cancelEditItem} style={{ padding: '6px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>✕ Cancel</button>
-                                  </div>
-                                </div>
-                              ) : isMobile ? (
-                                <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                                  <div style={{ flex: 1 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>{item.fxin}</span>
-                                    </div>
-                                    <div style={{ fontSize: 12, color: 'var(--text, #e8e8f0)', marginBottom: 2 }}>{item.item_name}</div>
-                                    {(item.spec || item.size) && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)' }}>{[item.spec, item.size].filter(Boolean).join(' · ')}</div>}
-                                    <div style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', marginTop: 3 }}>×{item.qty} · ₹{(item.price_inc || 0).toLocaleString('en-IN')}</div>
-                                  </div>
-                                  {isAdmin && (
-                                    <div style={{ display: 'flex', gap: 4 }}>
-                                      <button onClick={() => startEditItem(item)} style={s.iconBtn}>
-                                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                      </button>
-                                      <button onClick={() => setConfirmDelItem({ id: item.id, name: item.item_name, registry_id: rec.id })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }}>
-                                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 80px 50px 80px 64px', gap: 6, padding: '8px 16px', alignItems: 'center' }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em' }}>{item.fxin}</span>
-                                  <div>
-                                    <div style={{ fontSize: 12, color: 'var(--text, #e8e8f0)' }}>{item.item_name}</div>
-                                    {(item.spec || item.size) && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 1 }}>{[item.spec, item.size].filter(Boolean).join(' · ')}</div>}
-                                  </div>
-                                  <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{item.spec || '—'}</span>
-                                  <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', textAlign: 'right' }}>×{item.qty}</span>
-                                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text, #e8e8f0)', textAlign: 'right' }}>₹{(item.price_inc || 0).toLocaleString('en-IN')}</span>
-                                  {isAdmin && (
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
-                                      <button onClick={() => startEditItem(item)} style={s.iconBtn}>
-                                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                      </button>
-                                      <button onClick={() => setConfirmDelItem({ id: item.id, name: item.item_name, registry_id: rec.id })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }}>
-                                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-            </>
-          )}
-        </div>{/* end left panel */}
-
-        {/* ── Right: analytics sidebar (desktop only) ── */}
-        <div className="ph-sidebar">
-          <AnalyticsPanel analytics={analytics} />
-        </div>
-
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} style={{ flex: 1, padding: '7px 10px', fontSize: 12, color: fromDate ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, outline: 'none', fontFamily: 'inherit' }} />
+        <input type="date" value={toDate}   onChange={e => setToDate(e.target.value)}   style={{ flex: 1, padding: '7px 10px', fontSize: 12, color: toDate   ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, outline: 'none', fontFamily: 'inherit' }} />
+        {(fromDate || toDate) && <button onClick={() => { setFromDate(''); setToDate('') }} style={{ padding: '7px 12px', fontSize: 11, color: 'var(--text-muted, #6b6d82)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Clear</button>}
       </div>
 
-      {confirmDelRec && <ConfirmDialog message={`Delete purchase from ${confirmDelRec.date}? All items in this purchase will also be deleted.`} onConfirm={deletePurchase} onCancel={() => setConfirmDelRec(null)} />}
-      {confirmDelItem && <ConfirmDialog message={`Delete "${confirmDelItem.name}"? This cannot be undone.`} onConfirm={deleteItem} onCancel={() => setConfirmDelItem(null)} />}
-      <Toasts toasts={toasts} />
-    </div>
+      {filtered.length === 0 && <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>No purchase records found.</div>}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {filtered.map(rec => {
+          const items   = rec.inventory_items || []
+          const isOpen  = expanded === rec.id
+          const isEdRec = editingRec === rec.id
+          const rf      = recForm
+
+          return (
+            <div key={rec.id} style={{ background: 'var(--bg-panel, #1e2028)', borderRadius: 10, border: `1px solid ${isEdRec ? 'rgba(200,150,62,0.4)' : 'var(--border, #2e3040)'}`, overflow: 'hidden' }}>
+
+              {isEdRec ? (
+                <div style={{ padding: '14px 16px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 10, marginBottom: 10 }}>
+                    <div><span style={lbl}>Date</span><input type="date" value={rf.purchase_date} onChange={e => setRecForm(p => ({ ...p, purchase_date: e.target.value }))} style={inpS} /></div>
+                    <div><span style={lbl}>Trade</span><select value={rf.trade} onChange={e => setRecForm(p => ({ ...p, trade: e.target.value }))} style={{ ...inpS, appearance: 'none', cursor: 'pointer' }}>{TRADE_OPTS.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}</select></div>
+                    <div><span style={lbl}>Total Amount ₹</span><input type="number" value={rf.total_amount} onChange={e => setRecForm(p => ({ ...p, total_amount: e.target.value }))} style={inpS} /></div>
+                    <div><span style={lbl}>Vendor Name</span><input value={rf.vendor_name} onChange={e => setRecForm(p => ({ ...p, vendor_name: e.target.value }))} placeholder="—" style={inpS} /></div>
+                    <div><span style={lbl}>Vendor Contact</span><input value={rf.vendor_contact} onChange={e => setRecForm(p => ({ ...p, vendor_contact: e.target.value }))} placeholder="—" style={inpS} /></div>
+                    <div><span style={lbl}>Vendor GSTIN</span><input value={rf.vendor_gstin} onChange={e => setRecForm(p => ({ ...p, vendor_gstin: e.target.value }))} placeholder="—" style={inpS} /></div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => saveRec(rec)} disabled={recSaving} style={{ padding: '7px 20px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{recSaving ? '…' : '✓ Save'}</button>
+                    <button onClick={cancelEditRec} style={{ padding: '7px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>✕ Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px' }}>
+                  <button type="button" onClick={() => setExpanded(isOpen ? null : rec.id)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', color: 'var(--text, #e8e8f0)', padding: 0 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)' }}>{formatDate(rec.purchase_date)}</span>
+                        <TradeBadge trade={rec.trade} />
+                        {rec.vendor_name && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{rec.vendor_name}</span>}
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{items.length} item{items.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div style={{ textAlign: 'right', marginRight: 4 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text, #e8e8f0)', whiteSpace: 'nowrap' }}>₹{(rec.total_amount || 0).toLocaleString('en-IN')}</div>
+                    </div>
+                    {rec.invoice_url ? (
+                      <a href={rec.invoice_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.08)', border: '1px solid var(--accent, #c8963e)', borderRadius: 4, padding: '3px 8px', textDecoration: 'none', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', flexShrink: 0 }}>📄 Invoice</a>
+                    ) : (
+                      <span onClick={e => e.stopPropagation()} style={{ flexShrink: 0 }}>
+                        <label htmlFor={`invoice-upload-${rec.id}`} style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', border: '1px dashed var(--border, #2e3040)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}>⬆ Upload</label>
+                        <input id={`invoice-upload-${rec.id}`} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={async e => {
+                          const file = e.target.files[0]; if (!file) return
+                          const fileExt = file.name.split('.').pop()
+                          const filePath = `invoices/${Date.now()}.${fileExt}`
+                          const { data: uploadData, error: upErr } = await supabase.storage.from('inventory-invoices').upload(filePath, file, { upsert: true })
+                          if (upErr) { showToast('Upload failed: ' + upErr.message, 'error'); return }
+                          const { data: { publicUrl } } = supabase.storage.from('inventory-invoices').getPublicUrl(uploadData.path)
+                          const { error: dbErr } = await supabase.from('inventory_registry').update({ invoice_url: publicUrl }).eq('id', rec.id)
+                          if (dbErr) { showToast('Save failed: ' + dbErr.message, 'error'); return }
+                          showToast('Invoice uploaded'); load()
+                        }} />
+                      </span>
+                    )}
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, color: 'var(--text-muted, #6b6d82)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                      <path d="M2.5 5l4.5 4 4.5-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                  {isAdmin && (
+                    <button onClick={() => startEditRec(rec)} style={s.iconBtn} title="Edit purchase">
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button onClick={() => setConfirmDelRec({ id: rec.id, date: formatDate(rec.purchase_date) })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }} title="Delete purchase">
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {isOpen && !isEdRec && (
+                <div style={{ borderTop: '1px solid var(--border, #2e3040)' }}>
+                  {items.length === 0 ? (
+                    <div style={{ padding: '12px 16px', fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No items recorded.</div>
+                  ) : (
+                    <>
+                      {!isMobile && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 80px 50px 80px 64px', gap: 6, padding: '8px 16px', fontSize: 9, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)' }}>
+                          <span>FXIN</span><span>Item</span><span>Spec</span>
+                          <span style={{ textAlign: 'right' }}>Qty</span>
+                          <span style={{ textAlign: 'right' }}>Price</span>
+                          <span style={{ textAlign: 'right' }}>Actions</span>
+                        </div>
+                      )}
+                      {items.map(item => {
+                        const isEdItem = editingItem === item.id
+                        const itf = itemForm
+                        return (
+                          <div key={item.id} style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                            {isEdItem ? (
+                              <div style={{ padding: '10px 16px', background: 'rgba(200,150,62,0.03)' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 8, marginBottom: 8 }}>
+                                  <div style={{ gridColumn: isMobile ? '1/-1' : '1/3' }}><span style={lbl}>Item Name</span><input value={itf.item_name} onChange={e => setItemForm(p => ({ ...p, item_name: e.target.value }))} style={inpS} /></div>
+                                  <div><span style={lbl}>Spec</span><input value={itf.spec} onChange={e => setItemForm(p => ({ ...p, spec: e.target.value }))} placeholder="—" style={inpS} /></div>
+                                  <div><span style={lbl}>Size</span><input value={itf.size} onChange={e => setItemForm(p => ({ ...p, size: e.target.value }))} placeholder="—" style={inpS} /></div>
+                                  <div><span style={lbl}>Qty</span><input type="number" value={itf.qty} onChange={e => setItemForm(p => ({ ...p, qty: e.target.value }))} style={inpS} /></div>
+                                  <div><span style={lbl}>Price ₹</span><input type="number" value={itf.price_inc} onChange={e => setItemForm(p => ({ ...p, price_inc: e.target.value }))} style={inpS} /></div>
+                                  <div><span style={lbl}>Warranty (mo)</span><input type="number" value={itf.warranty_months} onChange={e => setItemForm(p => ({ ...p, warranty_months: e.target.value }))} style={inpS} /></div>
+                                  <div><span style={lbl}>Margin %</span><input type="number" value={itf.margin_percent} onChange={e => setItemForm(p => ({ ...p, margin_percent: e.target.value }))} style={inpS} /></div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                  <button onClick={() => saveItem(item)} disabled={itemSaving} style={{ padding: '6px 16px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{itemSaving ? '…' : '✓ Save'}</button>
+                                  <button onClick={cancelEditItem} style={{ padding: '6px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>✕ Cancel</button>
+                                </div>
+                              </div>
+                            ) : isMobile ? (
+                              <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 2 }}>{item.fxin}</div>
+                                  <div style={{ fontSize: 12, color: 'var(--text, #e8e8f0)', marginBottom: 2 }}>{item.item_name}</div>
+                                  {(item.spec || item.size) && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)' }}>{[item.spec, item.size].filter(Boolean).join(' · ')}</div>}
+                                  <div style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', marginTop: 3 }}>×{item.qty} · ₹{(item.price_inc || 0).toLocaleString('en-IN')}</div>
+                                </div>
+                                {isAdmin && (
+                                  <div style={{ display: 'flex', gap: 4 }}>
+                                    <button onClick={() => startEditItem(item)} style={s.iconBtn}><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                                    <button onClick={() => setConfirmDelItem({ id: item.id, name: item.item_name, registry_id: rec.id })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }}><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 80px 50px 80px 64px', gap: 6, padding: '8px 16px', alignItems: 'center' }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em' }}>{item.fxin}</span>
+                                <div>
+                                  <div style={{ fontSize: 12, color: 'var(--text, #e8e8f0)' }}>{item.item_name}</div>
+                                  {(item.spec || item.size) && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 1 }}>{[item.spec, item.size].filter(Boolean).join(' · ')}</div>}
+                                </div>
+                                <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{item.spec || '—'}</span>
+                                <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', textAlign: 'right' }}>×{item.qty}</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text, #e8e8f0)', textAlign: 'right' }}>₹{(item.price_inc || 0).toLocaleString('en-IN')}</span>
+                                {isAdmin && (
+                                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                                    <button onClick={() => startEditItem(item)} style={s.iconBtn}><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                                    <button onClick={() => setConfirmDelItem({ id: item.id, name: item.item_name, registry_id: rec.id })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }}><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </>
+  )
+
+  return (
+    <>
+      <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
+      <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', fontFamily: 'var(--font-sans, Poppins, sans-serif)', color: 'var(--text, #e8e8f0)' }}>
+        <header style={s.header}>
+          <button style={s.backBtn} onClick={() => navigate('/inventory')}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 5l-5 5 5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+          <div style={s.headerCenter}>
+            <span style={s.headerTitle}>Purchase History</span>
+            <span style={s.headerSub}>{records.length} entries</span>
+          </div>
+          {isAdmin ? (
+            <button style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer' }} onClick={() => navigate('/inventory/register')} title="New Purchase">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            </button>
+          ) : <div style={{ width: 36 }} />}
+        </header>
+
+        <div style={{ padding: '16px 20px 60px' }}>
+
+          {/* Mobile tab bar */}
+          {isMobile && (
+            <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border, #2e3040)', marginBottom: 12 }}>
+              {['history', 'analytics'].map(tab => (
+                <button key={tab} onClick={() => setMobileTab(tab)} style={{ flex: 1, padding: '10px', background: 'none', border: 'none', borderBottom: mobileTab === tab ? '2px solid var(--accent, #c8963e)' : '2px solid transparent', color: mobileTab === tab ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer' }}>
+                  {tab === 'history' ? '// History' : '// Analytics'}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Mobile: analytics tab */}
+          {isMobile && mobileTab === 'analytics' && <AnalyticsPanel analytics={analytics} />}
+
+          {/* Desktop: 1fr/1fr grid | Mobile: history list only */}
+          {(!isMobile || mobileTab === 'history') && (
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20, alignItems: 'start' }}>
+              <div>{historyList}</div>
+              {!isMobile && (
+                <div style={{ position: 'sticky', top: 80 }}>
+                  <AnalyticsPanel analytics={analytics} />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {confirmDelRec && <ConfirmDialog message={`Delete purchase from ${confirmDelRec.date}? All items in this purchase will also be deleted.`} onConfirm={deletePurchase} onCancel={() => setConfirmDelRec(null)} />}
+        {confirmDelItem && <ConfirmDialog message={`Delete "${confirmDelItem.name}"? This cannot be undone.`} onConfirm={deleteItem} onCancel={() => setConfirmDelItem(null)} />}
+        <Toasts toasts={toasts} />
+      </div>
     </>
   )
 }
