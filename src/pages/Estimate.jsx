@@ -488,7 +488,13 @@ export default function Estimate() {
         else {
           setInspection(data)
           setEstimateNotes(data?.notes || '')
-          setLineItems((data?.inspection_line_items || []).filter(i => !i.excluded_from_estimate && i.section_name?.toLowerCase() !== 'appliances'))
+          setLineItems((data?.inspection_line_items || []).filter(i => {
+            if (i.excluded_from_estimate) return false
+            if (i.section_name?.toLowerCase() === 'appliances') return false
+            const desc = i.issue_description?.toLowerCase() || ''
+            if ((desc.includes('functional') || desc.includes('no issues')) && (i.material_cost || 0) === 0 && (i.labour_cost || 0) === 0) return false
+            return true
+          }))
         }
         setLoading(false)
       })
@@ -545,7 +551,13 @@ export default function Estimate() {
       if (refreshed) {
         setInspection(refreshed)
         setEstimateNotes(refreshed.notes || '')
-        setLineItems((refreshed.inspection_line_items || []).filter(i => !i.excluded_from_estimate && i.section_name?.toLowerCase() !== 'appliances'))
+        setLineItems((refreshed.inspection_line_items || []).filter(i => {
+            if (i.excluded_from_estimate) return false
+            if (i.section_name?.toLowerCase() === 'appliances') return false
+            const desc = i.issue_description?.toLowerCase() || ''
+            if ((desc.includes('functional') || desc.includes('no issues')) && (i.material_cost || 0) === 0 && (i.labour_cost || 0) === 0) return false
+            return true
+          }))
       }
       setIsEditing(false)
     } catch (err) {

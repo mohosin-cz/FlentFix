@@ -594,7 +594,7 @@ export function flattenOutdoorDraftToRows(draft, inspectionId) {
         return
       }
       if (sel.includes('Functional')) {
-        rows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: item.health ?? 10, _media: item.media || [] })
+        rows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: item.health ?? 10, excluded_from_estimate: true, _media: item.media || [] })
       } else {
         sel.forEach((issue, ri) => {
           const cr         = (item.costRows || {})[issue] || {}
