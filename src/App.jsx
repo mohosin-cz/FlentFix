@@ -145,14 +145,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/properties/:pid/raw"
-            element={
-              <ProtectedRoute>
-                <RawInspectionData />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/properties/:pid/raw" element={<ProtectedRoute><RawInspectionData /></ProtectedRoute>} />
+          <Route path="/inspections/:inspectionId/raw" element={<ProtectedRoute><RawInspectionData /></ProtectedRoute>} />
           <Route
             path="/rate-card"
             element={
