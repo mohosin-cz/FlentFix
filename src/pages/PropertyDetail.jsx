@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
+import { advanceStage, STAGES, MAIN_SEQUENCE } from '../utils/propertyJourney'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -136,8 +137,19 @@ export default function PropertyDetail() {
   const [stats, setStats]             = useState(null)
   const [showAllInspections, setShowAllInspections] = useState(false)
   const [quickNote, setQuickNote]     = useState(null)
+  const [currentStage, setCurrentStage] = useState('T-5')
+  const [journey, setJourney]           = useState([])
+  const [userEmail, setUserEmail]       = useState(null)
 
   const fetchData = useCallback(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setUserEmail(user?.email || null))
+
+    supabase.from('properties').select('stage').eq('pid', pid).maybeSingle()
+      .then(({ data }) => setCurrentStage(data?.stage || 'T-5'))
+
+    supabase.from('property_journey').select('*').eq('pid', pid).order('changed_at', { ascending: true })
+      .then(({ data }) => setJourney(data || []))
+
     supabase
       .from('inspections')
       .select('*')
@@ -187,9 +199,18 @@ export default function PropertyDetail() {
   const address   = latest?.config?.address || ''
   const latestId  = latest?.id
 
+  async function handleManualAdvance(stageName) {
+    await advanceStage(supabase, pid, stageName, userEmail)
+    supabase.from('properties').select('stage').eq('pid', pid).maybeSingle()
+      .then(({ data }) => setCurrentStage(data?.stage || stageName))
+    supabase.from('property_journey').select('*').eq('pid', pid).order('changed_at', { ascending: true })
+      .then(({ data }) => setJourney(data || []))
+  }
+
   function handleTile(key) {
     if (key === 'estimate') {
       if (!latestId) { setToast('No inspection found for this property.'); return }
+      advanceStage(supabase, pid, 'estimate_created', userEmail)
       navigate(`/estimate/${latestId}`)
     } else if (key === 'appliance') {
       navigate('/inspections/appliance-report', { state: { inspectionId: latestId, pid } })
@@ -200,6 +221,28 @@ export default function PropertyDetail() {
       navigate(`/properties/${pid}/raw`)
     } else {
       setToast('Coming soon')
+    }
+  }
+
+  const isRejected   = currentStage === 'estimate_rejected'
+  const currentIndex = MAIN_SEQUENCE.findIndex(s => s.key === currentStage)
+
+  function getStageActions() {
+    switch (currentStage) {
+      case 'estimate_shared':
+        return [
+          { label: '✓ Mark Approved', action: () => handleManualAdvance('estimate_approved'), color: '#4dd9c0' },
+          { label: '✗ Mark Rejected', action: () => handleManualAdvance('estimate_rejected'), color: '#f87171' },
+        ]
+      case 'estimate_approved':
+        return [{ label: '🔧 Plan Utility Work', action: () => handleManualAdvance('utility_planned'), color: 'var(--accent, #c8963e)' }]
+      case 'utility_planned':
+        return [{ label: '📅 Confirm Setup Date', action: () => handleManualAdvance('setup_date'), color: 'var(--accent, #c8963e)' }]
+      case 'setup_date':
+        return [{ label: '⚡ Mark T-Day', action: () => handleManualAdvance('tday'), color: 'var(--accent, #c8963e)' }]
+      case 'tday':
+        return [{ label: '🤝 Mark Handover Done', action: () => handleManualAdvance('handover'), color: 'var(--accent, #c8963e)' }]
+      default: return []
     }
   }
 
@@ -224,6 +267,59 @@ export default function PropertyDetail() {
         </div>
         <div style={{ width: 36 }} />
       </header>
+
+      {/* ── Pipeline tracker ── */}
+      {!loading && (
+        <div style={{ background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', padding: '14px 20px 10px', overflowX: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: 'max-content', gap: 0 }}>
+            {MAIN_SEQUENCE.map((stage, i) => {
+              const isDone    = i < currentIndex
+              const isCurrent = i === currentIndex
+              const isFuture  = i > currentIndex
+              const entry     = journey.find(j => j.stage === stage.key)
+              const nodeColor = isRejected && stage.key === 'estimate_approved' ? '#2a1a1a'
+                : isDone    ? 'rgba(200,150,62,0.18)'
+                : isCurrent ? 'var(--accent, #c8963e)'
+                : 'var(--bg-input, #252731)'
+              const nodeBorder = isRejected && stage.key === 'estimate_approved' ? '#3a1a1a'
+                : (isDone || isCurrent) ? 'var(--accent, #c8963e)'
+                : 'var(--border, #2e3040)'
+              return (
+                <div key={stage.key} style={{ display: 'flex', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                    <div
+                      onClick={() => isFuture && !isRejected && handleManualAdvance(stage.key)}
+                      title={entry ? `${new Date(entry.changed_at).toLocaleDateString('en-IN')} · ${entry.changed_by}` : stage.label}
+                      style={{ width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, background: nodeColor, border: `2px solid ${nodeBorder}`, cursor: isFuture && !isRejected ? 'pointer' : 'default', transition: 'all 0.2s' }}
+                    >
+                      {isDone ? '✓' : stage.icon}
+                    </div>
+                    <div style={{ fontSize: 9, color: isCurrent ? 'var(--accent, #c8963e)' : isDone ? '#888' : '#555', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em', whiteSpace: 'nowrap', fontWeight: isCurrent ? 600 : 400, textAlign: 'center', maxWidth: 52 }}>
+                      {stage.label}
+                    </div>
+                    {entry && (
+                      <div style={{ fontSize: 8, color: '#555', fontFamily: 'var(--font-mono, monospace)' }}>
+                        {new Date(entry.changed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </div>
+                    )}
+                  </div>
+                  {i < MAIN_SEQUENCE.length - 1 && (
+                    <div style={{ width: 36, height: 2, background: isDone ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)', margin: '0 0 22px', transition: 'background 0.3s', flexShrink: 0 }} />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {isRejected && (
+            <div style={{ marginTop: 8, padding: '6px 12px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 6, fontSize: 11, color: '#f87171', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              ✗ Estimate Rejected
+              <button onClick={() => handleManualAdvance('estimate_created')} style={{ fontSize: 10, color: 'var(--accent, #c8963e)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
+                Re-create estimate
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <main style={s.main}>
         {loading ? (
@@ -280,6 +376,17 @@ export default function PropertyDetail() {
               ))}
             </div>
 
+            {/* Stage action buttons */}
+            {getStageActions().length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
+                {getStageActions().map(action => (
+                  <button key={action.label} onClick={action.action} style={{ padding: '8px 16px', background: 'none', border: `1px solid ${action.color}`, borderRadius: 6, color: action.color, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Quick Note */}
             <div style={{ margin: '16px 0' }}>
               <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 8 }}>
@@ -302,6 +409,33 @@ export default function PropertyDetail() {
                 </div>
               )}
             </div>
+
+            {/* Journey log */}
+            {journey.length > 0 && (
+              <div style={{ marginTop: 24 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 10 }}>// journey_log</div>
+                <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
+                  {[...journey].reverse().map(entry => {
+                    const stageLabel = STAGES.find(s => s.key === entry.stage)?.label || entry.stage
+                    const isApproved = entry.stage === 'estimate_approved'
+                    const isReject   = entry.stage === 'estimate_rejected'
+                    return (
+                      <div key={entry.id} style={{ display: 'flex', gap: 12, padding: '8px 14px', borderBottom: '1px solid var(--border, #2e3040)', fontSize: 12, alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 11, minWidth: 72, flexShrink: 0 }}>
+                          {new Date(entry.changed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                        </span>
+                        <span style={{ color: isReject ? '#f87171' : isApproved ? '#4dd9c0' : 'var(--text, #e8e8f0)', flex: 1 }}>
+                          {stageLabel}
+                        </span>
+                        <span style={{ color: 'var(--text-muted, #6b6d82)', fontSize: 11 }}>
+                          {entry.changed_by?.split('@')[0] || 'system'}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Inspection History — production has one record per inspection date per PID; multiple records here are test data for PID 123 */}
             {inspections.length > 0 && (() => {

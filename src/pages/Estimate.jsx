@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { advanceStage } from '../utils/propertyJourney'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const BAND = {
@@ -643,6 +644,7 @@ export default function Estimate() {
   const shareUrl = `${window.location.origin}/estimate/${id}`
 
   async function handleCopyLink() {
+    if (inspection?.pid) advanceStage(supabase, inspection.pid, 'estimate_shared', null)
     if (navigator.clipboard && window.isSecureContext) {
       try {
         await navigator.clipboard.writeText(shareUrl)

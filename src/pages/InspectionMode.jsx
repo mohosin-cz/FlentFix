@@ -5,6 +5,7 @@ import QuickNotes from '../components/QuickNotes'
 import { supabase } from '../lib/supabase'
 import { flattenOutdoorDraftToRows } from './InspectionOutdoor'
 import { flattenAppliancesDraftToRows } from './InspectionAppliances'
+import { advanceStage } from '../utils/propertyJourney'
 
 const MODES = [
   {
@@ -434,6 +435,8 @@ export default function InspectionMode() {
       }
 
       setShowEndModal(false)
+      const { data: { user } } = await supabase.auth.getUser()
+      await advanceStage(supabase, pid, 'inspection_done', user?.email)
       navigate(`/properties/${pid}`)
     } catch (err) {
       console.error('End inspection error:', err)

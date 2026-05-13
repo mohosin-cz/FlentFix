@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { advanceStage } from '../utils/propertyJourney'
 
 // ─── Column sanitizers ────────────────────────────────────────────────────────
 const INVOICE_COLUMNS = [
@@ -110,6 +111,7 @@ export default function LandlordInvoice() {
   const [editing, setEditing]       = useState(false)
   const [saving, setSaving]         = useState(false)
   const [loading, setLoading]       = useState(true)
+  const isNewInvoice = useRef(false)
   const [error, setError]           = useState('')
   const [copied, setCopied]         = useState(false)
   const [showRateCard, setShowRateCard] = useState(false)
@@ -214,6 +216,7 @@ export default function LandlordInvoice() {
     }
 
     applyInvoice(newInv)
+    isNewInvoice.current = true
     setEditing(true)
     setLoading(false)
   }
@@ -310,6 +313,10 @@ export default function LandlordInvoice() {
         setLineItems([])
       }
 
+      if (isNewInvoice.current && invoice?.pid) {
+        advanceStage(supabase, invoice.pid, 'invoice_created', null)
+        isNewInvoice.current = false
+      }
       setEditing(false)
     } catch (err) {
       console.error('Save error:', err)
