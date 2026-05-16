@@ -464,10 +464,10 @@ export default function PropertyDetail() {
               )}
             </div>
 
-            {/* Journey log */}
+            {/* Setup log */}
             {journey.length > 0 && (
               <div style={{ marginTop: 24 }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 10 }}>// journey_log</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 10 }}>// setup_log</div>
                 <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
                   {[...journey].reverse().map(entry => {
                     const stageLabel = STAGES.find(s => s.key === entry.stage)?.label || entry.stage
