@@ -270,7 +270,7 @@ export default function PropertyDetail() {
 
       {/* ── Pipeline tracker ── */}
       {!loading && (
-        <div style={{ background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', padding: '14px 20px 10px', overflowX: 'auto' }}>
+        <div style={{ background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', padding: '14px 20px 10px', overflowX: 'auto', display: 'flex', justifyContent: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: 'max-content', gap: 0 }}>
             {MAIN_SEQUENCE.map((stage, i) => {
               const isDone    = i < currentIndex
