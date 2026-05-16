@@ -268,98 +268,104 @@ export default function PropertyDetail() {
         <div style={{ width: 36 }} />
       </header>
 
-      {/* ── Pipeline tracker ── */}
+      {/* ── Pipeline tracker — liquid bar ── */}
       {!loading && (
-        <div style={{ background: 'linear-gradient(180deg, #1a1c24 0%, var(--bg-panel, #1e2028) 100%)', borderBottom: '1px solid var(--border, #2e3040)', padding: '18px 24px 14px', overflowX: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: 'max-content', gap: 0 }}>
-            {MAIN_SEQUENCE.map((stage, i) => {
-              const isDone    = i < currentIndex
-              const isCurrent = i === currentIndex
-              const isFuture  = i > currentIndex
-              const isBlocked = isRejected && stage.key === 'estimate_approved'
-              const entry     = journey.find(j => j.stage === stage.key)
-              return (
-                <div key={stage.key} style={{ display: 'flex', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                    {/* Node */}
+        <div style={{ background: 'linear-gradient(180deg, #14161d 0%, #1a1c24 100%)', borderBottom: '1px solid var(--border, #2e3040)', padding: '20px 24px 14px', overflowX: 'auto' }}>
+          <div style={{ minWidth: 560, position: 'relative', paddingBottom: 32 }}>
+
+            {/* Track shell */}
+            <div style={{ position: 'absolute', top: 12, left: 14, right: 14, height: 8, borderRadius: 4, background: '#1c1e28', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
+              {/* Liquid fill */}
+              <div style={{
+                position: 'absolute', top: 0, left: 0, bottom: 0,
+                width: `${currentIndex <= 0 ? 0 : (currentIndex / (MAIN_SEQUENCE.length - 1)) * 100}%`,
+                borderRadius: 4,
+                background: 'linear-gradient(90deg, #7a4e18 0%, #c8963e 55%, #f0b860 100%)',
+                boxShadow: '0 0 12px rgba(200,150,62,0.55), 0 0 4px rgba(200,150,62,0.9)',
+                transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+                overflow: 'hidden',
+              }}>
+                {/* surface highlight — simulates liquid sheen */}
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '40%', background: 'linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 100%)', borderRadius: '4px 4px 0 0' }} />
+                {/* leading-edge glow blob */}
+                <div style={{ position: 'absolute', top: -4, bottom: -4, right: -6, width: 14, background: 'radial-gradient(ellipse at center, rgba(250,185,80,0.9) 0%, transparent 75%)' }} />
+              </div>
+            </div>
+
+            {/* Stage nodes */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative', zIndex: 2 }}>
+              {MAIN_SEQUENCE.map((stage, i) => {
+                const isDone    = i < currentIndex
+                const isCurrent = i === currentIndex
+                const isFuture  = i > currentIndex
+                const isBlocked = isRejected && stage.key === 'estimate_approved'
+                const entry     = journey.find(j => j.stage === stage.key)
+                return (
+                  <div key={stage.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                     <div
                       onClick={() => isFuture && !isRejected && handleManualAdvance(stage.key)}
                       title={entry ? `${new Date(entry.changed_at).toLocaleDateString('en-IN')} · ${entry.changed_by}` : stage.label}
                       style={{
-                        width: 34, height: 34,
+                        width: 28, height: 28,
                         borderRadius: '50%',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: isDone ? 14 : 13,
-                        flexShrink: 0,
+                        fontSize: 11,
                         cursor: isFuture && !isRejected ? 'pointer' : 'default',
                         transition: 'all 0.25s',
                         background: isBlocked ? '#1a1214'
-                          : isDone    ? 'var(--accent, #c8963e)'
-                          : isCurrent ? 'rgba(200,150,62,0.12)'
-                          : 'var(--bg-input, #252731)',
+                          : isDone    ? 'linear-gradient(135deg, #b07828, #e8a848)'
+                          : isCurrent ? '#1e2028'
+                          : '#1a1c24',
                         border: isBlocked ? '2px solid #3a1a1a'
-                          : isDone    ? '2px solid var(--accent, #c8963e)'
+                          : isDone    ? '2px solid #c8963e'
                           : isCurrent ? '2px solid var(--accent, #c8963e)'
-                          : `1.5px dashed ${isFuture ? '#343644' : 'var(--border, #2e3040)'}`,
-                        boxShadow: isCurrent ? '0 0 0 4px rgba(200,150,62,0.12), 0 2px 10px rgba(200,150,62,0.25)' : 'none',
+                          : '1.5px dashed #2c2e3a',
+                        boxShadow: isCurrent
+                          ? '0 0 0 4px rgba(200,150,62,0.18), 0 0 16px rgba(200,150,62,0.35)'
+                          : isDone ? '0 0 8px rgba(200,150,62,0.3)' : 'none',
                         color: isBlocked ? '#3a2020'
                           : isDone    ? '#fff'
                           : isCurrent ? 'var(--accent, #c8963e)'
-                          : '#3a3c4a',
+                          : '#383a48',
                       }}
                     >
                       {isDone ? '✓' : stage.icon}
                     </div>
-                    {/* Label */}
                     <div style={{
-                      fontSize: 9,
+                      fontSize: 8,
                       whiteSpace: 'nowrap',
                       textAlign: 'center',
-                      maxWidth: 56,
                       fontFamily: 'var(--font-mono, monospace)',
                       letterSpacing: '0.04em',
                       fontWeight: isCurrent ? 700 : 400,
                       color: isBlocked ? '#3a2020'
                         : isCurrent ? 'var(--accent, #c8963e)'
-                        : isDone    ? 'var(--text-muted, #7a7c92)'
-                        : '#3a3c4a',
+                        : isDone    ? '#7a7c92'
+                        : '#343646',
                     }}>
                       {stage.label}
                     </div>
                   </div>
-                  {/* Connector */}
-                  {i < MAIN_SEQUENCE.length - 1 && (
-                    <div style={{
-                      width: 28, height: 3,
-                      borderRadius: 2,
-                      flexShrink: 0,
-                      margin: '0 2px 22px',
-                      transition: 'background 0.3s',
-                      background: isDone
-                        ? 'linear-gradient(90deg, var(--accent, #c8963e), rgba(200,150,62,0.6))'
-                        : '#252731',
-                    }} />
-                  )}
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
 
-          {/* Current stage summary line */}
+          {/* Summary line */}
           {(() => {
             const cur = MAIN_SEQUENCE[currentIndex]
             const entry = cur && journey.find(j => j.stage === cur.key)
             if (!cur) return null
             return (
-              <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em' }}>
-                step {currentIndex + 1} of {MAIN_SEQUENCE.length} · <span style={{ color: 'var(--accent, #c8963e)' }}>{cur.label}</span>
+              <div style={{ fontSize: 10, color: '#484a60', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', marginTop: 2 }}>
+                step {currentIndex + 1} of {MAIN_SEQUENCE.length} &middot; <span style={{ color: 'var(--accent, #c8963e)' }}>{cur.label}</span>
                 {entry && ` · since ${new Date(entry.changed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
               </div>
             )
           })()}
 
           {isRejected && (
-            <div style={{ padding: '5px 12px', background: 'rgba(248,113,113,0.07)', border: '1px solid rgba(248,113,113,0.18)', borderRadius: 6, fontSize: 11, color: '#f87171', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ marginTop: 8, padding: '5px 12px', background: 'rgba(248,113,113,0.07)', border: '1px solid rgba(248,113,113,0.18)', borderRadius: 6, fontSize: 11, color: '#f87171', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               ✗ Estimate Rejected
               <button onClick={() => handleManualAdvance('estimate_created')} style={{ fontSize: 10, color: 'var(--accent, #c8963e)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
                 Re-create estimate
