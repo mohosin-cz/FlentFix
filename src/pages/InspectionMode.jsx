@@ -134,8 +134,9 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
           } else {
             sel.forEach((issue, ri) => {
               const cr         = (card.costRows || {})[issue] || {}
+              const qty        = Math.max(1, parseFloat(cr.qty) || 1)
               const issueLabel = issue === 'Other' ? (card.otherIssue || 'Other') : issue
-              rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: card.health ?? null, _media: ri === 0 ? (card.media || []) : [] })
+              rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: (parseFloat(cr.materialCost) || 0) * qty, labour_cost: (parseFloat(cr.labourCost) || 0) * qty, item_score: card.health ?? null, _media: ri === 0 ? (card.media || []) : [] })
             })
           }
         })

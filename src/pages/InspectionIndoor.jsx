@@ -211,7 +211,7 @@ function buildTabs(houseType, bhk) {
 }
 
 // ── State helpers ─────────────────────────────────────────────────────────────
-const blankCostRow  = () => ({ action: '', labourRateId: '', labourCost: '', materialCost: '' })
+const blankCostRow  = () => ({ action: '', labourRateId: '', labourCost: '', materialCost: '', qty: 1 })
 const blankIssueRow = () => ({ id: `ir_${Date.now()}_${Math.random().toString(36).slice(2)}`, issueDescription: '', action: '', labourRateId: '', labourCost: '', materialCost: '' })
 const blankCard = () => ({ health: null, notes: '', media: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {} })
 const blankGeneral = () => ({ enabled: false, areas: [], partialRooms: '', labourCost: '', rateId: '', notes: '', media: [], description: '', fullHome: true, specificAreas: [] })
@@ -250,7 +250,7 @@ function stripFiles(obj) {
 function deepMerge(base, override) {
   if (!override || typeof override !== 'object' || Array.isArray(override)) return override ?? base
   const result = { ...base }
-  Object.keys(base).forEach(k => {
+  Object.keys({ ...base, ...override }).forEach(k => {
     if (!(k in override)) return
     if (override[k] && typeof override[k] === 'object' && !Array.isArray(override[k])) result[k] = deepMerge(base[k] ?? {}, override[k])
     else result[k] = override[k]
@@ -507,7 +507,9 @@ function NotAvailableNote({ value, onChange }) {
 
 // ── Issue cost row (one per selected non-Functional issue) ────────────────────
 function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelectRate }) {
-  const rowTotal = (parseFloat(costRow.materialCost) || 0) + (parseFloat(costRow.labourCost) || 0)
+  const qty      = Math.max(1, parseFloat(costRow.qty) || 1)
+  const unitCost = (parseFloat(costRow.materialCost) || 0) + (parseFloat(costRow.labourCost) || 0)
+  const rowTotal = unitCost * qty
   return (
     <div style={{ background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>— {issueLabel}</span>
@@ -516,10 +518,16 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
         <PillGroup options={['Repair', 'Replace', 'Install']} value={costRow.action} onChange={v => onUpdate('action', v)} />
       </Field>
 
+      {costRow.action && (
+        <Field label="Qty" hint="Number of units affected">
+          <Input value={costRow.qty ?? 1} onChange={v => onUpdate('qty', Math.max(1, parseInt(v) || 1))} placeholder="1" type="number" />
+        </Field>
+      )}
+
       {costRow.action === 'Repair' && (
         <>
           <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={onSelectRate} />
-          <Field label="Labour ₹">
+          <Field label="Labour ₹ (per unit)">
             <Input value={costRow.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" />
           </Field>
         </>
@@ -528,8 +536,8 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
       {(costRow.action === 'Replace' || costRow.action === 'Install') && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Field label="Material ₹"><Input value={costRow.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" /></Field>
-            <Field label="Labour ₹"><Input value={costRow.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" /></Field>
+            <Field label="Material ₹ (per unit)"><Input value={costRow.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" /></Field>
+            <Field label="Labour ₹ (per unit)"><Input value={costRow.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" /></Field>
           </div>
           <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={onSelectRate} />
         </>
@@ -537,7 +545,10 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
 
       {rowTotal > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.2)', borderRadius: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Issue Total</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Issue Total</span>
+            {qty > 1 && <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{qty} × ₹{unitCost.toLocaleString('en-IN')}</span>}
+          </div>
           <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent, #c8963e)' }}>₹{rowTotal.toLocaleString('en-IN')}</span>
         </div>
       )}
@@ -558,8 +569,9 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
   const done           = card.notAvailable || selectedIssues.length > 0 || (isAcPoint && acProvision === 'not_present')
   const nonFunctional  = selectedIssues.filter(i => i !== 'Functional')
   const itemTotal      = nonFunctional.reduce((sum, issue) => {
-    const cr = costRows[issue] || {}
-    return sum + (parseFloat(cr.materialCost) || 0) + (parseFloat(cr.labourCost) || 0)
+    const cr  = costRows[issue] || {}
+    const qty = Math.max(1, parseFloat(cr.qty) || 1)
+    return sum + ((parseFloat(cr.materialCost) || 0) + (parseFloat(cr.labourCost) || 0)) * qty
   }, 0)
 
   function toggleIssue(nextIssues) {
@@ -1135,9 +1147,10 @@ export default function InspectionIndoor() {
               mediaArrays.push(mediaFiles)
             } else {
               selIssues.forEach((issue, ri) => {
-                const cr = (card.costRows || {})[issue] || {}
+                const cr         = (card.costRows || {})[issue] || {}
+                const qty        = Math.max(1, parseFloat(cr.qty) || 1)
                 const issueLabel = issue === 'Other' ? (card.otherIssue || 'Other') : issue
-                lineItemRows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: parseFloat(cr.materialCost) || 0, labour_cost: parseFloat(cr.labourCost) || 0, item_score: card.health ?? null, availability_status: null })
+                lineItemRows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: (parseFloat(cr.materialCost) || 0) * qty, labour_cost: (parseFloat(cr.labourCost) || 0) * qty, item_score: card.health ?? null, availability_status: null })
                 mediaArrays.push(ri === 0 ? mediaFiles : [])
               })
             }

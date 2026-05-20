@@ -55,12 +55,14 @@ export default function NewInspection() {
     if (!validate()) return
     const trimmed = pid.trim()
 
-    const [{ data: existingInspection }, { data: existingProperty }] = await Promise.all([
+    const [{ data: existingInspection }, { data: existingProperty }, { data: binnedProperty }] = await Promise.all([
       supabase.from('inspections').select('id').eq('pid', trimmed).maybeSingle(),
-      supabase.from('properties').select('pid').eq('pid', trimmed).maybeSingle(),
+      supabase.from('properties').select('pid').eq('pid', trimmed).is('deleted_at', null).maybeSingle(),
+      supabase.from('properties_bin').select('pid').eq('pid', trimmed).maybeSingle(),
     ])
 
-    if (existingInspection || existingProperty) {
+    // if the PID was deleted (in bin), allow recreation
+    if (!binnedProperty && (existingInspection || existingProperty)) {
       setErrors(p => ({ ...p, pid: `PID "${trimmed}" already exists — each property must have a unique ID` }))
       return
     }
