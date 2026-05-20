@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import { NavBar, StepBar, Field, Input, CardToggle, PillGroup, StickyFooter, BtnPrimary } from '../components/ui'
 
 const INSPECTION_TYPES = [
@@ -50,9 +51,21 @@ export default function NewInspection() {
     return Object.keys(e).length === 0
   }
 
-  function handleContinue() {
+  async function handleContinue() {
     if (!validate()) return
-    const state = { pid: pid.trim(), inspectionType, propertyType, layout, rooms }
+    const trimmed = pid.trim()
+
+    const [{ data: existingInspection }, { data: existingProperty }] = await Promise.all([
+      supabase.from('inspections').select('id').eq('pid', trimmed).maybeSingle(),
+      supabase.from('properties').select('pid').eq('pid', trimmed).maybeSingle(),
+    ])
+
+    if (existingInspection || existingProperty) {
+      setErrors(p => ({ ...p, pid: `PID "${trimmed}" already exists — each property must have a unique ID` }))
+      return
+    }
+
+    const state = { pid: trimmed, inspectionType, propertyType, layout, rooms }
     navigate('/inspections/mode', { state })
   }
 

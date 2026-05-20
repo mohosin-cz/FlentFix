@@ -459,6 +459,7 @@ export default function Estimate() {
   const [quickNote, setQuickNote] = useState(null)
   const [copied, setCopied] = useState(false)
   const [lineItems, setLineItems] = useState([])
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
     const prev = document.body.style.background
@@ -469,6 +470,10 @@ export default function Estimate() {
       document.body.style.background = prev
       document.body.style.padding = prevPad
     }
+  }, [])
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setIsLoggedIn(!!user))
   }, [])
 
   useEffect(() => {
@@ -684,7 +689,7 @@ export default function Estimate() {
             </>
           ) : (
             <>
-              <button className="er-pdf-link" style={{ color: '#c8963e' }} onClick={startEdit}>Edit Estimate</button>
+              {isLoggedIn && <button className="er-pdf-link" style={{ color: '#c8963e' }} onClick={startEdit}>Edit Estimate</button>}
               <button className="er-pdf-link" onClick={handlePrint}>Download PDF</button>
               <button onClick={handleShare} style={{ padding: '6px 12px', border: '1px solid #c8963e', background: 'transparent', color: '#c8963e', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>
                 {copied ? '✓ Copied!' : '↗ Share'}
