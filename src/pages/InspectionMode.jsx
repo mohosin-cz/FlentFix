@@ -336,7 +336,7 @@ export default function InspectionMode() {
         section_name:      item.section_name    || '',
         area:              item.area            || '',
         item_name:         item.item_name       || '',
-        item_score:        item.item_score      ?? null,
+        item_score:        item.item_score != null ? Math.min(10, Math.max(1, Math.round(item.item_score))) : null,
         issue_description: item.issue_description || '',
         trade:             item.trade           || '',
         material_cost:     Number(item.material_cost || 0),

@@ -354,7 +354,8 @@ export function flattenAppliancesDraftToRows(draft, inspectionId) {
     ;[...components.map(c => ({ n: c, d: comps[c] || blankComp() })), ...(appData.customComponents || []).map(c => ({ n: c.name, d: c }))]
       .forEach(({ n, d }) => {
         if (!d.status || !n) return
-        rows.push({ inspection_id: inspectionId, section_name: 'Appliances', area: name, item_name: n, trade, issue_description: d.status === 'Faulty' ? (d.issueDescription || 'Faulty') : d.status, material_cost: parseFloat(d.materialCost) || 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: appData.health ?? null, availability_status: d.status === 'N/A' ? 'not_available' : null })
+        const s = appData.health ?? null
+        rows.push({ inspection_id: inspectionId, section_name: 'Appliances', area: name, item_name: n, trade, issue_description: d.status === 'Faulty' ? (d.issueDescription || 'Faulty') : d.status, material_cost: parseFloat(d.materialCost) || 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: s !== null ? Math.min(10, Math.max(1, Math.round(s))) : null })
       })
   })
   customApps.forEach(ca => {
@@ -362,7 +363,8 @@ export function flattenAppliancesDraftToRows(draft, inspectionId) {
     const name = ca.customName || 'Custom Appliance'
     ;(ca.customComponents || []).forEach(cc => {
       if (!cc.status || !cc.name) return
-      rows.push({ inspection_id: inspectionId, section_name: 'Appliances', area: name, item_name: cc.name, trade: ca.trade || 'electrical', issue_description: cc.status === 'Faulty' ? (cc.issueDescription || 'Faulty') : cc.status, material_cost: parseFloat(cc.materialCost) || 0, labour_cost: parseFloat(cc.labourCost) || 0, item_score: ca.health ?? null, availability_status: cc.status === 'N/A' ? 'not_available' : null })
+      const s = ca.health ?? null
+      rows.push({ inspection_id: inspectionId, section_name: 'Appliances', area: name, item_name: cc.name, trade: ca.trade || 'electrical', issue_description: cc.status === 'Faulty' ? (cc.issueDescription || 'Faulty') : cc.status, material_cost: parseFloat(cc.materialCost) || 0, labour_cost: parseFloat(cc.labourCost) || 0, item_score: s !== null ? Math.min(10, Math.max(1, Math.round(s))) : null })
     })
   })
   return rows
@@ -453,13 +455,13 @@ export default function InspectionAppliances() {
       ;[...components.map(c => ({ n: c, d: comps[c] || blankComp() })), ...customC.map(c => ({ n: c.name, d: c }))]
         .forEach(({ n, d }) => {
           if (!d.status || !n) return
+          const rawScore = appData.health ?? null
           lineItemRows.push({
             inspection_id: inspectionId, section_name: 'Appliances', area: name, item_name: n, trade,
             issue_description: d.status === 'Faulty' ? (d.issueDescription || 'Faulty') : d.status,
             material_cost: parseFloat(d.materialCost) || 0,
             labour_cost:   parseFloat(d.labourCost) || 0,
-            item_score:    appData.health ?? null,
-            availability_status: d.status === 'N/A' ? 'not_available' : null,
+            item_score:    rawScore !== null ? Math.min(10, Math.max(1, Math.round(rawScore))) : null,
           })
           mediaArrays.push(firstMedia ? mediaFiles : [])
           firstMedia = false
@@ -473,13 +475,13 @@ export default function InspectionAppliances() {
       let firstMedia = true
       ;(ca.customComponents || []).forEach(cc => {
         if (!cc.status || !cc.name) return
+        const rawScoreCA = ca.health ?? null
         lineItemRows.push({
           inspection_id: inspectionId, section_name: 'Appliances', area: name, item_name: cc.name, trade: ca.trade || 'electrical',
           issue_description: cc.status === 'Faulty' ? (cc.issueDescription || 'Faulty') : cc.status,
           material_cost: parseFloat(cc.materialCost) || 0,
           labour_cost:   parseFloat(cc.labourCost) || 0,
-          item_score:    ca.health ?? null,
-          availability_status: cc.status === 'N/A' ? 'not_available' : null,
+          item_score:    rawScoreCA !== null ? Math.min(10, Math.max(1, Math.round(rawScoreCA))) : null,
         })
         mediaArrays.push(firstMedia ? mediaFiles : [])
         firstMedia = false
