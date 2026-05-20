@@ -460,6 +460,8 @@ export default function Estimate() {
   const [copied, setCopied] = useState(false)
   const [lineItems, setLineItems] = useState([])
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isEditingNotes, setIsEditingNotes] = useState(false)
+  const [isSavingNotes, setIsSavingNotes]   = useState(false)
 
   useEffect(() => {
     const prev = document.body.style.background
@@ -571,6 +573,13 @@ export default function Estimate() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  async function saveNotes() {
+    setIsSavingNotes(true)
+    await supabase.from('inspections').update({ notes: estimateNotes }).eq('id', id)
+    setIsEditingNotes(false)
+    setIsSavingNotes(false)
   }
 
   if (loading) return (
@@ -970,8 +979,22 @@ export default function Estimate() {
 
         {/* ── NOTES ── */}
         <div style={{ margin: '0 48px 32px', padding: '20px', background: '#F8F6F1', border: '1px solid #E0D9CC', borderRadius: '8px' }}>
-          <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'Source Sans 3, sans-serif', color: '#1E1E1E' }}>Notes</div>
-          {isEditing ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ fontWeight: 600, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'Source Sans 3, sans-serif', color: '#1E1E1E' }}>Notes</div>
+            {isLoggedIn && !isEditing && (
+              isEditingNotes ? (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => { setIsEditingNotes(false); setEstimateNotes(inspection?.notes || '') }} style={{ fontSize: 11, color: '#999', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Source Sans 3, sans-serif' }}>Cancel</button>
+                  <button onClick={saveNotes} disabled={isSavingNotes} style={{ fontSize: 11, color: '#c8963e', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Source Sans 3, sans-serif' }}>{isSavingNotes ? 'Saving…' : 'Save'}</button>
+                </div>
+              ) : (
+                <button onClick={() => setIsEditingNotes(true)} style={{ fontSize: 11, color: '#c8963e', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Source Sans 3, sans-serif', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  ✎ Edit
+                </button>
+              )
+            )}
+          </div>
+          {isEditing || isEditingNotes ? (
             <textarea
               value={estimateNotes}
               onChange={e => setEstimateNotes(e.target.value)}
@@ -983,7 +1006,7 @@ export default function Estimate() {
               {quickNote?.note || estimateNotes || 'No notes added.'}
             </div>
           )}
-          {quickNote?.updated_at && !isEditing && (
+          {quickNote?.updated_at && !isEditing && !isEditingNotes && (
             <div style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 10, color: '#999', marginTop: 6 }}>Last updated {fmtDate(quickNote.updated_at)}</div>
           )}
         </div>

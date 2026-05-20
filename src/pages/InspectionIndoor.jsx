@@ -963,6 +963,7 @@ export default function InspectionIndoor() {
   const [isEstimating, setIsEstimating] = useState(false)
   const [estimateError, setEstimateError] = useState('')
   const [savedFlash, setSavedFlash]     = useState(false)
+  const [tabError, setTabError]         = useState('')
   const flashTimer = useRef(null)
 
   useEffect(() => {
@@ -1030,7 +1031,30 @@ export default function InspectionIndoor() {
   }
 
   // ── Tab navigation ──
+  function getIncompleteItems() {
+    if (currentTab.id === 'basics') return []
+    const missing = []
+    currentTab.sections?.forEach(sec => {
+      sec.items.forEach(item => {
+        const cards = data[currentTab.id]?.[sec.id]?.[item.key] || []
+        cards.forEach((card, ci) => {
+          const done = card.notAvailable || (card.selectedIssues || []).length > 0 || card.acProvision === 'not_present'
+          if (!done) missing.push(cards.length > 1 ? `${item.label} (${ci + 1})` : item.label)
+        })
+      })
+    })
+    return missing
+  }
+
   function handleTabChange(i) {
+    if (i > tabIdx) {
+      const missing = getIncompleteItems()
+      if (missing.length > 0) {
+        setTabError(`${missing.length} item${missing.length > 1 ? 's' : ''} not marked: ${missing.join(', ')}`)
+        return
+      }
+    }
+    setTabError('')
     setOpenCards(new Set())
     setSearchParams({ tab: tabs[i].id }, { replace: true, state })
   }
@@ -1182,6 +1206,13 @@ export default function InspectionIndoor() {
       </div>
 
       <TabBar tabs={tabLabels} active={tabIdx} onChange={handleTabChange} />
+
+      {tabError && (
+        <div style={{ background: 'rgba(224,92,106,0.10)', borderBottom: '1px solid rgba(224,92,106,0.25)', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <span style={{ fontSize: 11, color: '#e05c6a', fontFamily: 'var(--font-mono, monospace)' }}>⚠ {tabError}</span>
+          <button onClick={() => setTabError('')} style={{ background: 'none', border: 'none', color: '#e05c6a', fontSize: 14, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+        </div>
+      )}
 
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 120 }}>
         <div style={{ maxWidth: 600, margin: '0 auto', padding: '16px 16px 0', display: 'flex', flexDirection: 'column', gap: 10 }} key={currentTab.id}>

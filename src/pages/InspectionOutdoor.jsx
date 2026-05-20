@@ -648,6 +648,7 @@ export default function InspectionOutdoor() {
   const [isEstimating, setIsEstimating] = useState(false)
   const [estimateError, setEstimateError] = useState('')
   const [savedFlash,   setSavedFlash]   = useState(false)
+  const [tabError,     setTabError]     = useState('')
   const flashTimer = useRef(null)
 
   useEffect(() => {
@@ -677,7 +678,18 @@ export default function InspectionOutdoor() {
   function updateCustomItem(sk, idx, field, value) { const arr = [...getCI(sk)]; arr[idx] = { ...arr[idx], [field]: value }; setCI(sk, arr) }
 
   function toggleCard(key)    { setOpenCard(p => p === key ? null : key) }
-  function handleTabChange(i) { setOpenCard(null); setSearchParams({ section: sectionKeys[i] }, { replace: true, state }) }
+  function handleTabChange(i) {
+    if (i > tab) {
+      const missing = SECTIONS[sk].filter(({ key }) => !isDone(data[sk][key])).map(({ title }) => title)
+      if (missing.length > 0) {
+        setTabError(`${missing.length} item${missing.length > 1 ? 's' : ''} not marked: ${missing.join(', ')}`)
+        return
+      }
+    }
+    setTabError('')
+    setOpenCard(null)
+    setSearchParams({ section: sectionKeys[i] }, { replace: true, state })
+  }
 
   const counts = sectionKeys.reduce((acc, sk, i) => {
     acc[i]            = SECTIONS[sk].filter(s => isDone(data[sk][s.key])).length
@@ -794,6 +806,13 @@ export default function InspectionOutdoor() {
       </div>
 
       <TabBar tabs={TABS} active={tab} onChange={handleTabChange} counts={counts} />
+
+      {tabError && (
+        <div style={{ background: 'rgba(224,92,106,0.10)', borderBottom: '1px solid rgba(224,92,106,0.25)', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <span style={{ fontSize: 11, color: '#e05c6a', fontFamily: 'var(--font-mono, monospace)' }}>⚠ {tabError}</span>
+          <button onClick={() => setTabError('')} style={{ background: 'none', border: 'none', color: '#e05c6a', fontSize: 14, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+        </div>
+      )}
 
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 120 }}>
         <div style={{ maxWidth: 600, margin: '0 auto', padding: '16px 16px 0', display: 'flex', flexDirection: 'column', gap: 10 }} key={tab}>
