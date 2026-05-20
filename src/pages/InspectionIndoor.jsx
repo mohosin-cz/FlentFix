@@ -211,7 +211,7 @@ function buildTabs(houseType, bhk) {
 }
 
 // ── State helpers ─────────────────────────────────────────────────────────────
-const blankCostRow  = () => ({ action: '', labourRateId: '', labourCost: '', materialCost: '', qty: 1 })
+const blankCostRow  = () => ({ action: '', labourRateId: '', labourCost: '', materialCost: '', materialRateId: '', qty: 1 })
 const blankIssueRow = () => ({ id: `ir_${Date.now()}_${Math.random().toString(36).slice(2)}`, issueDescription: '', action: '', labourRateId: '', labourCost: '', materialCost: '' })
 const blankCard = () => ({ health: null, notes: '', media: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {} })
 const blankGeneral = () => ({ enabled: false, areas: [], partialRooms: '', labourCost: '', rateId: '', notes: '', media: [], description: '', fullHome: true, specificAreas: [] })
@@ -491,6 +491,22 @@ function LabourRateDropdown({ rates, value, labourCost, onSelect }) {
   )
 }
 
+// ── Material RC dropdown (from inventory_items) ───────────────────────────────
+function MaterialRateDropdown({ items, value, materialCost, onSelect }) {
+  if (!items.length) return null
+  const options = items.map(r => ({ value: r.fxin, label: `${r.item_name}${r.spec ? ' · ' + r.spec : ''}${r.size ? ' · ' + r.size : ''}`, cost: r.selling_price }))
+  return (
+    <Field label="Material (RC)" hint={value ? `₹${parseFloat(materialCost || 0).toLocaleString('en-IN')} auto-filled` : undefined}>
+      <SearchableDropdown
+        options={options}
+        value={value}
+        onChange={fxin => { const r = items.find(x => x.fxin === fxin); onSelect(fxin, r ? String(r.selling_price) : '') }}
+        placeholder="Pick from rate card…"
+      />
+    </Field>
+  )
+}
+
 // ── Not-available note ────────────────────────────────────────────────────────
 function NotAvailableNote({ value, onChange }) {
   return (
@@ -506,7 +522,7 @@ function NotAvailableNote({ value, onChange }) {
 }
 
 // ── Issue cost row (one per selected non-Functional issue) ────────────────────
-function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelectRate }) {
+function IssueCostRow({ issueLabel, costRow = {}, tradeRates, materialItems, onUpdate, onSelectRate, onSelectMaterial }) {
   const qty      = Math.max(1, parseFloat(costRow.qty) || 1)
   const unitCost = (parseFloat(costRow.materialCost) || 0) + (parseFloat(costRow.labourCost) || 0)
   const rowTotal = unitCost * qty
@@ -514,15 +530,14 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
     <div style={{ background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>— {issueLabel}</span>
 
-      <Field label="Action">
-        <PillGroup options={['Repair', 'Replace', 'Install']} value={costRow.action} onChange={v => onUpdate('action', v)} />
-      </Field>
-
-      {costRow.action && (
-        <Field label="Qty" hint="Number of units affected">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'end' }}>
+        <Field label="Action">
+          <PillGroup options={['Repair', 'Replace', 'Install']} value={costRow.action} onChange={v => onUpdate('action', v)} />
+        </Field>
+        <Field label="Qty">
           <Input value={costRow.qty ?? 1} onChange={v => onUpdate('qty', Math.max(1, parseInt(v) || 1))} placeholder="1" type="number" />
         </Field>
-      )}
+      </div>
 
       {costRow.action === 'Repair' && (
         <>
@@ -535,6 +550,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
 
       {(costRow.action === 'Replace' || costRow.action === 'Install') && (
         <>
+          <MaterialRateDropdown items={materialItems || []} value={costRow.materialRateId} materialCost={costRow.materialCost} onSelect={onSelectMaterial} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Field label="Material ₹ (per unit)"><Input value={costRow.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" /></Field>
             <Field label="Labour ₹ (per unit)"><Input value={costRow.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" /></Field>
@@ -557,7 +573,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
 }
 
 // ── Item card ─────────────────────────────────────────────────────────────────
-function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onUpdate, onDuplicate, onRemove, labourRates, pid }) {
+function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onUpdate, onDuplicate, onRemove, labourRates, materialItems, pid }) {
   const { label, trade, issues: presets } = itemConfig
   const isAcPoint      = itemConfig.key === 'acPoint'
   const acProvision    = card.acProvision || 'present'
@@ -663,8 +679,10 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
                     issueLabel={issue === 'Other' ? (card.otherIssue || 'Other') : issue}
                     costRow={costRows[issue] || {}}
                     tradeRates={tradeRates}
+                    materialItems={materialItems || []}
                     onUpdate={(field, value) => updateCostRow(issue, { [field]: value })}
                     onSelectRate={(id, cost, desc) => updateCostRow(issue, { labourRateId: id, labourCost: cost, labourDescription: desc })}
+                    onSelectMaterial={(fxin, cost) => updateCostRow(issue, { materialRateId: fxin, materialCost: cost })}
                   />
                 ))}
               </div>
@@ -972,6 +990,7 @@ export default function InspectionIndoor() {
 
   const [openCards, setOpenCards]       = useState(new Set())
   const [labourRates, setLabourRates]   = useState([])
+  const [materialItems, setMaterialItems] = useState([])
   const [isEstimating, setIsEstimating] = useState(false)
   const [estimateError, setEstimateError] = useState('')
   const [savedFlash, setSavedFlash]     = useState(false)
@@ -982,6 +1001,20 @@ export default function InspectionIndoor() {
     if (!pid) { navigate('/inspections/new', { replace: true }); return }
     supabase.from('labour_rates').select('id, work_type, cost_per_unit, unit, trade').order('work_type')
       .then(({ data: rows }) => { if (rows) setLabourRates(rows) })
+    supabase.from('inventory_items').select('item_name,trade,fxin,spec,size,price_inc,margin_percent').order('purchase_date', { ascending: false })
+      .then(({ data: rows }) => {
+        if (!rows) return
+        const groups = {}; const order = []
+        rows.forEach(item => {
+          const key = `${item.fxin}`
+          if (!groups[key]) { groups[key] = { item_name: item.item_name, trade: item.trade, fxin: item.fxin, spec: item.spec, size: item.size, margin_percent: item.margin_percent || 0, prices: [] }; order.push(key) }
+          groups[key].prices.push(parseFloat(item.price_inc) || 0)
+        })
+        setMaterialItems(order.map(key => {
+          const g = groups[key]; const last = g.prices[0] || 0
+          return { ...g, last_price: last, selling_price: Math.round(last * (1 + (g.margin_percent || 0) / 100)) }
+        }))
+      })
   }, [])
 
   useEffect(() => {
@@ -1287,6 +1320,7 @@ export default function InspectionIndoor() {
                       onDuplicate={() => duplicateCard(currentTab.id, sec.id, itemConfig.key, cardIdx)}
                       onRemove={() => removeCard(currentTab.id, sec.id, itemConfig.key, cardIdx)}
                       labourRates={labourRates}
+                      materialItems={materialItems}
                       pid={pid}
                     />
                   )
