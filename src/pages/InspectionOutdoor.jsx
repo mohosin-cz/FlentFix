@@ -341,7 +341,7 @@ function LabourRateDropdown({ rates, value, labourCost, onSelect }) {
 // ─── Material RC dropdown (from inventory_items) ─────────────────────────────
 function MaterialRateDropdown({ items, value, materialCost, onSelect }) {
   if (!items.length) return null
-  const options = items.map(r => ({ value: r.fxin, label: `${r.item_name}${r.spec ? ' · ' + r.spec : ''}${r.size ? ' · ' + r.size : ''}`, cost: r.selling_price }))
+  const options = items.map(r => ({ value: r.fxin, label: `${r.item_name}${r.spec ? ' · ' + r.spec : ''}${r.size ? ' · ' + r.size : ''}`, cost: r.selling_price, unit: 'ea' }))
   return (
     <Field label="Material (RC)" hint={value ? `₹${parseFloat(materialCost || 0).toLocaleString('en-IN')} auto-filled` : undefined}>
       <SearchableDropdown
@@ -445,10 +445,12 @@ function OutdoorItemCard({ config, item, isOpen, onToggle, onUpdate, labourRates
   }
 
   const naToggle = (
-    <label onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '3px 8px', borderRadius: 4, background: item.notAvailable ? 'rgba(224,92,106,0.1)' : 'var(--bg-input, #252731)', border: `1px solid ${item.notAvailable ? 'rgba(224,92,106,0.3)' : 'var(--border, #2e3040)'}`, transition: 'background 0.15s' }}>
-      <input type="checkbox" checked={item.notAvailable || false} onChange={e => onUpdate('notAvailable', e.target.checked)} style={{ width: 12, height: 12, accentColor: 'var(--red, #e05c6a)', cursor: 'pointer', flexShrink: 0 }} />
+    <div onClick={e => { e.stopPropagation(); onUpdate('notAvailable', !item.notAvailable) }} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '3px 8px', borderRadius: 4, background: item.notAvailable ? 'rgba(224,92,106,0.1)' : 'var(--bg-input, #252731)', border: `1px solid ${item.notAvailable ? 'rgba(224,92,106,0.3)' : 'var(--border, #2e3040)'}`, transition: 'background 0.15s', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}>
+      <div style={{ width: 12, height: 12, minWidth: 12, borderRadius: 2, border: `1.5px solid ${item.notAvailable ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}`, background: item.notAvailable ? 'var(--red, #e05c6a)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+        {item.notAvailable && <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+      </div>
       <span style={{ fontSize: 10, fontWeight: 600, color: item.notAvailable ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}>{item.notAvailable ? 'n/a' : 'not avail'}</span>
-    </label>
+    </div>
   )
 
   return (
@@ -590,7 +592,7 @@ const SECTIONS = {
   electricals: [
     { key: 'outdoorLights', title: 'Outdoor Lights', badge: null, trade: 'electrical', presets: ISSUE_PRESETS.outdoorLights },
     { key: 'mainDB',        title: 'Main DB',         badge: null, trade: 'electrical', presets: ISSUE_PRESETS.mainDB },
-    { key: 'meterInfo',     title: 'Meter Info',      badge: null, trade: 'electrical', presets: [] },
+    { key: 'meterInfo',     title: 'Meter Info',      badge: null, trade: 'electrical', presets: ['Functional', 'Meter missing', 'Reading not visible', 'Other'] },
   ],
   security: [
     { key: 'cctvCamera', title: 'CCTV Camera', badge: null, trade: 'electrical', presets: ISSUE_PRESETS.cctvCamera },

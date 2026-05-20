@@ -291,58 +291,25 @@ export default function InspectionMode() {
     try {
       const pid = state.pid
 
-      // ── Step 2: dump ALL relevant localStorage keys so we can see exactly what's saved ──
-      const relevantKeys = Object.keys(localStorage).filter(k =>
-        k.includes(pid) || k.includes('draft') || k.includes('flentfix')
-      )
-      console.log('[EndInspection] pid:', pid)
-      console.log('[EndInspection] ALL RELEVANT KEYS:', relevantKeys)
-      relevantKeys.forEach(k => {
-        try { console.log(k, ':', JSON.parse(localStorage.getItem(k))) }
-        catch (_) { console.log(k, ':', localStorage.getItem(k)) }
-      })
-
-      // Use the most recent inspection for this PID (may have been created by a per-section estimate)
-      const { data: existingRows } = await supabase
+      // Always create a fresh inspection record so re-used PIDs don't pollute old data
+      const { data: newInspection, error: insErr } = await supabase
         .from('inspections')
-        .select('id')
-        .eq('pid', pid)
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      let inspectionId = existingRows?.[0]?.id
-      console.log('[EndInspection] existing inspectionId:', inspectionId)
-
-      if (!inspectionId) {
-        const { data: newInspection, error } = await supabase
-          .from('inspections')
-          .insert({
-            pid,
-            house_type: state.propertyType || state.inspectionType,
-            inspection_date: new Date().toISOString().split('T')[0],
-            status: 'completed',
-            config: state,
-          })
-          .select()
-          .single()
-        if (error) throw error
-        inspectionId = newInspection.id
-        console.log('[EndInspection] created new inspectionId:', inspectionId)
-      } else {
-        await supabase
-          .from('inspections')
-          .update({ status: 'completed' })
-          .eq('id', inspectionId)
-      }
+        .insert({
+          pid,
+          house_type: state.propertyType || state.inspectionType,
+          inspection_date: new Date().toISOString().split('T')[0],
+          status: 'completed',
+          config: state,
+        })
+        .select()
+        .single()
+      if (insErr) throw insErr
+      const inspectionId = newInspection.id
 
       // Flush any unsaved drafts to inspection_line_items
       const outdoorDraft    = JSON.parse(localStorage.getItem(`flentfix_outdoor_draft_${pid}`)    || '{}')
       const indoorDraft     = JSON.parse(localStorage.getItem(`flentfix_indoor_draft_${pid}`)     || '{}')
       const appliancesDraft = JSON.parse(localStorage.getItem(`flentfix_appliances_draft_${pid}`) || '{}')
-
-      console.log('[EndInspection] outdoorDraft:', outdoorDraft)
-      console.log('[EndInspection] indoorDraft:', indoorDraft)
-      console.log('[EndInspection] appliancesDraft:', appliancesDraft)
 
       // Fetch labour rate names for basics items (Fix 1)
       const rateMap = {}
@@ -410,7 +377,7 @@ export default function InspectionMode() {
       await supabase
         .from('properties')
         .upsert(
-          { pid, name: pid, type: state.propertyType || 'independent_home', address: '', landlord: '' },
+          { pid, name: pid, type: state.propertyType || 'independent_home', address: '', landlord: '', deleted_at: null },
           { onConflict: 'pid' }
         )
 

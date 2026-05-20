@@ -494,7 +494,7 @@ function LabourRateDropdown({ rates, value, labourCost, onSelect }) {
 // ── Material RC dropdown (from inventory_items) ───────────────────────────────
 function MaterialRateDropdown({ items, value, materialCost, onSelect }) {
   if (!items.length) return null
-  const options = items.map(r => ({ value: r.fxin, label: `${r.item_name}${r.spec ? ' · ' + r.spec : ''}${r.size ? ' · ' + r.size : ''}`, cost: r.selling_price }))
+  const options = items.map(r => ({ value: r.fxin, label: `${r.item_name}${r.spec ? ' · ' + r.spec : ''}${r.size ? ' · ' + r.size : ''}`, cost: r.selling_price, unit: 'ea' }))
   return (
     <Field label="Material (RC)" hint={value ? `₹${parseFloat(materialCost || 0).toLocaleString('en-IN')} auto-filled` : undefined}>
       <SearchableDropdown
@@ -604,10 +604,12 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
   }
 
   const naToggle = (
-    <label onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '3px 8px', borderRadius: 4, background: card.notAvailable ? 'rgba(224,92,106,0.1)' : 'var(--bg-input, #252731)', border: `1px solid ${card.notAvailable ? 'rgba(224,92,106,0.3)' : 'var(--border, #2e3040)'}` }}>
-      <input type="checkbox" checked={card.notAvailable || false} onChange={e => onUpdate('notAvailable', e.target.checked)} style={{ width: 12, height: 12, accentColor: 'var(--red, #e05c6a)', cursor: 'pointer', flexShrink: 0 }} />
+    <div onClick={e => { e.stopPropagation(); onUpdate('notAvailable', !card.notAvailable) }} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '3px 8px', borderRadius: 4, background: card.notAvailable ? 'rgba(224,92,106,0.1)' : 'var(--bg-input, #252731)', border: `1px solid ${card.notAvailable ? 'rgba(224,92,106,0.3)' : 'var(--border, #2e3040)'}`, transition: 'background 0.15s', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}>
+      <div style={{ width: 12, height: 12, minWidth: 12, borderRadius: 2, border: `1.5px solid ${card.notAvailable ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}`, background: card.notAvailable ? 'var(--red, #e05c6a)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+        {card.notAvailable && <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+      </div>
       <span style={{ fontSize: 10, fontWeight: 600, color: card.notAvailable ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}>{card.notAvailable ? 'n/a' : 'not avail'}</span>
-    </label>
+    </div>
   )
 
   const headerActions = (
