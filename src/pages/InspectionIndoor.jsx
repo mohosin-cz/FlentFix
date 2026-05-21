@@ -598,8 +598,8 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
                 style={{ ...INP, fontSize: 11, padding: '6px 10px' }}
               />
               {costRow.materialRateId && (
-                <div style={{ fontSize: 10, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', marginTop: 3 }}>
-                  {costRow.materialRateId}
+                <div style={{ fontSize: 10, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', margin: '3px 0 6px' }}>
+                  {costRow.materialRateId}{costRow.materialDescription ? ` · ${costRow.materialDescription}` : ''}
                 </div>
               )}
               {matOpen && matResults.length > 0 && (
@@ -609,7 +609,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
                     console.log('[Material Select]', item.fxin, { flent_price: item.flent_price, market_price: item.market_price, price })
                     return (
                       <div key={item.fxin || item.id}
-                        onMouseDown={() => { onSelectMaterial(item.fxin, String(price)); setMatSearch(item.item_name); setMatOpen(false) }}
+                        onMouseDown={() => { onSelectMaterial(item.fxin, String(price), item.item_name); setMatSearch(item.item_name); setMatOpen(false) }}
                         style={{ padding: '8px 12px', borderBottom: '1px solid var(--border, #2e3040)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
@@ -767,7 +767,7 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
                     tradeRates={tradeRates}
                     onUpdate={(field, value) => updateCostRow(issue, { [field]: value })}
                     onSelectRate={(id, cost, desc) => updateCostRow(issue, { labourRateId: id, labourCost: cost, labourDescription: desc })}
-                    onSelectMaterial={(fxin, cost) => updateCostRow(issue, { materialRateId: fxin, materialCost: cost })}
+                    onSelectMaterial={(fxin, cost, name) => updateCostRow(issue, { materialRateId: fxin, materialCost: cost, materialDescription: name })}
                   />
                 ))}
               </div>
@@ -1277,7 +1277,9 @@ export default function InspectionIndoor() {
     })
 
     if (lineItemRows.length) {
-      const { data: inserted, error: liErr } = await supabase.from('inspection_line_items').insert(lineItemRows).select('id')
+      const VALID_COLS = new Set(['inspection_id','section_name','area','item_name','item_score','issue_description','trade','action','material_cost','labour_cost','notes','excluded_from_estimate','availability_status','qty','material_item_id','material_fxin','material_description'])
+      const sanitized = lineItemRows.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => VALID_COLS.has(k))))
+      const { data: inserted, error: liErr } = await supabase.from('inspection_line_items').insert(sanitized).select('id')
       if (liErr) { setEstimateError(liErr.message); setIsEstimating(false); return }
       const mediaInserts = []
       for (let i = 0; i < inserted.length; i++) {
