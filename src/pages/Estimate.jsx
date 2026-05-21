@@ -500,8 +500,12 @@ export default function Estimate() {
             if (i.excluded_from_estimate) return false
             if (i.availability_status === 'not_available' || i.availability_status === 'no_provision') return false
             if (i.section_name?.toLowerCase() === 'appliances') return false
-            const desc = i.issue_description?.toLowerCase() || ''
-            if ((desc.includes('functional') || desc.includes('no issues')) && (i.material_cost || 0) === 0 && (i.labour_cost || 0) === 0) return false
+            const desc = (i.issue_description || '').toLowerCase().trim()
+            if ((i.material_cost || 0) === 0 && (i.labour_cost || 0) === 0) {
+              if (desc === 'not available' || desc === 'n/a' || desc === 'na' || desc.startsWith('not available')) return false
+              if (desc.includes('no provision')) return false
+              if (desc.includes('functional') || desc.includes('no issues') || desc.includes('no issue')) return false
+            }
             return true
           }))
         }
@@ -564,8 +568,12 @@ export default function Estimate() {
             if (i.excluded_from_estimate) return false
             if (i.availability_status === 'not_available' || i.availability_status === 'no_provision') return false
             if (i.section_name?.toLowerCase() === 'appliances') return false
-            const desc = i.issue_description?.toLowerCase() || ''
-            if ((desc.includes('functional') || desc.includes('no issues')) && (i.material_cost || 0) === 0 && (i.labour_cost || 0) === 0) return false
+            const desc = (i.issue_description || '').toLowerCase().trim()
+            if ((i.material_cost || 0) === 0 && (i.labour_cost || 0) === 0) {
+              if (desc === 'not available' || desc === 'n/a' || desc === 'na' || desc.startsWith('not available')) return false
+              if (desc.includes('no provision')) return false
+              if (desc.includes('functional') || desc.includes('no issues') || desc.includes('no issue')) return false
+            }
             return true
           }))
       }
