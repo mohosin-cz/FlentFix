@@ -498,6 +498,7 @@ export default function Estimate() {
           setEstimateNotes(data?.notes || '')
           setLineItems((data?.inspection_line_items || []).filter(i => {
             if (i.excluded_from_estimate) return false
+            if (i.availability_status === 'not_available' || i.availability_status === 'no_provision') return false
             if (i.section_name?.toLowerCase() === 'appliances') return false
             const desc = i.issue_description?.toLowerCase() || ''
             if ((desc.includes('functional') || desc.includes('no issues')) && (i.material_cost || 0) === 0 && (i.labour_cost || 0) === 0) return false
@@ -561,6 +562,7 @@ export default function Estimate() {
         setEstimateNotes(refreshed.notes || '')
         setLineItems((refreshed.inspection_line_items || []).filter(i => {
             if (i.excluded_from_estimate) return false
+            if (i.availability_status === 'not_available' || i.availability_status === 'no_provision') return false
             if (i.section_name?.toLowerCase() === 'appliances') return false
             const desc = i.issue_description?.toLowerCase() || ''
             if ((desc.includes('functional') || desc.includes('no issues')) && (i.material_cost || 0) === 0 && (i.labour_cost || 0) === 0) return false

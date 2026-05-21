@@ -332,16 +332,17 @@ export default function InspectionMode() {
       // ── Sanitize + insert with full error visibility ──
       const rawAllRows = [...outdoorRows, ...indoorRows, ...appliancesRows]
       const sanitize = (item) => ({
-        inspection_id:     item.inspection_id,
-        section_name:      item.section_name    || '',
-        area:              item.area            || '',
-        item_name:         item.item_name       || '',
-        item_score:        item.item_score != null ? Math.min(10, Math.max(1, Math.round(item.item_score))) : null,
-        issue_description: item.issue_description || '',
-        trade:             item.trade           || '',
-        material_cost:     Number(item.material_cost || 0),
-        labour_cost:       Number(item.labour_cost   || 0),
-        notes:             item.notes           || '',
+        inspection_id:       item.inspection_id,
+        section_name:        item.section_name    || '',
+        area:                item.area            || '',
+        item_name:           item.item_name       || '',
+        item_score:          item.item_score != null ? Math.min(10, Math.max(1, Math.round(item.item_score))) : null,
+        issue_description:   item.issue_description || '',
+        trade:               item.trade           || '',
+        material_cost:       Number(item.material_cost || 0),
+        labour_cost:         Number(item.labour_cost   || 0),
+        notes:               item.notes           || '',
+        availability_status: item.availability_status || null,
       })
       const allRows = rawAllRows.map(sanitize)
       console.log('[EndInspection] total rows to insert:', allRows.length, allRows[0])

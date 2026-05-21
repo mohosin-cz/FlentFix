@@ -196,6 +196,7 @@ export default function LandlordInvoice() {
       .neq('excluded_from_estimate', true)
 
     const seedItems = (estItems || [])
+      .filter(i => i.availability_status !== 'not_available' && i.availability_status !== 'no_provision')
       .filter(i => ((i.material_cost || 0) + (i.labour_cost || 0)) > 0)
       .map((item, idx) => ({
         invoice_id:  newInv.id,
