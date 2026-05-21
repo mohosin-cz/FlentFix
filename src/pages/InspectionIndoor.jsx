@@ -7,7 +7,6 @@ import {
   HealthSlider, AccordionCard, StickyFooter, BtnPrimary,
 } from '../components/ui'
 import QuickNotes from '../components/QuickNotes'
-import MaterialItemPicker from '../components/MaterialItemPicker'
 
 // ── Issue presets ─────────────────────────────────────────────────────────────
 const I = {
@@ -512,54 +511,143 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
   const qty      = Math.max(1, parseFloat(costRow.qty) || 1)
   const unitCost = (parseFloat(costRow.materialCost) || 0) + (parseFloat(costRow.labourCost) || 0)
   const rowTotal = unitCost * qty
-  return (
-    <div style={{ background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>— {issueLabel}</span>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'end' }}>
-        <Field label="Action">
-          <PillGroup options={['Repair', 'Replace', 'Install']} value={costRow.action} onChange={v => onUpdate('action', v)} />
-        </Field>
-        <Field label="Qty">
-          <Input value={costRow.qty ?? 1} onChange={v => onUpdate('qty', Math.max(1, parseInt(v) || 1))} placeholder="1" type="number" />
-        </Field>
+  const [matSearch,  setMatSearch]  = useState('')
+  const [matResults, setMatResults] = useState([])
+  const [matOpen,    setMatOpen]    = useState(false)
+  const [matDropPos, setMatDropPos] = useState({})
+  const matRef = useRef(null)
+
+  useEffect(() => {
+    if (matSearch.trim().length < 1) { setMatResults([]); return }
+    const t = setTimeout(async () => {
+      const { data, error } = await supabase
+        .from('inventory_items')
+        .select('id, fxin, item_name, flent_price, market_price, quantity_remaining, trade')
+        .or(`item_name.ilike.%${matSearch}%,fxin.ilike.%${matSearch}%`)
+        .limit(10)
+      console.log('[Material Search]', matSearch, '→', data?.length ?? 0, 'results', error?.message || '')
+      setMatResults(data || [])
+    }, 250)
+    return () => clearTimeout(t)
+  }, [matSearch])
+
+  useEffect(() => {
+    if (!matOpen) return
+    const close = (e) => { if (!matRef.current?.contains(e.target)) setMatOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [matOpen])
+
+  function openMatDropdown() {
+    const rect = matRef.current?.getBoundingClientRect()
+    if (rect) {
+      const spaceBelow = window.innerHeight - rect.bottom
+      setMatDropPos(spaceBelow < 200 && rect.top > 200
+        ? { position: 'fixed', bottom: window.innerHeight - rect.top, top: 'auto', left: rect.left, width: rect.width }
+        : { position: 'fixed', top: rect.bottom + 2, left: rect.left, width: rect.width }
+      )
+    }
+    setMatOpen(true)
+  }
+
+  const INP = { width: '100%', padding: '8px 10px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text, #e8e8f0)', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }
+  const LBL = { fontSize: 10, color: 'var(--text-muted, #6b6d82)', letterSpacing: '0.08em', marginBottom: 6, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', display: 'block' }
+
+  return (
+    <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, overflow: 'hidden' }}>
+
+      {/* Header */}
+      <div style={{ padding: '10px 14px', background: 'rgba(200,150,62,0.08)', borderBottom: '1px solid var(--border, #2e3040)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent, #c8963e)' }}>— {issueLabel}</span>
+        <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>₹{rowTotal.toLocaleString('en-IN')}</span>
       </div>
 
-      {costRow.action === 'Repair' && (
-        <>
-          <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={onSelectRate} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Field label="Labour ₹ (per unit)"><Input value={costRow.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" /></Field>
-            <Field label="Material ₹ (per unit)"><Input value={costRow.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" /></Field>
-          </div>
-          <Field label="Material Item">
-            <MaterialItemPicker value={costRow.materialRateId} materialCost={costRow.materialCost} onSelect={onSelectMaterial} />
-          </Field>
-        </>
-      )}
+      <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      {(costRow.action === 'Replace' || costRow.action === 'Install') && (
-        <>
-          <Field label="Material Item">
-            <MaterialItemPicker value={costRow.materialRateId} materialCost={costRow.materialCost} onSelect={onSelectMaterial} />
-          </Field>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Field label="Material ₹ (per unit)"><Input value={costRow.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" /></Field>
-            <Field label="Labour ₹ (per unit)"><Input value={costRow.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" /></Field>
+        {/* Row 1: Action + Qty */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+          <div style={{ flex: 1 }}>
+            <span style={LBL}>Action</span>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {['Repair', 'Replace', 'Install'].map(a => (
+                <button key={a} type="button" onClick={() => onUpdate('action', a)} style={{ flex: 1, padding: '7px 0', border: `1px solid ${costRow.action === a ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, background: costRow.action === a ? 'rgba(200,150,62,0.15)' : 'none', color: costRow.action === a ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {a}
+                </button>
+              ))}
+            </div>
           </div>
-          <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={onSelectRate} />
-        </>
-      )}
-
-      {rowTotal > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.2)', borderRadius: 6 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Issue Total</span>
-            {qty > 1 && <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{qty} × ₹{unitCost.toLocaleString('en-IN')}</span>}
+          <div style={{ width: 72 }}>
+            <span style={LBL}>Qty</span>
+            <input type="number" min="1" value={costRow.qty ?? 1} onChange={e => onUpdate('qty', Math.max(1, parseInt(e.target.value) || 1))} style={{ ...INP, textAlign: 'center' }} />
           </div>
-          <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent, #c8963e)' }}>₹{rowTotal.toLocaleString('en-IN')}</span>
         </div>
-      )}
+
+        {/* Row 2: Material | Labour */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+
+          {/* Material column */}
+          <div>
+            <span style={LBL}>Material ₹</span>
+            <input type="number" value={costRow.materialCost || ''} onChange={e => onUpdate('materialCost', e.target.value)} placeholder="0" style={INP} />
+            <div style={{ marginTop: 6, position: 'relative' }} ref={matRef}>
+              <input
+                value={matSearch}
+                onChange={e => setMatSearch(e.target.value)}
+                onFocus={openMatDropdown}
+                placeholder="Search inventory…"
+                style={{ ...INP, fontSize: 11, padding: '6px 10px' }}
+              />
+              {costRow.materialRateId && (
+                <div style={{ fontSize: 10, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', marginTop: 3 }}>
+                  {costRow.materialRateId} · ₹{parseFloat(costRow.materialCost || 0).toLocaleString('en-IN')} auto-filled
+                </div>
+              )}
+              {matOpen && matResults.length > 0 && (
+                <div style={{ ...matDropPos, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, maxHeight: 200, overflowY: 'auto', zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                  {matResults.map(item => {
+                    const price = item.flent_price || item.market_price || 0
+                    return (
+                      <div key={item.fxin || item.id}
+                        onMouseDown={() => { onSelectMaterial(item.fxin, String(price)); setMatSearch(item.item_name); setMatOpen(false) }}
+                        style={{ padding: '8px 12px', borderBottom: '1px solid var(--border, #2e3040)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+                        <div>
+                          <div style={{ fontSize: 9, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 2 }}>{item.fxin}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text, #e8e8f0)' }}>{item.item_name}</div>
+                          {item.quantity_remaining != null && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)' }}>{item.quantity_remaining} in stock</div>}
+                        </div>
+                        <div style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: 'var(--text, #e8e8f0)', fontWeight: 600, flexShrink: 0 }}>₹{price.toLocaleString('en-IN')}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Labour column */}
+          <div>
+            <span style={LBL}>Labour ₹</span>
+            <input type="number" value={costRow.labourCost || ''} onChange={e => onUpdate('labourCost', e.target.value)} placeholder="0" style={INP} />
+            <div style={{ marginTop: 6 }}>
+              <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={onSelectRate} />
+            </div>
+          </div>
+        </div>
+
+        {/* Row 3: Total */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid var(--border, #2e3040)' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+            {qty > 1 ? `${qty} × ₹${unitCost.toLocaleString('en-IN')} per unit` : ''}
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>
+            ₹{rowTotal.toLocaleString('en-IN')}
+          </span>
+        </div>
+
+      </div>
     </div>
   )
 }

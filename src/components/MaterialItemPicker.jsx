@@ -19,16 +19,15 @@ export default function MaterialItemPicker({ value, materialCost, onSelect, plac
   const triggerRef = useRef(null)
 
   useEffect(() => {
-    if (!search.trim()) { setResults([]); return }
+    if (search.trim().length < 1) { setResults([]); return }
     const t = setTimeout(async () => {
       setLoading(true)
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('inventory_items')
         .select('fxin, item_name, spec, size, trade, quantity_remaining, flent_price, market_price, price_inc, margin_percent')
         .or(`item_name.ilike.%${search}%,fxin.ilike.%${search}%`)
-        .gt('quantity_remaining', 0)
-        .order('purchase_date', { ascending: false })
         .limit(12)
+      console.log('[MaterialItemPicker]', search, '→', data?.length ?? 0, 'results', error?.message || '')
       const seen = new Set()
       const unique = (data || []).filter(r => { if (seen.has(r.fxin)) return false; seen.add(r.fxin); return true })
       setResults(unique)
