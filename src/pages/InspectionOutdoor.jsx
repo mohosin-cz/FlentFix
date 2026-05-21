@@ -434,9 +434,8 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
 
           {/* Material column */}
           <div>
-            <span style={LBL}>Material ₹</span>
-            <input type="number" value={costRow.materialCost || ''} onChange={e => onUpdate('materialCost', e.target.value)} placeholder="0" style={INP} />
-            <div style={{ marginTop: 6, position: 'relative' }} ref={matRef}>
+            <span style={LBL}>Select Material</span>
+            <div style={{ position: 'relative' }} ref={matRef}>
               <input
                 value={matSearch}
                 onChange={e => setMatSearch(e.target.value)}
@@ -446,13 +445,14 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
               />
               {costRow.materialRateId && (
                 <div style={{ fontSize: 10, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', marginTop: 3 }}>
-                  {costRow.materialRateId} · ₹{parseFloat(costRow.materialCost || 0).toLocaleString('en-IN')} auto-filled
+                  {costRow.materialRateId}
                 </div>
               )}
               {matOpen && matResults.length > 0 && (
                 <div style={{ ...matDropPos, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, maxHeight: 200, overflowY: 'auto', zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
                   {matResults.map(item => {
-                    const price = item.flent_price || item.market_price || 0
+                    const price = parseFloat(item.flent_price ?? item.market_price ?? 0) || 0
+                    console.log('[Material Select]', item.fxin, { flent_price: item.flent_price, market_price: item.market_price, price })
                     return (
                       <div key={item.fxin || item.id}
                         onMouseDown={() => { onSelectMaterial(item.fxin, String(price)); setMatSearch(item.item_name); setMatOpen(false) }}
@@ -471,15 +471,19 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
                 </div>
               )}
             </div>
+            <span style={{ ...LBL, marginTop: 8 }}>Material ₹</span>
+            <input type="number" value={costRow.materialCost || ''} onChange={e => onUpdate('materialCost', e.target.value)} placeholder="0" style={INP} />
           </div>
 
           {/* Labour column */}
           <div>
-            <span style={LBL}>Labour ₹</span>
+            <span style={LBL}>Select Labour</span>
+            <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={onSelectRate} />
+            {costRow.labourDescription && (
+              <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 3, fontFamily: 'var(--font-mono, monospace)' }}>{costRow.labourDescription}</div>
+            )}
+            <span style={{ ...LBL, marginTop: 8 }}>Labour ₹</span>
             <input type="number" value={costRow.labourCost || ''} onChange={e => onUpdate('labourCost', e.target.value)} placeholder="0" style={INP} />
-            <div style={{ marginTop: 6 }}>
-              <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={onSelectRate} />
-            </div>
           </div>
         </div>
 
