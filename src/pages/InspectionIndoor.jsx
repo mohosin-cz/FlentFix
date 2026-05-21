@@ -542,9 +542,11 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, materialItems, onU
       {costRow.action === 'Repair' && (
         <>
           <LabourRateDropdown rates={tradeRates} value={costRow.labourRateId} labourCost={costRow.labourCost} onSelect={onSelectRate} />
-          <Field label="Labour ₹ (per unit)">
-            <Input value={costRow.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" />
-          </Field>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="Labour ₹ (per unit)"><Input value={costRow.labourCost} onChange={v => onUpdate('labourCost', v)} placeholder="0" type="number" /></Field>
+            <Field label="Material ₹ (per unit)"><Input value={costRow.materialCost} onChange={v => onUpdate('materialCost', v)} placeholder="0" type="number" /></Field>
+          </div>
+          <MaterialRateDropdown items={materialItems || []} value={costRow.materialRateId} materialCost={costRow.materialCost} onSelect={onSelectMaterial} />
         </>
       )}
 
