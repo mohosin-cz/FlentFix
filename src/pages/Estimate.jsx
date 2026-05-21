@@ -701,7 +701,7 @@ export default function Estimate() {
       <div className="er-topbar no-print">
         <button className="er-back" onClick={() => navigate(-1)}>← Back</button>
         <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-          {isEditing ? (
+          {isLoggedIn && isEditing ? (
             <>
               <button className="er-pdf-link" style={{ color: '#5C5C5C' }} onClick={() => setIsEditing(false)}>Cancel</button>
               <button className="er-pdf-link" style={{ color: '#c8963e', fontWeight: 600 }} onClick={saveEdit} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save'}</button>
@@ -899,7 +899,7 @@ export default function Estimate() {
                     </div>
 
                     {/* Issue rows within the group */}
-                    {isEditing ? (
+                    {isLoggedIn && isEditing ? (
                       group.items.map((item, iIdx) => {
                         const edited = editedItems[item.id]
                         const mc = parseFloat(edited?.material_cost ?? item.material_cost) || 0

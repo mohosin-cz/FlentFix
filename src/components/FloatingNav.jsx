@@ -17,6 +17,9 @@ const HIDE_ON = [
   '/inspections/rooms',
   '/login',
   '/signup',
+  '/estimate/',
+  '/appliance-report/',
+  '/invoice/',
 ]
 
 export default function FloatingNav() {
@@ -38,6 +41,10 @@ export default function FloatingNav() {
         }
         @media (max-width: 640px) {
           .pulse-bottom-nav-spacer { display: block; }
+        }
+        @media print {
+          .pulse-bottom-nav { display: none !important; }
+          .pulse-bottom-nav-spacer { display: none !important; }
         }
       `}</style>
 
