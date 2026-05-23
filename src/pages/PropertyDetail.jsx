@@ -226,12 +226,14 @@ export default function PropertyDetail() {
 
   const isRejected   = currentStage === 'estimate_rejected'
   const currentIndex = MAIN_SEQUENCE.findIndex(s => s.key === currentStage)
+  const journeyEntry = journey.find(j => j.stage === MAIN_SEQUENCE[currentIndex]?.key)
+  const isMobile     = typeof window !== 'undefined' && window.innerWidth <= 640
 
   function getStageActions() {
     switch (currentStage) {
       case 'estimate_shared':
         return [
-          { label: '✓ Mark Approved', action: () => handleManualAdvance('estimate_approved'), color: '#4dd9c0' },
+          { label: '✓ Mark Approved', action: () => handleManualAdvance('estimate_approved'), color: '#4dd9c0', primary: true },
           { label: '✗ Mark Rejected', action: () => handleManualAdvance('estimate_rejected'), color: '#f87171' },
         ]
       case 'estimate_approved':
@@ -268,26 +270,84 @@ export default function PropertyDetail() {
         <div style={{ width: 36 }} />
       </header>
 
-      {/* ── Pipeline tracker — liquid bar ── */}
-      {!loading && (
+      {/* ── Pipeline tracker ── */}
+      {!loading && (isMobile ? (
+
+        /* MOBILE: current-stage hero card */
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border, #2e3040)', background: 'linear-gradient(180deg, #14161d 0%, #1a1c24 100%)' }}>
+
+          {/* Hero card */}
+          <div style={{ background: 'rgba(200,150,62,0.08)', border: '1px solid rgba(200,150,62,0.2)', borderRadius: 12, padding: 16, marginBottom: 10 }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 6 }}>
+              STAGE {currentIndex + 1} OF {MAIN_SEQUENCE.length}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#c8963e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+                {MAIN_SEQUENCE[currentIndex]?.icon}
+              </div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#c8963e' }}>
+                  {MAIN_SEQUENCE[currentIndex]?.label}
+                </div>
+                {journeyEntry && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>
+                    {new Date(journeyEntry.changed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {journeyEntry.changed_by ? ` · ${journeyEntry.changed_by.split('@')[0]}` : ''}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ height: 4, background: 'var(--border, #2e3040)', borderRadius: 2, marginBottom: 10, overflow: 'hidden' }}>
+            <div style={{ height: '100%', borderRadius: 2, background: '#c8963e', width: `${((currentIndex + 1) / MAIN_SEQUENCE.length) * 100}%`, transition: 'width 0.4s ease' }} />
+          </div>
+
+          {/* Stage dots */}
+          <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 12 }}>
+            {MAIN_SEQUENCE.map((s, i) => (
+              <div key={s.key} style={{ width: i === currentIndex ? 20 : 6, height: 6, borderRadius: 3, background: i <= currentIndex ? '#c8963e' : 'var(--border, #2e3040)', transition: 'all 0.3s ease', opacity: i > currentIndex ? 0.3 : 1 }} />
+            ))}
+          </div>
+
+          {/* Prev / Next labels */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginBottom: 12 }}>
+            {currentIndex > 0 ? <span>← {MAIN_SEQUENCE[currentIndex - 1]?.label}</span> : <span />}
+            {currentIndex < MAIN_SEQUENCE.length - 1 ? <span style={{ color: 'var(--border, #2e3040)' }}>{MAIN_SEQUENCE[currentIndex + 1]?.label} →</span> : <span />}
+          </div>
+
+          {/* Action buttons */}
+          {getStageActions().length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {getStageActions().map(action => (
+                <button key={action.label} onClick={action.action} style={{ width: '100%', padding: 12, background: action.primary ? action.color : 'none', border: `1px solid ${action.color}`, borderRadius: 8, color: action.primary ? '#000' : action.color, fontSize: 13, fontWeight: action.primary ? 700 : 400, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {isRejected && (
+            <div style={{ marginTop: 10, padding: '5px 12px', background: 'rgba(248,113,113,0.07)', border: '1px solid rgba(248,113,113,0.18)', borderRadius: 6, fontSize: 11, color: '#f87171', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              ✗ Estimate Rejected
+              <button onClick={() => handleManualAdvance('estimate_created')} style={{ fontSize: 10, color: 'var(--accent, #c8963e)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
+                Re-create estimate
+              </button>
+            </div>
+          )}
+        </div>
+
+      ) : (
+
+        /* DESKTOP: liquid-bar pipeline */
         <div style={{ background: 'linear-gradient(180deg, #14161d 0%, #1a1c24 100%)', borderBottom: '1px solid var(--border, #2e3040)', padding: '20px 24px 14px', overflowX: 'auto' }}>
           <div style={{ minWidth: 560, position: 'relative', paddingBottom: 32 }}>
 
             {/* Track shell */}
             <div style={{ position: 'absolute', top: 12, left: 14, right: 14, height: 8, borderRadius: 4, background: '#1c1e28', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
-              {/* Liquid fill */}
-              <div style={{
-                position: 'absolute', top: 0, left: 0, bottom: 0,
-                width: `${currentIndex <= 0 ? 0 : (currentIndex / (MAIN_SEQUENCE.length - 1)) * 100}%`,
-                borderRadius: 4,
-                background: 'linear-gradient(90deg, #7a4e18 0%, #c8963e 55%, #f0b860 100%)',
-                boxShadow: '0 0 12px rgba(200,150,62,0.55), 0 0 4px rgba(200,150,62,0.9)',
-                transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
-                overflow: 'hidden',
-              }}>
-                {/* surface highlight — simulates liquid sheen */}
+              <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: `${currentIndex <= 0 ? 0 : (currentIndex / (MAIN_SEQUENCE.length - 1)) * 100}%`, borderRadius: 4, background: 'linear-gradient(90deg, #7a4e18 0%, #c8963e 55%, #f0b860 100%)', boxShadow: '0 0 12px rgba(200,150,62,0.55), 0 0 4px rgba(200,150,62,0.9)', transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '40%', background: 'linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 100%)', borderRadius: '4px 4px 0 0' }} />
-                {/* leading-edge glow blob */}
                 <div style={{ position: 'absolute', top: -4, bottom: -4, right: -6, width: 14, background: 'radial-gradient(ellipse at center, rgba(250,185,80,0.9) 0%, transparent 75%)' }} />
               </div>
             </div>
@@ -305,44 +365,11 @@ export default function PropertyDetail() {
                     <div
                       onClick={() => isFuture && !isRejected && handleManualAdvance(stage.key)}
                       title={entry ? `${new Date(entry.changed_at).toLocaleDateString('en-IN')} · ${entry.changed_by}` : stage.label}
-                      style={{
-                        width: 28, height: 28,
-                        borderRadius: '50%',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 11,
-                        cursor: isFuture && !isRejected ? 'pointer' : 'default',
-                        transition: 'all 0.25s',
-                        background: isBlocked ? '#1a1214'
-                          : isDone    ? 'linear-gradient(135deg, #b07828, #e8a848)'
-                          : isCurrent ? '#1e2028'
-                          : '#1a1c24',
-                        border: isBlocked ? '2px solid #3a1a1a'
-                          : isDone    ? '2px solid #c8963e'
-                          : isCurrent ? '2px solid var(--accent, #c8963e)'
-                          : '1.5px dashed #2c2e3a',
-                        boxShadow: isCurrent
-                          ? '0 0 0 4px rgba(200,150,62,0.18), 0 0 16px rgba(200,150,62,0.35)'
-                          : isDone ? '0 0 8px rgba(200,150,62,0.3)' : 'none',
-                        color: isBlocked ? '#3a2020'
-                          : isDone    ? '#fff'
-                          : isCurrent ? 'var(--accent, #c8963e)'
-                          : '#383a48',
-                      }}
+                      style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: isFuture && !isRejected ? 'pointer' : 'default', transition: 'all 0.25s', background: isBlocked ? '#1a1214' : isDone ? 'linear-gradient(135deg, #b07828, #e8a848)' : isCurrent ? '#1e2028' : '#1a1c24', border: isBlocked ? '2px solid #3a1a1a' : isDone ? '2px solid #c8963e' : isCurrent ? '2px solid var(--accent, #c8963e)' : '1.5px dashed #2c2e3a', boxShadow: isCurrent ? '0 0 0 4px rgba(200,150,62,0.18), 0 0 16px rgba(200,150,62,0.35)' : isDone ? '0 0 8px rgba(200,150,62,0.3)' : 'none', color: isBlocked ? '#3a2020' : isDone ? '#fff' : isCurrent ? 'var(--accent, #c8963e)' : '#383a48' }}
                     >
                       {isDone ? '✓' : stage.icon}
                     </div>
-                    <div style={{
-                      fontSize: 8,
-                      whiteSpace: 'nowrap',
-                      textAlign: 'center',
-                      fontFamily: 'var(--font-mono, monospace)',
-                      letterSpacing: '0.04em',
-                      fontWeight: isCurrent ? 700 : 400,
-                      color: isBlocked ? '#3a2020'
-                        : isCurrent ? 'var(--accent, #c8963e)'
-                        : isDone    ? '#7a7c92'
-                        : '#343646',
-                    }}>
+                    <div style={{ fontSize: 8, whiteSpace: 'nowrap', textAlign: 'center', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em', fontWeight: isCurrent ? 700 : 400, color: isBlocked ? '#3a2020' : isCurrent ? 'var(--accent, #c8963e)' : isDone ? '#7a7c92' : '#343646' }}>
                       {stage.label}
                     </div>
                   </div>
@@ -352,17 +379,12 @@ export default function PropertyDetail() {
           </div>
 
           {/* Summary line */}
-          {(() => {
-            const cur = MAIN_SEQUENCE[currentIndex]
-            const entry = cur && journey.find(j => j.stage === cur.key)
-            if (!cur) return null
-            return (
-              <div style={{ fontSize: 10, color: '#484a60', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', marginTop: 2 }}>
-                step {currentIndex + 1} of {MAIN_SEQUENCE.length} &middot; <span style={{ color: 'var(--accent, #c8963e)' }}>{cur.label}</span>
-                {entry && ` · since ${new Date(entry.changed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
-              </div>
-            )
-          })()}
+          {MAIN_SEQUENCE[currentIndex] && (
+            <div style={{ fontSize: 10, color: '#484a60', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', marginTop: 2 }}>
+              step {currentIndex + 1} of {MAIN_SEQUENCE.length} &middot; <span style={{ color: 'var(--accent, #c8963e)' }}>{MAIN_SEQUENCE[currentIndex].label}</span>
+              {journeyEntry && ` · since ${new Date(journeyEntry.changed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
+            </div>
+          )}
 
           {isRejected && (
             <div style={{ marginTop: 8, padding: '5px 12px', background: 'rgba(248,113,113,0.07)', border: '1px solid rgba(248,113,113,0.18)', borderRadius: 6, fontSize: 11, color: '#f87171', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
@@ -373,7 +395,8 @@ export default function PropertyDetail() {
             </div>
           )}
         </div>
-      )}
+
+      ))}
 
       <main style={s.main}>
         {loading ? (
@@ -430,11 +453,11 @@ export default function PropertyDetail() {
               ))}
             </div>
 
-            {/* Stage action buttons */}
-            {getStageActions().length > 0 && (
+            {/* Stage action buttons — desktop only (mobile shows in pipeline card) */}
+            {!isMobile && getStageActions().length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
                 {getStageActions().map(action => (
-                  <button key={action.label} onClick={action.action} style={{ padding: '8px 16px', background: 'none', border: `1px solid ${action.color}`, borderRadius: 6, color: action.color, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                  <button key={action.label} onClick={action.action} style={{ padding: '8px 16px', background: action.primary ? action.color : 'none', border: `1px solid ${action.color}`, borderRadius: 6, color: action.primary ? '#000' : action.color, fontSize: 12, fontWeight: action.primary ? 700 : 400, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                     {action.label}
                   </button>
                 ))}
