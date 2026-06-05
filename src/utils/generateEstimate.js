@@ -1,5 +1,19 @@
 import { supabase } from '../lib/supabase'
 
+export async function resolveInspectionWithData(pid) {
+  const { data: inspections } = await supabase
+    .from('inspections')
+    .select('id, created_at, inspection_line_items(count)')
+    .eq('pid', pid)
+    .order('created_at', { ascending: false })
+  if (!inspections?.length) return null
+  const withItems = inspections
+    .map(i => ({ id: i.id, created_at: i.created_at, count: i.inspection_line_items?.[0]?.count || 0 }))
+    .filter(i => i.count > 0)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  return withItems[0]?.id || inspections[0]?.id
+}
+
 const belongsInEstimate = (item) => {
   if (item.cost_type === 'nil') return false
   if (item.excluded_from_estimate) return false

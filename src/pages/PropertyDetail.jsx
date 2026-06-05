@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import { advanceStage, STAGES, MAIN_SEQUENCE } from '../utils/propertyJourney'
-import { generateEstimate } from '../utils/generateEstimate'
+import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -210,9 +210,10 @@ export default function PropertyDetail() {
 
   async function handleTile(key) {
     if (key === 'estimate') {
-      if (!latestId) { setToast('No inspection found for this property.'); return }
       setToast('Generating estimate…')
-      const estimateId = await generateEstimate(latestId, pid, userEmail)
+      const inspId = await resolveInspectionWithData(pid)
+      if (!inspId) { setToast('No inspection with data found.'); return }
+      const estimateId = await generateEstimate(inspId, pid, userEmail)
       if (!estimateId) { setToast('Failed to generate estimate.'); return }
       await advanceStage(supabase, pid, 'estimate_created', userEmail)
       navigate(`/estimate/${estimateId}`)
