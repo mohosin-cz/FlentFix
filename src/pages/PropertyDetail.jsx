@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import { advanceStage, STAGES, MAIN_SEQUENCE } from '../utils/propertyJourney'
-import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
+import EstimateControlCenter from '../components/EstimateControlCenter'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -41,8 +41,8 @@ function Toast({ msg, onClose }) {
 const TILES = [
   {
     key: 'estimate',
-    title: 'Create Estimate',
-    sub: 'Indoor + Outdoor',
+    title: 'Estimates',
+    sub: 'Control center',
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
         <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" strokeWidth="1.8"/>
@@ -138,6 +138,7 @@ export default function PropertyDetail() {
   const [stats, setStats]             = useState(null)
   const [showAllInspections, setShowAllInspections] = useState(false)
   const [quickNote, setQuickNote]     = useState(null)
+  const [showEstimateCenter, setShowEstimateCenter] = useState(false)
   const [currentStage, setCurrentStage] = useState('T-5')
   const [journey, setJourney]           = useState([])
   const [userEmail, setUserEmail]       = useState(null)
@@ -210,13 +211,7 @@ export default function PropertyDetail() {
 
   async function handleTile(key) {
     if (key === 'estimate') {
-      setToast('Generating estimate…')
-      const inspId = await resolveInspectionWithData(pid)
-      if (!inspId) { setToast('No inspection with data found.'); return }
-      const estimateId = await generateEstimate(inspId, pid, userEmail)
-      if (!estimateId) { setToast('Failed to generate estimate.'); return }
-      await advanceStage(supabase, pid, 'estimate_created', userEmail)
-      navigate(`/estimate/${estimateId}`)
+      setShowEstimateCenter(true)
     } else if (key === 'appliance') {
       navigate('/inspections/appliance-report', { state: { inspectionId: latestId, pid } })
     } else if (key === 'invoice') {
@@ -570,6 +565,14 @@ export default function PropertyDetail() {
       </main>
 
       {toast && <Toast msg={toast} onClose={() => setToast('')} />}
+
+      {showEstimateCenter && (
+        <EstimateControlCenter
+          pid={pid}
+          userEmail={userEmail}
+          onClose={() => setShowEstimateCenter(false)}
+        />
+      )}
     </div>
     </>
   )
