@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import { advanceStage, STAGES, MAIN_SEQUENCE } from '../utils/propertyJourney'
+import { generateEstimate } from '../utils/generateEstimate'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -207,11 +208,14 @@ export default function PropertyDetail() {
       .then(({ data }) => setJourney(data || []))
   }
 
-  function handleTile(key) {
+  async function handleTile(key) {
     if (key === 'estimate') {
       if (!latestId) { setToast('No inspection found for this property.'); return }
-      advanceStage(supabase, pid, 'estimate_created', userEmail)
-      navigate(`/estimate/${latestId}`)
+      setToast('Generating estimate…')
+      const estimateId = await generateEstimate(latestId, pid, userEmail)
+      if (!estimateId) { setToast('Failed to generate estimate.'); return }
+      await advanceStage(supabase, pid, 'estimate_created', userEmail)
+      navigate(`/estimate/${estimateId}`)
     } else if (key === 'appliance') {
       navigate('/inspections/appliance-report', { state: { inspectionId: latestId, pid } })
     } else if (key === 'invoice') {

@@ -462,6 +462,7 @@ export default function Estimate() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isEditingNotes, setIsEditingNotes] = useState(false)
   const [isSavingNotes, setIsSavingNotes]   = useState(false)
+  const [inspectionId, setInspectionId]     = useState(id)
 
   useEffect(() => {
     const prev = document.body.style.background
@@ -486,31 +487,41 @@ export default function Estimate() {
   }, [inspection?.pid])
 
   useEffect(() => {
-    supabase
-      .from('inspections')
-      .select('*, inspection_line_items(*, line_item_media(*))')
-      .eq('id', id)
-      .single()
-      .then(({ data, error: err }) => {
-        if (err) setError(err.message)
-        else {
-          setInspection(data)
-          setEstimateNotes(data?.notes || '')
-          setLineItems((data?.inspection_line_items || []).filter(i => {
-            if (i.excluded_from_estimate) return false
-            if (i.availability_status === 'not_available' || i.availability_status === 'no_provision') return false
-            if (i.section_name?.toLowerCase() === 'appliances') return false
-            const desc = (i.issue_description || '').toLowerCase().trim()
-            if ((i.material_cost || 0) === 0 && (i.labour_cost || 0) === 0) {
-              if (desc === 'not available' || desc === 'n/a' || desc === 'na' || desc.startsWith('not available')) return false
-              if (desc.includes('no provision')) return false
-              if (desc.includes('functional') || desc.includes('no issues') || desc.includes('no issue')) return false
-            }
-            return true
-          }))
+    // Resolve: id may be an estimate.id (new flow) or inspection.id (old flow)
+    const resolveId = async () => {
+      const { data: est } = await supabase
+        .from('estimates')
+        .select('inspection_id')
+        .eq('id', id)
+        .maybeSingle()
+      return est?.inspection_id || id
+    }
+
+    resolveId().then(resolvedId => {
+      setInspectionId(resolvedId)
+      return supabase
+        .from('inspections')
+        .select('*, inspection_line_items(*, line_item_media(*))')
+        .eq('id', resolvedId)
+        .single()
+    }).then(({ data, error: err }) => {
+      if (err) { setError(err.message); setLoading(false); return }
+      setInspection(data)
+      setEstimateNotes(data?.notes || '')
+      setLineItems((data?.inspection_line_items || []).filter(i => {
+        if (i.excluded_from_estimate) return false
+        if (i.availability_status === 'not_available' || i.availability_status === 'no_provision') return false
+        if (i.section_name?.toLowerCase() === 'appliances') return false
+        const desc = (i.issue_description || '').toLowerCase().trim()
+        if ((i.material_cost || 0) === 0 && (i.labour_cost || 0) === 0) {
+          if (desc === 'not available' || desc === 'n/a' || desc === 'na' || desc.startsWith('not available')) return false
+          if (desc.includes('no provision')) return false
+          if (desc.includes('functional') || desc.includes('no issues') || desc.includes('no issue')) return false
         }
-        setLoading(false)
-      })
+        return true
+      }))
+      setLoading(false)
+    })
   }, [id])
 
   useEffect(() => {
@@ -559,8 +570,8 @@ export default function Estimate() {
           await supabase.from('inspection_line_items').update({ issue_description: vals.issue_description, material_cost: mc, labour_cost: lc }).eq('id', itemId)
         }
       }
-      await supabase.from('inspections').update({ notes: estimateNotes }).eq('id', id)
-      const { data: refreshed } = await supabase.from('inspections').select('*, inspection_line_items(*, line_item_media(*))').eq('id', id).single()
+      await supabase.from('inspections').update({ notes: estimateNotes }).eq('id', inspectionId)
+      const { data: refreshed } = await supabase.from('inspections').select('*, inspection_line_items(*, line_item_media(*))').eq('id', inspectionId).single()
       if (refreshed) {
         setInspection(refreshed)
         setEstimateNotes(refreshed.notes || '')
@@ -587,7 +598,7 @@ export default function Estimate() {
 
   async function saveNotes() {
     setIsSavingNotes(true)
-    await supabase.from('inspections').update({ notes: estimateNotes }).eq('id', id)
+    await supabase.from('inspections').update({ notes: estimateNotes }).eq('id', inspectionId)
     setIsEditingNotes(false)
     setIsSavingNotes(false)
   }
