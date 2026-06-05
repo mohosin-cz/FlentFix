@@ -493,7 +493,7 @@ export default function Estimate() {
       // Check if id is an estimate.id (new flow) or inspection.id (old flow)
       const { data: est } = await supabase
         .from('estimates')
-        .select('id, inspection_id')
+        .select('id, inspection_id, notes')
         .eq('id', id)
         .maybeSingle()
 
@@ -504,12 +504,12 @@ export default function Estimate() {
         // New flow: read from estimate_items snapshot
         setEstimateRowId(est.id)
         const [inspRes, itemsRes] = await Promise.all([
-          supabase.from('inspections').select('id, pid, notes, house_type, inspection_date, created_at').eq('id', iid).single(),
+          supabase.from('inspections').select('id, pid, house_type, inspection_date, status, owner_email, created_at').eq('id', iid).single(),
           supabase.from('estimate_items').select('*').eq('estimate_id', est.id).order('sort_order'),
         ])
         if (inspRes.error) { setError(inspRes.error.message); setLoading(false); return }
         setInspection(inspRes.data)
-        setEstimateNotes(inspRes.data?.notes || '')
+        setEstimateNotes(est?.notes || '')
         setLineItems((itemsRes.data || []).map(item => ({
           ...item,
           section_name: item.area || 'Other',
@@ -526,7 +526,7 @@ export default function Estimate() {
           .single()
         if (err) { setError(err.message); setLoading(false); return }
         setInspection(data)
-        setEstimateNotes(data?.notes || '')
+        setEstimateNotes('')
         setLineItems((data?.inspection_line_items || []).filter(i => {
           if (i.excluded_from_estimate) return false
           if (i.availability_status === 'not_available' || i.availability_status === 'no_provision') return false
@@ -588,6 +588,7 @@ export default function Estimate() {
             labour_cost:   parseFloat(vals.labour_cost)   || 0,
           }).eq('id', itemId)
         }
+        await supabase.from('estimates').update({ notes: estimateNotes }).eq('id', estimateRowId)
         const { data: refreshed } = await supabase.from('estimate_items').select('*').eq('estimate_id', estimateRowId).order('sort_order')
         setLineItems((refreshed || []).map(item => ({ ...item, section_name: item.area || 'Other', availability_status: null, line_item_media: [], item_score: null })))
       } else {
@@ -601,11 +602,9 @@ export default function Estimate() {
             await supabase.from('inspection_line_items').update({ issue_description: vals.issue_description, material_cost: mc, labour_cost: lc }).eq('id', itemId)
           }
         }
-        await supabase.from('inspections').update({ notes: estimateNotes }).eq('id', inspectionId)
-        const { data: refreshed } = await supabase.from('inspections').select('*, inspection_line_items(*, line_item_media(*))').eq('id', inspectionId).single()
+        const { data: refreshed } = await supabase.from('inspections').select('id, pid, house_type, inspection_date, status, owner_email, created_at, inspection_line_items(*, line_item_media(*))').eq('id', inspectionId).single()
         if (refreshed) {
           setInspection(refreshed)
-          setEstimateNotes(refreshed.notes || '')
           setLineItems((refreshed.inspection_line_items || []).filter(i => {
             if (i.excluded_from_estimate) return false
             if (i.availability_status === 'not_available' || i.availability_status === 'no_provision') return false
@@ -630,7 +629,9 @@ export default function Estimate() {
 
   async function saveNotes() {
     setIsSavingNotes(true)
-    await supabase.from('inspections').update({ notes: estimateNotes }).eq('id', inspectionId)
+    if (estimateRowId) {
+      await supabase.from('estimates').update({ notes: estimateNotes }).eq('id', estimateRowId)
+    }
     setIsEditingNotes(false)
     setIsSavingNotes(false)
   }
