@@ -136,7 +136,8 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
               const cr         = (card.costRows || {})[issue] || {}
               const qty        = Math.max(1, parseFloat(cr.qty) || 1)
               const issueLabel = issue === 'Other' ? (card.otherIssue || 'Other') : issue
-              rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: (parseFloat(cr.materialCost) || 0) * qty, labour_cost: (parseFloat(cr.labourCost) || 0) * qty, item_score: card.health ?? null, _media: ri === 0 ? (card.media || []) : [] })
+              const crType = cr.costType || 'priced'
+              rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, cost_type: crType, material_cost: crType === 'priced' ? (parseFloat(cr.materialCost) || 0) * qty : 0, labour_cost: crType === 'priced' ? (parseFloat(cr.labourCost) || 0) * qty : 0, item_score: card.health ?? null, _media: ri === 0 ? (card.media || []) : [] })
             })
           }
         })
@@ -335,7 +336,7 @@ export default function InspectionMode() {
         'item_score', 'issue_description', 'trade', 'action',
         'material_cost', 'labour_cost', 'notes',
         'excluded_from_estimate', 'availability_status', 'qty',
-        'material_item_id', 'material_fxin', 'material_description',
+        'material_item_id', 'material_fxin', 'material_description', 'cost_type',
       ])
       const sanitize = (item) => {
         const row = Object.fromEntries(Object.entries(item).filter(([k]) => VALID_COLUMNS.has(k)))

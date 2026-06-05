@@ -354,8 +354,9 @@ function NotAvailableNote({ value, onChange }) {
 
 // ─── Issue cost row (one per selected non-Functional issue) ───────────────────
 function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelectRate, onSelectMaterial }) {
+  const costType = costRow.costType || 'priced'
   const qty      = Math.max(1, parseFloat(costRow.qty) || 1)
-  const unitCost = (parseFloat(costRow.materialCost) || 0) + (parseFloat(costRow.labourCost) || 0)
+  const unitCost = costType === 'priced' ? (parseFloat(costRow.materialCost) || 0) + (parseFloat(costRow.labourCost) || 0) : 0
   const rowTotal = unitCost * qty
 
   const [matSearch,  setMatSearch]  = useState('')
@@ -429,8 +430,20 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
           </div>
         </div>
 
-        {/* Row 2: Material | Labour */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        {/* Cost type toggle */}
+        <div>
+          <span style={LBL}>Cost Type</span>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[{ key: 'priced', label: 'Priced' }, { key: 'actuals', label: 'As Actuals' }, { key: 'nil', label: 'No Cost' }].map(opt => (
+              <button key={opt.key} type="button" onClick={() => onUpdate('costType', opt.key)} style={{ flex: 1, padding: '7px 0', border: `1px solid ${costType === opt.key ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, background: costType === opt.key ? 'rgba(200,150,62,0.15)' : 'none', color: costType === opt.key ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Row 2: Material | Labour — only when Priced */}
+        {costType === 'priced' && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
 
           {/* Material column */}
           <div>
@@ -485,7 +498,14 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
             <span style={{ ...LBL, marginTop: 8 }}>Labour ₹</span>
             <input type="number" value={costRow.labourCost || ''} onChange={e => onUpdate('labourCost', e.target.value)} placeholder="0" style={INP} />
           </div>
-        </div>
+        </div>}
+
+        {/* As Actuals note */}
+        {costType === 'actuals' && (
+          <div style={{ padding: '10px 12px', background: 'rgba(200,150,62,0.06)', border: '1px dashed rgba(200,150,62,0.4)', borderRadius: 6, fontSize: 11, color: 'var(--accent, #c8963e)' }}>
+            This item will be charged based on actuals — no fixed cost shown in estimate.
+          </div>
+        )}
 
         {/* Row 3: Total */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid var(--border, #2e3040)' }}>
@@ -716,7 +736,8 @@ export function flattenOutdoorDraftToRows(draft, inspectionId) {
           const cr         = (item.costRows || {})[issue] || {}
           const qty        = Math.max(1, parseFloat(cr.qty) || 1)
           const issueLabel = issue === 'Other' ? (item.otherIssue || 'Other') : issue
-          rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: (parseFloat(cr.materialCost) || 0) * qty, labour_cost: (parseFloat(cr.labourCost) || 0) * qty, item_score: item.health ?? null, _media: ri === 0 ? (item.media || []) : [] })
+          const crType = cr.costType || 'priced'
+          rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, cost_type: crType, material_cost: crType === 'priced' ? (parseFloat(cr.materialCost) || 0) * qty : 0, labour_cost: crType === 'priced' ? (parseFloat(cr.labourCost) || 0) * qty : 0, item_score: item.health ?? null, _media: ri === 0 ? (item.media || []) : [] })
         })
       }
     })
@@ -882,7 +903,7 @@ export default function InspectionOutdoor() {
     })
 
     if (lineItemRows.length) {
-      const VALID_COLS = new Set(['inspection_id','section_name','area','item_name','item_score','issue_description','trade','action','material_cost','labour_cost','notes','excluded_from_estimate','availability_status','qty','material_item_id','material_fxin','material_description'])
+      const VALID_COLS = new Set(['inspection_id','section_name','area','item_name','item_score','issue_description','trade','action','material_cost','labour_cost','notes','excluded_from_estimate','availability_status','qty','material_item_id','material_fxin','material_description','cost_type'])
       const sanitized = lineItemRows.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => VALID_COLS.has(k))))
       const { data: inserted, error: liErr } = await supabase.from('inspection_line_items').insert(sanitized).select('id')
       if (liErr) { setEstimateError(liErr.message); setIsEstimating(false); return }
