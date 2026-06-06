@@ -465,6 +465,8 @@ export default function Estimate() {
   const [isSavingNotes, setIsSavingNotes]   = useState(false)
   const [inspectionId, setInspectionId]     = useState(id)
   const [estimateRowId, setEstimateRowId]   = useState(null)
+  const [shareToken, setShareToken]         = useState(null)
+  const [estimateStatus, setEstimateStatus] = useState(null)
 
   useEffect(() => {
     const prev = document.body.style.background
@@ -493,7 +495,7 @@ export default function Estimate() {
       // Check if id is an estimate.id (new flow) or inspection.id (old flow)
       const { data: est } = await supabase
         .from('estimates')
-        .select('id, inspection_id, notes')
+        .select('id, inspection_id, notes, share_token, status')
         .eq('id', id)
         .maybeSingle()
 
@@ -503,6 +505,8 @@ export default function Estimate() {
       if (est?.id) {
         // New flow: read from estimate_items snapshot
         setEstimateRowId(est.id)
+        setShareToken(est.share_token || null)
+        setEstimateStatus(est.status || 'draft')
         const [inspRes, itemsRes] = await Promise.all([
           supabase.from('inspections').select('id, pid, house_type, inspection_date, status, owner_email, created_at').eq('id', iid).single(),
           supabase.from('estimate_items').select('*').eq('estimate_id', est.id).order('sort_order'),
@@ -718,10 +722,18 @@ export default function Estimate() {
     document.title = prev
   }
 
-  const shareUrl = `${window.location.origin}/estimate/${id}`
+  const shareUrl = shareToken
+    ? `${window.location.origin}/e/${shareToken}`
+    : `${window.location.origin}/estimate/${id}`
 
   async function handleCopyLink() {
+    // Advance stage + log sent event on first share
     if (inspection?.pid) advanceStage(supabase, inspection.pid, 'estimate_shared', null)
+    if (estimateRowId && estimateStatus === 'draft') {
+      await supabase.from('estimates').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', estimateRowId)
+      await supabase.from('estimate_events').insert({ estimate_id: estimateRowId, event_type: 'sent', actor: 'flent' })
+      setEstimateStatus('sent')
+    }
     if (navigator.clipboard && window.isSecureContext) {
       try {
         await navigator.clipboard.writeText(shareUrl)

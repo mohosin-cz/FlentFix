@@ -26,6 +26,7 @@ import LogUsage from './pages/inventory/LogUsage'
 import PublicRateCard from './pages/inventory/PublicRateCard'
 import PurchaseHistory from './pages/inventory/PurchaseHistory'
 import EstimateWorkspace from './pages/EstimateWorkspace'
+import LandlordEstimate from './pages/LandlordEstimate'
 import WorkOrder from './pages/WorkOrder'
 import LandlordInvoice from './pages/LandlordInvoice'
 import ResetPassword from './pages/ResetPassword'
@@ -120,6 +121,7 @@ export default function App() {
             }
           />
           <Route path="/estimate/:id" element={<Estimate />} />
+          <Route path="/e/:token" element={<LandlordEstimate />} />
           <Route path="/appliance-report/:id" element={<InspectionApplianceReport />} />
           <Route path="/invoice/:inspectionId" element={<LandlordInvoice />} />
           <Route

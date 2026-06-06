@@ -20,6 +20,7 @@ const HIDE_ON = [
   '/estimate/',
   '/appliance-report/',
   '/invoice/',
+  '/e/',
 ]
 
 const HIDE_ON_SUFFIX = ['/estimates']
