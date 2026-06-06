@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
+import DisputeThread from '../components/DisputeThread'
 
 const STATUS_COLOR = {
   draft:              '#9898a4',
@@ -60,6 +61,7 @@ export default function EstimateWorkspace() {
   const [generating, setGenerating] = useState(false)
   const [userEmail, setUserEmail]   = useState(null)
   const [copied, setCopied]         = useState(false)
+  const [activeTab, setActiveTab]   = useState('overview') // 'overview' | 'disputes'
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -67,7 +69,7 @@ export default function EstimateWorkspace() {
       supabase.auth.getUser(),
       supabase
         .from('estimates')
-        .select('*, estimate_items(id, status, material_cost, labour_cost), estimate_events(*), estimate_disputes(count)')
+        .select('*, estimate_items(id, status, material_cost, labour_cost, item_name, area, trade, issue_description, sort_order), estimate_events(*), estimate_disputes(count)')
         .eq('pid', pid)
         .order('created_at', { ascending: false }),
       supabase.from('inspections').select('house_type, config').eq('pid', pid).order('created_at', { ascending: false }).limit(1).maybeSingle(),
@@ -79,6 +81,17 @@ export default function EstimateWorkspace() {
   }, [pid])
 
   useEffect(() => { fetchAll() }, [fetchAll])
+
+  // Realtime: refresh when items or disputes change for current estimate
+  useEffect(() => {
+    const current = estimates[0]
+    if (!current?.id) return
+    const channel = supabase.channel(`ws-${current.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'estimate_items',    filter: `estimate_id=eq.${current.id}` }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'estimate_disputes', filter: `estimate_id=eq.${current.id}` }, fetchAll)
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [estimates[0]?.id])
 
   async function handleNewVersion() {
     setGenerating(true)
@@ -281,8 +294,68 @@ export default function EstimateWorkspace() {
               </div>
             )}
 
-            {/* ── Two-column bottom ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth > 640 ? '1fr 1fr' : '1fr', gap: 16 }}>
+            {/* ── Tabs ── */}
+            {(() => {
+              const disputedItems = (current?.estimate_items || []).filter(i => i.status === 'disputed')
+              const disputeCount  = disputedItems.length
+              const tabStyle = (key) => ({
+                padding: '8px 16px', background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 12, fontFamily: 'var(--font-mono, monospace)',
+                color: activeTab === key ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)',
+                borderBottom: activeTab === key ? '2px solid var(--accent, #c8963e)' : '2px solid transparent',
+                transition: 'color 0.15s',
+              })
+              return (
+                <>
+                  <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border, #2e3040)', marginBottom: 16 }}>
+                    <button style={tabStyle('overview')} onClick={() => setActiveTab('overview')}>Overview</button>
+                    <button style={tabStyle('disputes')} onClick={() => setActiveTab('disputes')}>
+                      Disputes{disputeCount > 0 ? ` (${disputeCount})` : ''}
+                    </button>
+                  </div>
+
+                  {activeTab === 'disputes' && (
+                    <div style={{ marginBottom: 20 }}>
+                      {disputeCount === 0 ? (
+                        <div style={{ padding: '28px 0', textAlign: 'center', fontSize: 13, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                          // no disputed items
+                        </div>
+                      ) : disputedItems.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)).map(item => (
+                        <div key={item.id} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(240,160,80,0.35)', borderRadius: 10, padding: 16, marginBottom: 12 }}>
+                          {/* Item header */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', marginBottom: 3 }}>{item.item_name || '—'}</div>
+                              {item.issue_description && <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', lineHeight: 1.5 }}>{item.issue_description}</div>}
+                              <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                                {item.area  && <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 3, background: 'var(--bg-input, #252731)', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{item.area}</span>}
+                                {item.trade && <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 3, background: 'var(--bg-input, #252731)', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{item.trade}</span>}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>
+                                ₹{((item.material_cost || 0) + (item.labour_cost || 0)).toLocaleString('en-IN')}
+                              </div>
+                              <div style={{ fontSize: 10, color: '#f0a050', marginTop: 2 }}>⚑ disputed</div>
+                            </div>
+                          </div>
+                          <DisputeThread
+                            itemId={item.id}
+                            estimateId={current.id}
+                            item={item}
+                            userEmail={userEmail}
+                            onResolve={fetchAll}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )
+            })()}
+
+            {/* ── Two-column bottom (overview tab only) ── */}
+            {activeTab === 'overview' && <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth > 640 ? '1fr 1fr' : '1fr', gap: 16 }}>
 
               {/* Activity timeline */}
               <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, overflow: 'hidden' }}>
@@ -361,7 +434,7 @@ export default function EstimateWorkspace() {
                 </div>
               </div>
 
-            </div>
+            </div>}
           </>
         )}
       </div>

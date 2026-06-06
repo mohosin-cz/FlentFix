@@ -134,7 +134,7 @@ export default function PropertyDetail() {
   const [inspections, setInspections] = useState([])
   const [loading, setLoading]         = useState(true)
   const [toast, setToast]             = useState('')
-  const [stats, setStats]             = useState(null)
+  const [stats, setStats]             = useState({ totalItems: 0, issues: 0, totalCost: 0 })
   const [showAllInspections, setShowAllInspections] = useState(false)
   const [quickNote, setQuickNote]     = useState(null)
   const [currentStage, setCurrentStage] = useState('T-5')
@@ -184,13 +184,12 @@ export default function PropertyDetail() {
       .select('id, inspection_id, material_cost, labour_cost, issue_description')
       .eq('inspection_id', activeInspection.id)
 
-    if (!lineItems?.length) return
-    const totalCost = lineItems.reduce((s, r) => s + (parseFloat(r.material_cost) || 0) + (parseFloat(r.labour_cost) || 0), 0)
-    const issues = lineItems.filter(r => {
+    const totalCost = (lineItems || []).reduce((s, r) => s + (parseFloat(r.material_cost) || 0) + (parseFloat(r.labour_cost) || 0), 0)
+    const issues = (lineItems || []).filter(r => {
       const d = (r.issue_description || '').toLowerCase()
       return !d.includes('functional') && !d.includes('no issues') && !d.includes('no issue')
     }).length
-    setStats({ totalCost, issues, totalItems: lineItems.length })
+    setStats({ totalCost, issues, totalItems: (lineItems || []).length })
   }, [pid])
 
   const { pullDistance, isRefreshing } = usePullToRefresh(fetchData)
@@ -404,21 +403,19 @@ export default function PropertyDetail() {
           <div style={s.empty}>// loading…</div>
         ) : (
           <>
-            {/* Summary stats */}
-            {stats && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
-                {[
-                  { label: 'Line Items', value: stats.totalItems },
-                  { label: 'Issues', value: stats.issues, color: stats.issues > 0 ? 'var(--red, #e05c6a)' : undefined },
-                  { label: 'Est. Cost', value: `₹${(stats.totalCost || 0).toLocaleString('en-IN')}`, color: stats.totalCost > 0 ? 'var(--accent, #c8963e)' : undefined },
-                ].map(stat => (
-                  <div key={stat.label} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: '12px 10px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: stat.color || 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{stat.value}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>{stat.label}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* Summary stats — always render */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
+              {[
+                { label: 'Line Items', value: stats.totalItems },
+                { label: 'Issues', value: stats.issues, color: stats.issues > 0 ? 'var(--red, #e05c6a)' : undefined },
+                { label: 'Est. Cost', value: `₹${(stats.totalCost || 0).toLocaleString('en-IN')}`, color: stats.totalCost > 0 ? 'var(--accent, #c8963e)' : undefined },
+              ].map(stat => (
+                <div key={stat.label} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: '12px 10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: stat.color || 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{stat.value}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>{stat.label}</div>
+                </div>
+              ))}
+            </div>
 
             {/* Action tiles — 2x3 grid */}
             <SectionLabel>Actions</SectionLabel>
