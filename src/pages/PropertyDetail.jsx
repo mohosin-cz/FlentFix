@@ -141,53 +141,56 @@ export default function PropertyDetail() {
   const [journey, setJourney]           = useState([])
   const [userEmail, setUserEmail]       = useState(null)
 
-  const fetchData = useCallback(() => {
+  const fetchData = useCallback(async () => {
     supabase.auth.getUser().then(({ data: { user } }) => setUserEmail(user?.email || null))
 
-    supabase.from('properties').select('stage').eq('pid', pid).maybeSingle()
-      .then(({ data }) => setCurrentStage(data?.stage || 'T-5'))
+    // Fetch inspections, stage, journey, and notes in parallel
+    const [{ data: inspData }, { data: propData }, { data: journeyData }] = await Promise.all([
+      supabase.from('inspections').select('*').eq('pid', pid).order('created_at', { ascending: false }),
+      supabase.from('properties').select('stage').eq('pid', pid).maybeSingle(),
+      supabase.from('property_journey').select('*').eq('pid', pid).order('changed_at', { ascending: true }),
+    ])
 
-    supabase.from('property_journey').select('*').eq('pid', pid).order('changed_at', { ascending: true })
-      .then(({ data }) => setJourney(data || []))
+    setInspections(inspData || [])
+    setLoading(false)
+    setJourney(journeyData || [])
 
-    supabase
-      .from('inspections')
-      .select('*')
-      .eq('pid', pid)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setInspections(data || [])
-        setLoading(false)
-      })
+    // Bug 2 fix: fall back to latest journey stage if properties.stage is null
+    const latestJourneyStage = journeyData?.length ? journeyData[journeyData.length - 1]?.stage : null
+    setCurrentStage(propData?.stage || latestJourneyStage || 'T-5')
 
-    supabase
-      .from('quick_notes')
-      .select('note, updated_at, created_by')
-      .eq('pid', pid)
-      .maybeSingle()
+    supabase.from('quick_notes').select('note, updated_at, created_by').eq('pid', pid).maybeSingle()
       .then(({ data, error }) => {
         if (error) console.error('quick_notes fetch error:', error)
         setQuickNote(data || null)
       })
 
-    supabase
+    if (!inspData?.length) return
+
+    // Bug 1 fix: find the inspection that actually has line items
+    let activeInspection = null
+    for (const insp of inspData) {
+      const { count } = await supabase
+        .from('inspection_line_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('inspection_id', insp.id)
+      if (count > 0) { activeInspection = insp; break }
+    }
+    if (!activeInspection) activeInspection = inspData[0]
+
+    // Fetch line items scoped to the active inspection only
+    const { data: lineItems } = await supabase
       .from('inspection_line_items')
       .select('id, inspection_id, material_cost, labour_cost, issue_description')
-      .then(({ data: allItems }) => {
-        if (!allItems) return
-        supabase
-          .from('inspections')
-          .select('id')
-          .eq('pid', pid)
-          .then(({ data: ins }) => {
-            if (!ins) return
-            const ids = new Set(ins.map(i => i.id))
-            const items = allItems.filter(r => ids.has(r.inspection_id))
-            const totalCost = items.reduce((s, r) => s + (parseFloat(r.material_cost) || 0) + (parseFloat(r.labour_cost) || 0), 0)
-            const issues = items.filter(r => r.issue_description && r.issue_description !== 'Functional' && r.issue_description !== 'Working' && r.issue_description !== 'N/A').length
-            setStats({ totalCost, issues, totalItems: items.length })
-          })
-      })
+      .eq('inspection_id', activeInspection.id)
+
+    if (!lineItems?.length) return
+    const totalCost = lineItems.reduce((s, r) => s + (parseFloat(r.material_cost) || 0) + (parseFloat(r.labour_cost) || 0), 0)
+    const issues = lineItems.filter(r => {
+      const d = (r.issue_description || '').toLowerCase()
+      return !d.includes('functional') && !d.includes('no issues') && !d.includes('no issue')
+    }).length
+    setStats({ totalCost, issues, totalItems: lineItems.length })
   }, [pid])
 
   const { pullDistance, isRefreshing } = usePullToRefresh(fetchData)

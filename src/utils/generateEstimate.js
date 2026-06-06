@@ -3,15 +3,18 @@ import { supabase } from '../lib/supabase'
 export async function resolveInspectionWithData(pid) {
   const { data: inspections } = await supabase
     .from('inspections')
-    .select('id, created_at, inspection_line_items(count)')
+    .select('id, created_at')
     .eq('pid', pid)
     .order('created_at', { ascending: false })
   if (!inspections?.length) return null
-  const withItems = inspections
-    .map(i => ({ id: i.id, created_at: i.created_at, count: i.inspection_line_items?.[0]?.count || 0 }))
-    .filter(i => i.count > 0)
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-  return withItems[0]?.id || inspections[0]?.id
+  for (const insp of inspections) {
+    const { count } = await supabase
+      .from('inspection_line_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('inspection_id', insp.id)
+    if (count > 0) return insp.id
+  }
+  return inspections[0].id
 }
 
 const belongsInEstimate = (item) => {
