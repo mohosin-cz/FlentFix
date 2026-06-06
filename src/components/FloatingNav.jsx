@@ -22,11 +22,14 @@ const HIDE_ON = [
   '/invoice/',
 ]
 
+const HIDE_ON_SUFFIX = ['/estimates']
+
 export default function FloatingNav() {
   const location = useLocation()
   const navigate = useNavigate()
 
   if (HIDE_ON.some(r => location.pathname.startsWith(r))) return null
+  if (HIDE_ON_SUFFIX.some(r => location.pathname.endsWith(r))) return null
 
   const isActive = (path) => {
     if (path === '/') return location.pathname === '/'

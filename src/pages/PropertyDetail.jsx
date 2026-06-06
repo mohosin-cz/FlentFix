@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import { advanceStage, STAGES, MAIN_SEQUENCE } from '../utils/propertyJourney'
-import EstimateControlCenter from '../components/EstimateControlCenter'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -138,7 +137,6 @@ export default function PropertyDetail() {
   const [stats, setStats]             = useState(null)
   const [showAllInspections, setShowAllInspections] = useState(false)
   const [quickNote, setQuickNote]     = useState(null)
-  const [showEstimateCenter, setShowEstimateCenter] = useState(false)
   const [currentStage, setCurrentStage] = useState('T-5')
   const [journey, setJourney]           = useState([])
   const [userEmail, setUserEmail]       = useState(null)
@@ -211,7 +209,7 @@ export default function PropertyDetail() {
 
   async function handleTile(key) {
     if (key === 'estimate') {
-      setShowEstimateCenter(true)
+      navigate(`/properties/${pid}/estimates`)
     } else if (key === 'appliance') {
       navigate('/inspections/appliance-report', { state: { inspectionId: latestId, pid } })
     } else if (key === 'invoice') {
@@ -566,13 +564,6 @@ export default function PropertyDetail() {
 
       {toast && <Toast msg={toast} onClose={() => setToast('')} />}
 
-      {showEstimateCenter && (
-        <EstimateControlCenter
-          pid={pid}
-          userEmail={userEmail}
-          onClose={() => setShowEstimateCenter(false)}
-        />
-      )}
     </div>
     </>
   )

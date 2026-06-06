@@ -25,6 +25,7 @@ import InventoryDashboard from './pages/inventory/InventoryDashboard'
 import LogUsage from './pages/inventory/LogUsage'
 import PublicRateCard from './pages/inventory/PublicRateCard'
 import PurchaseHistory from './pages/inventory/PurchaseHistory'
+import EstimateWorkspace from './pages/EstimateWorkspace'
 import WorkOrder from './pages/WorkOrder'
 import LandlordInvoice from './pages/LandlordInvoice'
 import ResetPassword from './pages/ResetPassword'
@@ -146,6 +147,7 @@ export default function App() {
             }
           />
           <Route path="/properties/:pid/raw" element={<ProtectedRoute><RawInspectionData /></ProtectedRoute>} />
+          <Route path="/properties/:pid/estimates" element={<ProtectedRoute><EstimateWorkspace /></ProtectedRoute>} />
           <Route path="/inspections/:inspectionId/raw" element={<ProtectedRoute><RawInspectionData /></ProtectedRoute>} />
           <Route
             path="/rate-card"
