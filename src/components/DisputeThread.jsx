@@ -153,7 +153,7 @@ export default function DisputeThread({ itemId, estimateId, item, userEmail, onR
       {/* Resolution actions */}
       {userEmail && item?.status === 'disputed' && (
         <div style={{ borderTop: '1px solid var(--border, #2e3040)', paddingTop: 10 }}>
-          <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 8 }}>// resolution</div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Resolution</div>
 
           {reviseMode ? (
             <div style={{ background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, padding: 10 }}>

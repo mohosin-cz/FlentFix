@@ -133,7 +133,7 @@ function AnalyticsPanel({ analytics }) {
 
   return (
     <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: 20 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 16 }}>// PURCHASE ANALYTICS</div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 16 }}>Purchase Analytics</div>
 
       {/* Total spend hero */}
       <div style={{ background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.15)', borderRadius: 8, padding: 16, marginBottom: 16 }}>

@@ -212,7 +212,7 @@ export default function Properties() {
       {/* Grid */}
       <main style={s.main}>
         {loading ? (
-          <div style={s.empty}>// loading…</div>
+          <div style={s.empty}>Loading…</div>
         ) : filtered.length === 0 ? (
           <div style={s.empty}>{search ? '// no matches found' : '// no properties yet'}</div>
         ) : (

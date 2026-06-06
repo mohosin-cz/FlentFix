@@ -287,7 +287,7 @@ function ApplianceCard({ appliance, appData, isOpen, onToggle, onUpdate, labourR
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {appData.notPresent ? (
           <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(224,92,106,0.3)' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', marginBottom: 10, fontFamily: 'var(--font-mono, monospace)' }}>// not present in this property</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', marginBottom: 10, fontFamily: 'var(--font-mono, monospace)' }}>Not present in this property</div>
             <Field label="Note" optional>
               <Textarea value={appData.notPresentNote || ''} onChange={v => onUpdate('notPresentNote', v)} rows={2} placeholder="e.g. No washing machine installed" />
             </Field>

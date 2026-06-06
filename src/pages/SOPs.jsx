@@ -19,7 +19,7 @@ export default function SOPs() {
       {/* Header */}
       <div style={s.header}>
         <button onClick={() => navigate('/')} style={s.back}>← back</button>
-        <div style={s.eyebrow}>// sops</div>
+        <div style={s.eyebrow}>SOPs</div>
         <h1 style={s.title}>Find SOPs</h1>
       </div>
 

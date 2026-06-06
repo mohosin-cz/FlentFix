@@ -7,7 +7,7 @@ export default function Flentfit() {
     <div style={s.page}>
       <div style={s.card}>
         <button onClick={() => navigate('/')} style={s.back}>← back</button>
-        <div style={s.eyebrow}>// flentfit</div>
+        <div style={s.eyebrow}>FlentFit</div>
         <h1 style={s.title}>How Flentfit Works</h1>
         <p style={s.subtitle}>
           Coming soon — the full scoring methodology will be documented here.

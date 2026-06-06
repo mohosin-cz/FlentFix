@@ -400,7 +400,7 @@ export default function PropertyDetail() {
 
       <main style={s.main}>
         {loading ? (
-          <div style={s.empty}>// loading…</div>
+          <div style={s.empty}>Loading…</div>
         ) : (
           <>
             {/* Summary stats — always render */}
@@ -465,7 +465,7 @@ export default function PropertyDetail() {
             {/* Quick Note */}
             <div style={{ margin: '16px 0' }}>
               <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 8 }}>
-                // quick_notes
+                Notes
               </div>
               {quickNote?.note ? (
                 <div style={{ padding: 16, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderLeft: '3px solid var(--accent, #c8963e)', borderRadius: 10 }}>
@@ -480,7 +480,7 @@ export default function PropertyDetail() {
                 </div>
               ) : (
                 <div style={{ padding: '12px 16px', border: '1px dashed rgba(200,150,62,0.2)', borderRadius: 8, fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
-                  // no notes yet — use the ✏ button during inspection to add
+                  No notes yet — add one during inspection using the ✏ button
                 </div>
               )}
             </div>
@@ -488,7 +488,7 @@ export default function PropertyDetail() {
             {/* Setup log */}
             {journey.length > 0 && (
               <div style={{ marginTop: 24 }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 10 }}>// setup_log</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 10 }}>Setup Log</div>
                 <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
                   {[...journey].reverse().map(entry => {
                     const stageLabel = STAGES.find(s => s.key === entry.stage)?.label || entry.stage

@@ -344,7 +344,7 @@ function LabourRateDropdown({ rates, value, labourCost, onSelect }) {
 function NotAvailableNote({ value, onChange }) {
   return (
     <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(224,92,106,0.3)' }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', marginBottom: 10, fontFamily: 'var(--font-mono, monospace)' }}>// marked as not_available in this property</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', marginBottom: 10, fontFamily: 'var(--font-mono, monospace)' }}>Not available in this property</div>
       <Field label="Note" optional>
         <Textarea value={value || ''} onChange={onChange} placeholder="e.g. No pressure pump in this property" rows={2} />
       </Field>

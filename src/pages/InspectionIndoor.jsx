@@ -497,7 +497,7 @@ function NotAvailableNote({ value, onChange }) {
   return (
     <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(224,92,106,0.3)' }}>
       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', marginBottom: 10, fontFamily: 'var(--font-mono, monospace)' }}>
-        // marked as not_available
+        Not available
       </div>
       <Field label="Note" optional>
         <Textarea value={value || ''} onChange={onChange} placeholder="e.g. No geyser in this room" rows={2} />
@@ -750,7 +750,7 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
         {/* AC Point not present — no further fields */}
         {isAcPoint && acProvision === 'not_present' ? (
           <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(224,92,106,0.3)' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>// saved as no_provision</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Saved as no provision</div>
           </div>
         ) : card.notAvailable ? (
           <NotAvailableNote value={card.notAvailableNote} onChange={v => onUpdate('notAvailableNote', v)} />

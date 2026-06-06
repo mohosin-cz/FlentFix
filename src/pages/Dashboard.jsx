@@ -398,7 +398,7 @@ export default function Dashboard() {
                 {/* Empty-state hint when fewer than 3 properties */}
                 {properties.length < 3 && (
                   <div style={{ border: '1px dashed rgba(200,150,62,0.2)', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>// add more properties</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Add more properties</span>
                     <button
                       onClick={() => navigate('/inspections/new')}
                       style={{ color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 11, whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}
@@ -408,7 +408,7 @@ export default function Dashboard() {
 
                 {/* Property journey pipeline */}
                 <div style={{ marginTop: 16, padding: '12px 0 4px' }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>// property_journey</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Property Journey</div>
                   <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', gap: 0, paddingBottom: 4, WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                     {[
                       { stage: 'T-5', label: 'INSPECTION',  color: '#c8963e' },

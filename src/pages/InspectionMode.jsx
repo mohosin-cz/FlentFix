@@ -428,7 +428,7 @@ export default function InspectionMode() {
 
         {/* heading */}
         <div style={{ marginBottom: 28 }} className="animate-fadeUp">
-          <p style={{ margin: '0 0 4px', fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>// inspection_hub</p>
+          <p style={{ margin: '0 0 4px', fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Inspection Hub</p>
           <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text, #e8e8f0)', letterSpacing: '-0.5px', margin: '0 0 6px', lineHeight: 1.3 }}>
             Inspection sections
           </h2>

@@ -73,7 +73,7 @@ export default function EstimateControlCenter({ pid, userEmail, onClose }) {
         {/* Header */}
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border, #2e3040)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em' }}>// estimate_control_center</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Estimates</div>
             <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text, #e8e8f0)', marginTop: 2 }}>PID {pid}</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}>×</button>

@@ -140,7 +140,7 @@ function AnalyticsSidebar({ lineItems }) {
 
   return (
     <div style={{ background: '#1a1a1e', border: '1px solid #2a2a2e', borderRadius: 10, padding: 16 }}>
-      <div style={{ fontSize: 10, color: '#666', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 16 }}>// ANALYTICS</div>
+      <div style={{ fontSize: 10, color: '#666', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 16 }}>Analytics</div>
 
       {/* Health by trade */}
       {scored.length > 0 && (
@@ -329,7 +329,7 @@ export default function RawInspectionData() {
 
   if (loading) return (
     <div style={{ minHeight: '100svh', background: '#13141a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontFamily: 'var(--font-mono, monospace)', fontSize: 13 }}>
-      // loading inspection data…
+      Loading inspection data…
     </div>
   )
 
@@ -378,14 +378,14 @@ export default function RawInspectionData() {
       </div>
 
       {filtered.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '48px 20px', color: '#444', fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>// no items found</div>
+        <div style={{ textAlign: 'center', padding: '48px 20px', color: '#444', fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>No items found</div>
       )}
 
       {/* Grouped item cards */}
       {Object.entries(grouped).map(([section, items]) => (
         <div key={section} style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 11, color: '#444', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 10, display: 'flex', justifyContent: 'space-between' }}>
-            <span>// {section.toUpperCase()}</span>
+            <span>{section.toUpperCase()}</span>
             <span>{items.length} item{items.length !== 1 ? 's' : ''}</span>
           </div>
 
@@ -478,7 +478,7 @@ export default function RawInspectionData() {
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
             <div>
-              <div style={{ fontSize: 11, color: '#555', fontFamily: 'var(--font-mono, monospace)', marginBottom: 4 }}>// raw_inspection_data</div>
+              <div style={{ fontSize: 11, color: '#555', fontFamily: 'var(--font-mono, monospace)', marginBottom: 4 }}>Raw Inspection Data</div>
               <div style={{ fontSize: 20, fontWeight: 600 }}>PID {displayPid}</div>
               <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>{displayType} · {displayDate}</div>
             </div>

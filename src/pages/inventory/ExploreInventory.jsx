@@ -97,7 +97,7 @@ export default function ExploreInventory() {
       </header>
 
       <main style={s.main}>
-        <p style={s.eyebrow}>// select_module</p>
+        <p style={s.eyebrow}>Select Module</p>
         <h2 style={s.heading}>What would you like to do?</h2>
 
         <div style={s.grid}>

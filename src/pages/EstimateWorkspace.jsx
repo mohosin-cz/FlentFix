@@ -161,7 +161,7 @@ export default function EstimateWorkspace() {
           </svg>
         </button>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-          <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em' }}>// estimate_workspace</span>
+          <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em' }}>Estimate Workspace</span>
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>
             PID {pid}{houseType ? ` · ${houseType}` : ''}
           </span>
@@ -189,10 +189,10 @@ export default function EstimateWorkspace() {
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px 80px' }}>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>// loading…</div>
+          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>
         ) : estimates.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 60 }}>
-            <div style={{ color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 20, fontSize: 13 }}>// no estimates yet</div>
+            <div style={{ color: 'var(--text-muted, #6b6d82)', marginBottom: 20, fontSize: 13 }}>No estimates yet</div>
             <button
               onClick={handleNewVersion}
               disabled={generating}
@@ -317,8 +317,8 @@ export default function EstimateWorkspace() {
                   {activeTab === 'disputes' && (
                     <div style={{ marginBottom: 20 }}>
                       {disputeCount === 0 ? (
-                        <div style={{ padding: '28px 0', textAlign: 'center', fontSize: 13, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
-                          // no disputed items
+                        <div style={{ padding: '28px 0', textAlign: 'center', fontSize: 13, color: 'var(--text-muted, #6b6d82)' }}>
+                          No disputed items
                         </div>
                       ) : disputedItems.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)).map(item => (
                         <div key={item.id} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(240,160,80,0.35)', borderRadius: 10, padding: 16, marginBottom: 12 }}>
@@ -360,11 +360,11 @@ export default function EstimateWorkspace() {
               {/* Activity timeline */}
               <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, overflow: 'hidden' }}>
                 <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border, #2e3040)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em' }}>// activity_timeline</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Activity</div>
                 </div>
                 <div style={{ overflowY: 'auto', maxHeight: 380 }}>
                   {allEvents.length === 0 ? (
-                    <div style={{ padding: '20px 16px', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>// no events yet</div>
+                    <div style={{ padding: '20px 16px', fontSize: 12, color: 'var(--text-muted, #6b6d82)' }}>No activity yet</div>
                   ) : allEvents.map((ev, i) => {
                     const isLast = i === allEvents.length - 1
                     const evColor = ev.event_type === 'approved' ? '#4dd9c0' : ev.event_type === 'rejected' ? '#f87171' : ev.event_type === 'disputed' ? '#f0a050' : ev.event_type === 'sent' ? '#4a9eff' : 'var(--text-muted, #6b6d82)'
@@ -390,7 +390,7 @@ export default function EstimateWorkspace() {
               {/* Version history */}
               <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, overflow: 'hidden' }}>
                 <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border, #2e3040)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em' }}>// version_history · {estimates.length} total</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Version History · {estimates.length}</div>
                 </div>
                 <div style={{ overflowY: 'auto', maxHeight: 380 }}>
                   {estimates.map((est, i) => {
