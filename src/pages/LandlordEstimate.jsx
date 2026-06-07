@@ -11,7 +11,7 @@ const HERO_SUBTITLE = 'before anyone moves in.'
 const CSS = `
   :root {
     --flent-display:    'Fraunces', Georgia, serif;       /* SWAP: real Flent font later */
-    --flent-sans:       'Nunito Sans', system-ui, sans-serif; /* SWAP: real Flent font later */
+    --flent-sans:       'Urbanist', system-ui, sans-serif;    /* SWAP: real Flent font later */
     --flent-cream:      #F5F2EC;
     --flent-indigo:     #2A2456;
     --flent-indigo-ink: #1C1838;
@@ -731,7 +731,7 @@ export default function LandlordEstimate() {
   if (notFound) {
     return (
       <div style={{ minHeight: '100dvh', background: '#F5F2EC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', padding: 40, fontFamily: "'Nunito Sans', sans-serif" }}>
+        <div style={{ textAlign: 'center', padding: 40, fontFamily: 'var(--flent-sans)' }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🔗</div>
           <div style={{ fontSize: 18, fontWeight: 600, color: '#1C1838', marginBottom: 6 }}>Link not found</div>
           <div style={{ fontSize: 13, color: '#5A5570' }}>This estimate link is invalid or has expired.</div>
