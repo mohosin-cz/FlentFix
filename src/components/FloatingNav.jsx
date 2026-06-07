@@ -20,6 +20,7 @@ const HIDE_ON = [
   '/estimate/',
   '/appliance-report/',
   '/invoice/',
+  '/tax-invoice/',
   '/e/',
 ]
 

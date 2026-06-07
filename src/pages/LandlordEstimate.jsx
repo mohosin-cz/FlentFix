@@ -85,7 +85,7 @@ const CSS = `
   .le-doc-right { text-align: right; }
   .le-doc-title {
     font-family: 'Poppins', sans-serif;
-    font-size: 20px; font-weight: 600; color: #fff;
+    font-size: clamp(15px, 5vw, 20px); font-weight: 600; color: #fff;
     line-height: 1.2;
   }
   .le-doc-pid {
@@ -456,7 +456,8 @@ const CSS = `
   /* ── Responsive ── */
   @media (max-width: 640px) {
     .le-header { padding: 16px 16px 14px; }
-    .le-doc-title { font-size: 17px; }
+    .le-header-top { flex-wrap: wrap; }
+    .le-doc-right { text-align: left; }
 
     /* Meta strip: 2-column grid */
     .le-meta-strip {

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
+import { generateInvoice } from '../utils/generateInvoice'
 import DisputeThread from '../components/DisputeThread'
 import { useIsMobile } from '../hooks/useIsMobile'
 import LogoSpinner from '../components/LogoSpinner'
@@ -57,13 +58,15 @@ export default function EstimateWorkspace() {
   const navigate  = useNavigate()
   const { pid }   = useParams()
 
-  const [estimates, setEstimates]   = useState([])
-  const [property, setProperty]     = useState(null)
-  const [loading, setLoading]       = useState(true)
-  const [generating, setGenerating] = useState(false)
-  const [userEmail, setUserEmail]   = useState(null)
-  const [copied, setCopied]         = useState(false)
-  const [activeTab, setActiveTab]   = useState('overview') // 'overview' | 'disputes'
+  const [estimates, setEstimates]         = useState([])
+  const [property, setProperty]           = useState(null)
+  const [loading, setLoading]             = useState(true)
+  const [generating, setGenerating]       = useState(false)
+  const [creatingInvoice, setCreating]    = useState(false)
+  const [invoiceId, setInvoiceId]         = useState(null)
+  const [userEmail, setUserEmail]         = useState(null)
+  const [copied, setCopied]               = useState(false)
+  const [activeTab, setActiveTab]         = useState('overview') // 'overview' | 'disputes'
   const isMobile = useIsMobile()
 
   const fetchAll = useCallback(async () => {
@@ -80,6 +83,19 @@ export default function EstimateWorkspace() {
     setUserEmail(user?.email || null)
     setEstimates(ests || [])
     setProperty(prop)
+
+    // Check for existing invoice on the latest estimate
+    if (ests?.length) {
+      const { data: inv } = await supabase
+        .from('tax_invoices')
+        .select('id')
+        .eq('estimate_id', ests[0].id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      setInvoiceId(inv?.id || null)
+    }
+
     setLoading(false)
   }, [pid])
 
@@ -114,6 +130,15 @@ export default function EstimateWorkspace() {
     await fetchAll()
   }
 
+  async function handleCreateInvoice() {
+    if (!current?.id) return
+    setCreating(true)
+    const invId = await generateInvoice(current.id, userEmail)
+    setCreating(false)
+    if (invId) { setInvoiceId(invId); navigate(`/tax-invoice/${invId}`) }
+    else alert('Failed to create invoice — check approved items.')
+  }
+
   // Current = latest estimate
   const current = estimates[0] || null
 
@@ -121,11 +146,14 @@ export default function EstimateWorkspace() {
   function getAttentionBanner() {
     if (!current) return null
     const disputes = current.estimate_disputes?.[0]?.count || 0
-    if (disputes > 0) return { text: `${disputes} item${disputes > 1 ? 's' : ''} disputed — review required`, color: '#f0a050' }
-    if (current.status === 'rejected') return { text: 'Estimate rejected — generate a new version or edit', color: '#f87171' }
-    if (current.status === 'approved') return { text: 'Estimate approved', color: '#4dd9c0' }
-    if (current.status === 'sent') return { text: 'Estimate sent — awaiting tenant review', color: '#4a9eff' }
-    if (current.status === 'viewed') return { text: 'Tenant has viewed the estimate', color: '#c8963e' }
+    if (disputes > 0) return { text: `${disputes} item${disputes > 1 ? 's' : ''} disputed — review required`, color: '#f0a050', cta: null }
+    if (current.status === 'rejected') return { text: 'Estimate rejected — generate a new version or edit', color: '#f87171', cta: null }
+    if (current.status === 'approved') {
+      if (invoiceId) return { text: 'Invoice created', color: '#4dd9c0', cta: { label: 'View Invoice →', action: () => navigate(`/tax-invoice/${invoiceId}`) } }
+      return { text: 'Estimate approved — ready to invoice', color: '#4dd9c0', cta: { label: creatingInvoice ? 'Creating…' : 'Create Invoice', action: handleCreateInvoice } }
+    }
+    if (current.status === 'sent') return { text: 'Estimate sent — awaiting tenant review', color: '#4a9eff', cta: null }
+    if (current.status === 'viewed') return { text: 'Tenant has viewed the estimate', color: '#c8963e', cta: null }
     return null
   }
 
@@ -208,9 +236,20 @@ export default function EstimateWorkspace() {
           <>
             {/* ── Attention banner ── */}
             {banner && (
-              <div style={{ marginBottom: 16, padding: '10px 16px', background: `${banner.color}11`, border: `1px solid ${banner.color}44`, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: banner.color, flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: banner.color, fontFamily: 'var(--font-mono, monospace)' }}>{banner.text}</span>
+              <div style={{ marginBottom: 16, padding: '10px 16px', background: `${banner.color}11`, border: `1px solid ${banner.color}44`, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: banner.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: banner.color, fontFamily: 'var(--font-mono, monospace)' }}>{banner.text}</span>
+                </div>
+                {banner.cta && (
+                  <button
+                    onClick={banner.cta.action}
+                    disabled={creatingInvoice}
+                    style={{ padding: '5px 12px', background: banner.color, border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 700, color: '#000', cursor: creatingInvoice ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    {banner.cta.label}
+                  </button>
+                )}
               </div>
             )}
 
@@ -294,6 +333,14 @@ export default function EstimateWorkspace() {
                       style={{ padding: '8px 16px', minHeight: 44, background: 'none', border: '1px solid #f0a050', borderRadius: 6, fontSize: 12, color: '#f0a050', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
                     >
                       Disputes ({current.estimate_disputes[0].count})
+                    </button>
+                  )}
+                  {invoiceId && (
+                    <button
+                      onClick={() => navigate(`/tax-invoice/${invoiceId}`)}
+                      style={{ padding: '8px 16px', minHeight: 44, background: 'none', border: '1px solid #4dd9c0', borderRadius: 6, fontSize: 12, color: '#4dd9c0', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
+                    >
+                      View Invoice →
                     </button>
                   )}
                 </div>
