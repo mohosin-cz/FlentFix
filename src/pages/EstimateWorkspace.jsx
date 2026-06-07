@@ -296,13 +296,7 @@ export default function EstimateWorkspace() {
                     onClick={() => navigate(`/estimate/${current.id}`)}
                     style={{ padding: '8px 16px', minHeight: 44, background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, color: '#000', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
                   >
-                    Open →
-                  </button>
-                  <button
-                    onClick={() => navigate(`/estimate/${current.id}?edit=1`)}
-                    style={{ padding: '8px 16px', minHeight: 44, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 6, fontSize: 12, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
-                  >
-                    Edit
+                    Open Workbench →
                   </button>
                   {current.share_token && (
                     <button
@@ -472,13 +466,7 @@ export default function EstimateWorkspace() {
                             onClick={() => navigate(`/estimate/${est.id}`)}
                             style={{ padding: '4px 10px', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
                           >
-                            Open
-                          </button>
-                          <button
-                            onClick={() => navigate(`/estimate/${est.id}?edit=1`)}
-                            style={{ padding: '4px 10px', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
-                          >
-                            Edit
+                            Open →
                           </button>
                         </div>
                       </div>

@@ -1,1124 +1,1083 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { generateEstimate } from '../utils/generateEstimate'
 import { supabase } from '../lib/supabase'
-import { advanceStage } from '../utils/propertyJourney'
+import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
+import DisputeThread from '../components/DisputeThread'
+import { useIsMobile } from '../hooks/useIsMobile'
 import LogoSpinner from '../components/LogoSpinner'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const BAND = {
-  green: { text: '#1E5C38', dot: '#1E5C38', label: 'Good',             shortLabel: 'Good' },
-  amber: { text: '#6B2A3A', dot: '#6B2A3A', label: 'Needs Attention',  shortLabel: 'Att.' },
-  red:   { text: '#8B1A28', dot: '#8B1A28', label: 'Critical',         shortLabel: 'Poor' },
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const VALID_COLUMNS = new Set([
+  'issue_description', 'item_name', 'area', 'trade',
+  'material_description', 'material_cost', 'labour_description', 'labour_cost',
+  'qty', 'cost_type', 'status', 'sort_order',
+])
+
+const TRADE_COLORS = {
+  electrical:    '#4a9eff',
+  plumbing:      '#4dd9c0',
+  carpentry:     '#c8963e',
+  painting:      '#a78bfa',
+  civil:         '#f87171',
+  cleaning:      '#86efac',
+  hvac:          '#67e8f9',
+  flooring:      '#fbbf24',
+  masonry:       '#fb923c',
+  waterproofing: '#38bdf8',
 }
 
-function band(displayScore) {
-  if (displayScore == null) return 'amber'
-  const raw = displayScore / 10
-  if (raw >= 7) return 'green'
-  if (raw >= 4) return 'amber'
-  return 'red'
+const EST_STATUS_COLOR = {
+  draft:              '#9898a4',
+  sent:               '#4a9eff',
+  viewed:             '#c8963e',
+  partially_approved: '#f0a050',
+  approved:           '#4dd9c0',
+  rejected:           '#f87171',
 }
 
-function fmtDate(str) {
-  if (!str) return '—'
-  return new Date(str).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+const ITEM_STATUS_COLOR = {
+  pending:  '#9898a4',
+  approved: '#4dd9c0',
+  disputed: '#f0a050',
+  removed:  '#f87171',
+  resolved: '#86efac',
 }
 
-function addDays(str, days) {
-  if (!str) return '—'
-  const d = new Date(str)
-  d.setDate(d.getDate() + days)
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-}
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmt(n) { return (n || 0).toLocaleString('en-IN') }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+function lineTot(item) {
+  if (item.status === 'removed' || item.cost_type === 'nil' || item.cost_type === 'actuals') return 0
+  return (item.material_cost || 0) + (item.labour_cost || 0)
+}
+
+function tc(t) { return TRADE_COLORS[(t || '').toLowerCase()] || '#9394a8' }
+
+function invPrice(r) {
+  if (r.flent_price)  return r.flent_price
+  if (r.market_price) return r.market_price
+  return Math.round((parseFloat(r.price_inc) || 0) * (1 + (r.margin_percent || 0) / 100))
+}
+
+function maxSort(items) {
+  return items.length > 0 ? Math.max(...items.map(i => i.sort_order || 0)) : 0
+}
+
+// ─── CSS ─────────────────────────────────────────────────────────────────────
+
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
+.wb-toolbar {
+  position: sticky; top: 0; z-index: 40;
+  height: 52px; display: flex; align-items: center; gap: 10px;
+  padding: 0 16px;
+  background: var(--bg-panel, #1e2028);
+  border-bottom: 1px solid var(--border, #2e3040);
+}
+.wb-toolbar-left  { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; overflow: hidden; }
+.wb-toolbar-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.wb-back-btn {
+  width: 32px; height: 32px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-input, #252731); border: 1px solid var(--border, #2e3040);
+  border-radius: 6px; color: var(--text-dim, #9394a8); cursor: pointer;
+}
+.wb-pid { font-family: var(--font-mono, monospace); font-size: 13px; font-weight: 600; color: var(--text, #e8e8f0); white-space: nowrap; }
+.wb-ver { font-family: var(--font-mono, monospace); font-size: 10px; color: var(--text-muted, #6b6d82); white-space: nowrap; }
+.wb-schip {
+  font-size: 9px; padding: 2px 8px; border-radius: 100px;
+  font-family: var(--font-mono, monospace); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; flex-shrink: 0;
+}
+.wb-totals {
+  display: flex; align-items: center; gap: 8px; padding: 0 10px;
+  border-left: 1px solid var(--border, #2e3040); flex-shrink: 0;
+}
+.wb-tval { font-family: var(--font-mono, monospace); font-size: 14px; font-weight: 700; color: var(--accent, #c8963e); }
+.wb-tcnt { font-family: var(--font-mono, monospace); font-size: 10px; color: var(--text-muted, #6b6d82); }
+.wb-tbtn {
+  height: 30px; padding: 0 10px; border-radius: 5px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  font-family: var(--font-mono, monospace); white-space: nowrap;
+  display: flex; align-items: center; gap: 4px;
+}
+.wb-outline { background: none; border: 1px solid var(--border, #2e3040); color: var(--text-muted, #6b6d82); }
+.wb-outline:hover { border-color: var(--text-dim, #9394a8); color: var(--text, #e8e8f0); }
+.wb-accent { background: var(--accent, #c8963e); border: none; color: #000; }
+.wb-accent:hover { opacity: 0.88; }
 
-  *, *::before, *::after { box-sizing: border-box; }
+.wb-content { max-width: 1280px; margin: 0 auto; padding: 16px 16px 100px; }
 
-  .er-wrap {
-    min-height: 100dvh;
-    background: #F8F6F1;
-    padding: 0 0 80px;
-    font-family: 'Source Sans 3', sans-serif;
-    color: #1E1E1E;
-    -webkit-font-smoothing: antialiased;
-  }
+.wb-more-btn { opacity: 0; transition: opacity 0.1s; }
+tr:hover .wb-more-btn { opacity: 1; }
+.wb-more-btn:hover { background: rgba(255,255,255,0.07) !important; color: var(--text, #e8e8f0) !important; }
 
-  .er-topbar {
-    max-width: 760px;
-    margin: 0 auto;
-    padding: 16px 48px 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .er-back {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 12px;
-    color: #5C5C5C;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .er-pdf-link {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 12px;
-    color: #1E1E1E;
-    background: none;
-    border: none;
-    cursor: pointer;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    padding: 0;
-  }
+.wb-cost-wrap:hover .wb-swap-btn { opacity: 1 !important; }
+.wb-swap-btn:hover { background: rgba(255,255,255,0.07) !important; color: var(--accent, #c8963e) !important; }
 
-  .er-doc {
-    max-width: 760px;
-    margin: 12px auto 0;
-    background: #fff;
-    border: 1px solid #D4CFC6;
-  }
+.wb-row { transition: background 0.08s; }
+.wb-row:hover { background: rgba(255,255,255,0.018) !important; }
 
-  /* ── HEADER ── */
-  .er-header {
-    background: #1C1C1C;
-    padding: 22px 48px 0;
-  }
-  .er-header-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 24px;
-    padding-bottom: 16px;
-  }
-  .er-brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .er-logo-box {
-    width: 38px; height: 38px;
-    background: #fff;
-    border-radius: 6px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0; overflow: hidden; padding: 3px;
-  }
-  .er-logo-box img { width: 100%; height: 100%; object-fit: contain; }
-  .er-brand-name {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 15px; font-weight: 700;
-    color: #fff; line-height: 1.1;
-    letter-spacing: -0.2px;
-  }
-  .er-brand-tag {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 14px; font-weight: 400;
-    color: rgba(255,255,255,0.55);
-    font-style: italic; margin-top: 3px;
-  }
-  .er-doc-right { text-align: right; }
-  .er-doc-title {
-    font-family: 'Poppins', sans-serif;
-    font-size: 22px; font-weight: 600;
-    color: #fff; line-height: 1.2;
-    letter-spacing: -0.2px;
-  }
-  .er-doc-pid {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 15px; font-weight: 700; color: rgba(255,255,255,0.65);
-    margin-top: 6px; letter-spacing: 0.04em;
-  }
-
-  .er-meta-strip {
-    border-top: 1px solid rgba(255,255,255,0.12);
-    padding: 11px 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0;
-  }
-  .er-meta-item {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 0 20px 0 0;
-    margin-right: 20px;
-    border-right: 1px solid rgba(255,255,255,0.12);
-  }
-  .er-meta-item:last-child { border-right: none; margin-right: 0; padding-right: 0; }
-  .er-meta-label {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 8px; font-weight: 600;
-    letter-spacing: 0.14em; text-transform: uppercase;
-    color: rgba(255,255,255,0.3);
-  }
-  .er-meta-val {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; color: rgba(255,255,255,0.7);
-  }
-
-  /* ── SECTIONS ── */
-  .er-section {
-    padding: 32px 48px;
-    border-top: 1px solid #D4CFC6;
-  }
-  .er-section:first-of-type { border-top: none; }
-  .er-section-label {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 10px; font-weight: 700;
-    letter-spacing: 0.16em; text-transform: uppercase;
-    color: #1E1E1E; margin-bottom: 20px;
-  }
-
-  /* ── EXECUTIVE SUMMARY ── */
-  .er-stats-row {
-    display: flex;
-    gap: 40px;
-    margin-bottom: 28px;
-  }
-  .er-stat {}
-  .er-stat-num {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 28px; font-weight: 500;
-    color: #1E1E1E; line-height: 1;
-    font-variant-numeric: tabular-nums;
-  }
-  .er-stat-lbl {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 10px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.08em;
-    color: #5C5C5C; margin-top: 5px;
-  }
-  .er-stat-sep {
-    width: 1px; background: #D4CFC6; align-self: stretch; flex-shrink: 0;
-  }
-  .er-health-line {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 12px; color: #5C5C5C; margin-bottom: 8px;
-    display: flex; gap: 6px; align-items: center;
-  }
-  .er-health-score-val {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 12px; font-weight: 500;
-  }
-  .er-bar-track {
-    height: 4px; background: #D4CFC6; border-radius: 2px;
-    overflow: hidden; margin-bottom: 12px;
-  }
-  .er-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
-  .er-verdict {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 13px; color: #5C5C5C; line-height: 1.7;
-    font-style: italic;
-  }
-
-  /* ── TRADE TABLE ── */
-  .er-trade-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 13px;
-  }
-  .er-trade-table thead tr {
-    border-bottom: 1px solid #1E1E1E;
-  }
-  .er-trade-table th {
-    font-size: 9px; font-weight: 700;
-    letter-spacing: 0.12em; text-transform: uppercase;
-    color: #5C5C5C; padding: 0 0 8px; text-align: left;
-  }
-  .er-trade-table th.r { text-align: right; }
-  .er-trade-table td {
-    padding: 10px 0;
-    border-bottom: 1px solid #D4CFC6;
-    color: #1E1E1E; vertical-align: middle;
-  }
-  .er-trade-table td.r {
-    text-align: right;
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 13px; font-variant-numeric: tabular-nums;
-  }
-  .er-trade-table td.muted { color: #5C5C5C; font-family: 'DM Mono', monospace; font-size: 12px; }
-  .er-trade-table tfoot tr {
-    border-top: 1px solid #1E1E1E;
-  }
-  .er-trade-table tfoot td {
-    padding: 10px 0 0;
-    font-weight: 700; border-bottom: none;
-  }
-  .er-score-dot {
-    display: inline-flex; align-items: center; gap: 5px;
-    font-family: 'Source Sans 3', sans-serif; font-size: 11px;
-  }
-
-  /* ── ITEMISED SECTIONS ── */
-  .er-trade-section {
-    border-top: 1px solid #D4CFC6;
-    padding: 28px 48px;
-    page-break-inside: avoid;
-  }
-  .er-trade-section:nth-child(even) { background: #F8F6F1; }
-  .er-trade-section:nth-child(odd)  { background: #FFFFFF; }
-  .er-trade-head {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    margin-bottom: 16px;
-  }
-  .er-trade-head-name {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; font-weight: 700;
-    letter-spacing: 0.14em; text-transform: uppercase;
-    color: #1E1E1E; white-space: nowrap;
-  }
-  .er-leader {
-    flex: 1; height: 0;
-    border-bottom: 1px dotted #D4CFC6;
-    margin: 0 6px; position: relative; top: -4px;
-  }
-  .er-trade-head-right {
-    display: flex; align-items: center; gap: 10px;
-    white-space: nowrap;
-  }
-  .er-trade-head-total {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 15px; font-weight: 600; color: #1C1C1C;
-  }
-
-  .er-item { padding: 12px 0; border-bottom: 1px solid #D4CFC6; }
-  .er-item:last-of-type { border-bottom: none; }
-  .er-item-row1 {
-    display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px;
-  }
-  .er-item-num {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 10px; color: #aaa; flex-shrink: 0; width: 18px;
-  }
-  .er-item-area {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; font-weight: 500; color: #5C5C5C;
-    background: #EEECE8; border-radius: 2px;
-    padding: 1px 6px; flex-shrink: 0;
-  }
-  .er-item-desc {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 14px; color: #1E1E1E; line-height: 1.7; flex: 1;
-  }
-  .er-item-total {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 15px; font-weight: 600; color: #1C1C1C;
-    white-space: nowrap; flex-shrink: 0;
-  }
-  .er-item-row2 {
-    display: flex; align-items: center; gap: 8px;
-    padding-left: 28px;
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; color: #5C5C5C;
-    flex-wrap: wrap;
-  }
-  .er-fix-type {
-    font-size: 10px; font-weight: 600; color: #1E1E1E;
-    text-transform: uppercase; letter-spacing: 0.06em;
-  }
-  .er-cost-detail {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; color: #5C5C5C;
-  }
-
-  .er-section-subtotal {
-    display: flex; justify-content: flex-end;
-    padding-top: 12px; margin-top: 4px;
-    border-top: 1px solid #D4CFC6;
-  }
-  .er-subtotal-label {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; color: #5C5C5C; margin-right: 8px;
-  }
-  .er-subtotal-val {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 15px; font-weight: 600; color: #1C1C1C;
-  }
-
-  /* ── COST SUMMARY ── */
-  .er-cost-block {
-    background: #1C1C1C;
-    padding: 32px 48px;
-  }
-  .er-cs-head {
-    display: flex; justify-content: space-between; align-items: baseline;
-    margin-bottom: 20px;
-  }
-  .er-cs-title {
-    font-family: 'Poppins', sans-serif;
-    font-size: 16px; font-weight: 600; color: #fff;
-  }
-  .er-cs-pid {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 10px; color: rgba(255,255,255,0.28);
-  }
-  .er-cs-row {
-    display: flex; justify-content: space-between;
-    padding: 8px 0; font-family: 'Source Sans 3', sans-serif; font-size: 13px;
-  }
-  .er-cs-lbl { color: rgba(255,255,255,0.45); }
-  .er-cs-val {
-    font-family: 'Source Sans 3', sans-serif;
-    color: rgba(255,255,255,0.7);
-    font-variant-numeric: tabular-nums;
-  }
-  .er-cs-rule { border: none; border-top: 1px solid rgba(255,255,255,0.12); margin: 8px 0; }
-  .er-grand-row {
-    display: flex; justify-content: space-between; align-items: baseline;
-    padding-top: 6px;
-  }
-  .er-grand-lbl {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 13px; font-weight: 600; color: #fff;
-  }
-  .er-grand-val {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 28px; font-weight: 500; color: #fff;
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* ── FOOTER ── */
-  .er-footer {
-    padding: 24px 48px 32px;
-    border-top: 1px solid #D4CFC6;
-  }
-  .er-disclaimer {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; color: #5C5C5C; line-height: 1.75;
-    margin-bottom: 16px;
-  }
-  .er-rate-link {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; color: #1E1E1E;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    background: none; border: none;
-    cursor: pointer; padding: 0; margin-bottom: 16px;
-    display: inline-block;
-  }
-  .er-prepared {
-    font-family: 'Source Sans 3', sans-serif;
-    font-size: 11px; color: #5C5C5C; line-height: 1.6;
-  }
-
-  /* ── RESPONSIVE ── */
-  @media (max-width: 600px) {
-    .er-topbar { padding: 12px 20px 0; }
-    .er-share-bar { padding: 0 20px; }
-    .er-doc    { margin: 10px auto 0; }
-    .er-header { padding: 22px 20px 0; }
-    .er-section { padding: 24px 20px; }
-    .er-trade-section { padding: 22px 20px; }
-    .er-cost-block    { padding: 26px 20px; }
-    .er-footer        { padding: 22px 20px 24px; }
-    .er-stats-row { gap: 20px; }
-    .er-stat-num  { font-size: 22px; }
-    .er-doc-title { font-size: 18px; }
-    .er-grand-val { font-size: 22px; }
-    .er-trade-table td.hide-mobile { display: none; }
-    .er-trade-table th.hide-mobile { display: none; }
-    .er-item-row1 { flex-wrap: wrap; }
-    .er-item-total { margin-left: auto; }
-    .er-meta-strip { gap: 8px 0; }
-    .er-meta-item { padding: 2px 14px 2px 0; margin-right: 14px; }
-  }
-
-  /* ── PRINT ── */
-  @media print {
-    .no-print { display: none !important; }
-    body, #root { background: #fff !important; padding: 0 !important; }
-    .er-wrap  { background: #fff !important; padding: 0 !important; }
-    .er-doc   { border: none !important; margin: 0 !important; max-width: 100% !important; }
-    .er-trade-section { page-break-inside: avoid; }
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
+@media (max-width: 640px) {
+  .wb-toolbar { padding: 0 10px; gap: 6px; }
+  .wb-ver { display: none; }
+  .wb-totals { padding: 0 8px; }
+  .wb-tval { font-size: 13px; }
+  .wb-content { padding: 10px 10px 110px; }
+}
 `
 
-// ─── Component ────────────────────────────────────────────────────────────────
-export default function Estimate() {
-  const { id } = useParams()
-  const navigate = useNavigate()
-  const [inspection, setInspection] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [isEditing, setIsEditing] = useState(false)
-  const [editedItems, setEditedItems] = useState({})
-  const [estimateNotes, setEstimateNotes] = useState('')
-  const [isSaving, setIsSaving] = useState(false)
-  const [quickNote, setQuickNote] = useState(null)
-  const [copied, setCopied] = useState(false)
-  const [lineItems, setLineItems] = useState([])
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [isEditingNotes, setIsEditingNotes] = useState(false)
-  const [isSavingNotes, setIsSavingNotes]   = useState(false)
-  const [inspectionId, setInspectionId]     = useState(id)
-  const [estimateRowId, setEstimateRowId]   = useState(null)
-  const [shareToken, setShareToken]         = useState(null)
-  const [estimateStatus, setEstimateStatus] = useState(null)
+// ─── RateDrawer ───────────────────────────────────────────────────────────────
+
+function RateDrawer({ open, mode, onClose, onSelectMaterial, onSelectLabour, isMobile }) {
+  const [tab, setTab]             = useState('materials')
+  const [search, setSearch]       = useState('')
+  const [tradeF, setTradeF]       = useState('all')
+  const [matRows, setMatRows]     = useState([])
+  const [labRows, setLabRows]     = useState([])
+  const [loading, setLoading]     = useState(false)
 
   useEffect(() => {
-    const prev = document.body.style.background
-    const prevPad = document.body.style.padding
-    document.body.style.background = '#f4f4f4'
-    document.body.style.padding = '0'
-    return () => {
-      document.body.style.background = prev
-      document.body.style.padding = prevPad
-    }
-  }, [])
+    if (!open) return
+    setSearch('')
+    setTradeF('all')
+    if (mode === 'swap-labour') setTab('labour')
+    else setTab('materials')
+  }, [open, mode])
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setIsLoggedIn(!!user))
-  }, [])
-
-  useEffect(() => {
-    if (!inspection?.pid) return
-    const prev = document.title
-    document.title = `${inspection.pid} Estimate`
-    return () => { document.title = prev }
-  }, [inspection?.pid])
-
-  useEffect(() => {
-    const load = async () => {
-      // Check if id is an estimate.id (new flow) or inspection.id (old flow)
-      const { data: est } = await supabase
-        .from('estimates')
-        .select('id, inspection_id, notes, share_token, status')
-        .eq('id', id)
-        .maybeSingle()
-
-      const iid = est?.inspection_id || id
-      setInspectionId(iid)
-
-      if (est?.id) {
-        // New flow: read from estimate_items snapshot
-        setEstimateRowId(est.id)
-        setShareToken(est.share_token || null)
-        setEstimateStatus(est.status || 'draft')
-        const [inspRes, itemsRes] = await Promise.all([
-          supabase.from('inspections').select('id, pid, house_type, inspection_date, status, owner_email, created_at').eq('id', iid).single(),
-          supabase.from('estimate_items').select('*').eq('estimate_id', est.id).order('sort_order'),
-        ])
-        if (inspRes.error) { setError(inspRes.error.message); setLoading(false); return }
-        setInspection(inspRes.data)
-        setEstimateNotes(est?.notes || '')
-        setLineItems((itemsRes.data || []).map(item => ({
-          ...item,
-          section_name: item.area || 'Other',
-          availability_status: null,
-          line_item_media: [],
-          item_score: null,
-        })))
-      } else {
-        // Old flow: read from inspection_line_items
-        const { data, error: err } = await supabase
-          .from('inspections')
-          .select('*, inspection_line_items(*, line_item_media(*))')
-          .eq('id', iid)
-          .single()
-        if (err) { setError(err.message); setLoading(false); return }
-        setInspection(data)
-        setEstimateNotes('')
-        setLineItems((data?.inspection_line_items || []).filter(i => {
-          if (i.excluded_from_estimate) return false
-          if (i.availability_status === 'not_available' || i.availability_status === 'no_provision') return false
-          if (i.section_name?.toLowerCase() === 'appliances') return false
-          const desc = (i.issue_description || '').toLowerCase().trim()
-          if ((i.material_cost || 0) === 0 && (i.labour_cost || 0) === 0) {
-            if (desc === 'not available' || desc === 'n/a' || desc === 'na' || desc.startsWith('not available')) return false
-            if (desc.includes('no provision')) return false
-            if (desc.includes('functional') || desc.includes('no issues') || desc.includes('no issue')) return false
-          }
-          return true
-        }))
-      }
+    if (!open || tab !== 'materials') return
+    const t = setTimeout(async () => {
+      setLoading(true)
+      let q = supabase.from('inventory_items')
+        .select('fxin,item_name,spec,size,trade,flent_price,market_price,price_inc,margin_percent,quantity_remaining')
+        .limit(40)
+      if (search.trim()) q = q.ilike('item_name', `%${search.trim()}%`)
+      if (tradeF !== 'all') q = q.eq('trade', tradeF)
+      const { data } = await q.order('item_name')
+      setMatRows(data || [])
       setLoading(false)
-    }
-    load()
-  }, [id])
+    }, search ? 250 : 0)
+    return () => clearTimeout(t)
+  }, [open, tab, search, tradeF])
 
   useEffect(() => {
-    if (!inspection?.pid) return
-    supabase.from('quick_notes').select('note, updated_at').eq('pid', inspection.pid).maybeSingle()
-      .then(({ data }) => setQuickNote(data || null))
-  }, [inspection?.pid])
+    if (!open || tab !== 'labour') return
+    const t = setTimeout(async () => {
+      setLoading(true)
+      let q = supabase.from('labour_rates').select('id,trade,work_type,cost_per_unit,unit').limit(50)
+      if (search.trim()) q = q.ilike('work_type', `%${search.trim()}%`)
+      if (tradeF !== 'all') q = q.eq('trade', tradeF)
+      const { data } = await q.order('trade')
+      setLabRows(data || [])
+      setLoading(false)
+    }, search ? 250 : 0)
+    return () => clearTimeout(t)
+  }, [open, tab, search, tradeF])
 
-  function startEdit() {
-    const initial = {}
-    lineItems.forEach(item => {
-      initial[item.id] = {
-        issue_description: item.issue_description || '',
-        material_cost: item.material_cost ?? 0,
-        labour_cost: item.labour_cost ?? 0,
-      }
-    })
-    setEditedItems(initial)
-    setIsEditing(true)
-  }
+  if (!open) return null
 
-  async function handleRemoveLineItem(itemId) {
-    const removed = lineItems.find(i => i.id === itemId)
-    setLineItems(prev => prev.filter(i => i.id !== itemId))
-    const { error } = estimateRowId
-      ? await supabase.from('estimate_items').delete().eq('id', itemId)
-      : await supabase.from('inspection_line_items').update({ excluded_from_estimate: true }).eq('id', itemId)
-    if (error) {
-      console.error('Remove failed:', error.message)
-      setLineItems(prev => [...prev, removed].sort((a, b) => String(a.id).localeCompare(String(b.id))))
-      alert('Failed to remove item: ' + error.message)
-    }
-  }
-
-  async function saveEdit() {
-    setIsSaving(true)
-    try {
-      if (estimateRowId) {
-        for (const [itemId, vals] of Object.entries(editedItems)) {
-          await supabase.from('estimate_items').update({
-            issue_description: vals.issue_description,
-            material_cost: parseFloat(vals.material_cost) || 0,
-            labour_cost:   parseFloat(vals.labour_cost)   || 0,
-          }).eq('id', itemId)
-        }
-        await supabase.from('estimates').update({ notes: estimateNotes }).eq('id', estimateRowId)
-        const { data: refreshed } = await supabase.from('estimate_items').select('*').eq('estimate_id', estimateRowId).order('sort_order')
-        setLineItems((refreshed || []).map(item => ({ ...item, section_name: item.area || 'Other', availability_status: null, line_item_media: [], item_score: null })))
-      } else {
-        const origItems = inspection?.inspection_line_items || []
-        for (const [itemId, vals] of Object.entries(editedItems)) {
-          const orig = origItems.find(i => String(i.id) === String(itemId))
-          if (!orig) continue
-          const mc = parseFloat(vals.material_cost) || 0
-          const lc = parseFloat(vals.labour_cost) || 0
-          if (vals.issue_description !== (orig.issue_description || '') || mc !== (orig.material_cost || 0) || lc !== (orig.labour_cost || 0)) {
-            await supabase.from('inspection_line_items').update({ issue_description: vals.issue_description, material_cost: mc, labour_cost: lc }).eq('id', itemId)
-          }
-        }
-        const { data: refreshed } = await supabase.from('inspections').select('id, pid, house_type, inspection_date, status, owner_email, created_at, inspection_line_items(*, line_item_media(*))').eq('id', inspectionId).single()
-        if (refreshed) {
-          setInspection(refreshed)
-          setLineItems((refreshed.inspection_line_items || []).filter(i => {
-            if (i.excluded_from_estimate) return false
-            if (i.availability_status === 'not_available' || i.availability_status === 'no_provision') return false
-            if (i.section_name?.toLowerCase() === 'appliances') return false
-            const desc = (i.issue_description || '').toLowerCase().trim()
-            if ((i.material_cost || 0) === 0 && (i.labour_cost || 0) === 0) {
-              if (desc === 'not available' || desc === 'n/a' || desc === 'na' || desc.startsWith('not available')) return false
-              if (desc.includes('no provision')) return false
-              if (desc.includes('functional') || desc.includes('no issues') || desc.includes('no issue')) return false
-            }
-            return true
-          }))
-        }
-      }
-      setIsEditing(false)
-    } catch (err) {
-      console.error('Save error:', err)
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  async function saveNotes() {
-    setIsSavingNotes(true)
-    if (estimateRowId) {
-      await supabase.from('estimates').update({ notes: estimateNotes }).eq('id', estimateRowId)
-    }
-    setIsEditingNotes(false)
-    setIsSavingNotes(false)
-  }
-
-  async function handleRegenerate() {
-    if (!estimateRowId || !inspectionId) return
-    setLoading(true)
-    await generateEstimate(inspectionId, inspection?.pid || '', null)
-    const { data: items } = await supabase.from('estimate_items').select('*').eq('estimate_id', estimateRowId).order('sort_order')
-    setLineItems((items || []).map(item => ({ ...item, section_name: item.area || 'Other', availability_status: null, line_item_media: [], item_score: null })))
-    setLoading(false)
-  }
-
-  if (loading) return <LogoSpinner full />
-
-  if (error || !inspection) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: 'Inter, sans-serif', color: '#8b1a2a', fontSize: 14 }}>
-      {error || 'Inspection not found'}
-    </div>
-  )
-
-  // ── Derived data ─────────────────────────────────────────────────────────────
-  const items = lineItems
-  const pid   = inspection.pid || ''
-
-  // Merge edits into items for real-time total updates during edit mode
-  const displayItems = isEditing
-    ? lineItems.map(item => editedItems[item.id]
-        ? { ...item, issue_description: editedItems[item.id].issue_description, material_cost: parseFloat(editedItems[item.id].material_cost) || 0, labour_cost: parseFloat(editedItems[item.id].labour_cost) || 0 }
-        : item)
-    : lineItems
-
-  const sectionMap = {}
-  displayItems.forEach(item => {
-    const s = item.section_name || 'Other'
-    if (!sectionMap[s]) sectionMap[s] = []
-    sectionMap[s].push(item)
-  })
-  const sectionList = Object.entries(sectionMap)
-
-  function sectionScore(rows) {
-    const scorable = rows.filter(r => r.item_score != null && r.availability_status !== 'not_available')
-    if (!scorable.length) return null
-    const avg = scorable.reduce((s, r) => s + (r.item_score !== 0 ? r.item_score : 5), 0) / scorable.length
-    return Math.round(avg * 10)
-  }
-
-  const sectionScores = Object.fromEntries(
-    sectionList.map(([name, rows]) => [name, sectionScore(rows)])
-  )
-
-  const validScores   = Object.values(sectionScores).filter(v => v != null)
-  const overallScore  = validScores.length ? Math.round(validScores.reduce((s, v) => s + v, 0) / validScores.length) : null
-  const overallBand   = band(overallScore)
-  const overallColors = BAND[overallBand]
-
-  const totalMaterial = displayItems.reduce((s, r) => s + (r.material_cost || 0), 0)
-  const totalLabour   = displayItems.reduce((s, r) => s + (r.labour_cost   || 0), 0)
-  const grandTotal    = totalMaterial + totalLabour
-
-  function secTotal(rows) { return rows.reduce((s, r) => s + (r.material_cost || 0) + (r.labour_cost || 0), 0) }
-
-  const issueCount     = displayItems.filter(r => r.availability_status !== 'not_available').length
-  const tradesAffected = sectionList.filter(([, rows]) =>
-    rows.some(r => r.availability_status !== 'not_available' && ((r.material_cost || 0) + (r.labour_cost || 0)) > 0)
-  ).length
-
-  const issueNumColor = issueCount > 5 ? BAND.red.text : issueCount > 1 ? BAND.amber.text : BAND.green.text
-
-  const verdictText = overallBand === 'green'
-    ? `This property is in good condition across all inspected trades.`
-    : overallBand === 'amber'
-    ? `This property requires remedial work across ${tradesAffected} trade${tradesAffected !== 1 ? 's' : ''} prior to tenant move-in.`
-    : `This property has critical maintenance requirements across ${tradesAffected} trade${tradesAffected !== 1 ? 's' : ''} — immediate action required.`
-
-  function handlePrint() {
-    const prev = document.title
-    document.title = pid ? `${pid} Estimate` : 'Estimate'
-    window.print()
-    document.title = prev
-  }
-
-  const shareUrl = shareToken
-    ? `${window.location.origin}/e/${shareToken}`
-    : `${window.location.origin}/estimate/${id}`
-
-  async function handleCopyLink() {
-    // Advance stage + log sent event on first share
-    if (inspection?.pid) advanceStage(supabase, inspection.pid, 'estimate_shared', null)
-    if (estimateRowId && estimateStatus === 'draft') {
-      await supabase.from('estimates').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', estimateRowId)
-      await supabase.from('estimate_events').insert({ estimate_id: estimateRowId, event_type: 'sent', actor: 'flent' })
-      setEstimateStatus('sent')
-    }
-    if (navigator.clipboard && window.isSecureContext) {
-      try {
-        await navigator.clipboard.writeText(shareUrl)
-        setCopied(true); setTimeout(() => setCopied(false), 2000)
-        return
-      } catch (_) {}
-    }
-    const ta = document.createElement('textarea')
-    ta.value = shareUrl
-    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0'
-    document.body.appendChild(ta)
-    ta.focus(); ta.select()
-    try { document.execCommand('copy'); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch (e) { console.error('Copy failed:', e) }
-    document.body.removeChild(ta)
-  }
-
-  function handleShare() {
-    if (navigator.share) {
-      navigator.share({ title: `Flent Estimate — PID ${pid}`, text: `View estimate for property ${pid}`, url: shareUrl })
-    } else {
-      handleCopyLink()
-    }
-  }
+  const drawerW = isMobile ? '100%' : 380
+  const title   = mode === 'swap-material' ? 'Swap Material' : mode === 'swap-labour' ? 'Swap Labour' : 'Add Item'
+  const rows    = tab === 'materials' ? matRows : labRows
 
   return (
-    <div className="er-wrap">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
-
-      {/* Top controls */}
-      <div className="er-topbar no-print">
-        <button className="er-back" onClick={() => navigate(-1)}>← Back</button>
-        <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-          {isLoggedIn && isEditing ? (
-            <>
-              <button className="er-pdf-link" style={{ color: '#5C5C5C' }} onClick={() => setIsEditing(false)}>Cancel</button>
-              <button className="er-pdf-link" style={{ color: '#c8963e', fontWeight: 600 }} onClick={saveEdit} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save'}</button>
-            </>
-          ) : (
-            <>
-              {isLoggedIn && estimateRowId && <button className="er-pdf-link" style={{ color: '#888' }} onClick={handleRegenerate}>↺ Regenerate</button>}
-              {isLoggedIn && <button className="er-pdf-link" style={{ color: '#c8963e' }} onClick={startEdit}>Edit Estimate</button>}
-              <button className="er-pdf-link" onClick={handlePrint}>Download PDF</button>
-              <button onClick={handleShare} style={{ padding: '6px 12px', border: '1px solid #c8963e', background: 'transparent', color: '#c8963e', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>
-                {copied ? '✓ Copied!' : '↗ Share'}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Share link bar */}
-      <div className="er-share-bar no-print" style={{ maxWidth: 760, margin: '10px auto 0', padding: '0 48px' }}>
-        <div style={{ background: '#f8f6f1', border: '1px solid #e8e0d0', borderRadius: 6, padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: '#999' }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 12 }}>🔗 {shareUrl}</span>
-          <button onClick={handleCopyLink} style={{ color: copied ? '#22c55e' : '#c8963e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0, fontWeight: copied ? 600 : 400, transition: 'color 0.2s' }}>
-            {copied ? '✓ Copied!' : 'Copy link'}
-          </button>
-        </div>
-      </div>
-
-      <div className="er-doc">
-
-        {/* ── HEADER ── */}
-        <div className="er-header">
-          <div className="er-header-top">
-            <div className="er-brand">
-              <div className="er-logo-box">
-                <img src="/logo.svg" alt="Flent" />
-              </div>
-              <div>
-                <div className="er-brand-name">Flent</div>
-                <div className="er-brand-tag">why rent, when you can flent?</div>
-              </div>
-            </div>
-            <div className="er-doc-right">
-              <div className="er-doc-title">Estimate and Health Report</div>
-              {pid && <div className="er-doc-pid">PID {pid}</div>}
-            </div>
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 500 }} />
+      <div style={{
+        position: 'fixed', top: 0, right: 0, bottom: 0, width: drawerW,
+        background: 'var(--bg-panel, #1e2028)', borderLeft: '1px solid var(--border, #2e3040)',
+        zIndex: 501, display: 'flex', flexDirection: 'column',
+        boxShadow: '-8px 0 32px rgba(0,0,0,0.5)',
+      }}>
+        {/* Header */}
+        <div style={{ padding: '12px 14px 0', borderBottom: '1px solid var(--border, #2e3040)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{title}</span>
+            <button onClick={onClose} style={{ width: 28, height: 28, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #6b6d82)', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, lineHeight: 1 }}>×</button>
           </div>
-
-          <div className="er-meta-strip">
-            {[
-              { label: 'Property ID',     val: pid || '—' },
-              { label: 'Date',            val: fmtDate(inspection.inspection_date) },
-              { label: 'Type',            val: inspection.house_type || '—' },
-              { label: 'Valid Until',     val: addDays(inspection.inspection_date, 30) },
-              { label: 'Prepared By',     val: 'Flent Operations' },
-            ].map(({ label, val }) => (
-              <div key={label} className="er-meta-item">
-                <span className="er-meta-label">{label}</span>
-                <span className="er-meta-val">{val}</span>
-              </div>
+          <div style={{ display: 'flex' }}>
+            {['materials', 'labour'].map(t => (
+              <button key={t} onClick={() => { setTab(t); setSearch('') }}
+                style={{ padding: '7px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', textTransform: 'capitalize', borderBottom: tab === t ? '2px solid var(--accent, #c8963e)' : '2px solid transparent', color: tab === t ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)' }}
+              >{t}</button>
             ))}
           </div>
         </div>
 
-        {/* ── EXECUTIVE SUMMARY ── */}
-        <div className="er-section">
-          <div className="er-section-label">Property Condition Summary</div>
-
-          <div className="er-stats-row">
-            <div className="er-stat">
-              <div className="er-stat-num" style={{ color: issueNumColor }}>{issueCount}</div>
-              <div className="er-stat-lbl">Issues Found</div>
-            </div>
-            <div className="er-stat-sep" />
-            <div className="er-stat">
-              <div className="er-stat-num">{tradesAffected}</div>
-              <div className="er-stat-lbl">Trades Affected</div>
-            </div>
-            <div className="er-stat-sep" />
-            <div className="er-stat">
-              <div className="er-stat-num" style={{ fontSize: 24 }}>₹{fmt(grandTotal)}</div>
-              <div className="er-stat-lbl">Total Estimate</div>
-            </div>
-          </div>
-
-          <div className="er-health-line">
-            <span>Overall Health Score:</span>
-            <span className="er-health-score-val" style={{ color: overallColors.text }}>
-              {overallScore ?? '—'}/100 — {overallColors.label}
-            </span>
-          </div>
-          <div className="er-bar-track">
-            <div className="er-bar-fill" style={{ width: `${overallScore ?? 0}%`, background: overallColors.dot }} />
-          </div>
-          <div className="er-verdict">{verdictText}</div>
+        {/* Filters */}
+        <div style={{ padding: '9px 12px', borderBottom: '1px solid var(--border, #2e3040)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <input
+            autoFocus
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={tab === 'materials' ? 'Search by name or FXIN…' : 'Search labour…'}
+            style={{ width: '100%', padding: '7px 10px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text, #e8e8f0)', fontSize: 12, outline: 'none', fontFamily: 'var(--font-mono, monospace)', boxSizing: 'border-box' }}
+          />
+          <select value={tradeF} onChange={e => setTradeF(e.target.value)}
+            style={{ width: '100%', padding: '7px 10px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: tradeF === 'all' ? 'var(--text-muted, #6b6d82)' : 'var(--text, #e8e8f0)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }}
+          >
+            <option value="all">All trades</option>
+            {Object.keys(TRADE_COLORS).map(t => (
+              <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+            ))}
+          </select>
         </div>
 
-        {/* ── TRADE BREAKDOWN TABLE ── */}
-        <div className="er-section">
-          <div className="er-section-label">Trade Breakdown</div>
-          <table className="er-trade-table">
-            <thead>
-              <tr>
-                <th style={{ width: '40%' }}>Trade</th>
-                <th className="hide-mobile" style={{ width: '12%' }}>Items</th>
-                <th style={{ width: '28%' }}>Score</th>
-                <th className="r" style={{ width: '20%' }}>Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sectionList.map(([name, rows]) => {
-                const sc   = sectionScores[name]
-                const b    = band(sc)
-                const c    = BAND[b]
-                const cost = secTotal(rows)
-                return (
-                  <tr key={name}>
-                    <td style={{ fontWeight: 500 }}>{name}</td>
-                    <td className="muted hide-mobile">{rows.length}</td>
-                    <td>
-                      <span className="er-score-dot">
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.dot, display: 'inline-block', flexShrink: 0 }} />
-                        <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: c.text }}>{sc ?? '—'}</span>
-                        <span style={{ color: '#aaa', fontSize: 11 }}>·</span>
-                        <span style={{ color: c.text, fontSize: 11 }}>{c.shortLabel}</span>
-                      </span>
-                    </td>
-                    <td className="r">₹{fmt(cost)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={2} style={{ color: '#888', fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Total</td>
-                <td className="hide-mobile" />
-                <td className="r" style={{ color: '#111' }}>₹{fmt(grandTotal)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        {/* ── ITEMISED SECTIONS ── */}
-        {(() => { let serial = 0; return sectionList.map(([name, rows]) => {
-          const sc  = sectionScores[name]
-          const b   = band(sc)
-          const c   = BAND[b]
-          const tot = secTotal(rows)
-
-          // Group by area + item_name
-          const groupMap = {}
-          rows.forEach(item => {
-            const key = `${item.area || ''}||${item.item_name || item.issue_description || ''}`
-            if (!groupMap[key]) groupMap[key] = { area: item.area || '', item_name: item.item_name || '', items: [] }
-            groupMap[key].items.push(item)
-          })
-          const groups = Object.values(groupMap)
-
-          return (
-            <div key={name} className="er-trade-section">
-              <div className="er-trade-head">
-                <span className="er-trade-head-name">{name}</span>
-                <span className="er-leader" />
-                <div className="er-trade-head-right">
-                  {sc != null && (
-                    <span className="er-score-dot">
-                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: c.dot, display: 'inline-block' }} />
-                      <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: c.text }}>{sc}/100 · {c.label}</span>
-                    </span>
-                  )}
-                  <span className="er-trade-head-total">₹{fmt(tot)}</span>
-                </div>
-              </div>
-
-              {groups.map((group, gi) => {
-                const groupTotal = group.items.reduce((s, r) => s + (r.material_cost || 0) + (r.labour_cost || 0), 0)
-                const rawScore   = group.items.find(r => r.item_score != null)?.item_score ?? null
-                const dispScore  = rawScore != null ? rawScore * 10 : null
-                const gb = band(dispScore)
-                const gc = BAND[gb]
-
-                return (
-                  <div key={gi} style={{ borderBottom: gi < groups.length - 1 ? '1px solid #D4CFC6' : 'none', paddingBottom: 16, marginBottom: gi < groups.length - 1 ? 16 : 0, paddingTop: gi === 0 ? 0 : 0 }}>
-                    {/* Item group header */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 8, borderBottom: '1px solid #EEECE8', marginBottom: 6 }}>
-                      {group.area && <span className="er-item-area">{group.area}</span>}
-                      <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 14, fontWeight: 600, color: '#1E1E1E', flex: 1 }}>{group.item_name || '—'}</span>
-                      {dispScore != null && (
-                        <span className="er-score-dot">
-                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: gc.dot, display: 'inline-block' }} />
-                          <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: gc.text }}>{dispScore}/100</span>
-                        </span>
-                      )}
-                      {groupTotal > 0 && (
-                        <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 14, fontWeight: 600, color: '#1C1C1C', whiteSpace: 'nowrap' }}>₹{fmt(groupTotal)}</span>
-                      )}
-                    </div>
-
-                    {/* Issue rows within the group */}
-                    {isLoggedIn && isEditing ? (
-                      group.items.map((item, iIdx) => {
-                        const edited = editedItems[item.id]
-                        const mc = parseFloat(edited?.material_cost ?? item.material_cost) || 0
-                        const lc = parseFloat(edited?.labour_cost   ?? item.labour_cost)   || 0
-                        return (
-                          <div key={item.id || iIdx} style={{ paddingLeft: 12, paddingTop: 6, paddingBottom: 6, borderBottom: iIdx < group.items.length - 1 ? '1px solid #EEECE8' : 'none' }}>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 6 }}>
-                              <input
-                                value={edited?.issue_description ?? item.issue_description ?? ''}
-                                onChange={e => setEditedItems(p => ({ ...p, [item.id]: { ...p[item.id], issue_description: e.target.value } }))}
-                                style={{ flex: 1, minWidth: 120, fontSize: 13, padding: '4px 8px', border: '1px solid #D4CFC6', borderRadius: 3, fontFamily: 'Source Sans 3, sans-serif', background: '#FAFAF8', color: '#1E1E1E' }}
-                              />
-                              <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 13, fontWeight: 600, color: '#1C1C1C' }}>₹{fmt(mc + lc)}</span>
-                              <button
-                                onClick={() => handleRemoveLineItem(item.id)}
-                                title="Remove from estimate"
-                                style={{ background: 'none', border: 'none', color: '#cc4444', fontSize: 16, cursor: 'pointer', padding: '0 4px', opacity: 0.6, lineHeight: 1, flexShrink: 0 }}
-                                onMouseEnter={e => { e.currentTarget.style.opacity = '1' }}
-                                onMouseLeave={e => { e.currentTarget.style.opacity = '0.6' }}
-                              >×</button>
-                            </div>
-                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#5C5C5C', fontFamily: 'Source Sans 3, sans-serif' }}>
-                                Material ₹
-                                <input type="number" value={edited?.material_cost ?? item.material_cost ?? 0} onChange={e => setEditedItems(p => ({ ...p, [item.id]: { ...p[item.id], material_cost: e.target.value } }))} style={{ width: 80, fontSize: 12, padding: '3px 6px', border: '1px solid #D4CFC6', borderRadius: 3 }} />
-                              </label>
-                              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#5C5C5C', fontFamily: 'Source Sans 3, sans-serif' }}>
-                                Labour ₹
-                                <input type="number" value={edited?.labour_cost ?? item.labour_cost ?? 0} onChange={e => setEditedItems(p => ({ ...p, [item.id]: { ...p[item.id], labour_cost: e.target.value } }))} style={{ width: 80, fontSize: 12, padding: '3px 6px', border: '1px solid #D4CFC6', borderRadius: 3 }} />
-                              </label>
-                            </div>
-                          </div>
-                        )
-                      })
-                    ) : (
-                      group.items.map((item, iIdx) => {
-                        const sl      = String(++serial).padStart(2, '0')
-                        const isNA    = item.availability_status === 'not_available'
-                        const itemMat = item.material_cost || 0
-                        const itemLab = item.labour_cost   || 0
-                        const itemTot = itemMat + itemLab
-                        return (
-                          <div key={item.id || iIdx} style={{ paddingLeft: 12, paddingTop: 6, paddingBottom: 6, borderBottom: iIdx < group.items.length - 1 ? '1px solid #EEECE8' : 'none' }}>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                              <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: '#aaa', flexShrink: 0, minWidth: 18 }}>{sl}</span>
-                              <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 13, color: isNA ? '#888' : '#1E1E1E', flex: 1, lineHeight: 1.6, fontStyle: isNA ? 'italic' : 'normal' }}>
-                                {item.issue_description || '—'}
-                              </span>
-                              {!isNA && itemTot > 0 && (
-                                <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 13, fontWeight: 600, color: '#1C1C1C', whiteSpace: 'nowrap' }}>₹{fmt(itemTot)}</span>
-                              )}
-                            </div>
-                            {!isNA && (itemMat > 0 || itemLab > 0) && (
-                              <div style={{ paddingLeft: 26, display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
-                                {itemMat > 0 && <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: '#5C5C5C' }}>Material: ₹{fmt(itemMat)}</span>}
-                                {itemMat > 0 && itemLab > 0 && <span style={{ color: '#ccc' }}>·</span>}
-                                {itemLab > 0 && <span style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 11, color: '#5C5C5C' }}>Labour: ₹{fmt(itemLab)}</span>}
-                              </div>
-                            )}
-                            {item.line_item_media?.length > 0 && (
-                              <div style={{ paddingLeft: 26, marginTop: 8 }}>
-                                <div style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', marginBottom: 6 }}>Photos</div>
-                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                  {item.line_item_media.map((m, mi) => (
-                                    <a key={mi} href={m.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', flexShrink: 0 }} title={m.caption || 'View photo'}>
-                                      <img src={m.url} alt={m.caption || ''} style={{ height: 80, width: 80, objectFit: 'cover', borderRadius: 4, border: '1px solid #D4CFC6', display: 'block', cursor: 'pointer' }} onError={e => { e.target.style.display = 'none' }} />
-                                    </a>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })
-                    )}
+        {/* Results */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {loading && <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)' }}>Loading…</div>}
+          {!loading && rows.length === 0 && (
+            <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)' }}>
+              {search ? 'No results' : `Type to search ${tab}`}
+            </div>
+          )}
+          {!loading && tab === 'materials' && matRows.map(r => {
+            const price = invPrice(r)
+            return (
+              <div key={r.fxin || r.item_name}
+                onClick={() => onSelectMaterial(r)}
+                style={{ padding: '9px 12px', borderBottom: '1px solid var(--border, #2e3040)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 2 }}>
+                    {r.fxin && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', background: 'rgba(200,150,62,0.12)', padding: '1px 5px', borderRadius: 3 }}>{r.fxin}</span>}
+                    {r.trade && <span style={{ fontSize: 9, color: tc(r.trade), textTransform: 'uppercase', letterSpacing: '0.05em' }}>{r.trade}</span>}
                   </div>
-                )
-              })}
-
-              <div className="er-section-subtotal">
-                <span className="er-subtotal-label">Section total</span>
-                <span className="er-subtotal-val">₹{fmt(tot)}</span>
+                  <div style={{ fontSize: 12, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {r.item_name}{r.spec ? ` · ${r.spec}` : ''}{r.size ? ` · ${r.size}` : ''}
+                  </div>
+                  {r.quantity_remaining != null && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 1 }}>{r.quantity_remaining} in stock</div>}
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: 13, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>₹{fmt(price)}</div>
+                </div>
+              </div>
+            )
+          })}
+          {!loading && tab === 'labour' && labRows.map(r => (
+            <div key={r.id}
+              onClick={() => onSelectLabour(r)}
+              style={{ padding: '9px 12px', borderBottom: '1px solid var(--border, #2e3040)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 9, color: tc(r.trade), textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{r.trade}</div>
+                <div style={{ fontSize: 12, color: 'var(--text, #e8e8f0)' }}>{r.work_type}</div>
+                {r.unit && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 1 }}>per {r.unit}</div>}
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontSize: 13, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>₹{fmt(r.cost_per_unit)}</div>
               </div>
             </div>
-          )
-        })})()}
+          ))}
+        </div>
 
-        {/* ── NOTES ── */}
-        <div style={{ margin: '0 48px 32px', padding: '20px', background: '#F8F6F1', border: '1px solid #E0D9CC', borderRadius: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div style={{ fontWeight: 600, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'Source Sans 3, sans-serif', color: '#1E1E1E' }}>Notes</div>
-            {isLoggedIn && !isEditing && (
-              isEditingNotes ? (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => { setIsEditingNotes(false); setEstimateNotes(inspection?.notes || '') }} style={{ fontSize: 11, color: '#999', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Source Sans 3, sans-serif' }}>Cancel</button>
-                  <button onClick={saveNotes} disabled={isSavingNotes} style={{ fontSize: 11, color: '#c8963e', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Source Sans 3, sans-serif' }}>{isSavingNotes ? 'Saving…' : 'Save'}</button>
-                </div>
-              ) : (
-                <button onClick={() => setIsEditingNotes(true)} style={{ fontSize: 11, color: '#c8963e', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Source Sans 3, sans-serif', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  ✎ Edit
-                </button>
-              )
-            )}
+        {/* Blank row shortcut (add mode only) */}
+        {mode === 'add' && (
+          <div style={{ padding: '9px 12px', borderTop: '1px solid var(--border, #2e3040)', flexShrink: 0 }}>
+            <button
+              onClick={() => onSelectMaterial(null)}
+              style={{ width: '100%', padding: '8px 0', background: 'none', border: '1px dashed var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
+            >+ Add blank row</button>
           </div>
-          {isEditing || isEditingNotes ? (
-            <textarea
-              value={estimateNotes}
-              onChange={e => setEstimateNotes(e.target.value)}
-              placeholder="Add notes for the property owner..."
-              style={{ width: '100%', minHeight: 80, border: '1px solid #D4CFC6', borderRadius: 4, padding: 8, fontFamily: 'Source Sans 3, sans-serif', fontSize: 13, resize: 'vertical', background: '#fff', color: '#1E1E1E', boxSizing: 'border-box' }}
+        )}
+      </div>
+    </>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export default function EstimateWorkbench() {
+  const { id }       = useParams()
+  const navigate     = useNavigate()
+  const isMobile     = useIsMobile()
+
+  // Data
+  const [estimate, setEstimate]     = useState(null)
+  const [items, setItems]           = useState([])
+  const [inspection, setInspection] = useState(null)
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState(null)
+  const [userEmail, setUserEmail]   = useState(null)
+  const [versionCount, setVersionCount] = useState(1)
+
+  // Inline editing
+  const [editingCell, setEditingCell] = useState(null)  // { itemId, field }
+  const [cellDraft, setCellDraft]     = useState('')
+
+  // Drawer
+  const [drawerOpen, setDrawerOpen]     = useState(false)
+  const [drawerMode, setDrawerMode]     = useState('add')
+  const [drawerTarget, setDrawerTarget] = useState(null)
+
+  // UI
+  const [collapsed, setCollapsed]         = useState(new Set())
+  const [openMenu, setOpenMenu]           = useState(null)   // { itemId, status, x, y }
+  const [notesEditing, setNotesEditing]   = useState(false)
+  const [notesDraft, setNotesDraft]       = useState('')
+  const [savingNotes, setSavingNotes]     = useState(false)
+  const [generating, setGenerating]       = useState(false)
+  const [copied, setCopied]               = useState(false)
+  const [moreOpen, setMoreOpen]           = useState(false)
+
+  useEffect(() => { loadData() }, [id])
+
+  async function loadData() {
+    setLoading(true)
+    const [{ data: { user } }, { data: est }] = await Promise.all([
+      supabase.auth.getUser(),
+      supabase.from('estimates').select('id,pid,inspection_id,status,notes,share_token,created_at,created_by,inspector_name,approved_by_name').eq('id', id).maybeSingle(),
+    ])
+    setUserEmail(user?.email || null)
+    if (!est) { setError('Estimate not found'); setLoading(false); return }
+    setEstimate(est)
+    setNotesDraft(est.notes || '')
+
+    const [itemsRes, inspRes, { count }] = await Promise.all([
+      supabase.from('estimate_items').select('*').eq('estimate_id', id).order('sort_order'),
+      supabase.from('inspections').select('id,pid,house_type,inspection_date').eq('id', est.inspection_id).maybeSingle(),
+      supabase.from('estimates').select('id', { count: 'exact', head: true }).eq('pid', est.pid),
+    ])
+    setItems(itemsRes.data || [])
+    setInspection(inspRes.data || null)
+    setVersionCount(count || 1)
+    setLoading(false)
+  }
+
+  // Derived
+  const tradeGroups = useMemo(() => {
+    const map = {}
+    for (const item of items) {
+      const t = item.trade || 'Other'
+      if (!map[t]) map[t] = []
+      map[t].push(item)
+    }
+    return Object.entries(map).map(([trade, rows]) => ({
+      trade,
+      rows: [...rows].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+      total:       rows.reduce((s, i) => s + lineTot(i), 0),
+      activeCount: rows.filter(i => i.status !== 'removed').length,
+    }))
+  }, [items])
+
+  const subtotal     = useMemo(() => items.reduce((s, i) => s + lineTot(i), 0), [items])
+  const activeCount  = useMemo(() => items.filter(i => i.status !== 'removed' && i.cost_type !== 'nil').length, [items])
+  const disputedItems = useMemo(() => items.filter(i => i.status === 'disputed'), [items])
+
+  // ── Inline edit ────────────────────────────────────────────────────────────
+
+  function startEdit(itemId, field, currentValue) {
+    if (!VALID_COLUMNS.has(field)) return
+    setEditingCell({ itemId, field })
+    setCellDraft(String(currentValue ?? ''))
+  }
+
+  async function commitEdit() {
+    if (!editingCell) return
+    const { itemId, field } = editingCell
+    const isNum = ['material_cost', 'labour_cost', 'qty'].includes(field)
+    const value = isNum ? (parseFloat(cellDraft) || 0) : cellDraft
+    setEditingCell(null)
+    setCellDraft('')
+    const prev = items.find(i => i.id === itemId)
+    if (!prev || prev[field] === value) return
+    setItems(p => p.map(i => i.id === itemId ? { ...i, [field]: value } : i))
+    const { error: err } = await supabase.from('estimate_items').update({ [field]: value }).eq('id', itemId)
+    if (err) {
+      setItems(p => p.map(i => i.id === itemId ? { ...i, [field]: prev[field] } : i))
+      console.error('[commitEdit]', err.message)
+      return
+    }
+    supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { item_id: itemId, field } }).then(() => {})
+  }
+
+  function cancelEdit() { setEditingCell(null); setCellDraft('') }
+  function isEditing(itemId, field) { return editingCell?.itemId === itemId && editingCell?.field === field }
+
+  // ── Row ops ────────────────────────────────────────────────────────────────
+
+  async function duplicateItem(itemId) {
+    const orig = items.find(i => i.id === itemId)
+    if (!orig) return
+    const { id: _, created_at: __, ...rest } = orig
+    const { data: newItem } = await supabase.from('estimate_items')
+      .insert({ ...rest, sort_order: maxSort(items) + 1, status: 'pending' })
+      .select().single()
+    if (newItem) {
+      setItems(p => [...p, newItem])
+      supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { action: 'duplicate', item_id: itemId } }).then(() => {})
+    }
+  }
+
+  async function removeItem(itemId) {
+    const prev = items.find(i => i.id === itemId)?.status
+    setItems(p => p.map(i => i.id === itemId ? { ...i, status: 'removed' } : i))
+    const { error: err } = await supabase.from('estimate_items').update({ status: 'removed' }).eq('id', itemId)
+    if (err) setItems(p => p.map(i => i.id === itemId ? { ...i, status: prev } : i))
+    else supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { action: 'remove', item_id: itemId } }).then(() => {})
+  }
+
+  async function restoreItem(itemId) {
+    setItems(p => p.map(i => i.id === itemId ? { ...i, status: 'pending' } : i))
+    const { error: err } = await supabase.from('estimate_items').update({ status: 'pending' }).eq('id', itemId)
+    if (err) setItems(p => p.map(i => i.id === itemId ? { ...i, status: 'removed' } : i))
+  }
+
+  async function setCostType(itemId, costType) {
+    setItems(p => p.map(i => i.id === itemId ? { ...i, cost_type: costType } : i))
+    await supabase.from('estimate_items').update({ cost_type: costType }).eq('id', itemId)
+    supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { item_id: itemId, field: 'cost_type', value: costType } }).then(() => {})
+  }
+
+  // ── Drawer ops ─────────────────────────────────────────────────────────────
+
+  function openAddDrawer() { setDrawerMode('add'); setDrawerTarget(null); setDrawerOpen(true) }
+  function openSwapDrawer(mode, itemId) { setDrawerMode(mode); setDrawerTarget(itemId); setDrawerOpen(true) }
+
+  async function handleSelectMaterial(r) {
+    if (drawerMode === 'add') {
+      const price = r ? invPrice(r) : 0
+      const row = {
+        estimate_id: id,
+        sort_order: maxSort(items) + 1,
+        trade: r?.trade || '',
+        item_name: r?.item_name || '',
+        area: '',
+        issue_description: '',
+        material_description: r ? `${r.item_name}${r.spec ? ` · ${r.spec}` : ''}${r.size ? ` · ${r.size}` : ''}` : '',
+        material_cost: price,
+        labour_description: '',
+        labour_cost: 0,
+        qty: 1,
+        cost_type: 'priced',
+        status: 'pending',
+      }
+      const { data: newItem } = await supabase.from('estimate_items').insert(row).select().single()
+      if (newItem) {
+        setItems(p => [...p, newItem])
+        supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { action: 'add_material', fxin: r?.fxin } }).then(() => {})
+      }
+    } else if (drawerMode === 'swap-material' && drawerTarget && r) {
+      const price = invPrice(r)
+      const desc  = `${r.item_name}${r.spec ? ` · ${r.spec}` : ''}${r.size ? ` · ${r.size}` : ''}`
+      setItems(p => p.map(i => i.id === drawerTarget ? { ...i, material_description: desc, material_cost: price } : i))
+      await supabase.from('estimate_items').update({ material_description: desc, material_cost: price }).eq('id', drawerTarget)
+      supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { action: 'swap_material', item_id: drawerTarget } }).then(() => {})
+    }
+    setDrawerOpen(false)
+  }
+
+  async function handleSelectLabour(r) {
+    if (!r) return
+    if (drawerMode === 'add') {
+      const row = {
+        estimate_id: id,
+        sort_order: maxSort(items) + 1,
+        trade: r.trade || '',
+        item_name: r.work_type || '',
+        area: '',
+        issue_description: '',
+        material_description: '',
+        material_cost: 0,
+        labour_description: `${r.work_type}${r.unit ? ` · per ${r.unit}` : ''}`,
+        labour_cost: r.cost_per_unit || 0,
+        qty: 1,
+        cost_type: 'priced',
+        status: 'pending',
+      }
+      const { data: newItem } = await supabase.from('estimate_items').insert(row).select().single()
+      if (newItem) {
+        setItems(p => [...p, newItem])
+        supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { action: 'add_labour', labour_id: r.id } }).then(() => {})
+      }
+    } else if (drawerMode === 'swap-labour' && drawerTarget) {
+      const desc = `${r.work_type}${r.unit ? ` · per ${r.unit}` : ''}`
+      setItems(p => p.map(i => i.id === drawerTarget ? { ...i, labour_description: desc, labour_cost: r.cost_per_unit || 0 } : i))
+      await supabase.from('estimate_items').update({ labour_description: desc, labour_cost: r.cost_per_unit || 0 }).eq('id', drawerTarget)
+      supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { action: 'swap_labour', item_id: drawerTarget } }).then(() => {})
+    }
+    setDrawerOpen(false)
+  }
+
+  // ── Notes ──────────────────────────────────────────────────────────────────
+
+  async function saveNotes() {
+    setSavingNotes(true)
+    await supabase.from('estimates').update({ notes: notesDraft }).eq('id', id)
+    setEstimate(p => ({ ...p, notes: notesDraft }))
+    setNotesEditing(false)
+    setSavingNotes(false)
+  }
+
+  // ── Regenerate ─────────────────────────────────────────────────────────────
+
+  async function handleRegenerate() {
+    if (!window.confirm('Regenerate will replace all items from the inspection, discarding manual edits. Continue?')) return
+    setGenerating(true)
+    const inspId = estimate?.inspection_id || await resolveInspectionWithData(estimate?.pid)
+    if (!inspId) { setGenerating(false); return }
+    await generateEstimate(inspId, estimate?.pid, userEmail)
+    await loadData()
+    setGenerating(false)
+  }
+
+  // ── Share ──────────────────────────────────────────────────────────────────
+
+  async function handleCopy(markSent = false) {
+    const shareUrl = estimate?.share_token
+      ? `${window.location.origin}/e/${estimate.share_token}`
+      : `${window.location.origin}/estimate/${id}`
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareUrl)
+      } else {
+        const ta = document.createElement('textarea')
+        ta.value = shareUrl; ta.style.cssText = 'position:fixed;opacity:0'
+        document.body.appendChild(ta); ta.focus(); ta.select()
+        document.execCommand('copy'); document.body.removeChild(ta)
+      }
+    } catch (_) {}
+    if (markSent && estimate?.status === 'draft') {
+      await supabase.from('estimates').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', id)
+      await supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'sent', actor: userEmail })
+      setEstimate(p => ({ ...p, status: 'sent' }))
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2200)
+  }
+
+  // ─── Early returns ────────────────────────────────────────────────────────
+
+  if (loading) return <LogoSpinner full />
+  if (error) return (
+    <div style={{ minHeight: '100svh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg, #16171f)', color: '#f87171', fontFamily: 'var(--font-mono, monospace)', fontSize: 13 }}>{error}</div>
+  )
+
+  const pid         = estimate?.pid || ''
+  const status      = estimate?.status || 'draft'
+  const statusColor = EST_STATUS_COLOR[status] || '#9898a4'
+  const shareUrl    = estimate?.share_token ? `${window.location.origin}/e/${estimate.share_token}` : null
+
+  // ─── Render helpers ───────────────────────────────────────────────────────
+
+  function cellInput(itemId, field, mono = false, type = 'text') {
+    return (
+      <input
+        autoFocus
+        type={type}
+        value={cellDraft}
+        onChange={e => setCellDraft(e.target.value)}
+        onBlur={commitEdit}
+        onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); e.stopPropagation() }}
+        onClick={e => e.stopPropagation()}
+        style={{
+          display: 'block', width: '100%', height: 36, padding: '0 8px',
+          background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)',
+          borderRadius: 0, color: 'var(--text, #e8e8f0)', fontSize: 13, outline: 'none',
+          fontFamily: mono ? 'var(--font-mono, monospace)' : 'inherit',
+        }}
+      />
+    )
+  }
+
+  function renderTextCell(item, field, mono = false, dimmed = false) {
+    const val        = item[field] ?? ''
+    const isRemoved  = item.status === 'removed'
+    if (isEditing(item.id, field)) {
+      return <td onClick={e => e.stopPropagation()} style={{ padding: 0 }}>{cellInput(item.id, field, mono)}</td>
+    }
+    return (
+      <td
+        onClick={e => { e.stopPropagation(); startEdit(item.id, field, val) }}
+        style={{ cursor: 'text', padding: 0 }}
+      >
+        <div style={{ padding: '0 8px', height: 36, display: 'flex', alignItems: 'center' }}>
+          <span style={{
+            fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            fontFamily: mono ? 'var(--font-mono, monospace)' : 'inherit',
+            color: val ? (dimmed ? 'var(--text-muted, #6b6d82)' : 'var(--text, #e8e8f0)') : '#3a3c4e',
+            textDecoration: isRemoved ? 'line-through' : 'none',
+            opacity: isRemoved ? 0.5 : 1,
+          }}>{val || '—'}</span>
+        </div>
+      </td>
+    )
+  }
+
+  function renderCostCell(item, descField, costField, label) {
+    const desc       = item[descField] || ''
+    const cost       = item[costField] || 0
+    const isRemoved  = item.status === 'removed'
+    const editDesc   = isEditing(item.id, descField)
+    const editCost   = isEditing(item.id, costField)
+    const isSwapMat  = costField === 'material_cost'
+
+    return (
+      <td style={{ padding: 0 }}>
+        <div className="wb-cost-wrap" style={{ padding: '3px 6px 3px 8px', minHeight: 36, opacity: isRemoved ? 0.45 : 1 }}>
+          {/* Description row */}
+          {editDesc ? (
+            <input autoFocus value={cellDraft} onChange={e => setCellDraft(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); e.stopPropagation() }}
+              onClick={e => e.stopPropagation()}
+              style={{ width: '100%', height: 17, padding: '0 4px', background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)', borderRadius: 2, color: 'var(--text, #e8e8f0)', fontSize: 11, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
             />
           ) : (
-            <div style={{ fontSize: 13, color: (quickNote?.note || estimateNotes) ? '#555' : '#aaa', whiteSpace: 'pre-wrap', fontFamily: 'Source Sans 3, sans-serif', lineHeight: 1.7, fontStyle: (quickNote?.note || estimateNotes) ? 'normal' : 'italic' }}>
-              {quickNote?.note || estimateNotes || 'No notes added.'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 17 }}>
+              <span
+                onClick={e => { e.stopPropagation(); startEdit(item.id, descField, desc) }}
+                style={{ fontSize: 11, color: desc ? 'var(--text-muted, #6b6d82)' : '#3a3c4e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'text', flex: 1, lineHeight: 1 }}
+              >{desc || `${label}…`}</span>
+              <span
+                className="wb-swap-btn"
+                title={`Swap ${label.toLowerCase()}`}
+                onClick={e => { e.stopPropagation(); openSwapDrawer(isSwapMat ? 'swap-material' : 'swap-labour', item.id) }}
+                style={{ flexShrink: 0, width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, borderRadius: 2, cursor: 'pointer', color: 'var(--text-muted, #6b6d82)', fontSize: 10, lineHeight: 1 }}
+              >⇄</span>
             </div>
           )}
-          {quickNote?.updated_at && !isEditing && !isEditingNotes && (
-            <div style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 10, color: '#999', marginTop: 6 }}>Last updated {fmtDate(quickNote.updated_at)}</div>
+          {/* Cost row */}
+          {editCost ? (
+            <input autoFocus type="number" value={cellDraft} onChange={e => setCellDraft(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); e.stopPropagation() }}
+              onClick={e => e.stopPropagation()}
+              style={{ width: '100%', height: 17, padding: '0 4px', background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)', borderRadius: 2, color: 'var(--text, #e8e8f0)', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', outline: 'none', marginTop: 1, boxSizing: 'border-box' }}
+            />
+          ) : (
+            <div
+              onClick={e => { e.stopPropagation(); startEdit(item.id, costField, cost) }}
+              style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: cost > 0 ? 'var(--text, #e8e8f0)' : '#3a3c4e', cursor: 'text', lineHeight: 1, marginTop: 1, textDecoration: isRemoved ? 'line-through' : 'none' }}
+            >{cost > 0 ? `₹${fmt(cost)}` : '₹0'}</div>
+          )}
+        </div>
+      </td>
+    )
+  }
+
+  function renderDesktopRow(item) {
+    const tot           = lineTot(item)
+    const isRemoved     = item.status === 'removed'
+    const itemStatColor = ITEM_STATUS_COLOR[item.status] || '#9898a4'
+
+    return (
+      <tr key={item.id} className="wb-row" style={{ borderBottom: '1px solid var(--border, #2e3040)' }}>
+        {/* Drag handle */}
+        <td style={{ padding: '0 4px', textAlign: 'center', color: '#333848', fontSize: 12, cursor: 'grab', userSelect: 'none' }}>⠿</td>
+
+        {/* Area */}
+        {renderTextCell(item, 'area', false, true)}
+
+        {/* Item name */}
+        {renderTextCell(item, 'item_name')}
+
+        {/* Description */}
+        {renderTextCell(item, 'issue_description')}
+
+        {/* Material */}
+        {renderCostCell(item, 'material_description', 'material_cost', 'Material')}
+
+        {/* Labour */}
+        {renderCostCell(item, 'labour_description', 'labour_cost', 'Labour')}
+
+        {/* Qty */}
+        <td onClick={e => { e.stopPropagation(); startEdit(item.id, 'qty', item.qty) }} style={{ padding: 0, cursor: 'text' }}>
+          {isEditing(item.id, 'qty') ? (
+            <input autoFocus type="number" value={cellDraft} onChange={e => setCellDraft(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); e.stopPropagation() }}
+              onClick={e => e.stopPropagation()}
+              style={{ display: 'block', width: '100%', height: 36, padding: '0 8px', background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)', borderRadius: 0, color: 'var(--text, #e8e8f0)', fontSize: 13, fontFamily: 'var(--font-mono, monospace)', outline: 'none' }}
+            />
+          ) : (
+            <div style={{ padding: '0 8px', height: 36, display: 'flex', alignItems: 'center', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: 'var(--text, #e8e8f0)', opacity: isRemoved ? 0.45 : 1 }}>
+              {item.qty || 1}
+            </div>
+          )}
+        </td>
+
+        {/* Cost type */}
+        <td onClick={e => e.stopPropagation()} style={{ padding: '0 3px' }}>
+          <div style={{ display: 'flex', gap: 2 }}>
+            {[['priced','P'], ['actuals','A'], ['nil','N']].map(([ct, label]) => (
+              <button key={ct} onClick={e => { e.stopPropagation(); setCostType(item.id, ct) }}
+                style={{ padding: '2px 5px', borderRadius: 3, border: 'none', cursor: 'pointer', fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', fontFamily: 'var(--font-mono, monospace)', background: item.cost_type === ct ? 'rgba(200,150,62,0.2)' : 'none', color: item.cost_type === ct ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', transition: 'all 0.1s' }}
+              >{label}</button>
+            ))}
+          </div>
+        </td>
+
+        {/* Total */}
+        <td style={{ padding: '0 8px', textAlign: 'right' }}>
+          <span style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, color: item.cost_type === 'actuals' ? 'var(--text-muted, #6b6d82)' : item.cost_type === 'nil' || isRemoved ? '#3a3c4e' : 'var(--accent, #c8963e)', textDecoration: isRemoved ? 'line-through' : 'none' }}>
+            {item.cost_type === 'actuals' ? 'act' : item.cost_type === 'nil' ? 'nil' : `₹${fmt(tot)}`}
+          </span>
+        </td>
+
+        {/* Status */}
+        <td style={{ padding: '0 5px' }}>
+          <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 100, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', background: `${itemStatColor}18`, color: itemStatColor, whiteSpace: 'nowrap' }}>
+            {item.status || 'pending'}
+          </span>
+        </td>
+
+        {/* Row actions ⋯ */}
+        <td style={{ padding: 0, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+          <button className="wb-more-btn"
+            onClick={e => {
+              e.stopPropagation()
+              const rect = e.currentTarget.getBoundingClientRect()
+              setOpenMenu({ itemId: item.id, status: item.status, x: rect.right - 148, y: rect.bottom + 4 })
+            }}
+            style={{ width: 28, height: 28, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted, #6b6d82)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, fontSize: 15, margin: '0 auto' }}
+          >⋯</button>
+        </td>
+      </tr>
+    )
+  }
+
+  function renderMobileCard(item) {
+    const tot           = lineTot(item)
+    const isRemoved     = item.status === 'removed'
+    const itemStatColor = ITEM_STATUS_COLOR[item.status] || '#9898a4'
+
+    function mField(field, label, type = 'text') {
+      const val = item[field] ?? ''
+      return (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted, #6b6d82)', marginBottom: 4, fontFamily: 'var(--font-mono, monospace)' }}>{label}</div>
+          {isEditing(item.id, field) ? (
+            <input autoFocus type={type} value={cellDraft} onChange={e => setCellDraft(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit() }}
+              style={{ width: '100%', padding: 10, fontSize: 16, background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)', borderRadius: 5, color: 'var(--text, #e8e8f0)', outline: 'none', fontFamily: type === 'number' ? 'var(--font-mono, monospace)' : 'inherit', boxSizing: 'border-box' }}
+            />
+          ) : (
+            <div onClick={() => startEdit(item.id, field, val)}
+              style={{ fontSize: 14, color: val ? 'var(--text, #e8e8f0)' : '#3a3c4e', padding: '9px 10px', background: 'var(--bg-input, #252731)', borderRadius: 5, cursor: 'text', minHeight: 42, display: 'flex', alignItems: 'center', fontFamily: type === 'number' ? 'var(--font-mono, monospace)' : 'inherit', textDecoration: isRemoved ? 'line-through' : 'none' }}
+            >{val || '—'}</div>
+          )}
+        </div>
+      )
+    }
+
+    return (
+      <div key={item.id} style={{ background: 'var(--bg, #16171f)', border: `1px solid ${isRemoved ? '#f8717133' : 'var(--border, #2e3040)'}`, borderRadius: 7, padding: 12, marginBottom: 8, opacity: isRemoved ? 0.65 : 1 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', textDecoration: isRemoved ? 'line-through' : 'none' }}>{item.item_name || '—'}</div>
+            <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 100, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, textTransform: 'uppercase', background: `${itemStatColor}18`, color: itemStatColor, display: 'inline-block', marginTop: 4 }}>{item.status || 'pending'}</span>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 15, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, color: 'var(--accent, #c8963e)' }}>
+              {item.cost_type === 'actuals' ? 'On actuals' : item.cost_type === 'nil' ? 'Nil' : `₹${fmt(tot)}`}
+            </div>
+          </div>
+        </div>
+
+        {mField('area', 'Area')}
+        {mField('issue_description', 'Description')}
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted, #6b6d82)', marginBottom: 4, fontFamily: 'var(--font-mono, monospace)' }}>Material ₹</div>
+            {isEditing(item.id, 'material_cost') ? (
+              <input autoFocus type="number" value={cellDraft} onChange={e => setCellDraft(e.target.value)} onBlur={commitEdit} onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit() }}
+                style={{ width: '100%', padding: 10, fontSize: 16, background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)', borderRadius: 5, color: 'var(--text, #e8e8f0)', outline: 'none', fontFamily: 'var(--font-mono, monospace)', boxSizing: 'border-box' }} />
+            ) : (
+              <div onClick={() => startEdit(item.id, 'material_cost', item.material_cost)} style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', padding: '9px 10px', background: 'var(--bg-input, #252731)', borderRadius: 5, cursor: 'text', minHeight: 42, display: 'flex', alignItems: 'center', fontFamily: 'var(--font-mono, monospace)' }}>₹{fmt(item.material_cost)}</div>
+            )}
+          </div>
+          <div>
+            <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted, #6b6d82)', marginBottom: 4, fontFamily: 'var(--font-mono, monospace)' }}>Labour ₹</div>
+            {isEditing(item.id, 'labour_cost') ? (
+              <input autoFocus type="number" value={cellDraft} onChange={e => setCellDraft(e.target.value)} onBlur={commitEdit} onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit() }}
+                style={{ width: '100%', padding: 10, fontSize: 16, background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)', borderRadius: 5, color: 'var(--text, #e8e8f0)', outline: 'none', fontFamily: 'var(--font-mono, monospace)', boxSizing: 'border-box' }} />
+            ) : (
+              <div onClick={() => startEdit(item.id, 'labour_cost', item.labour_cost)} style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', padding: '9px 10px', background: 'var(--bg-input, #252731)', borderRadius: 5, cursor: 'text', minHeight: 42, display: 'flex', alignItems: 'center', fontFamily: 'var(--font-mono, monospace)' }}>₹{fmt(item.labour_cost)}</div>
+            )}
+          </div>
+        </div>
+
+        {/* Cost type */}
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted, #6b6d82)', marginBottom: 5, fontFamily: 'var(--font-mono, monospace)' }}>Cost Type</div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {['priced', 'actuals', 'nil'].map(ct => (
+              <button key={ct} onClick={() => setCostType(item.id, ct)}
+                style={{ flex: 1, padding: '10px 0', minHeight: 44, borderRadius: 5, border: `1px solid ${item.cost_type === ct ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, cursor: 'pointer', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', fontFamily: 'var(--font-mono, monospace)', background: item.cost_type === ct ? 'rgba(200,150,62,0.12)' : 'none', color: item.cost_type === ct ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)' }}
+              >{ct}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Swap buttons */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          <button onClick={() => openSwapDrawer('swap-material', item.id)}
+            style={{ flex: 1, padding: '8px 0', minHeight: 40, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>⇄ Material</button>
+          <button onClick={() => openSwapDrawer('swap-labour', item.id)}
+            style={{ flex: 1, padding: '8px 0', minHeight: 40, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>⇄ Labour</button>
+        </div>
+
+        {/* Row actions */}
+        <div style={{ display: 'flex', gap: 6, paddingTop: 8, borderTop: '1px solid var(--border, #2e3040)' }}>
+          <button onClick={() => duplicateItem(item.id)} style={{ flex: 1, padding: '10px 0', minHeight: 44, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Duplicate</button>
+          {isRemoved
+            ? <button onClick={() => restoreItem(item.id)} style={{ flex: 1, padding: '10px 0', minHeight: 44, background: 'none', border: '1px solid #4dd9c0', borderRadius: 5, fontSize: 11, color: '#4dd9c0', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Restore</button>
+            : <button onClick={() => removeItem(item.id)} style={{ flex: 1, padding: '10px 0', minHeight: 44, background: 'none', border: '1px solid #f87171', borderRadius: 5, fontSize: 11, color: '#f87171', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Remove</button>
+          }
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Main render ──────────────────────────────────────────────────────────
+
+  return (
+    <div
+      style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}
+      onClick={() => { if (editingCell) commitEdit(); if (openMenu) setOpenMenu(null); if (moreOpen) setMoreOpen(false) }}
+    >
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+
+      {/* ── Toolbar ── */}
+      <div className="wb-toolbar" onClick={e => e.stopPropagation()}>
+        <div className="wb-toolbar-left">
+          <button className="wb-back-btn" onClick={() => navigate(`/properties/${pid}/estimates`)}>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path d="M8 2L3 6.5 8 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          <span className="wb-pid">PID {pid}</span>
+          {inspection?.house_type && <span className="wb-ver">· {inspection.house_type}</span>}
+          <span className="wb-ver">v{versionCount}</span>
+          <span className="wb-schip" style={{ background: `${statusColor}18`, color: statusColor }}>{status}</span>
+        </div>
+        <div className="wb-totals">
+          <span className="wb-tval">₹{fmt(subtotal)}</span>
+          <span className="wb-tcnt">{activeCount} items</span>
+        </div>
+        <div className="wb-toolbar-right">
+          {!isMobile ? (
+            <>
+              <button className="wb-tbtn wb-outline" onClick={handleRegenerate} disabled={generating}>{generating ? '…' : '↺ Regen'}</button>
+              <button className="wb-tbtn wb-outline" onClick={e => { e.stopPropagation(); setNotesEditing(true) }}>Notes</button>
+              {shareUrl && <button className="wb-tbtn wb-outline" onClick={() => window.open(shareUrl, '_blank')}>Preview ↗</button>}
+              {shareUrl && (
+                <button className="wb-tbtn wb-outline" onClick={e => { e.stopPropagation(); handleCopy(false) }}>
+                  {copied ? '✓ Copied' : 'Copy link'}
+                </button>
+              )}
+              <button className="wb-tbtn wb-accent" onClick={e => { e.stopPropagation(); handleCopy(true) }}>
+                {copied ? '✓ Sent!' : 'Send ↗'}
+              </button>
+            </>
+          ) : (
+            <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+              <button className="wb-tbtn wb-outline" onClick={() => setMoreOpen(p => !p)}>⋯</button>
+              {moreOpen && (
+                <>
+                  <div onClick={() => setMoreOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 100 }} />
+                  <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, zIndex: 101, minWidth: 168, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                    {[
+                      { label: '↺ Regenerate', fn: () => { setMoreOpen(false); handleRegenerate() } },
+                      { label: 'Edit Notes', fn: () => { setMoreOpen(false); setNotesEditing(true) } },
+                      shareUrl && { label: 'Preview ↗', fn: () => { setMoreOpen(false); window.open(shareUrl, '_blank') } },
+                      shareUrl && { label: 'Copy link', fn: () => { setMoreOpen(false); handleCopy(false) } },
+                      { label: 'Send to landlord', fn: () => { setMoreOpen(false); handleCopy(true) }, accent: true },
+                    ].filter(Boolean).map((item, i) => (
+                      <button key={i} onClick={item.fn}
+                        style={{ display: 'block', width: '100%', padding: '11px 14px', minHeight: 44, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, textAlign: 'left', fontFamily: 'var(--font-mono, monospace)', color: item.accent ? 'var(--accent, #c8963e)' : 'var(--text, #e8e8f0)', borderBottom: i < 3 ? '1px solid var(--border, #2e3040)' : 'none' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+                      >{item.label}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Content ── */}
+      <div className="wb-content">
+
+        {/* Trade groups */}
+        {tradeGroups.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted, #6b6d82)', fontSize: 13 }}>
+            <div style={{ marginBottom: 16 }}>No items yet.</div>
+            <button onClick={openAddDrawer}
+              style={{ padding: '10px 20px', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 6, color: '#000', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
+            >+ Add First Item</button>
+          </div>
+        ) : (
+          <>
+            {tradeGroups.map(({ trade, rows, total, activeCount: ac }) => {
+              const isCollapsed = collapsed.has(trade)
+              const color       = tc(trade)
+              return (
+                <div key={trade} style={{ marginBottom: 10 }}>
+                  {/* Trade header */}
+                  <div
+                    onClick={e => { e.stopPropagation(); setCollapsed(prev => { const n = new Set(prev); isCollapsed ? n.delete(trade) : n.add(trade); return n }) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', cursor: 'pointer', userSelect: 'none', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: isCollapsed ? 7 : '7px 7px 0 0', borderLeft: `3px solid ${color}` }}
+                  >
+                    <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', display: 'inline-block', lineHeight: 1, transition: 'transform 0.15s', transform: isCollapsed ? 'none' : 'rotate(90deg)' }}>▶</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text, #e8e8f0)', flex: 1 }}>{trade}</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{ac} items</span>
+                    <span style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, color: total > 0 ? color : 'var(--text-muted, #6b6d82)' }}>₹{fmt(total)}</span>
+                  </div>
+
+                  {/* Items */}
+                  {!isCollapsed && (isMobile ? (
+                    <div style={{ border: '1px solid var(--border, #2e3040)', borderTop: 'none', borderRadius: '0 0 7px 7px', padding: '8px', background: 'var(--bg-panel, #1e2028)' }}>
+                      {rows.map(item => renderMobileCard(item))}
+                    </div>
+                  ) : (
+                    <div style={{ border: '1px solid var(--border, #2e3040)', borderTop: 'none', borderRadius: '0 0 7px 7px', overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+                        <colgroup>
+                          <col style={{ width: 26 }} />
+                          <col style={{ width: 78 }} />
+                          <col style={{ width: 114 }} />
+                          <col />
+                          <col style={{ width: 142 }} />
+                          <col style={{ width: 142 }} />
+                          <col style={{ width: 48 }} />
+                          <col style={{ width: 82 }} />
+                          <col style={{ width: 74 }} />
+                          <col style={{ width: 76 }} />
+                          <col style={{ width: 36 }} />
+                        </colgroup>
+                        <thead>
+                          <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border, #2e3040)' }}>
+                            {['', 'Area', 'Item', 'Description', 'Material', 'Labour', 'Qty', 'Type', 'Total', 'Status', ''].map((h, i) => (
+                              <th key={i} style={{ padding: '5px 8px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted, #6b6d82)', textAlign: i === 8 ? 'right' : 'left', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map(item => renderDesktopRow(item))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              )
+            })}
+
+            {/* Add item */}
+            <button onClick={e => { e.stopPropagation(); openAddDrawer() }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent, #c8963e)'; e.currentTarget.style.color = 'var(--accent, #c8963e)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border, #2e3040)'; e.currentTarget.style.color = 'var(--text-muted, #6b6d82)' }}
+              style={{ marginTop: 6, padding: '7px 14px', height: 34, background: 'none', border: '1px dashed var(--border, #2e3040)', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s' }}
+            >+ Add item</button>
+          </>
+        )}
+
+        {/* Notes card */}
+        <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Notes & Terms</span>
+            {notesEditing ? (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => { setNotesEditing(false); setNotesDraft(estimate?.notes || '') }} style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 0 }}>Cancel</button>
+                <button onClick={saveNotes} disabled={savingNotes} style={{ fontSize: 11, color: 'var(--accent, #c8963e)', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 0 }}>{savingNotes ? 'Saving…' : 'Save'}</button>
+              </div>
+            ) : (
+              <button onClick={e => { e.stopPropagation(); setNotesEditing(true) }} style={{ fontSize: 11, color: 'var(--accent, #c8963e)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 0 }}>Edit</button>
+            )}
+          </div>
+          {notesEditing ? (
+            <textarea
+              value={notesDraft}
+              onChange={e => setNotesDraft(e.target.value)}
+              onClick={e => e.stopPropagation()}
+              placeholder="Notes for the landlord (terms, scope exclusions, validity period)…"
+              style={{ width: '100%', minHeight: 90, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text, #e8e8f0)', fontSize: 13, padding: '8px 10px', resize: 'vertical', outline: 'none', fontFamily: 'var(--font-sans, Poppins, sans-serif)', boxSizing: 'border-box' }}
+              onFocus={e => { e.target.style.borderColor = 'var(--accent, #c8963e)' }}
+              onBlur={e => { e.target.style.borderColor = 'var(--border, #2e3040)' }}
+            />
+          ) : (
+            <div style={{ fontSize: 13, color: estimate?.notes ? 'var(--text-muted, #6b6d82)' : '#3a3c4e', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontStyle: estimate?.notes ? 'normal' : 'italic' }}>
+              {estimate?.notes || 'No notes — click Edit to add.'}
+            </div>
           )}
         </div>
 
-        {/* ── COST SUMMARY ── */}
-        <div className="er-cost-block">
-          <div className="er-cs-head">
-            <span className="er-cs-title">Cost Summary</span>
-            {pid && <span className="er-cs-pid">PID {pid}</span>}
+        {/* Disputes */}
+        {disputedItems.length > 0 && (
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#f0a050', fontFamily: 'var(--font-mono, monospace)', marginBottom: 10 }}>
+              Disputes ({disputedItems.length})
+            </div>
+            {disputedItems.map(item => (
+              <div key={item.id} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(240,160,80,0.35)', borderRadius: 8, padding: 14, marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', marginBottom: 2 }}>{item.item_name || '—'}</div>
+                    {item.issue_description && <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', lineHeight: 1.5 }}>{item.issue_description}</div>}
+                    <div style={{ display: 'flex', gap: 5, marginTop: 6 }}>
+                      {item.area  && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 3, background: 'var(--bg-input, #252731)', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{item.area}</span>}
+                      {item.trade && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 3, background: 'var(--bg-input, #252731)', color: tc(item.trade), fontFamily: 'var(--font-mono, monospace)' }}>{item.trade}</span>}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>₹{fmt(lineTot(item))}</div>
+                    <div style={{ fontSize: 10, color: '#f0a050', marginTop: 2 }}>⚑ disputed</div>
+                  </div>
+                </div>
+                <DisputeThread itemId={item.id} estimateId={id} item={item} userEmail={userEmail} onResolve={loadData} />
+              </div>
+            ))}
           </div>
-          <div className="er-cs-row">
-            <span className="er-cs-lbl">Material</span>
-            <span className="er-cs-val">₹{fmt(totalMaterial)}</span>
-          </div>
-          <div className="er-cs-row">
-            <span className="er-cs-lbl">Labour</span>
-            <span className="er-cs-val">₹{fmt(totalLabour)}</span>
-          </div>
-          <hr className="er-cs-rule" />
-          <div className="er-grand-row">
-            <span className="er-grand-lbl">Grand Total</span>
-            <span className="er-grand-val">₹{fmt(grandTotal)}</span>
-          </div>
-        </div>
-
-        {/* ── FOOTER ── */}
-        <div className="er-footer">
-          <p className="er-disclaimer">
-            Costs estimated basis site inspection and prevailing Bangalore market rates. Final figures may vary subject to actual site conditions. This estimate is valid for 30 days from issue date. Work to commence only upon written approval from the property owner.
-          </p>
-          <a href="/inventory/public-rc" target="_blank" rel="noopener noreferrer" className="er-rate-link no-print" style={{ color: '#c8963e' }}>
-            View Flent Rate Card →
-          </a>
-          <div className="er-prepared">
-            Prepared by Flent Operations · ops@flent.in · flent.in
-          </div>
-        </div>
-
+        )}
       </div>
+
+      {/* ── Row menu ── */}
+      {openMenu && (
+        <>
+          <div onClick={() => setOpenMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 9000 }} />
+          <div style={{ position: 'fixed', top: openMenu.y, left: openMenu.x, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', zIndex: 9001, minWidth: 148, overflow: 'hidden' }}>
+            <button onClick={() => { duplicateItem(openMenu.itemId); setOpenMenu(null) }}
+              style={{ display: 'block', width: '100%', padding: '9px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, textAlign: 'left', fontFamily: 'inherit', color: 'var(--text, #e8e8f0)' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+            >Duplicate</button>
+            {openMenu.status === 'removed' ? (
+              <button onClick={() => { restoreItem(openMenu.itemId); setOpenMenu(null) }}
+                style={{ display: 'block', width: '100%', padding: '9px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, textAlign: 'left', fontFamily: 'inherit', color: '#4dd9c0', borderTop: '1px solid var(--border, #2e3040)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+              >Restore</button>
+            ) : (
+              <button onClick={() => { removeItem(openMenu.itemId); setOpenMenu(null) }}
+                style={{ display: 'block', width: '100%', padding: '9px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, textAlign: 'left', fontFamily: 'inherit', color: '#f87171', borderTop: '1px solid var(--border, #2e3040)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+              >Remove</button>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── Rate drawer ── */}
+      <RateDrawer
+        open={drawerOpen}
+        mode={drawerMode}
+        onClose={() => setDrawerOpen(false)}
+        onSelectMaterial={handleSelectMaterial}
+        onSelectLabour={handleSelectLabour}
+        isMobile={isMobile}
+      />
     </div>
   )
 }
