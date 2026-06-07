@@ -26,11 +26,10 @@ function WaveIcon() {
 
 export default function LogoSpinner({ full = false }) {
   return (
-    <div style={full ? {
-      minHeight: '100svh', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', background: 'var(--bg, #16171f)',
-    } : {
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 0',
+    <div style={{
+      minHeight: full ? '100svh' : 'calc(100svh - 120px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: full ? 'var(--bg, #16171f)' : 'transparent',
     }}>
       <WaveIcon />
     </div>
