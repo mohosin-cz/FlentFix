@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
 import DisputeThread from '../components/DisputeThread'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const STATUS_COLOR = {
   draft:              '#9898a4',
@@ -62,6 +63,7 @@ export default function EstimateWorkspace() {
   const [userEmail, setUserEmail]   = useState(null)
   const [copied, setCopied]         = useState(false)
   const [activeTab, setActiveTab]   = useState('overview') // 'overview' | 'disputes'
+  const isMobile = useIsMobile()
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -231,33 +233,36 @@ export default function EstimateWorkspace() {
                   </div>
                 </div>
 
-                {/* 4-stat row */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderBottom: '1px solid var(--border, #2e3040)' }}>
+                {/* 4-stat row — 2×2 on mobile */}
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', borderBottom: '1px solid var(--border, #2e3040)' }}>
                   {[
                     { label: 'Items',    value: stats.count,    color: undefined },
                     { label: 'Approved', value: stats.approved, color: stats.approved > 0 ? '#4dd9c0' : undefined },
                     { label: 'Disputed', value: stats.disputed, color: stats.disputed > 0 ? '#f0a050' : undefined },
                     { label: 'Pending',  value: stats.pending,  color: stats.pending > 0  ? 'var(--text, #e8e8f0)' : undefined },
                   ].map((s, i) => (
-                    <div key={s.label} style={{ borderRight: i < 3 ? '1px solid var(--border, #2e3040)' : 'none' }}>
+                    <div key={s.label} style={{
+                      borderRight: isMobile ? (i % 2 === 0 ? '1px solid var(--border, #2e3040)' : 'none') : (i < 3 ? '1px solid var(--border, #2e3040)' : 'none'),
+                      borderBottom: isMobile && i < 2 ? '1px solid var(--border, #2e3040)' : 'none',
+                    }}>
                       <StatBox label={s.label} value={s.value} color={s.color} />
                     </div>
                   ))}
                 </div>
 
                 {/* Action buttons */}
-                <div style={{ padding: '12px 20px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ padding: '12px 20px', display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill, minmax(120px, auto))', gap: 8 }}>
                   <button
                     onClick={() => navigate(`/estimate/${current.id}`)}
-                    style={{ padding: '8px 16px', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, color: '#000', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
+                    style={{ padding: '8px 16px', minHeight: 44, background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, color: '#000', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
                   >
-                    Open Estimate →
+                    Open →
                   </button>
                   <button
                     onClick={() => navigate(`/estimate/${current.id}?edit=1`)}
-                    style={{ padding: '8px 16px', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 6, fontSize: 12, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
+                    style={{ padding: '8px 16px', minHeight: 44, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 6, fontSize: 12, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
                   >
-                    Edit Items
+                    Edit
                   </button>
                   {current.share_token && (
                     <button
@@ -277,15 +282,15 @@ export default function EstimateWorkspace() {
                           setEstimates(prev => prev.map(e => e.id === current.id ? { ...e, status: 'sent' } : e))
                         }
                       }}
-                      style={{ padding: '8px 16px', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 6, fontSize: 12, color: copied ? '#4dd9c0' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', transition: 'color 0.2s' }}
+                      style={{ padding: '8px 16px', minHeight: 44, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 6, fontSize: 12, color: copied ? '#4dd9c0' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', transition: 'color 0.2s' }}
                     >
-                      {copied ? '✓ Copied!' : '↗ Copy Landlord Link'}
+                      {copied ? '✓ Copied!' : '↗ Share Link'}
                     </button>
                   )}
                   {(current.estimate_disputes?.[0]?.count || 0) > 0 && (
                     <button
-                      onClick={() => navigate(`/estimate/${current.id}?tab=disputes`)}
-                      style={{ padding: '8px 16px', background: 'none', border: '1px solid #f0a050', borderRadius: 6, fontSize: 12, color: '#f0a050', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
+                      onClick={() => { setActiveTab('disputes') }}
+                      style={{ padding: '8px 16px', minHeight: 44, background: 'none', border: '1px solid #f0a050', borderRadius: 6, fontSize: 12, color: '#f0a050', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
                     >
                       Disputes ({current.estimate_disputes[0].count})
                     </button>
@@ -299,8 +304,8 @@ export default function EstimateWorkspace() {
               const disputedItems = (current?.estimate_items || []).filter(i => i.status === 'disputed')
               const disputeCount  = disputedItems.length
               const tabStyle = (key) => ({
-                padding: '8px 16px', background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 12, fontFamily: 'var(--font-mono, monospace)',
+                padding: '10px 16px', minHeight: 44, background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 13, fontFamily: 'var(--font-mono, monospace)',
                 color: activeTab === key ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)',
                 borderBottom: activeTab === key ? '2px solid var(--accent, #c8963e)' : '2px solid transparent',
                 transition: 'color 0.15s',
@@ -355,7 +360,7 @@ export default function EstimateWorkspace() {
             })()}
 
             {/* ── Two-column bottom (overview tab only) ── */}
-            {activeTab === 'overview' && <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth > 640 ? '1fr 1fr' : '1fr', gap: 16 }}>
+            {activeTab === 'overview' && <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
 
               {/* Activity timeline */}
               <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, overflow: 'hidden' }}>

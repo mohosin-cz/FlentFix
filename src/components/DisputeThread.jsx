@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const REASON_LABELS = {
   not_needed:    'Not needed',
@@ -15,6 +16,7 @@ const pill = {
 }
 
 export default function DisputeThread({ itemId, estimateId, item, userEmail, onResolve }) {
+  const isMobile = useIsMobile()
   const [messages, setMessages]   = useState([])
   const [reply, setReply]         = useState('')
   const [sending, setSending]     = useState(false)
@@ -130,18 +132,18 @@ export default function DisputeThread({ itemId, estimateId, item, userEmail, onR
             style={{
               width: '100%', resize: 'none', minHeight: 64,
               background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)',
-              borderRadius: 6, padding: '8px 10px', fontSize: 12,
+              borderRadius: 6, padding: '8px 10px', fontSize: 16,
               color: 'var(--text, #e8e8f0)', outline: 'none',
               fontFamily: 'var(--font-sans, Poppins, sans-serif)',
             }}
             onFocus={e => { e.target.style.borderColor = 'var(--accent, #c8963e)' }}
             onBlur={e  => { e.target.style.borderColor = 'var(--border, #2e3040)' }}
           />
-          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 6, marginTop: 6 }}>
             <button
               onClick={handleReply}
               disabled={sending || !reply.trim()}
-              style={{ padding: '5px 14px', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 700, color: '#000', cursor: sending ? 'wait' : 'pointer', opacity: !reply.trim() ? 0.4 : 1 }}
+              style={{ padding: isMobile ? '12px' : '5px 14px', minHeight: isMobile ? 44 : undefined, width: isMobile ? '100%' : undefined, background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 5, fontSize: isMobile ? 14 : 11, fontWeight: 700, color: '#000', cursor: sending ? 'wait' : 'pointer', opacity: !reply.trim() ? 0.4 : 1 }}
             >
               {sending ? 'Sending…' : 'Send reply'}
             </button>
@@ -158,7 +160,7 @@ export default function DisputeThread({ itemId, estimateId, item, userEmail, onR
           {reviseMode ? (
             <div style={{ background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, padding: 10 }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginBottom: 8 }}>Revise costs</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                 {[
                   { label: 'Material ₹', val: revisedMat, set: setRevisedMat },
                   { label: 'Labour ₹',   val: revisedLab, set: setRevisedLab },
@@ -167,34 +169,34 @@ export default function DisputeThread({ itemId, estimateId, item, userEmail, onR
                     <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)' }}>{label}</span>
                     <input
                       type="number" value={val} onChange={e => set(e.target.value)}
-                      style={{ padding: '6px 8px', background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 12, color: 'var(--text, #e8e8f0)', outline: 'none', width: '100%' }}
+                      style={{ padding: '10px 8px', background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 16, color: 'var(--text, #e8e8f0)', outline: 'none', width: '100%' }}
                     />
                   </label>
                 ))}
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 6 }}>
                 <button onClick={() => handleResolve('revise')} disabled={resolving}
-                  style={{ padding: '5px 14px', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 700, color: '#000', cursor: 'pointer' }}>
+                  style={{ padding: isMobile ? '12px' : '5px 14px', minHeight: isMobile ? 44 : undefined, background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 5, fontSize: isMobile ? 14 : 11, fontWeight: 700, color: '#000', cursor: 'pointer' }}>
                   {resolving ? '…' : 'Save & Resolve'}
                 </button>
                 <button onClick={() => setReviseMode(false)}
-                  style={{ padding: '5px 10px', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer' }}>
+                  style={{ padding: isMobile ? '12px' : '5px 10px', minHeight: isMobile ? 44 : undefined, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: isMobile ? 14 : 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer' }}>
                   Cancel
                 </button>
               </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 6, flexWrap: 'wrap' }}>
               <button onClick={() => setReviseMode(true)}
-                style={{ padding: '5px 12px', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text, #e8e8f0)', cursor: 'pointer' }}>
+                style={{ padding: isMobile ? '12px' : '5px 12px', minHeight: isMobile ? 44 : undefined, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: isMobile ? 14 : 11, color: 'var(--text, #e8e8f0)', cursor: 'pointer' }}>
                 ✏ Revise price
               </button>
               <button onClick={() => handleResolve('resolve')} disabled={resolving}
-                style={{ padding: '5px 12px', background: 'none', border: '1px solid #4dd9c0', borderRadius: 5, fontSize: 11, color: '#4dd9c0', cursor: 'pointer' }}>
+                style={{ padding: isMobile ? '12px' : '5px 12px', minHeight: isMobile ? 44 : undefined, background: 'none', border: '1px solid #4dd9c0', borderRadius: 5, fontSize: isMobile ? 14 : 11, color: '#4dd9c0', cursor: 'pointer' }}>
                 {resolving ? '…' : '✓ Mark resolved'}
               </button>
               <button onClick={() => { if (window.confirm('Remove this item from the estimate?')) handleResolve('remove') }} disabled={resolving}
-                style={{ padding: '5px 12px', background: 'none', border: '1px solid #f87171', borderRadius: 5, fontSize: 11, color: '#f87171', cursor: 'pointer' }}>
+                style={{ padding: isMobile ? '12px' : '5px 12px', minHeight: isMobile ? 44 : undefined, background: 'none', border: '1px solid #f87171', borderRadius: 5, fontSize: isMobile ? 14 : 11, color: '#f87171', cursor: 'pointer' }}>
                 ✕ Remove item
               </button>
             </div>

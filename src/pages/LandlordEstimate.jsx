@@ -329,7 +329,7 @@ const CSS = `
   .le-dispute-textarea {
     width: 100%; resize: vertical;
     border: 1px solid #D4CFC6; border-radius: 4px;
-    padding: 8px 10px; font-size: 12px; color: #1E1E1E;
+    padding: 8px 10px; font-size: 16px; color: #1E1E1E;
     font-family: 'Source Sans 3', sans-serif;
     background: #fff; outline: none; margin-bottom: 10px;
     min-height: 64px;
@@ -427,7 +427,7 @@ const CSS = `
   }
   .le-name-input {
     width: 100%; border: 1px solid #D4CFC6; border-radius: 6px;
-    padding: 10px 14px; font-size: 14px; color: #1E1E1E;
+    padding: 10px 14px; font-size: 16px; color: #1E1E1E;
     font-family: 'Source Sans 3', sans-serif; outline: none;
     margin-bottom: 14px;
   }
@@ -453,16 +453,85 @@ const CSS = `
   }
 
   /* ── Responsive ── */
-  @media (max-width: 600px) {
-    .le-header { padding: 18px 20px 16px; }
-    .le-summary { padding: 14px 20px; gap: 20px; }
-    .le-banner  { padding: 12px 20px; }
-    .le-area-head { padding: 12px 20px 10px; }
-    .le-item    { padding: 18px 20px; }
+  @media (max-width: 640px) {
+    .le-header { padding: 16px 16px 14px; }
     .le-doc-title { font-size: 17px; }
-    .le-sum-num { font-size: 18px; }
-    .le-bottom-bar { padding: 12px 16px; }
-    .le-btn-approve-all { padding: 10px 18px; font-size: 13px; }
+
+    /* Meta strip: 2-column grid */
+    .le-meta-strip {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 16px;
+    }
+    .le-meta-item { border-right: none; margin-right: 0; padding-right: 0; }
+
+    /* Summary strip: hide separators, 2-column grid, total full-width */
+    .le-summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 20px;
+      padding: 14px 16px;
+    }
+    .le-sum-sep { display: none; }
+    .le-sum-total { grid-column: 1 / -1; }
+    .le-sum-num { font-size: 20px; }
+
+    .le-banner  { padding: 12px 16px; }
+    .le-area-head { padding: 12px 16px 10px; }
+
+    /* Item card */
+    .le-item { padding: 16px 16px; }
+
+    /* Cost boxes stack vertically */
+    .le-cost-row { flex-direction: column; }
+    .le-cost-cell { min-width: unset; }
+
+    /* Photos */
+    .le-photos { gap: 6px; }
+    .le-photo { width: 72px; height: 54px; }
+
+    /* Action buttons: full-width, 44px min height */
+    .le-actions { flex-direction: column; }
+    .le-btn-approve,
+    .le-btn-dispute,
+    .le-btn-approved-badge,
+    .le-btn-disputed-badge {
+      width: 100%;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+    }
+
+    /* Dispute form reason tags: easy tap */
+    .le-reason-tags { gap: 8px; }
+    .le-reason-tag {
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    /* Dispute textarea font ≥16px (prevents iOS zoom) */
+    .le-dispute-textarea { font-size: 16px; }
+
+    /* Bottom bar: stack total above full-width button */
+    .le-bottom-bar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+      padding: 12px 16px;
+      padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    }
+    .le-btn-approve-all {
+      width: 100%;
+      padding: 14px;
+      font-size: 15px;
+    }
+
+    /* Name modal input ≥16px */
+    .le-name-input { font-size: 16px; }
   }
 `
 
@@ -813,7 +882,7 @@ export default function LandlordEstimate() {
           ].map((s, i) =>
             s === null
               ? <div key={i} className="le-sum-sep" />
-              : <div key={s.lbl} className="le-sum-item">
+              : <div key={s.lbl} className={`le-sum-item${s.lbl === 'Total Estimate' ? ' le-sum-total' : ''}`}>
                   <div className="le-sum-num" style={s.color ? { color: s.color } : {}}>{s.num}</div>
                   <div className="le-sum-lbl">{s.lbl}</div>
                 </div>
