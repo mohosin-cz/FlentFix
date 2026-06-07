@@ -91,25 +91,23 @@ export default function Properties() {
       const properties  = props || []
       const deletedPids = new Set((binRows || []).map(r => r.pid))
 
-      const map = new Map()
-      inspections
-        .filter(i => !deletedPids.has(i.pid))
-        .forEach(i => {
-          if (!map.has(i.pid)) {
-            map.set(i.pid, { pid: i.pid, name: null, house_type: i.house_type, inspection_date: i.inspection_date, status: i.status })
-          }
-        })
-      properties.forEach(p => {
-        map.set(p.pid, {
-          pid:             p.pid,
-          name:            p.name,
-          house_type:      p.type || map.get(p.pid)?.house_type,
-          inspection_date: map.get(p.pid)?.inspection_date,
-          status:          map.get(p.pid)?.status,
-        })
-      })
+      const pidMap = new Map()
+      // Build from inspections first — authoritative source for all PIDs
+      for (const insp of inspections) {
+        if (deletedPids.has(insp.pid)) continue
+        if (!pidMap.has(insp.pid)) {
+          pidMap.set(insp.pid, { pid: insp.pid, type: insp.house_type, inspection_date: insp.inspection_date, status: insp.status })
+        }
+      }
+      // Layer in properties metadata without dropping any PID
+      for (const p of properties) {
+        if (deletedPids.has(p.pid)) continue
+        pidMap.set(p.pid, { ...(pidMap.get(p.pid) || { pid: p.pid }), name: p.name, address: p.address, type: (pidMap.get(p.pid)?.type) || p.type })
+      }
+      const allProperties = [...pidMap.values()]
+      console.log('PROPERTIES LIST COUNT:', allProperties.length)
 
-      setRows([...map.values()])
+      setRows(allProperties)
       setBinCount(binRows?.length || 0)
       setLoading(false)
     })
@@ -144,7 +142,7 @@ export default function Properties() {
     await supabase.from('properties_bin').insert({
       pid:           confirmPid,
       name:          prop?.name || confirmPid,
-      type:          prop?.house_type,
+      type:          prop?.type,
       deleted_by:    deletedBy,
       original_data: prop,
     })
@@ -253,7 +251,7 @@ export default function Properties() {
                 >
                   <div style={s.cardTop}>
                     <div style={s.pidText}>PID {row.pid}</div>
-                    {row.house_type && <span style={s.houseTypeBadge}>{titleCase(row.house_type)}</span>}
+                    {row.type && <span style={s.houseTypeBadge}>{titleCase(row.type)}</span>}
                     <div style={s.dateLine}>last: {fmtDate(row.inspection_date)}</div>
                   </div>
                   <div style={s.cardBottom}>

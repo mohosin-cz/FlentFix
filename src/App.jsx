@@ -37,6 +37,7 @@ import SOPs from './pages/SOPs'
 import SOPSetup from './pages/SOPSetup'
 
 function migrateLocalNotes() {
+  if (localStorage.getItem('_flent_notes_migrated')) return
   const keys = Object.keys(localStorage).filter(k => k.startsWith('flent_quick_notes_'))
   for (const key of keys) {
     const pid  = key.replace('flent_quick_notes_', '')
@@ -45,6 +46,7 @@ function migrateLocalNotes() {
       supabase.from('quick_notes').upsert({ pid, note }, { onConflict: 'pid' }).then(() => {})
     }
   }
+  localStorage.setItem('_flent_notes_migrated', '1')
 }
 
 export default function App() {
