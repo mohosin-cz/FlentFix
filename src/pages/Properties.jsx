@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
+import LogoSpinner from '../components/LogoSpinner'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -212,7 +213,7 @@ export default function Properties() {
       {/* Grid */}
       <main style={s.main}>
         {loading ? (
-          <div style={s.empty}>Loading…</div>
+          <LogoSpinner />
         ) : filtered.length === 0 ? (
           <div style={s.empty}>{search ? '// no matches found' : '// no properties yet'}</div>
         ) : (

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { Chart, registerables } from 'chart.js'
+import LogoSpinner from '../components/LogoSpinner'
 Chart.register(...registerables)
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -327,11 +328,7 @@ export default function RawInspectionData() {
     URL.revokeObjectURL(url)
   }
 
-  if (loading) return (
-    <div style={{ minHeight: '100svh', background: '#13141a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontFamily: 'var(--font-mono, monospace)', fontSize: 13 }}>
-      Loading inspection data…
-    </div>
-  )
+  if (loading) return <LogoSpinner full />
 
   if (error || !inspection) return (
     <div style={{ minHeight: '100svh', background: '#13141a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: '#666', fontFamily: 'var(--font-mono, monospace)', fontSize: 13 }}>

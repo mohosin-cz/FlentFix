@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../../components/PullToRefreshIndicator'
+import LogoSpinner from '../../components/LogoSpinner'
 import { Chart, registerables } from 'chart.js'
 Chart.register(...registerables)
 
@@ -357,7 +358,7 @@ export default function PurchaseHistory() {
     else showToast(`Deleted "${name}"`)
   }
 
-  if (loading) return <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 13 }}>loading history…</div>
+  if (loading) return <LogoSpinner full />
 
   const historyList = (
     <>

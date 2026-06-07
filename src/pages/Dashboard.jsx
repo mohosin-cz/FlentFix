@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
+import LogoSpinner from '../components/LogoSpinner'
 
 // ─── Pulse dot-matrix logo ─────────────────────────────────────────────────────
 const PulseLogo = () => (
@@ -357,7 +358,7 @@ export default function Dashboard() {
             </div>
 
             {loading ? (
-              <div style={s.empty}>loading…</div>
+              <LogoSpinner />
             ) : properties.length === 0 ? (
               <div style={s.empty}>No properties yet — start an inspection to add one.</div>
             ) : (

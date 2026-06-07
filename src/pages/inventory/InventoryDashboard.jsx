@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../../components/PullToRefreshIndicator'
+import LogoSpinner from '../../components/LogoSpinner'
 
 const TRADES = ['All', 'Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc', 'Appliances', 'Lights']
 const TRADE_OPTS = ['electrical', 'plumbing', 'woodwork', 'cleaning', 'misc', 'appliances', 'lights']
@@ -227,7 +228,7 @@ export default function InventoryDashboard() {
     setAddSaving(false)
   }
 
-  if (loading) return <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>loading…</div>
+  if (loading) return <LogoSpinner full />
 
   const ef = editForm
   const inpS = { padding: '6px 8px', fontSize: 12, color: 'var(--text, #e8e8f0)', background: 'rgba(200,150,62,0.08)', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 5, outline: 'none', fontFamily: 'var(--font-mono, monospace)', boxSizing: 'border-box', width: '100%' }

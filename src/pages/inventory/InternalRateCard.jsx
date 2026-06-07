@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import LogoSpinner from '../../components/LogoSpinner'
 
 const ADMIN_EMAIL = 'mohosin@flent.in'
 
@@ -222,11 +223,7 @@ export default function InternalRateCard() {
     else showToast(`Deleted "${name}"`)
   }
 
-  if (loading) return (
-    <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>loading rate card…</span>
-    </div>
-  )
+  if (loading) return <LogoSpinner full />
 
   const containerStyle = {
     flex: 1, width: '100%',

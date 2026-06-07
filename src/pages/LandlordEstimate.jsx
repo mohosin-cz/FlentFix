@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import LogoSpinner from '../components/LogoSpinner'
 
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 const CSS = `
@@ -796,13 +797,7 @@ export default function LandlordEstimate() {
   const inspector = estimate?.inspector_name || '—'
 
   // ── Render ──────────────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100dvh', background: '#EDEAE4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', color: '#888' }}>
-        Loading estimate…
-      </div>
-    )
-  }
+  if (loading) return <LogoSpinner full />
 
   if (notFound) {
     return (

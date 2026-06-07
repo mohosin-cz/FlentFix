@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
 import DisputeThread from '../components/DisputeThread'
 import { useIsMobile } from '../hooks/useIsMobile'
+import LogoSpinner from '../components/LogoSpinner'
 
 const STATUS_COLOR = {
   draft:              '#9898a4',
@@ -191,7 +192,7 @@ export default function EstimateWorkspace() {
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px 80px' }}>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>
+          <LogoSpinner />
         ) : estimates.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 60 }}>
             <div style={{ color: 'var(--text-muted, #6b6d82)', marginBottom: 20, fontSize: 13 }}>No estimates yet</div>

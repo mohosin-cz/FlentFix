@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import LogoSpinner from '../../components/LogoSpinner'
 
 const today = new Date().toISOString().split('T')[0]
 
@@ -333,7 +334,7 @@ export default function LogUsage() {
             <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{history.length} entries</span>
           </div>
           {histLoading ? (
-            <p style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>loading…</p>
+            <LogoSpinner />
           ) : history.length === 0 ? (
             <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 12, background: 'var(--bg-panel, #1e2028)', borderRadius: 10, border: '1px solid var(--border, #2e3040)' }}>No usage entries yet.</div>
           ) : (
@@ -484,7 +485,7 @@ export default function LogUsage() {
             <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{history.length}</span>
           </div>
           {histLoading ? (
-            <p style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>loading…</p>
+            <LogoSpinner />
           ) : history.length === 0 ? (
             <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 12, background: 'var(--bg-panel, #1e2028)', borderRadius: 10, border: '1px solid var(--border, #2e3040)' }}>No usage entries yet.</div>
           ) : (

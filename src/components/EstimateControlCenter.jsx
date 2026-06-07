@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
+import LogoSpinner from './LogoSpinner'
 
 const STATUS_COLOR = {
   draft:              '#9898a4',
@@ -106,7 +107,7 @@ export default function EstimateControlCenter({ pid, userEmail, onClose }) {
           </div>
 
           {loading ? (
-            <div style={{ color: 'var(--text-muted, #6b6d82)', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Loading…</div>
+            <LogoSpinner />
           ) : estimates.length === 0 ? (
             <div style={{ color: 'var(--text-muted, #6b6d82)', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>No estimates yet. Generate one above.</div>
           ) : (

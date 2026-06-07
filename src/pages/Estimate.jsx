@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { generateEstimate } from '../utils/generateEstimate'
 import { supabase } from '../lib/supabase'
 import { advanceStage } from '../utils/propertyJourney'
+import LogoSpinner from '../components/LogoSpinner'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const BAND = {
@@ -649,11 +650,7 @@ export default function Estimate() {
     setLoading(false)
   }
 
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: 'Inter, sans-serif', color: '#888', fontSize: 14 }}>
-      Loading…
-    </div>
-  )
+  if (loading) return <LogoSpinner full />
 
   if (error || !inspection) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: 'Inter, sans-serif', color: '#8b1a2a', fontSize: 14 }}>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import LogoSpinner from '../components/LogoSpinner'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -94,7 +95,7 @@ export default function PropertyBin() {
       {/* Grid */}
       <main style={s.main}>
         {loading ? (
-          <div style={s.empty}>Loading…</div>
+          <LogoSpinner />
         ) : rows.length === 0 ? (
           <div style={s.emptyState}>
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" style={{ marginBottom: 12, opacity: 0.25 }}>

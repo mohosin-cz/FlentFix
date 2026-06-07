@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import LogoSpinner from '../components/LogoSpinner'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -130,11 +131,14 @@ export default function InspectionApplianceReport() {
     document.title = prev
   }
 
-  if (!rows || !inspection) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: 'system-ui, sans-serif', color: error ? '#a05050' : '#9898a4', fontSize: 14 }}>
-      {error || 'Loading…'}
-    </div>
-  )
+  if (!rows || !inspection) {
+    if (error) return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: 'system-ui, sans-serif', color: '#a05050', fontSize: 14 }}>
+        {error}
+      </div>
+    )
+    return <LogoSpinner full />
+  }
 
   const pid = inspection.pid || ''
 

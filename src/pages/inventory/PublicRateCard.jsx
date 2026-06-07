@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import LogoSpinner from '../../components/LogoSpinner'
 
 const ADMIN_EMAIL = 'mohosin@flent.in'
 const TRADES = ['All', 'Electrical', 'Plumbing', 'Woodwork', 'Cleaning', 'Misc']
@@ -424,11 +425,7 @@ export default function PublicRateCard() {
     setLabImporting(false)
   }
 
-  if (loading) return (
-    <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>
-      loading…
-    </div>
-  )
+  if (loading) return <LogoSpinner full />
 
   const containerStyle = {
     width: '100%', maxWidth: isMobile ? '100%' : 900,

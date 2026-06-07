@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import { advanceStage, STAGES, MAIN_SEQUENCE } from '../utils/propertyJourney'
+import LogoSpinner from '../components/LogoSpinner'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -400,7 +401,7 @@ export default function PropertyDetail() {
 
       <main style={s.main}>
         {loading ? (
-          <div style={s.empty}>Loading…</div>
+          <LogoSpinner />
         ) : (
           <>
             {/* Summary stats — always render */}
