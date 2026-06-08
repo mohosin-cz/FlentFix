@@ -152,8 +152,8 @@ export default function EstimateWorkspace() {
       if (invoiceId) return { text: 'Invoice created', color: '#4dd9c0', cta: { label: 'View Invoice →', action: () => navigate(`/tax-invoice/${invoiceId}`) } }
       return { text: 'Estimate approved — ready to invoice', color: '#4dd9c0', cta: { label: creatingInvoice ? 'Creating…' : 'Create Invoice', action: handleCreateInvoice } }
     }
-    if (current.status === 'sent') return { text: 'Estimate sent — awaiting tenant review', color: '#4a9eff', cta: null }
-    if (current.status === 'viewed') return { text: 'Tenant has viewed the estimate', color: '#c8963e', cta: null }
+    if (current.status === 'sent') return { text: 'Estimate sent — awaiting landlord review', color: '#4a9eff', cta: null }
+    if (current.status === 'viewed') return { text: 'Landlord has viewed the estimate', color: '#c8963e', cta: null }
     return null
   }
 
