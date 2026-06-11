@@ -301,15 +301,20 @@ export default function EstimateWorkspace() {
                   {current.share_token && (
                     <button
                       onClick={async () => {
-                        const url = `${window.location.origin}/e/${current.share_token}`
+                        const shareToken = current.share_token
+                        if (!shareToken) return
+                        const cleanUrl   = `${window.location.origin}/e/${shareToken}`
+                        const previewUrl = `${cleanUrl}?preview=1`
+                        // Open tab first (must be synchronous within the click gesture)
+                        window.open(previewUrl, '_blank', 'noopener,noreferrer')
                         if (navigator.clipboard && window.isSecureContext) {
-                          await navigator.clipboard.writeText(url).catch(() => {})
+                          await navigator.clipboard.writeText(cleanUrl).catch(() => {})
                         } else {
                           const ta = document.createElement('textarea')
-                          ta.value = url; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta)
+                          ta.value = cleanUrl; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta)
                           ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
                         }
-                        setCopied(true); setTimeout(() => setCopied(false), 2000)
+                        setCopied(true); setTimeout(() => setCopied(false), 1500)
                         if (current.status === 'draft') {
                           await supabase.from('estimates').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', current.id)
                           await supabase.from('estimate_events').insert({ estimate_id: current.id, event_type: 'sent', actor: 'flent' })
@@ -318,7 +323,7 @@ export default function EstimateWorkspace() {
                       }}
                       style={{ padding: '8px 16px', minHeight: 44, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 6, fontSize: 12, color: copied ? '#4dd9c0' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', transition: 'color 0.2s' }}
                     >
-                      {copied ? '✓ Copied!' : '↗ Share Link'}
+                      {copied ? '✓ Opened + copied' : '↗ Share Link'}
                     </button>
                   )}
                   {(current.estimate_disputes?.[0]?.count || 0) > 0 && (

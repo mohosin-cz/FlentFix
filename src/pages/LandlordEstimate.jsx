@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import LogoSpinner from '../components/LogoSpinner'
 
@@ -497,6 +497,8 @@ const REASON_TAGS = [
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function LandlordEstimate() {
   const { token } = useParams()
+  const [searchParams] = useSearchParams()
+  const isPreview = searchParams.get('preview') === '1' || searchParams.get('preview') === 'true'
 
   const [estimate, setEstimate]     = useState(null)
   const [items, setItems]           = useState([])
@@ -566,8 +568,8 @@ export default function LandlordEstimate() {
     })))
     setDisputes(est.estimate_disputes || [])
 
-    // Log first view
-    if (!est.first_viewed_at) {
+    // Log first view — skipped when preview=1 (Flent staff self-preview)
+    if (!est.first_viewed_at && !isPreview) {
       await supabase.from('estimates')
         .update({ first_viewed_at: new Date().toISOString(), status: 'viewed' })
         .eq('id', est.id)
