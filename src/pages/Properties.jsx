@@ -86,10 +86,24 @@ export default function Properties() {
         .select('pid, house_type, inspection_date, status, config')
         .order('created_at', { ascending: false }),
       supabase.from('properties_bin').select('pid'),
-    ]).then(([{ data: props }, { data: insp }, { data: binRows }]) => {
+      supabase
+        .from('estimates')
+        .select('pid, inspector_name, created_by')
+        .order('created_at', { ascending: false }),
+    ]).then(([{ data: props }, { data: insp }, { data: binRows }, { data: ests }]) => {
       const inspections = insp || []
       const properties  = props || []
+      const estimates   = ests || []
       const deletedPids = new Set((binRows || []).map(r => r.pid))
+
+      // Most recent estimate per PID → inspector name
+      const inspectorMap = new Map()
+      for (const e of estimates) {
+        if (!inspectorMap.has(e.pid)) {
+          const name = e.inspector_name || e.created_by?.split('@')[0] || null
+          if (name) inspectorMap.set(e.pid, name)
+        }
+      }
 
       const pidMap = new Map()
       // Build from inspections first — authoritative source for all PIDs
@@ -102,8 +116,18 @@ export default function Properties() {
       // Layer in properties metadata without dropping any PID
       for (const p of properties) {
         if (deletedPids.has(p.pid)) continue
-        pidMap.set(p.pid, { ...(pidMap.get(p.pid) || { pid: p.pid }), name: p.name, address: p.address, type: (pidMap.get(p.pid)?.type) || p.type })
+        pidMap.set(p.pid, {
+          ...(pidMap.get(p.pid) || { pid: p.pid }),
+          name: p.name, address: p.address,
+          type: (pidMap.get(p.pid)?.type) || p.type,
+          property_created_at: p.created_at,
+        })
       }
+      // Inject inspector names
+      for (const [pid, data] of pidMap) {
+        pidMap.set(pid, { ...data, inspector: inspectorMap.get(pid) || null })
+      }
+
       const allProperties = [...pidMap.values()]
       console.log('PROPERTIES LIST COUNT:', allProperties.length)
 
@@ -252,7 +276,9 @@ export default function Properties() {
                   <div style={s.cardTop}>
                     <div style={s.pidText}>PID {row.pid}</div>
                     {row.type && <span style={s.houseTypeBadge}>{titleCase(row.type)}</span>}
-                    <div style={s.dateLine}>last: {fmtDate(row.inspection_date)}</div>
+                    <div style={s.dateLine}>inspected: {fmtDate(row.inspection_date)}</div>
+                    {row.property_created_at && <div style={s.dateLine}>created: {fmtDate(row.property_created_at)}</div>}
+                    <div style={s.inspectorLine}>by {row.inspector || '—'}</div>
                   </div>
                   <div style={s.cardBottom}>
                     <StatusBadge status={row.status} />
@@ -369,7 +395,7 @@ const s = {
     width: '100%', fontFamily: 'inherit',
     color: 'var(--text, #e8e8f0)', minHeight: 110,
   },
-  cardTop: { display: 'flex', flexDirection: 'column', gap: 5, paddingRight: 20 },
+  cardTop: { display: 'flex', flexDirection: 'column', gap: 3, paddingRight: 20 },
   cardBottom: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   pidText: {
     fontSize: 18, fontWeight: 700, color: 'var(--text, #e8e8f0)',
@@ -382,6 +408,10 @@ const s = {
     color: 'var(--text-dim, #9394a8)', textTransform: 'capitalize', fontFamily: 'var(--font-mono, monospace)',
   },
   dateLine: { fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' },
+  inspectorLine: {
+    fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)',
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+  },
 }
 
 const m = {
