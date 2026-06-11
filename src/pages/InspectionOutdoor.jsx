@@ -846,9 +846,10 @@ export default function InspectionOutdoor() {
   async function handleCreateEstimate() {
     setIsEstimating(true); setEstimateError('')
     const today = new Date().toISOString().split('T')[0]
+    const { data: { user } } = await supabase.auth.getUser()
     const { data: ins, error: insErr } = await supabase
       .from('inspections')
-      .insert({ pid, inspection_date: today, house_type: state.inspectionType, status: 'draft', config: { layout: state.layout, inspection_type: state.inspectionType, scope: 'outdoor' } })
+      .insert({ pid, inspection_date: today, house_type: state.inspectionType, status: 'draft', config: { layout: state.layout, inspection_type: state.inspectionType, scope: 'outdoor' }, owner_email: user?.email ?? null })
       .select('id').single()
     if (insErr) { setEstimateError(insErr.message); setIsEstimating(false); return }
 

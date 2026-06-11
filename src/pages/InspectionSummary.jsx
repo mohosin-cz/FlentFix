@@ -28,6 +28,8 @@ export default function InspectionSummary() {
     setSubmitting(true)
     setSubmitError('')
 
+    const { data: { user } } = await supabase.auth.getUser()
+
     // Insert inspection record
     const { data: ins, error: insErr } = await supabase
       .from('inspections')
@@ -37,6 +39,7 @@ export default function InspectionSummary() {
         property_type: propertyType,
         layout,
         inspection_date: new Date().toISOString().split('T')[0],
+        owner_email: user?.email ?? null,
       })
       .select('id')
       .single()

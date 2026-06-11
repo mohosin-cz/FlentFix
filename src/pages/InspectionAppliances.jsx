@@ -434,9 +434,10 @@ export default function InspectionAppliances() {
   async function handleGenerateReport() {
     setIsSaving(true); setSaveError('')
     const today = new Date().toISOString().split('T')[0]
+    const { data: { user } } = await supabase.auth.getUser()
     const { data: ins, error: insErr } = await supabase
       .from('inspections')
-      .insert({ pid, inspection_date: today, house_type: state?.propertyType || 'apartment', status: 'draft', config: { scope: 'appliances', inspection_type: state?.inspectionType } })
+      .insert({ pid, inspection_date: today, house_type: state?.propertyType || 'apartment', status: 'draft', config: { scope: 'appliances', inspection_type: state?.inspectionType }, owner_email: user?.email ?? null })
       .select('id').single()
     if (insErr) { setSaveError(insErr.message); setIsSaving(false); return }
 

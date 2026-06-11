@@ -91,7 +91,7 @@ export default function Properties() {
         .order('created_at', { ascending: false }),
       supabase
         .from('inspections')
-        .select('pid, house_type, inspection_date, status, config')
+        .select('pid, house_type, inspection_date, status, config, owner_email')
         .order('created_at', { ascending: false }),
       supabase.from('properties_bin').select('pid'),
       supabase
@@ -104,21 +104,26 @@ export default function Properties() {
       const estimates   = ests || []
       const deletedPids = new Set((binRows || []).map(r => r.pid))
 
-      // Most recent estimate per PID → inspector name (email prefix as fallback)
-      const inspectorMap = new Map()
+      // Most recent estimate per PID → email fallback for legacy PIDs
+      const estimateEmailMap = new Map()
       for (const e of estimates) {
-        if (!inspectorMap.has(e.pid)) {
+        if (!estimateEmailMap.has(e.pid)) {
           const name = parseName(e.inspector_name) || parseName(e.created_by)
-          if (name) inspectorMap.set(e.pid, name)
+          if (name) estimateEmailMap.set(e.pid, name)
         }
       }
 
       const pidMap = new Map()
       // Build from inspections first — authoritative source for all PIDs
+      // Also captures owner_email (populated going forward on all new inspections)
       for (const insp of inspections) {
         if (deletedPids.has(insp.pid)) continue
         if (!pidMap.has(insp.pid)) {
-          pidMap.set(insp.pid, { pid: insp.pid, type: insp.house_type, inspection_date: insp.inspection_date, status: insp.status })
+          pidMap.set(insp.pid, {
+            pid: insp.pid, type: insp.house_type,
+            inspection_date: insp.inspection_date, status: insp.status,
+            owner_email: insp.owner_email || null,
+          })
         }
       }
       // Layer in properties metadata without dropping any PID
@@ -131,9 +136,10 @@ export default function Properties() {
           property_created_at: p.created_at,
         })
       }
-      // Inject inspector names
+      // Coalesce inspector: inspection.owner_email → estimate created_by → null
       for (const [pid, data] of pidMap) {
-        pidMap.set(pid, { ...data, inspector: inspectorMap.get(pid) || null })
+        const inspector = parseName(data.owner_email) || estimateEmailMap.get(pid) || null
+        pidMap.set(pid, { ...data, inspector })
       }
 
       const allProperties = [...pidMap.values()]

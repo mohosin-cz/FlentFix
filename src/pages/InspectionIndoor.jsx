@@ -1207,9 +1207,10 @@ export default function InspectionIndoor() {
   async function handleCreateEstimate() {
     setIsEstimating(true); setEstimateError('')
     const today = new Date().toISOString().split('T')[0]
+    const { data: { user } } = await supabase.auth.getUser()
     const { data: ins, error: insErr } = await supabase
       .from('inspections')
-      .insert({ pid, inspection_date: today, house_type: houseType, status: 'draft', config: { layout: state?.layout, inspection_type: state?.inspectionType, property_type: houseType, scope: 'indoor', bhk } })
+      .insert({ pid, inspection_date: today, house_type: houseType, status: 'draft', config: { layout: state?.layout, inspection_type: state?.inspectionType, property_type: houseType, scope: 'indoor', bhk }, owner_email: user?.email ?? null })
       .select('id').single()
     if (insErr) { setEstimateError(insErr.message); setIsEstimating(false); return }
 

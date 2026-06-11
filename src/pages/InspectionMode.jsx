@@ -291,6 +291,7 @@ export default function InspectionMode() {
     setIsEnding(true)
     try {
       const pid = state.pid
+      const { data: { user } } = await supabase.auth.getUser()
 
       // Always create a fresh inspection record so re-used PIDs don't pollute old data
       const { data: newInspection, error: insErr } = await supabase
@@ -301,6 +302,7 @@ export default function InspectionMode() {
           inspection_date: new Date().toISOString().split('T')[0],
           status: 'completed',
           config: state,
+          owner_email: user?.email ?? null,
         })
         .select()
         .single()
@@ -404,7 +406,6 @@ export default function InspectionMode() {
       }
 
       setShowEndModal(false)
-      const { data: { user } } = await supabase.auth.getUser()
       await advanceStage(supabase, pid, 'inspection_done', user?.email)
       navigate(`/properties/${pid}`)
     } catch (err) {
