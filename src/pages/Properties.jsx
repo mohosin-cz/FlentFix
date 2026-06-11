@@ -11,6 +11,14 @@ function fmtDate(str) {
   return new Date(str).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+// Returns a display name from either a plain name or an email address
+function parseName(str) {
+  if (!str) return null
+  const s = str.trim()
+  if (!s) return null
+  return s.includes('@') ? s.split('@')[0] : s
+}
+
 function titleCase(str) {
   return (str || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
@@ -96,11 +104,11 @@ export default function Properties() {
       const estimates   = ests || []
       const deletedPids = new Set((binRows || []).map(r => r.pid))
 
-      // Most recent estimate per PID → inspector name
+      // Most recent estimate per PID → inspector name (email prefix as fallback)
       const inspectorMap = new Map()
       for (const e of estimates) {
         if (!inspectorMap.has(e.pid)) {
-          const name = e.inspector_name || e.created_by?.split('@')[0] || null
+          const name = parseName(e.inspector_name) || parseName(e.created_by)
           if (name) inspectorMap.set(e.pid, name)
         }
       }
