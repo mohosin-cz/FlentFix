@@ -633,6 +633,11 @@ export default function LandlordEstimate() {
     seen[trade].push(item)
   })
 
+  // Sequential plate counter in render order (across all trade groups, top to bottom)
+  const plateOrder = new Map()
+  let _plate = 0
+  groups.forEach(({ items: gi }) => gi.forEach(item => plateOrder.set(item.id, ++_plate)))
+
   const pid      = inspection?.pid || estimate?.pid || '—'
   const address  = inspection?.config?.address || ''
   const inspector = estimate?.inspector_name || '—'
@@ -729,8 +734,7 @@ export default function LandlordEstimate() {
               </div>
 
               {tradeItems.map(item => {
-                const plateNum  = visibleItems.indexOf(item) + 1
-                const plateIdx  = String(plateNum).padStart(2, '0')
+                const plateIdx  = String(plateOrder.get(item.id)).padStart(2, '0')
                 const total     = itemTotal(item)
                 const itemDisps = disputes.filter(d => d.estimate_item_id === item.id)
                 const status    = item.status || 'pending'
