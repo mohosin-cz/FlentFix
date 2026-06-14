@@ -155,14 +155,7 @@ export default function App() {
           <Route path="/properties/:pid/estimates" element={<ProtectedRoute><EstimateWorkspace /></ProtectedRoute>} />
           <Route path="/tax-invoice/:id" element={<ProtectedRoute><TaxInvoice /></ProtectedRoute>} />
           <Route path="/inspections/:inspectionId/raw" element={<ProtectedRoute><RawInspectionData /></ProtectedRoute>} />
-          <Route
-            path="/rate-card"
-            element={
-              <ProtectedRoute>
-                <RateCard />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/rate-card" element={<RateCard />} />
           <Route path="/inventory" element={<ProtectedRoute><ExploreInventory /></ProtectedRoute>} />
           <Route path="/inventory/register" element={<ProtectedRoute><RegisterInventory /></ProtectedRoute>} />
           <Route path="/inventory/dashboard" element={<ProtectedRoute><InventoryDashboard /></ProtectedRoute>} />
