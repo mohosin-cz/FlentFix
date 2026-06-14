@@ -213,7 +213,7 @@ function buildTabs(houseType, bhk) {
 // ── State helpers ─────────────────────────────────────────────────────────────
 const blankCostRow  = () => ({ action: '', labourRateId: '', labourCost: '', materialCost: '', materialRateId: '', qty: 1 })
 const blankIssueRow = () => ({ id: `ir_${Date.now()}_${Math.random().toString(36).slice(2)}`, issueDescription: '', action: '', labourRateId: '', labourCost: '', materialCost: '' })
-const blankCard = () => ({ health: null, notes: '', media: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {} })
+const blankCard = () => ({ health: null, notes: '', media: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {}, action: '', materialItemId: null, materialRateId: null, materialDescription: null, materialCost: '' })
 const blankGeneral = () => ({ enabled: false, areas: [], partialRooms: '', labourCost: '', rateId: '', notes: '', media: [], description: '', fullHome: true, specificAreas: [] })
 const BLANK_SPEC_AREA = () => ({ id: `sa_${Date.now()}_${Math.random().toString(36).slice(2)}`, area: '', type: '', notes: '', rateId: '', cost: '' })
 
@@ -506,6 +506,115 @@ function NotAvailableNote({ value, onChange }) {
   )
 }
 
+// ── Card-level material picker ────────────────────────────────────────────────
+function CardMaterialPicker({ card, onUpdate }) {
+  const [search,  setSearch]  = useState('')
+  const [results, setResults] = useState([])
+  const [open,    setOpen]    = useState(false)
+  const [dropPos, setDropPos] = useState({})
+  const wrapRef  = useRef(null)
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    if (search.trim().length < 1) { setResults([]); return }
+    const t = setTimeout(async () => {
+      const { data } = await supabase
+        .from('inventory_items')
+        .select('id, fxin, item_name, flent_price, quantity_remaining')
+        .gt('flent_price', 0)
+        .or(`item_name.ilike.%${search}%,fxin.ilike.%${search}%`)
+        .limit(10)
+      setResults(data || [])
+    }, 250)
+    return () => clearTimeout(t)
+  }, [search])
+
+  useEffect(() => {
+    if (!open) return
+    const close = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  function openDrop() {
+    const rect = inputRef.current?.getBoundingClientRect()
+    if (rect) {
+      const below = window.innerHeight - rect.bottom
+      setDropPos(below < 220 && rect.top > 220
+        ? { position: 'fixed', bottom: window.innerHeight - rect.top, top: 'auto', left: rect.left, width: rect.width }
+        : { position: 'fixed', top: rect.bottom + 2, left: rect.left, width: rect.width }
+      )
+    }
+    setOpen(true)
+  }
+
+  function clearMat() {
+    setSearch(''); setResults([])
+    onUpdate('materialItemId', null); onUpdate('materialRateId', null)
+    onUpdate('materialDescription', null); onUpdate('materialCost', '')
+  }
+
+  const INP = { width: '100%', padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text, #e8e8f0)', fontSize: 16, boxSizing: 'border-box', fontFamily: 'inherit', minHeight: 44 }
+
+  return (
+    <div ref={wrapRef} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {card.materialDescription ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: 'rgba(200,150,62,0.08)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 6 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 9, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 2 }}>{card.materialRateId}</div>
+            <div style={{ fontSize: 13, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.materialDescription}</div>
+          </div>
+          <button type="button" onClick={clearMat} style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 18, cursor: 'pointer', padding: '0 4px', lineHeight: 1, minWidth: 28, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+        </div>
+      ) : (
+        <div style={{ position: 'relative' }}>
+          <input
+            ref={inputRef}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onFocus={openDrop}
+            placeholder="Search inventory by name or FXIN…"
+            style={INP}
+          />
+          {open && results.length > 0 && (
+            <div style={{ ...dropPos, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, maxHeight: 220, overflowY: 'auto', zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+              {results.map(item => {
+                const price = parseFloat(item.flent_price) || 0
+                return (
+                  <div key={item.id}
+                    onMouseDown={() => {
+                      onUpdate('materialItemId', item.id)
+                      onUpdate('materialRateId', item.fxin)
+                      onUpdate('materialDescription', item.item_name)
+                      onUpdate('materialCost', String(Math.round(price)))
+                      setSearch(''); setOpen(false)
+                    }}
+                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--border, #2e3040)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+                    <div>
+                      <div style={{ fontSize: 9, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 2 }}>{item.fxin}</div>
+                      <div style={{ fontSize: 13, color: 'var(--text, #e8e8f0)' }}>{item.item_name}</div>
+                      {item.quantity_remaining != null && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)' }}>{item.quantity_remaining} in stock</div>}
+                    </div>
+                    <div style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: 'var(--text, #e8e8f0)', fontWeight: 600, flexShrink: 0 }}>₹{price.toLocaleString('en-IN')}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+      {card.materialDescription && (
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', letterSpacing: '0.08em', marginBottom: 4, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase' }}>Material cost ₹</div>
+          <input type="number" value={card.materialCost || ''} onChange={e => onUpdate('materialCost', e.target.value)} placeholder="0" style={INP} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Issue cost row (one per selected non-Functional issue) ────────────────────
 function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelectRate, onSelectMaterial }) {
   const costType = costRow.costType || 'priced'
@@ -774,6 +883,20 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
 
             <Field label="Notes" optional>
               <Textarea value={card.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any observations…" />
+            </Field>
+
+            <Field label="Action — what we'll do" optional>
+              <input
+                type="text"
+                value={card.action || ''}
+                onChange={e => onUpdate('action', e.target.value)}
+                placeholder="e.g. Replace the latch, repaint the panel"
+                style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text, #e8e8f0)', fontSize: 16, boxSizing: 'border-box', fontFamily: 'inherit', minHeight: 44 }}
+              />
+            </Field>
+
+            <Field label="Material" optional>
+              <CardMaterialPicker card={card} onUpdate={onUpdate} />
             </Field>
 
             {nonFunctional.length > 0 && (
@@ -1274,7 +1397,7 @@ export default function InspectionIndoor() {
                 const cr         = (card.costRows || {})[issue] || {}
                 const qty        = Math.max(1, parseFloat(cr.qty) || 1)
                 const issueLabel = issue === 'Other' ? (card.otherIssue || 'Other') : issue
-                lineItemRows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: cr.action || '', material_item_id: cr.materialItemId || null, material_fxin: cr.materialRateId || null, material_description: cr.materialDescription || null, material_cost: (parseFloat(cr.materialCost) || 0) * qty, labour_cost: (parseFloat(cr.labourCost) || 0) * qty, item_score: card.health ?? null, availability_status: null })
+                lineItemRows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: card.action || cr.action || '', material_item_id: card.materialItemId || cr.materialItemId || null, material_fxin: card.materialRateId || cr.materialRateId || null, material_description: card.materialDescription || cr.materialDescription || null, material_cost: card.materialCost ? (parseFloat(card.materialCost) || 0) : (parseFloat(cr.materialCost) || 0) * qty, labour_cost: (parseFloat(cr.labourCost) || 0) * qty, item_score: card.health ?? null, availability_status: null })
                 mediaArrays.push(ri === 0 ? mediaFiles : [])
               })
             }
