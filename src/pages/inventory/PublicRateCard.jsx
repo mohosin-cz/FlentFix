@@ -467,7 +467,16 @@ export default function PublicRateCard() {
           <span style={s.headerTitle}>Rate Card</span>
           <span style={s.headerSub}>client-facing pricing</span>
         </div>
-        <div style={{ width: 36 }} />
+        <button
+          onClick={() => window.open('/rate-card', '_blank', 'noopener,noreferrer')}
+          title="View public rate card"
+          style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M6 2H2a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1V8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M9 1h4m0 0v4m0-4L7 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
       </header>
 
       {/* Tabs */}
