@@ -137,7 +137,7 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
               const qty        = Math.max(1, parseFloat(cr.qty) || 1)
               const issueLabel = issue === 'Other' ? (card.otherIssue || 'Other') : issue
               const crType = cr.costType || 'priced'
-              rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, cost_type: crType, material_cost: crType === 'priced' ? (parseFloat(cr.materialCost) || 0) * qty : 0, labour_cost: crType === 'priced' ? (parseFloat(cr.labourCost) || 0) * qty : 0, item_score: card.health ?? null, _media: ri === 0 ? (card.media || []) : [] })
+              rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: cr.action || '', cost_type: crType, material_item_id: cr.materialItemId || null, material_fxin: cr.materialRateId || null, material_description: cr.materialDescription || null, material_cost: crType === 'priced' ? (parseFloat(cr.materialCost) || 0) * qty : 0, labour_cost: crType === 'priced' ? (parseFloat(cr.labourCost) || 0) * qty : 0, item_score: card.health ?? null, _media: ri === 0 ? (card.media || []) : [] })
             })
           }
         })
@@ -149,7 +149,7 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
       if (!ciRows.length) {
         rows.push({ inspection_id: inspectionId, section_name: tabLabel, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null, _media: ci.media || [] })
       } else {
-        ciRows.forEach((r, ri) => rows.push({ inspection_id: inspectionId, section_name: tabLabel, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: r.issueDescription || '', material_cost: parseFloat(r.materialCost) || 0, labour_cost: parseFloat(r.labourCost) || 0, item_score: ci.health ?? null, _media: ri === 0 ? (ci.media || []) : [] }))
+        ciRows.forEach((r, ri) => rows.push({ inspection_id: inspectionId, section_name: tabLabel, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: r.issueDescription || '', action: r.action || '', material_cost: parseFloat(r.materialCost) || 0, labour_cost: parseFloat(r.labourCost) || 0, item_score: ci.health ?? null, _media: ri === 0 ? (ci.media || []) : [] }))
       }
     })
   })

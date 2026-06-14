@@ -355,7 +355,7 @@ export function flattenAppliancesDraftToRows(draft, inspectionId) {
       .forEach(({ n, d }) => {
         if (!d.status || !n) return
         const s = appData.health ?? null
-        rows.push({ inspection_id: inspectionId, section_name: 'Appliances', area: name, item_name: n, trade, issue_description: d.status === 'Faulty' ? (d.issueDescription || 'Faulty') : d.status, material_cost: parseFloat(d.materialCost) || 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: s !== null ? Math.min(10, Math.max(1, Math.round(s))) : null })
+        rows.push({ inspection_id: inspectionId, section_name: 'Appliances', area: name, item_name: n, trade, issue_description: d.status === 'Faulty' ? (d.issueDescription || 'Faulty') : d.status, action: d.action || '', material_cost: parseFloat(d.materialCost) || 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: s !== null ? Math.min(10, Math.max(1, Math.round(s))) : null })
       })
   })
   customApps.forEach(ca => {
@@ -364,7 +364,7 @@ export function flattenAppliancesDraftToRows(draft, inspectionId) {
     ;(ca.customComponents || []).forEach(cc => {
       if (!cc.status || !cc.name) return
       const s = ca.health ?? null
-      rows.push({ inspection_id: inspectionId, section_name: 'Appliances', area: name, item_name: cc.name, trade: ca.trade || 'electrical', issue_description: cc.status === 'Faulty' ? (cc.issueDescription || 'Faulty') : cc.status, material_cost: parseFloat(cc.materialCost) || 0, labour_cost: parseFloat(cc.labourCost) || 0, item_score: s !== null ? Math.min(10, Math.max(1, Math.round(s))) : null })
+      rows.push({ inspection_id: inspectionId, section_name: 'Appliances', area: name, item_name: cc.name, trade: ca.trade || 'electrical', issue_description: cc.status === 'Faulty' ? (cc.issueDescription || 'Faulty') : cc.status, action: cc.action || '', material_cost: parseFloat(cc.materialCost) || 0, labour_cost: parseFloat(cc.labourCost) || 0, item_score: s !== null ? Math.min(10, Math.max(1, Math.round(s))) : null })
     })
   })
   return rows
@@ -460,6 +460,7 @@ export default function InspectionAppliances() {
           lineItemRows.push({
             inspection_id: inspectionId, section_name: 'Appliances', area: name, item_name: n, trade,
             issue_description: d.status === 'Faulty' ? (d.issueDescription || 'Faulty') : d.status,
+            action:        d.action || '',
             material_cost: parseFloat(d.materialCost) || 0,
             labour_cost:   parseFloat(d.labourCost) || 0,
             item_score:    rawScore !== null ? Math.min(10, Math.max(1, Math.round(rawScore))) : null,
@@ -480,6 +481,7 @@ export default function InspectionAppliances() {
         lineItemRows.push({
           inspection_id: inspectionId, section_name: 'Appliances', area: name, item_name: cc.name, trade: ca.trade || 'electrical',
           issue_description: cc.status === 'Faulty' ? (cc.issueDescription || 'Faulty') : cc.status,
+          action:        cc.action || '',
           material_cost: parseFloat(cc.materialCost) || 0,
           labour_cost:   parseFloat(cc.labourCost) || 0,
           item_score:    rawScoreCA !== null ? Math.min(10, Math.max(1, Math.round(rawScoreCA))) : null,

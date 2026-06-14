@@ -622,7 +622,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
                     console.log('[Material Select]', item.fxin, { flent_price: item.flent_price, market_price: item.market_price, price })
                     return (
                       <div key={item.fxin || item.id}
-                        onMouseDown={() => { onSelectMaterial(item.fxin, String(price), item.item_name); setMatSearch(item.item_name); setMatOpen(false) }}
+                        onMouseDown={() => { onSelectMaterial(item.id, item.fxin, String(Math.round(price * qty)), item.item_name); setMatSearch(item.item_name); setMatOpen(false) }}
                         style={{ padding: '8px 12px', borderBottom: '1px solid var(--border, #2e3040)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
@@ -787,7 +787,7 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
                     tradeRates={tradeRates}
                     onUpdate={(field, value) => updateCostRow(issue, { [field]: value })}
                     onSelectRate={(id, cost, desc) => updateCostRow(issue, { labourRateId: id, labourCost: cost, labourDescription: desc })}
-                    onSelectMaterial={(fxin, cost, name) => updateCostRow(issue, { materialRateId: fxin, materialCost: cost, materialDescription: name })}
+                    onSelectMaterial={(id, fxin, cost, name) => updateCostRow(issue, { materialItemId: id, materialRateId: fxin, materialCost: cost, materialDescription: name })}
                   />
                 ))}
               </div>
@@ -1274,7 +1274,7 @@ export default function InspectionIndoor() {
                 const cr         = (card.costRows || {})[issue] || {}
                 const qty        = Math.max(1, parseFloat(cr.qty) || 1)
                 const issueLabel = issue === 'Other' ? (card.otherIssue || 'Other') : issue
-                lineItemRows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: (parseFloat(cr.materialCost) || 0) * qty, labour_cost: (parseFloat(cr.labourCost) || 0) * qty, item_score: card.health ?? null, availability_status: null })
+                lineItemRows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: cr.action || '', material_item_id: cr.materialItemId || null, material_fxin: cr.materialRateId || null, material_description: cr.materialDescription || null, material_cost: (parseFloat(cr.materialCost) || 0) * qty, labour_cost: (parseFloat(cr.labourCost) || 0) * qty, item_score: card.health ?? null, availability_status: null })
                 mediaArrays.push(ri === 0 ? mediaFiles : [])
               })
             }
@@ -1290,7 +1290,7 @@ export default function InspectionIndoor() {
           mediaArrays.push(ciMedia)
         } else {
           ciIssues.forEach((row, ri) => {
-            lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: row.issueDescription || '', material_cost: parseFloat(row.materialCost) || 0, labour_cost: parseFloat(row.labourCost) || 0, item_score: ci.health ?? null })
+            lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: row.issueDescription || '', action: row.action || '', material_cost: parseFloat(row.materialCost) || 0, labour_cost: parseFloat(row.labourCost) || 0, item_score: ci.health ?? null })
             mediaArrays.push(ri === 0 ? ciMedia : [])
           })
         }

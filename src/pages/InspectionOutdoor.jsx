@@ -468,7 +468,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
                     console.log('[Material Select]', item.fxin, { flent_price: item.flent_price, market_price: item.market_price, price })
                     return (
                       <div key={item.fxin || item.id}
-                        onMouseDown={() => { onSelectMaterial(item.fxin, String(price), item.item_name); setMatSearch(item.item_name); setMatOpen(false) }}
+                        onMouseDown={() => { const qty = Math.max(1, parseFloat(costRow.qty) || 1); onSelectMaterial(item.id, item.fxin, String(Math.round(price * qty)), item.item_name); setMatSearch(item.item_name); setMatOpen(false) }}
                         style={{ padding: '8px 12px', borderBottom: '1px solid var(--border, #2e3040)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
@@ -601,7 +601,7 @@ function OutdoorItemCard({ config, item, isOpen, onToggle, onUpdate, labourRates
                     tradeRates={tradeRates}
                     onUpdate={(field, value) => updateCostRow(issue, { [field]: value })}
                     onSelectRate={(id, cost, desc) => updateCostRow(issue, { labourRateId: id, labourCost: cost, labourDescription: desc })}
-                    onSelectMaterial={(fxin, cost, name) => updateCostRow(issue, { materialRateId: fxin, materialCost: cost, materialDescription: name })}
+                    onSelectMaterial={(id, fxin, cost, name) => updateCostRow(issue, { materialItemId: id, materialRateId: fxin, materialCost: cost, materialDescription: name })}
                   />
                 ))}
               </div>
@@ -737,7 +737,7 @@ export function flattenOutdoorDraftToRows(draft, inspectionId) {
           const qty        = Math.max(1, parseFloat(cr.qty) || 1)
           const issueLabel = issue === 'Other' ? (item.otherIssue || 'Other') : issue
           const crType = cr.costType || 'priced'
-          rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, cost_type: crType, material_cost: crType === 'priced' ? (parseFloat(cr.materialCost) || 0) * qty : 0, labour_cost: crType === 'priced' ? (parseFloat(cr.labourCost) || 0) * qty : 0, item_score: item.health ?? null, _media: ri === 0 ? (item.media || []) : [] })
+          rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: cr.action || '', cost_type: crType, material_item_id: cr.materialItemId || null, material_fxin: cr.materialRateId || null, material_description: cr.materialDescription || null, material_cost: crType === 'priced' ? (parseFloat(cr.materialCost) || 0) * qty : 0, labour_cost: crType === 'priced' ? (parseFloat(cr.labourCost) || 0) * qty : 0, item_score: item.health ?? null, _media: ri === 0 ? (item.media || []) : [] })
         })
       }
     })
@@ -747,7 +747,7 @@ export function flattenOutdoorDraftToRows(draft, inspectionId) {
       if (!ciRows.length) {
         rows.push({ inspection_id: inspectionId, section_name: sName, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null, _media: ci.media || [] })
       } else {
-        ciRows.forEach((r, ri) => rows.push({ inspection_id: inspectionId, section_name: sName, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: r.issueDescription || '', material_cost: parseFloat(r.materialCost) || 0, labour_cost: parseFloat(r.labourCost) || 0, item_score: ci.health ?? null, _media: ri === 0 ? (ci.media || []) : [] }))
+        ciRows.forEach((r, ri) => rows.push({ inspection_id: inspectionId, section_name: sName, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: r.issueDescription || '', action: r.action || '', material_cost: parseFloat(r.materialCost) || 0, labour_cost: parseFloat(r.labourCost) || 0, item_score: ci.health ?? null, _media: ri === 0 ? (ci.media || []) : [] }))
       }
     })
   })
@@ -881,7 +881,7 @@ export default function InspectionOutdoor() {
             const cr         = (item.costRows || {})[issue] || {}
             const qty        = Math.max(1, parseFloat(cr.qty) || 1)
             const issueLabel = issue === 'Other' ? (item.otherIssue || 'Other') : issue
-            lineItemRows.push({ ...base, issue_description: cr.labourDescription || issueLabel, material_cost: (parseFloat(cr.materialCost) || 0) * qty, labour_cost: (parseFloat(cr.labourCost) || 0) * qty, item_score: item.health ?? null, availability_status: null })
+            lineItemRows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: cr.action || '', material_item_id: cr.materialItemId || null, material_fxin: cr.materialRateId || null, material_description: cr.materialDescription || null, material_cost: (parseFloat(cr.materialCost) || 0) * qty, labour_cost: (parseFloat(cr.labourCost) || 0) * qty, item_score: item.health ?? null, availability_status: null })
             mediaArrays.push(ri === 0 ? mediaFiles : [])
           })
         }
