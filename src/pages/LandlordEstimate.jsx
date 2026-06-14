@@ -3,407 +3,548 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import LogoSpinner from '../components/LogoSpinner'
 
-// ─── Hero copy (edit here to update the headline) ─────────────────────────────
+// ─── Hero copy ────────────────────────────────────────────────────────────────
 const HERO_TITLE    = 'Your home, cared for'
 const HERO_SUBTITLE = 'before anyone moves in.'
 
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 const CSS = `
   :root {
-    --flent-display:    'Fraunces', Georgia, serif;       /* SWAP: real Flent font later */
-    --flent-sans:       'Urbanist', system-ui, sans-serif;    /* SWAP: real Flent font later */
-    --flent-cream:      #F5F2EC;
-    --flent-indigo:     #2A2456;
-    --flent-indigo-ink: #1C1838;
-    --flent-muted:      #5A5570;
-    --flent-line:       #E4DECF;
-    --flent-apricot:    #F0C9A0;
-    --flent-olive:      #3C5A3F;
+    --le-paper:           #F4F0E8;
+    --le-desk:            #E7E0D1;
+    --le-ink:             #211C44;
+    --le-ink-soft:        #5E5872;
+    --le-hairline:        #DED6C4;
+    --le-hairline-strong: #CCC2AC;
+    --le-clay:            #C76B4A;
+    --le-apricot:         #E7B07F;
+    --le-green:           #3A6642;
+
+    --le-display: 'Newsreader', Georgia, serif;
+    --le-sans:    'Hanken Grotesk', system-ui, sans-serif;
+    --le-mono:    'IBM Plex Mono', monospace;
   }
 
   *, *::before, *::after { box-sizing: border-box; }
 
   .le-wrap {
     min-height: 100dvh;
-    background-color: var(--flent-cream);
-    background-image: radial-gradient(circle at 1px 1px, rgba(42,36,86,0.05) 1px, transparent 0);
-    background-size: 22px 22px;
-    padding-bottom: 120px;
-    font-family: var(--flent-sans);
-    color: var(--flent-indigo-ink);
+    background: var(--le-paper);
+    font-family: var(--le-sans);
+    color: var(--le-ink);
     -webkit-font-smoothing: antialiased;
+  }
+
+  @media (min-width: 641px) {
+    .le-wrap { background: var(--le-desk); }
   }
 
   /* ── Top bar ── */
   .le-topbar {
-    background: var(--flent-cream);
-    background-image: radial-gradient(circle at 1px 1px, rgba(42,36,86,0.05) 1px, transparent 0);
-    background-size: 22px 22px;
-    border-bottom: 1.5px solid var(--flent-line);
+    background: var(--le-paper);
     height: 56px;
     display: flex; align-items: center; justify-content: space-between;
-    padding: 0 32px;
+    padding: 0 26px;
+    border-bottom: 1px solid var(--le-hairline);
     position: sticky; top: 0; z-index: 50;
   }
-  /* TODO: swap for real Flent logo asset when provided */
-  .le-logo-pill {
-    background: #fff;
-    border: 1.5px solid var(--flent-indigo);
-    border-radius: 100px;
-    padding: 7px 20px;
-    font-family: var(--flent-display);
-    font-size: 15px; font-weight: 500;
-    color: var(--flent-indigo);
-    letter-spacing: -0.02em;
-    line-height: 1;
-  }
-  .le-topbar-tag {
-    font-size: 9px; font-family: monospace;
-    text-transform: uppercase; letter-spacing: 0.12em;
-    color: var(--flent-muted);
+
+  @media (min-width: 641px) {
+    .le-topbar {
+      padding: 0 calc(max(26px, (100vw - 788px) / 2 + 68px));
+      height: 60px;
+    }
   }
 
-  /* ── Max-width container ── */
+  .le-logo-pill {
+    background: var(--le-ink);
+    border-radius: 100px;
+    padding: 6px 18px;
+    font-family: var(--le-display);
+    font-size: 14px; font-weight: 400; font-style: italic;
+    color: var(--le-paper);
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+
+  .le-topbar-tag {
+    font-family: var(--le-mono);
+    font-size: 9px;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--le-ink-soft);
+  }
+
+  /* ── Document container ── */
   .le-container {
-    max-width: 760px;
-    margin: 0 auto;
-    padding: 0 24px;
+    padding: 0 26px 120px;
+  }
+
+  @media (min-width: 641px) {
+    .le-container {
+      max-width: 788px;
+      margin: 44px auto;
+      padding: 40px 68px 80px;
+      background: var(--le-paper);
+      border-radius: 4px;
+      box-shadow: 0 2px 20px rgba(33,28,68,0.09), 0 0 0 1px var(--le-hairline);
+    }
   }
 
   /* ── Hero ── */
-  .le-hero { padding: 40px 0 28px; }
+  .le-hero { padding: 36px 0 24px; }
+
+  .le-hero-eyebrow {
+    font-family: var(--le-mono);
+    font-size: 9px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--le-clay);
+    margin-bottom: 12px; display: block;
+  }
+
   .le-hero-h1 {
-    font-family: var(--flent-sans);
-    font-size: clamp(22px, 6vw, 30px);
-    font-weight: 500; color: var(--flent-indigo-ink);
-    line-height: 1.2; margin: 0;
+    font-family: var(--le-display);
+    font-size: clamp(24px, 5vw, 32px);
+    font-weight: 400; font-style: italic;
+    color: var(--le-ink);
+    line-height: 1.25; margin: 0 0 10px;
   }
-  .le-hero-em {
-    font-family: var(--flent-display);
-    font-style: italic; font-weight: 400; display: block;
-  }
+
+  .le-hero-em { font-style: italic; display: block; }
+
   .le-hero-sub {
-    font-size: 14px; color: var(--flent-muted);
-    margin-top: 10px; line-height: 1.6;
+    font-size: 14px; color: var(--le-ink-soft);
+    line-height: 1.65; font-family: var(--le-sans);
+    max-width: 480px;
   }
 
   /* ── Meta card ── */
   .le-meta-card {
     background: #fff;
-    border-radius: 14px; border: 1.5px solid var(--flent-line);
+    border-radius: 10px;
+    border: 1px solid var(--le-hairline-strong);
     display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;
-    overflow: hidden; margin-bottom: 14px;
+    overflow: hidden; margin-bottom: 20px;
   }
+
   .le-meta-cell {
-    padding: 18px 20px;
-    border-right: 1px solid var(--flent-line);
+    padding: 16px 18px;
+    border-right: 1px solid var(--le-hairline);
   }
   .le-meta-cell:last-child { border-right: none; }
+
   .le-meta-lbl {
-    font-size: 9px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.12em;
-    color: var(--flent-muted); margin-bottom: 6px;
-    font-family: monospace; display: block;
+    font-family: var(--le-mono);
+    font-size: 8px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--le-ink-soft); margin-bottom: 6px; display: block;
   }
+
   .le-meta-val {
-    font-size: 13px; font-weight: 600;
-    color: var(--flent-indigo-ink); line-height: 1.3;
+    font-family: var(--le-display);
+    font-size: 13px; font-weight: 400;
+    color: var(--le-ink); line-height: 1.3;
   }
 
   /* ── Stats row ── */
   .le-stats-row {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
-    gap: 10px; margin-bottom: 24px;
+    gap: 8px; margin-bottom: 24px;
   }
+
   .le-stat-card {
     background: #fff;
-    border-radius: 12px; border: 1.5px solid var(--flent-line);
-    padding: 14px 16px;
+    border-radius: 8px; border: 1px solid var(--le-hairline-strong);
+    padding: 12px 14px;
   }
+
   .le-stat-card-total {
-    background: var(--flent-indigo);
-    border-color: var(--flent-indigo);
+    background: var(--le-ink);
+    border-color: var(--le-ink);
   }
+
   .le-stat-num {
-    font-family: var(--flent-display);
-    font-size: 22px; font-weight: 400;
-    color: var(--flent-indigo-ink);
+    font-family: var(--le-mono);
+    font-size: 20px; font-weight: 500;
+    color: var(--le-ink);
     line-height: 1; margin-bottom: 4px;
     font-variant-numeric: tabular-nums;
   }
-  .le-stat-card-total .le-stat-num { color: var(--flent-cream); }
+
+  .le-stat-card-total .le-stat-num { color: var(--le-paper); font-size: 22px; }
+
   .le-stat-lbl {
-    font-size: 9px; text-transform: uppercase;
-    letter-spacing: 0.1em; color: var(--flent-muted);
-    font-family: monospace;
+    font-family: var(--le-mono);
+    font-size: 8px; font-weight: 400;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--le-ink-soft);
   }
-  .le-stat-card-total .le-stat-lbl { color: rgba(245,242,236,0.55); }
+
+  .le-stat-card-total .le-stat-lbl { color: rgba(244,240,232,0.5); }
 
   /* ── Banners ── */
   .le-banner {
-    background: #fff; border: 1.5px solid var(--flent-line);
-    border-radius: 10px; padding: 14px 18px; margin-bottom: 20px;
+    background: #fff; border: 1px solid var(--le-hairline-strong);
+    border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;
     display: flex; align-items: flex-start; gap: 10px;
   }
+
   .le-banner-dot {
     width: 18px; height: 18px; border-radius: 50%;
-    background: var(--flent-indigo); color: #fff;
+    background: var(--le-ink); color: var(--le-paper);
     display: flex; align-items: center; justify-content: center;
-    font-size: 10px; flex-shrink: 0; margin-top: 1px;
+    font-family: var(--le-mono); font-size: 9px; flex-shrink: 0; margin-top: 1px;
   }
+
   .le-banner-text {
-    font-size: 13px; color: var(--flent-muted);
-    line-height: 1.6;
+    font-size: 13px; color: var(--le-ink-soft);
+    line-height: 1.6; font-family: var(--le-sans);
   }
+
   .le-approved-banner {
-    background: rgba(60,90,63,0.07); border: 1.5px solid rgba(60,90,63,0.22);
-    border-radius: 10px; padding: 14px 18px; margin-bottom: 20px;
+    background: rgba(58,102,66,0.07); border: 1px solid rgba(58,102,66,0.2);
+    border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;
     display: flex; align-items: center; gap: 10px;
-    font-size: 13px; color: var(--flent-olive);
+    font-size: 13px; color: var(--le-green);
+    font-family: var(--le-sans);
   }
 
   /* ── Trade groups ── */
-  .le-trade-group { margin-bottom: 28px; }
+  .le-trade-group { margin-bottom: 32px; }
+
   .le-trade-head {
     display: flex; align-items: baseline; justify-content: space-between;
     padding-bottom: 10px;
-    border-bottom: 1.5px solid var(--flent-indigo);
-    margin-bottom: 12px;
-  }
-  .le-trade-name {
-    font-family: var(--flent-display);
-    font-size: 20px; font-weight: 500;
-    color: var(--flent-indigo-ink); letter-spacing: -0.01em;
-  }
-  .le-trade-meta {
-    font-size: 10px; font-family: monospace;
-    color: var(--flent-muted); letter-spacing: 0.04em; white-space: nowrap;
+    border-bottom: 1.5px solid var(--le-ink);
+    margin-bottom: 14px;
   }
 
-  /* ── Item card ── */
+  .le-trade-name {
+    font-family: var(--le-display);
+    font-size: 18px; font-weight: 400; font-style: italic;
+    color: var(--le-ink);
+  }
+
+  .le-trade-meta {
+    font-family: var(--le-mono);
+    font-size: 10px; color: var(--le-ink-soft);
+    letter-spacing: 0.04em; white-space: nowrap;
+  }
+
+  /* ── Item card (plate layout) ── */
   .le-item {
-    background: #fff; border-radius: 12px;
-    border: 1.5px solid var(--flent-line);
-    padding: 16px; margin-bottom: 10px;
+    background: #fff; border-radius: 10px;
+    border: 1px solid var(--le-hairline-strong);
+    margin-bottom: 10px;
+    overflow: hidden;
     transition: border-color 0.15s;
   }
-  .le-item-main { display: flex; gap: 14px; margin-bottom: 10px; }
-  .le-item-thumb {
-    width: 84px; height: 84px; border-radius: 8px;
-    object-fit: cover; flex-shrink: 0;
-    border: 1px solid var(--flent-line);
+
+  .le-item-plate {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    min-height: 96px;
+  }
+
+  .le-item-thumb-wrap {
+    background: var(--le-paper);
+    border-right: 1px solid var(--le-hairline);
+    display: flex; align-items: center; justify-content: center;
     cursor: pointer; transition: opacity 0.15s;
+    overflow: hidden; position: relative;
   }
-  .le-item-thumb:hover { opacity: 0.85; }
-  .le-item-thumb-placeholder {
-    width: 84px; height: 84px; border-radius: 8px; flex-shrink: 0;
-    background: var(--flent-cream); border: 1px solid var(--flent-line);
+
+  .le-item-thumb-wrap.no-photo { cursor: default; }
+  .le-item-thumb-wrap:not(.no-photo):hover { opacity: 0.82; }
+
+  .le-item-thumb {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
   }
-  .le-item-body { flex: 1; min-width: 0; }
+
+  .le-item-body {
+    padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+
   .le-item-toprow {
     display: flex; align-items: flex-start;
-    justify-content: space-between; gap: 8px; margin-bottom: 3px;
+    justify-content: space-between; gap: 8px; margin-bottom: 2px;
   }
+
+  .le-item-toprow-right {
+    display: flex; flex-direction: column; align-items: flex-end;
+    gap: 4px; flex-shrink: 0;
+  }
+
   .le-item-name {
-    font-size: 14px; font-weight: 600;
-    color: var(--flent-indigo-ink); line-height: 1.3;
+    font-family: var(--le-display);
+    font-size: 14px; font-weight: 400;
+    color: var(--le-ink); line-height: 1.35;
   }
+
   .le-item-cost {
-    font-family: var(--flent-display);
-    font-size: 16px; font-weight: 400;
-    color: var(--flent-indigo-ink);
-    white-space: nowrap; flex-shrink: 0;
+    font-family: var(--le-mono);
+    font-size: 13px; font-weight: 500;
+    color: var(--le-ink);
+    white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
+
   .le-item-actuals-cost {
-    font-family: monospace; font-size: 10px; letter-spacing: 0.06em;
-    color: #9B7340; white-space: nowrap; flex-shrink: 0;
-    padding: 3px 0;
+    font-family: var(--le-mono);
+    font-size: 9px; letter-spacing: 0.08em; font-weight: 500;
+    color: var(--le-clay); white-space: nowrap;
   }
+
   .le-item-area {
-    font-size: 10px; font-family: monospace;
-    color: var(--flent-muted); letter-spacing: 0.04em; margin-bottom: 6px;
+    font-family: var(--le-mono);
+    font-size: 9px; font-weight: 400;
+    color: var(--le-ink-soft); letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
+
   .le-item-desc {
-    font-size: 13px; color: var(--flent-muted);
-    line-height: 1.6; margin-bottom: 7px;
+    font-size: 12px; color: var(--le-ink-soft);
+    line-height: 1.6; font-family: var(--le-sans);
   }
+
   .le-item-costs {
-    font-size: 11px; font-family: monospace;
-    color: var(--flent-muted); letter-spacing: 0.03em; margin-bottom: 7px;
+    font-family: var(--le-mono);
+    font-size: 10px; color: var(--le-ink-soft);
+    letter-spacing: 0.03em;
   }
+
   .le-item-actuals-note {
-    font-size: 12px; color: #9B7340;
-    font-style: italic; margin-bottom: 7px;
+    font-size: 11px; color: var(--le-clay);
+    font-style: italic; font-family: var(--le-sans);
   }
 
   /* ── Status pill ── */
   .le-status-pill {
-    font-size: 8px; font-weight: 700;
+    font-family: var(--le-mono);
+    font-size: 8px; font-weight: 500;
     letter-spacing: 0.1em; text-transform: uppercase;
     padding: 3px 8px; border-radius: 100px;
-    font-family: monospace; flex-shrink: 0; white-space: nowrap;
-    align-self: flex-start; margin-top: 2px;
+    flex-shrink: 0; white-space: nowrap;
   }
-  .le-pill-pending  { background: rgba(90,85,112,0.09); color: var(--flent-muted); }
-  .le-pill-approved { background: rgba(60,90,63,0.10);  color: var(--flent-olive); }
-  .le-pill-disputed { background: rgba(240,201,160,0.3); color: #9B7340; }
+
+  .le-pill-pending  { background: rgba(94,88,114,0.08); color: var(--le-ink-soft); }
+  .le-pill-approved { background: rgba(58,102,66,0.1);  color: var(--le-green); }
+  .le-pill-disputed { background: rgba(199,107,74,0.1); color: var(--le-clay); }
+
+  /* ── Item footer ── */
+  .le-item-footer {
+    padding: 10px 14px 14px;
+    border-top: 1px solid var(--le-hairline);
+  }
 
   /* ── Action buttons ── */
   .le-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
   .le-btn-approve {
-    padding: 8px 20px; border-radius: 100px;
-    background: var(--flent-indigo); color: #fff; border: none;
-    font-size: 12px; font-weight: 600; cursor: pointer;
-    transition: opacity 0.15s; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 20px; border-radius: 100px;
+    background: var(--le-ink); color: var(--le-paper); border: none;
+    font-family: var(--le-sans); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.15s; white-space: nowrap;
+    min-height: 44px;
   }
   .le-btn-approve:hover { opacity: 0.85; }
   .le-btn-approve:disabled { opacity: 0.4; cursor: default; }
-  .le-btn-dispute {
-    padding: 8px 20px; border-radius: 100px;
-    background: none; color: var(--flent-muted);
-    border: 1.5px solid var(--flent-line);
-    font-size: 12px; cursor: pointer;
-    transition: border-color 0.15s, color 0.15s;
+
+  .le-btn-ask {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border-radius: 100px;
+    background: none; color: var(--le-ink-soft);
+    border: 1.5px solid var(--le-hairline-strong);
+    font-family: var(--le-sans); font-size: 12px;
+    cursor: pointer; transition: border-color 0.15s, color 0.15s;
+    min-height: 44px;
   }
-  .le-btn-dispute:hover { border-color: var(--flent-indigo); color: var(--flent-indigo); }
+  .le-btn-ask:hover { border-color: var(--le-ink); color: var(--le-ink); }
+
   .le-btn-approved-badge {
-    padding: 8px 18px; border-radius: 100px;
-    background: rgba(60,90,63,0.08); color: var(--flent-olive);
-    border: 1px solid rgba(60,90,63,0.2);
-    font-size: 12px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border-radius: 100px;
+    background: rgba(58,102,66,0.08); color: var(--le-green);
+    border: 1.5px solid rgba(58,102,66,0.22);
+    font-family: var(--le-sans); font-size: 12px; font-weight: 600;
+    min-height: 44px;
   }
+
   .le-btn-disputed-badge {
-    padding: 8px 18px; border-radius: 100px;
-    background: rgba(240,201,160,0.25); color: #9B7340;
-    border: 1px solid rgba(240,201,160,0.6);
-    font-size: 12px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border-radius: 100px;
+    background: rgba(199,107,74,0.08); color: var(--le-clay);
+    border: 1.5px solid rgba(199,107,74,0.22);
+    font-family: var(--le-sans); font-size: 12px; font-weight: 600;
+    min-height: 44px;
   }
 
   /* ── Dispute form ── */
   .le-dispute-form {
-    margin-top: 14px; padding: 16px;
-    background: var(--flent-cream); border: 1.5px solid var(--flent-line);
-    border-radius: 10px;
+    margin-top: 12px; padding: 14px 16px;
+    background: var(--le-paper); border: 1px solid var(--le-hairline-strong);
+    border-radius: 8px;
   }
+
   .le-dispute-title {
-    font-size: 10px; font-weight: 700;
-    color: var(--flent-indigo); text-transform: uppercase;
-    letter-spacing: 0.1em; margin-bottom: 10px; font-family: monospace;
+    font-family: var(--le-mono);
+    font-size: 9px; font-weight: 500;
+    color: var(--le-ink); text-transform: uppercase;
+    letter-spacing: 0.12em; margin-bottom: 10px;
   }
+
   .le-reason-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+
   .le-reason-tag {
-    padding: 6px 14px; border-radius: 100px;
-    border: 1.5px solid var(--flent-line); background: #fff;
-    font-size: 11px; color: var(--flent-muted); cursor: pointer;
-    transition: all 0.15s;
+    padding: 8px 14px; border-radius: 100px;
+    border: 1.5px solid var(--le-hairline-strong); background: #fff;
+    font-family: var(--le-sans); font-size: 11px; color: var(--le-ink-soft);
+    cursor: pointer; transition: all 0.15s;
+    min-height: 40px; display: inline-flex; align-items: center;
   }
-  .le-reason-tag.selected { background: var(--flent-indigo); color: #fff; border-color: var(--flent-indigo); }
+  .le-reason-tag.selected { background: var(--le-ink); color: var(--le-paper); border-color: var(--le-ink); }
+
   .le-dispute-textarea {
     width: 100%; resize: vertical;
-    border: 1.5px solid var(--flent-line); border-radius: 8px;
-    padding: 10px 12px; font-size: 16px; color: var(--flent-indigo-ink);
-    font-family: var(--flent-sans); background: #fff; outline: none;
+    border: 1.5px solid var(--le-hairline-strong); border-radius: 8px;
+    padding: 10px 12px; font-size: 16px; color: var(--le-ink);
+    font-family: var(--le-sans); background: #fff; outline: none;
     margin-bottom: 10px; min-height: 64px;
   }
-  .le-dispute-textarea:focus { border-color: var(--flent-indigo); }
+  .le-dispute-textarea:focus { border-color: var(--le-ink); }
+
   .le-dispute-actions { display: flex; gap: 8px; }
+
   .le-btn-submit {
-    padding: 8px 20px; border-radius: 100px;
-    background: var(--flent-indigo); color: #fff; border: none;
-    font-size: 12px; font-weight: 600; cursor: pointer;
+    padding: 9px 20px; border-radius: 100px;
+    background: var(--le-ink); color: var(--le-paper); border: none;
+    font-family: var(--le-sans); font-size: 12px; font-weight: 600;
+    cursor: pointer; min-height: 40px;
   }
   .le-btn-submit:disabled { opacity: 0.4; cursor: default; }
+
   .le-btn-cancel {
-    padding: 8px 16px; border-radius: 100px;
-    background: none; color: var(--flent-muted);
-    border: 1.5px solid var(--flent-line);
-    font-size: 12px; cursor: pointer;
+    padding: 9px 16px; border-radius: 100px;
+    background: none; color: var(--le-ink-soft);
+    border: 1.5px solid var(--le-hairline-strong);
+    font-family: var(--le-sans); font-size: 12px; cursor: pointer;
+    min-height: 40px;
   }
 
   /* ── Dispute thread ── */
-  .le-thread { margin-top: 14px; border-top: 1px solid var(--flent-line); padding-top: 12px; }
+  .le-thread { margin-top: 12px; border-top: 1px solid var(--le-hairline); padding-top: 12px; }
   .le-thread-msg { margin-bottom: 10px; }
-  .le-thread-meta { font-size: 10px; color: var(--flent-muted); margin-bottom: 3px; font-family: monospace; }
+  .le-thread-meta { font-family: var(--le-mono); font-size: 9px; color: var(--le-ink-soft); margin-bottom: 3px; letter-spacing: 0.04em; }
   .le-thread-bubble {
     display: inline-block; padding: 8px 12px; border-radius: 8px;
     font-size: 12px; line-height: 1.6; max-width: 90%;
+    font-family: var(--le-sans);
   }
-  .le-bubble-landlord { background: rgba(228,222,207,0.5); color: var(--flent-indigo-ink); }
-  .le-bubble-flent    { background: var(--flent-indigo); color: #fff; }
+  .le-bubble-landlord { background: rgba(222,214,196,0.45); color: var(--le-ink); }
+  .le-bubble-flent    { background: var(--le-ink); color: var(--le-paper); }
 
   /* ── Notes & terms ── */
   .le-notes-card {
-    background: #fff; border-radius: 14px;
-    border: 1.5px solid var(--flent-line);
-    padding: 20px 24px; margin-bottom: 24px;
+    background: #fff; border-radius: 10px;
+    border: 1px solid var(--le-hairline-strong);
+    padding: 18px 20px; margin-bottom: 24px;
   }
+
   .le-notes-label {
-    font-size: 9px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.12em;
-    color: var(--flent-muted); font-family: monospace; margin-bottom: 10px;
+    font-family: var(--le-mono);
+    font-size: 8px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--le-ink-soft); margin-bottom: 10px; display: block;
   }
+
   .le-notes-body {
-    font-size: 13px; color: var(--flent-muted);
+    font-size: 13px; color: var(--le-ink-soft);
     font-style: italic; line-height: 1.7;
+    font-family: var(--le-sans);
   }
 
   /* ── Sticky bottom bar ── */
   .le-bottom-bar {
     position: fixed; bottom: 0; left: 0; right: 0;
-    background: var(--flent-indigo);
-    padding: 14px 32px; z-index: 100;
+    background: var(--le-ink);
+    padding: 14px 26px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    z-index: 100;
     display: flex; align-items: center; justify-content: space-between; gap: 16px;
   }
+
+  @media (min-width: 641px) {
+    .le-bottom-bar {
+      padding: 14px calc(max(26px, (100vw - 788px) / 2 + 68px));
+    }
+  }
+
   .le-bottom-total-num {
-    font-family: var(--flent-display);
-    font-size: 22px; font-weight: 400;
-    color: var(--flent-cream); line-height: 1;
+    font-family: var(--le-mono);
+    font-size: 20px; font-weight: 500;
+    color: var(--le-paper); line-height: 1;
     font-variant-numeric: tabular-nums;
   }
+
   .le-bottom-total-lbl {
-    font-size: 9px; text-transform: uppercase;
-    letter-spacing: 0.1em; color: rgba(245,242,236,0.5);
-    font-family: monospace; margin-top: 3px;
+    font-family: var(--le-mono);
+    font-size: 8px; text-transform: uppercase;
+    letter-spacing: 0.1em; color: rgba(244,240,232,0.5);
+    margin-top: 3px;
   }
+
   .le-btn-approve-all {
-    padding: 12px 28px; background: var(--flent-apricot);
-    color: var(--flent-indigo-ink); border: none; border-radius: 100px;
-    font-size: 14px; font-weight: 700; cursor: pointer;
-    transition: opacity 0.15s; white-space: nowrap;
+    padding: 12px 28px; background: var(--le-apricot);
+    color: var(--le-ink); border: none; border-radius: 100px;
+    font-family: var(--le-sans); font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: opacity 0.15s; white-space: nowrap;
+    min-height: 44px;
   }
   .le-btn-approve-all:hover { opacity: 0.85; }
   .le-btn-approve-all:disabled { opacity: 0.4; cursor: default; }
+  .le-btn-approve-all.done {
+    background: rgba(58,102,66,0.18); color: var(--le-green);
+    border: 1.5px solid rgba(58,102,66,0.3);
+  }
 
   /* ── Name modal ── */
   .le-name-overlay {
-    position: fixed; inset: 0; background: rgba(28,24,56,0.55); z-index: 200;
+    position: fixed; inset: 0; background: rgba(33,28,68,0.55); z-index: 200;
     display: flex; align-items: center; justify-content: center; padding: 20px;
   }
+
   .le-name-modal {
-    background: #fff; border-radius: 16px;
-    padding: 28px 32px; max-width: 380px; width: 100%;
-    box-shadow: 0 20px 60px rgba(42,36,86,0.2);
+    background: #fff; border-radius: 14px;
+    padding: 28px; max-width: 360px; width: 100%;
+    box-shadow: 0 20px 60px rgba(33,28,68,0.2);
   }
+
   .le-name-modal-title {
-    font-family: var(--flent-display);
-    font-size: 20px; font-weight: 500; color: var(--flent-indigo-ink);
-    margin-bottom: 6px;
+    font-family: var(--le-display);
+    font-size: 20px; font-weight: 400; font-style: italic;
+    color: var(--le-ink); margin-bottom: 6px;
   }
+
   .le-name-modal-sub {
-    font-size: 13px; color: var(--flent-muted); margin-bottom: 18px; line-height: 1.5;
+    font-family: var(--le-sans);
+    font-size: 13px; color: var(--le-ink-soft); margin-bottom: 18px; line-height: 1.5;
   }
+
   .le-name-input {
-    width: 100%; border: 1.5px solid var(--flent-line); border-radius: 8px;
-    padding: 11px 14px; font-size: 16px; color: var(--flent-indigo-ink);
-    font-family: var(--flent-sans); outline: none; margin-bottom: 14px;
+    width: 100%; border: 1.5px solid var(--le-hairline-strong); border-radius: 8px;
+    padding: 11px 14px; font-size: 16px; color: var(--le-ink);
+    font-family: var(--le-sans); outline: none; margin-bottom: 14px;
   }
-  .le-name-input:focus { border-color: var(--flent-indigo); }
+  .le-name-input:focus { border-color: var(--le-ink); }
+
   .le-btn-name-confirm {
-    width: 100%; padding: 13px; background: var(--flent-indigo); color: #fff;
+    width: 100%; padding: 13px; background: var(--le-ink); color: var(--le-paper);
     border: none; border-radius: 100px;
-    font-size: 14px; font-weight: 600; cursor: pointer;
+    font-family: var(--le-sans); font-size: 14px; font-weight: 600; cursor: pointer;
+    min-height: 44px;
   }
   .le-btn-name-confirm:disabled { opacity: 0.4; cursor: default; }
 
@@ -418,48 +559,37 @@ const CSS = `
 
   /* ── Responsive ── */
   @media (max-width: 640px) {
-    .le-topbar { padding: 0 16px; height: 48px; }
-    .le-container { padding: 0 16px; }
-    .le-hero { padding: 24px 0 20px; }
+    .le-container { padding: 0 26px 120px; }
+    .le-hero { padding: 24px 0 18px; }
 
-    /* Meta card: 2×2 */
     .le-meta-card { grid-template-columns: 1fr 1fr; }
     .le-meta-cell:nth-child(2) { border-right: none; }
-    .le-meta-cell:nth-child(3) { border-top: 1px solid var(--flent-line); border-right: 1px solid var(--flent-line); }
-    .le-meta-cell:nth-child(4) { border-top: 1px solid var(--flent-line); border-right: none; }
+    .le-meta-cell:nth-child(3) { border-top: 1px solid var(--le-hairline); border-right: 1px solid var(--le-hairline); }
+    .le-meta-cell:nth-child(4) { border-top: 1px solid var(--le-hairline); border-right: none; }
 
-    /* Stats: 2×2, total full-width top */
     .le-stats-row { grid-template-columns: 1fr 1fr; }
     .le-stat-card-total { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; }
-    .le-stat-card-total .le-stat-num { font-size: 26px; }
+    .le-stat-card-total .le-stat-num { font-size: 24px; }
 
-    .le-trade-name { font-size: 17px; }
+    .le-trade-name { font-size: 16px; }
 
-    /* Item thumb smaller on mobile */
-    .le-item-thumb,
-    .le-item-thumb-placeholder { width: 68px; height: 68px; }
+    .le-item-plate { grid-template-columns: 72px 1fr; min-height: 72px; }
 
-    /* Action buttons: full-width stacked, 44px min */
     .le-actions { flex-direction: column; }
     .le-btn-approve,
-    .le-btn-dispute,
+    .le-btn-ask,
     .le-btn-approved-badge,
-    .le-btn-disputed-badge {
-      width: 100%; min-height: 44px;
-      display: flex; align-items: center; justify-content: center; font-size: 13px;
-    }
+    .le-btn-disputed-badge { width: 100%; justify-content: center; font-size: 13px; }
 
-    .le-reason-tags { gap: 8px; }
-    .le-reason-tag { min-height: 40px; display: inline-flex; align-items: center; font-size: 12px; }
+    .le-reason-tag { font-size: 12px; min-height: 42px; }
 
-    /* Bottom bar: stack, safe area */
     .le-bottom-bar {
       flex-direction: column; align-items: stretch; gap: 10px;
       padding: 14px 16px;
       padding-bottom: calc(14px + env(safe-area-inset-bottom));
     }
-    .le-btn-approve-all { width: 100%; padding: 15px; font-size: 15px; text-align: center; }
-    .le-bottom-total-num { font-size: 20px; }
+    .le-btn-approve-all { width: 100%; text-align: center; padding: 15px; font-size: 15px; }
+    .le-bottom-total-num { font-size: 18px; }
   }
 `
 
@@ -488,10 +618,10 @@ function itemTotal(item) {
 }
 
 const REASON_TAGS = [
-  { key: 'not_needed',    label: 'Not needed' },
+  { key: 'not_needed',     label: 'Not needed' },
   { key: 'price_too_high', label: 'Price too high' },
-  { key: 'already_fixed', label: 'Already fixed' },
-  { key: 'question',      label: 'Question' },
+  { key: 'already_fixed',  label: 'Already fixed' },
+  { key: 'question',       label: 'Question' },
 ]
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -524,6 +654,14 @@ export default function LandlordEstimate() {
 
   // Photo lightbox
   const [lightbox, setLightbox] = useState(null)
+
+  // Esc key closes lightbox
+  useEffect(() => {
+    if (!lightbox) return
+    const handler = e => { if (e.key === 'Escape') setLightbox(null) }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [lightbox])
 
   // ── Load ────────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -723,8 +861,8 @@ export default function LandlordEstimate() {
     seen[trade].push(item)
   })
 
-  const pid       = inspection?.pid || estimate?.pid || '—'
-  const address   = inspection?.config?.address || ''
+  const pid      = inspection?.pid || estimate?.pid || '—'
+  const address  = inspection?.config?.address || ''
   const inspector = estimate?.inspector_name || '—'
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -732,11 +870,11 @@ export default function LandlordEstimate() {
 
   if (notFound) {
     return (
-      <div style={{ minHeight: '100dvh', background: '#F5F2EC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', padding: 40, fontFamily: 'var(--flent-sans)' }}>
+      <div style={{ minHeight: '100dvh', background: '#F4F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', padding: 40, fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🔗</div>
-          <div style={{ fontSize: 18, fontWeight: 600, color: '#1C1838', marginBottom: 6 }}>Link not found</div>
-          <div style={{ fontSize: 13, color: '#5A5570' }}>This estimate link is invalid or has expired.</div>
+          <div style={{ fontSize: 18, fontWeight: 600, color: '#211C44', marginBottom: 6 }}>Link not found</div>
+          <div style={{ fontSize: 13, color: '#5E5872' }}>This estimate link is invalid or has expired.</div>
         </div>
       </div>
     )
@@ -750,15 +888,15 @@ export default function LandlordEstimate() {
 
       {/* ── Top bar ── */}
       <div className="le-topbar">
-        {/* TODO: swap for real Flent logo asset when provided */}
         <span className="le-logo-pill">flent</span>
-        <span className="le-topbar-tag">Estimate Review Portal</span>
+        <span className="le-topbar-tag">Estimate Review</span>
       </div>
 
       <div className="le-container">
 
         {/* ── Hero ── */}
         <div className="le-hero">
+          <span className="le-hero-eyebrow">Property Estimate</span>
           <h1 className="le-hero-h1">
             {HERO_TITLE}
             <em className="le-hero-em">{HERO_SUBTITLE}</em>
@@ -794,11 +932,11 @@ export default function LandlordEstimate() {
             <div className="le-stat-lbl">Items</div>
           </div>
           <div className="le-stat-card">
-            <div className="le-stat-num" style={approvedCount > 0 ? { color: 'var(--flent-olive)' } : {}}>{approvedCount}</div>
+            <div className="le-stat-num" style={approvedCount > 0 ? { color: 'var(--le-green)' } : {}}>{approvedCount}</div>
             <div className="le-stat-lbl">Approved</div>
           </div>
           <div className="le-stat-card">
-            <div className="le-stat-num" style={disputedCount > 0 ? { color: '#9B7340' } : {}}>{disputedCount}</div>
+            <div className="le-stat-num" style={disputedCount > 0 ? { color: 'var(--le-clay)' } : {}}>{disputedCount}</div>
             <div className="le-stat-lbl">In Review</div>
           </div>
           <div className="le-stat-card">
@@ -841,36 +979,45 @@ export default function LandlordEstimate() {
               </div>
 
               {tradeItems.map(item => {
-                const total    = itemTotal(item)
+                const total     = itemTotal(item)
                 const itemDisps = disputes.filter(d => d.estimate_item_id === item.id)
-                const status   = item.status || 'pending'
-                const isOpen   = !!disputeOpen[item.id]
-                const thumb    = item._photos?.[0] || null
+                const status    = item.status || 'pending'
+                const isOpen    = !!disputeOpen[item.id]
+                const thumb     = item._photos?.[0] || null
 
                 return (
                   <div key={item.id} className="le-item">
 
-                    {/* Main row: thumb + content */}
-                    <div className="le-item-main">
-                      {thumb ? (
-                        <img
-                          src={thumb}
-                          alt="Item photo"
-                          className="le-item-thumb"
-                          onClick={() => setLightbox(thumb)}
-                        />
-                      ) : (
-                        <div className="le-item-thumb-placeholder" />
-                      )}
+                    {/* Plate: thumb gutter + content */}
+                    <div className="le-item-plate">
+                      <div
+                        className={`le-item-thumb-wrap${thumb ? '' : ' no-photo'}`}
+                        onClick={thumb ? () => setLightbox(thumb) : undefined}
+                      >
+                        {thumb ? (
+                          <img src={thumb} alt="" className="le-item-thumb" />
+                        ) : (
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.2 }}>
+                            <rect x="3" y="3" width="18" height="18" rx="3" stroke="#211C44" strokeWidth="1.5"/>
+                            <circle cx="8.5" cy="8.5" r="1.5" fill="#211C44"/>
+                            <path d="M3 15l5-5 4 4 3-3 6 6" stroke="#211C44" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </div>
 
                       <div className="le-item-body">
                         <div className="le-item-toprow">
                           <span className="le-item-name">{item.item_name || '—'}</span>
-                          {total != null && total > 0 ? (
-                            <span className="le-item-cost">₹{fmt(total)}</span>
-                          ) : item.cost_type === 'actuals' ? (
-                            <span className="le-item-actuals-cost">ON ACTUALS</span>
-                          ) : null}
+                          <div className="le-item-toprow-right">
+                            {total != null && total > 0 ? (
+                              <span className="le-item-cost">₹{fmt(total)}</span>
+                            ) : item.cost_type === 'actuals' ? (
+                              <span className="le-item-actuals-cost">ACTUALS</span>
+                            ) : null}
+                            <span className={`le-status-pill le-pill-${status}`}>
+                              {status === 'pending' ? 'Pending' : status === 'approved' ? '✓ Approved' : '⚑ In Review'}
+                            </span>
+                          </div>
                         </div>
 
                         {item.area && (
@@ -881,10 +1028,9 @@ export default function LandlordEstimate() {
                           <div className="le-item-desc">{item.issue_description}</div>
                         )}
 
-                        {/* Cost breakdown — quiet mono text, no boxes */}
                         {item.cost_type === 'actuals' ? (
                           <div className="le-item-actuals-note">
-                            This item will be charged based on actual costs once work is completed.
+                            Charged on actual costs after work is completed.
                           </div>
                         ) : item.cost_type !== 'nil' && (
                           <div className="le-item-costs">
@@ -894,94 +1040,92 @@ export default function LandlordEstimate() {
                           </div>
                         )}
                       </div>
-
-                      {/* Status pill — right of body on desktop */}
-                      <span className={`le-status-pill le-pill-${status}`}>
-                        {status === 'pending' ? 'Pending' : status === 'approved' ? '✓ Approved' : '⚑ In Review'}
-                      </span>
                     </div>
 
-                    {/* Action buttons */}
-                    <div className="le-actions">
-                      {status === 'approved' ? (
-                        <span className="le-btn-approved-badge">✓ Approved</span>
-                      ) : status === 'disputed' ? (
-                        <span className="le-btn-disputed-badge">⚑ In Review</span>
-                      ) : (
-                        <>
-                          <button
-                            className="le-btn-approve"
-                            disabled={!!submitting[item.id]}
-                            onClick={() => requireName(() => approveItem(item.id))}
-                          >
-                            ✓ Approve
-                          </button>
-                          <button
-                            className="le-btn-dispute"
-                            disabled={!!submitting[item.id]}
-                            onClick={() => requireName(() => setDisputeOpen(s => ({ ...s, [item.id]: !s[item.id] })))}
-                          >
-                            {isOpen ? '✕ Cancel' : '⚑ Raise concern'}
-                          </button>
-                        </>
+                    {/* Action footer */}
+                    <div className="le-item-footer">
+                      <div className="le-actions">
+                        {status === 'approved' ? (
+                          <span className="le-btn-approved-badge">✓ Approved</span>
+                        ) : status === 'disputed' ? (
+                          <span className="le-btn-disputed-badge">⚑ In Review</span>
+                        ) : (
+                          <>
+                            <button
+                              className="le-btn-approve"
+                              disabled={!!submitting[item.id]}
+                              onClick={() => requireName(() => approveItem(item.id))}
+                            >
+                              ✓ Approve
+                            </button>
+                            <button
+                              className="le-btn-ask"
+                              disabled={!!submitting[item.id]}
+                              onClick={() => requireName(() => setDisputeOpen(s => ({ ...s, [item.id]: !s[item.id] })))}
+                            >
+                              {isOpen ? '✕ Cancel' : 'Ask about this'}
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Dispute form */}
+                      {isOpen && (
+                        <div className="le-dispute-form">
+                          <div className="le-dispute-title">Raise a concern</div>
+                          <div className="le-reason-tags">
+                            {REASON_TAGS.map(r => (
+                              <button
+                                key={r.key}
+                                className={`le-reason-tag${disputeReason[item.id] === r.key ? ' selected' : ''}`}
+                                onClick={() => setDisputeReason(s => ({ ...s, [item.id]: r.key }))}
+                              >
+                                {r.label}
+                              </button>
+                            ))}
+                          </div>
+                          <textarea
+                            className="le-dispute-textarea"
+                            placeholder="Add a comment (optional)"
+                            value={disputeMsg[item.id] || ''}
+                            onChange={e => setDisputeMsg(s => ({ ...s, [item.id]: e.target.value }))}
+                          />
+                          <div className="le-dispute-actions">
+                            <button
+                              className="le-btn-submit"
+                              disabled={!!submitting[item.id] || !disputeReason[item.id]}
+                              onClick={() => submitDispute(item.id)}
+                            >
+                              {submitting[item.id] ? 'Submitting…' : 'Submit concern'}
+                            </button>
+                            <button
+                              className="le-btn-cancel"
+                              onClick={() => setDisputeOpen(s => ({ ...s, [item.id]: false }))}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Dispute thread */}
+                      {itemDisps.length > 0 && (
+                        <div className="le-thread">
+                          {[...itemDisps].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((d, di) => (
+                            <div key={di} className="le-thread-msg">
+                              <div className="le-thread-meta">
+                                {d.author_name || d.author_type} · {new Date(d.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                {d.reason_tag ? ` · ${REASON_TAGS.find(r => r.key === d.reason_tag)?.label || d.reason_tag}` : ''}
+                              </div>
+                              <div className={`le-thread-bubble ${d.author_type === 'landlord' ? 'le-bubble-landlord' : 'le-bubble-flent'}`}>
+                                {d.message || `[${REASON_TAGS.find(r => r.key === d.reason_tag)?.label || d.reason_tag}]`}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
 
-                    {/* Dispute form */}
-                    {isOpen && (
-                      <div className="le-dispute-form">
-                        <div className="le-dispute-title">Raise a concern</div>
-                        <div className="le-reason-tags">
-                          {REASON_TAGS.map(r => (
-                            <button
-                              key={r.key}
-                              className={`le-reason-tag${disputeReason[item.id] === r.key ? ' selected' : ''}`}
-                              onClick={() => setDisputeReason(s => ({ ...s, [item.id]: r.key }))}
-                            >
-                              {r.label}
-                            </button>
-                          ))}
-                        </div>
-                        <textarea
-                          className="le-dispute-textarea"
-                          placeholder="Add a comment (optional)"
-                          value={disputeMsg[item.id] || ''}
-                          onChange={e => setDisputeMsg(s => ({ ...s, [item.id]: e.target.value }))}
-                        />
-                        <div className="le-dispute-actions">
-                          <button
-                            className="le-btn-submit"
-                            disabled={!!submitting[item.id] || !disputeReason[item.id]}
-                            onClick={() => submitDispute(item.id)}
-                          >
-                            {submitting[item.id] ? 'Submitting…' : 'Submit concern'}
-                          </button>
-                          <button
-                            className="le-btn-cancel"
-                            onClick={() => setDisputeOpen(s => ({ ...s, [item.id]: false }))}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Dispute thread */}
-                    {itemDisps.length > 0 && (
-                      <div className="le-thread">
-                        {[...itemDisps].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((d, di) => (
-                          <div key={di} className="le-thread-msg">
-                            <div className="le-thread-meta">
-                              {d.author_name || d.author_type} · {new Date(d.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                              {d.reason_tag ? ` · ${REASON_TAGS.find(r => r.key === d.reason_tag)?.label || d.reason_tag}` : ''}
-                            </div>
-                            <div className={`le-thread-bubble ${d.author_type === 'landlord' ? 'le-bubble-landlord' : 'le-bubble-flent'}`}>
-                              {d.message || `[${REASON_TAGS.find(r => r.key === d.reason_tag)?.label || d.reason_tag}]`}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 )
               })}
@@ -991,7 +1135,7 @@ export default function LandlordEstimate() {
 
         {/* ── Notes & terms ── */}
         <div className="le-notes-card">
-          <div className="le-notes-label">Notes &amp; Terms</div>
+          <span className="le-notes-label">Notes &amp; Terms</span>
           <div className="le-notes-body">
             {estimate?.notes || '[ Generic notes / terms will appear here ]'}
           </div>
@@ -1007,11 +1151,11 @@ export default function LandlordEstimate() {
             <div className="le-bottom-total-lbl">Total Estimate</div>
           </div>
           <button
-            className="le-btn-approve-all"
+            className={`le-btn-approve-all${pendingCount === 0 && !approving ? ' done' : ''}`}
             disabled={approving || pendingCount === 0}
             onClick={() => requireName(approveAll)}
           >
-            {approving ? 'Approving…' : pendingCount === 0 ? 'All reviewed' : 'Approve full estimate'}
+            {approving ? 'Approving…' : pendingCount === 0 ? 'All reviewed ✓' : 'Approve all'}
           </button>
         </div>
       )}
