@@ -75,7 +75,7 @@ function generateFXIN(trade, name, qty) {
   return `${TRADE_CODES[(trade || '').toLowerCase()] || 'MSC'}${getItemCode(name || '')}${qty || 1}`
 }
 
-const blankAddForm = () => ({ item_name: '', trade: 'electrical', spec: '', size: '', price_inc: '', qty: '1', warranty_months: '', flent_price: '', market_price: '' })
+const blankAddForm = () => ({ item_name: '', trade: 'electrical', spec: '', size: '', price_inc: '', qty: '1', warranty_months: '', flent_price: '' })
 
 export default function InventoryDashboard() {
   const navigate = useNavigate()
@@ -117,9 +117,9 @@ export default function InventoryDashboard() {
 
   const fetchStats = async () => {
     const [{ data: itemData }, { data: usageData }, { data: usageWithPrice }] = await Promise.all([
-      supabase.from('inventory_items').select('quantity_remaining, flent_price, market_price, price_inc'),
+      supabase.from('inventory_items').select('quantity_remaining, price_inc'),
       supabase.from('inventory_usage').select('qty_used'),
-      supabase.from('inventory_usage').select('qty_used, inventory_items(flent_price, market_price, price_inc)'),
+      supabase.from('inventory_usage').select('qty_used, inventory_items(price_inc)'),
     ])
     const availableUnits = itemData?.reduce((s, i) => s + (i.quantity_remaining || 0), 0) || 0
     const totalValue     = itemData?.reduce((s, i) => s + ((i.quantity_remaining || 0) * (i.price_inc || 0)), 0) || 0
@@ -160,7 +160,6 @@ export default function InventoryDashboard() {
       quantity_remaining: String(row.quantity_remaining ?? row.qty ?? ''),
       warranty_months: String(row.warranty_months || ''),
       flent_price: String(row.flent_price || ''),
-      market_price: String(row.market_price || ''),
     })
   }
 
@@ -176,7 +175,6 @@ export default function InventoryDashboard() {
       quantity_remaining: parseInt(editForm.quantity_remaining) || 0,
       warranty_months: parseInt(editForm.warranty_months) || 0,
       flent_price: parseFloat(editForm.flent_price) || 0,
-      market_price: parseFloat(editForm.market_price) || 0,
     }
     const prev = row
     setItems(p => p.map(r => r.id === row.id ? { ...r, ...patch } : r))
@@ -214,7 +212,6 @@ export default function InventoryDashboard() {
         qty, quantity_remaining: qty, quantity_used: 0,
         warranty_months: parseInt(addForm.warranty_months) || 0,
         flent_price: parseFloat(addForm.flent_price) || 0,
-        market_price: parseFloat(addForm.market_price) || 0,
         registry_id: null,
       }
       // Fetch without join — new items have no registry_id, join would always be null anyway
@@ -324,7 +321,6 @@ export default function InventoryDashboard() {
                         <div><span style={s.lbl}>Size</span><input value={ef.size} onChange={e => setEditForm(p => ({ ...p, size: e.target.value }))} style={inpS} placeholder="—" /></div>
                         <div><span style={s.lbl}>Landing ₹</span><input type="number" value={ef.price_inc} onChange={e => setEditForm(p => ({ ...p, price_inc: e.target.value }))} style={inpS} /></div>
                         <div><span style={s.lbl}>Selling ₹</span><input type="number" value={ef.flent_price} onChange={e => setEditForm(p => ({ ...p, flent_price: e.target.value }))} style={inpS} /></div>
-                        <div><span style={s.lbl}>Market ₹</span><input type="number" value={ef.market_price} onChange={e => setEditForm(p => ({ ...p, market_price: e.target.value }))} style={inpS} /></div>
                         <div><span style={s.lbl}>Qty Remaining</span><input type="number" value={ef.quantity_remaining} onChange={e => setEditForm(p => ({ ...p, quantity_remaining: e.target.value }))} style={inpS} /></div>
                         <div><span style={s.lbl}>Warranty (mo)</span><input type="number" value={ef.warranty_months} onChange={e => setEditForm(p => ({ ...p, warranty_months: e.target.value }))} style={inpS} /></div>
                       </div>
@@ -374,7 +370,7 @@ export default function InventoryDashboard() {
           </div>
         ) : (
           <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '100px minmax(130px,1fr) 120px 70px 70px 84px 84px 84px 66px 56px', padding: '10px 16px', background: 'var(--bg-panel, #1e2028)', fontSize: 9, fontWeight: 700, color: 'var(--accent, #c8963e)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: 'var(--font-mono, monospace)', gap: 8, borderBottom: '1px solid var(--border, #2e3040)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '100px minmax(130px,1fr) 120px 70px 70px 84px 84px 66px 56px', padding: '10px 16px', background: 'var(--bg-panel, #1e2028)', fontSize: 9, fontWeight: 700, color: 'var(--accent, #c8963e)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: 'var(--font-mono, monospace)', gap: 8, borderBottom: '1px solid var(--border, #2e3040)' }}>
               <span>FXIN</span>
               <span>Item Name</span>
               <span>Spec</span>
@@ -382,7 +378,6 @@ export default function InventoryDashboard() {
               <span style={{ textAlign: 'center' }}>Warranty</span>
               <span style={{ textAlign: 'right' }}>Landing ₹</span>
               <span style={{ textAlign: 'right' }}>Selling ₹</span>
-              <span style={{ textAlign: 'right' }}>Market ₹</span>
               <span style={{ textAlign: 'right' }}>Margin %</span>
               <span style={{ textAlign: 'right' }}></span>
             </div>
@@ -404,7 +399,6 @@ export default function InventoryDashboard() {
                         <div><span style={s.lbl}>Size</span><input value={ef.size} onChange={e => setEditForm(p => ({ ...p, size: e.target.value }))} style={inpS} placeholder="—" /></div>
                         <div><span style={s.lbl}>Landing ₹</span><input type="number" value={ef.price_inc} onChange={e => setEditForm(p => ({ ...p, price_inc: e.target.value }))} style={inpS} /></div>
                         <div><span style={s.lbl}>Selling ₹</span><input type="number" value={ef.flent_price} onChange={e => setEditForm(p => ({ ...p, flent_price: e.target.value }))} style={inpS} /></div>
-                        <div><span style={s.lbl}>Market ₹</span><input type="number" value={ef.market_price} onChange={e => setEditForm(p => ({ ...p, market_price: e.target.value }))} style={inpS} /></div>
                         <div><span style={s.lbl}>Qty Remaining</span><input type="number" value={ef.quantity_remaining} onChange={e => setEditForm(p => ({ ...p, quantity_remaining: e.target.value }))} style={inpS} /></div>
                         <div><span style={s.lbl}>Warranty (mo)</span><input type="number" value={ef.warranty_months} onChange={e => setEditForm(p => ({ ...p, warranty_months: e.target.value }))} style={inpS} /></div>
                       </div>
@@ -419,7 +413,7 @@ export default function InventoryDashboard() {
                         onClick={() => toggleExpand(row.id)}
                         onMouseEnter={() => setHoveredRow(row.id)}
                         onMouseLeave={() => setHoveredRow(null)}
-                        style={{ display: 'grid', gridTemplateColumns: '100px minmax(130px,1fr) 120px 70px 70px 84px 84px 84px 66px 56px', padding: '14px 16px', borderTop: '1px solid var(--border, #2e3040)', alignItems: 'center', gap: 8, background: expandedId === row.id ? 'rgba(200,150,62,0.06)' : hoveredRow === row.id ? 'rgba(200,150,62,0.04)' : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent', transition: 'background 0.1s', cursor: 'pointer' }}
+                        style={{ display: 'grid', gridTemplateColumns: '100px minmax(130px,1fr) 120px 70px 70px 84px 84px 66px 56px', padding: '14px 16px', borderTop: '1px solid var(--border, #2e3040)', alignItems: 'center', gap: 8, background: expandedId === row.id ? 'rgba(200,150,62,0.06)' : hoveredRow === row.id ? 'rgba(200,150,62,0.04)' : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent', transition: 'background 0.1s', cursor: 'pointer' }}
                       >
                         <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>{row.fxin ? <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.1)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 4, padding: '2px 6px' }}>{row.fxin}</span> : '—'}</span>
                         <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.item_name}</span>
@@ -431,9 +425,6 @@ export default function InventoryDashboard() {
                         </span>
                         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent, #c8963e)', textAlign: 'right', fontFamily: 'var(--font-mono,monospace)' }}>
                           {flentP > 0 ? `₹${flentP.toLocaleString('en-IN')}` : '—'}
-                        </span>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', textAlign: 'right', fontFamily: 'var(--font-mono,monospace)' }}>
-                          {(parseFloat(row.market_price)||0) > 0 ? `₹${(parseFloat(row.market_price)||0).toLocaleString('en-IN')}` : '—'}
                         </span>
                         <span style={{ fontSize: 11, color: margin > 0 ? '#3dba7a' : 'var(--text-muted, #6b6d82)', textAlign: 'right', fontFamily: 'var(--font-mono,monospace)' }}>
                           {margin > 0 ? `${margin}%` : '—'}
@@ -460,7 +451,6 @@ export default function InventoryDashboard() {
                             { label: 'SPEC',         val: <span style={{ color: 'var(--text-muted, #6b6d82)', fontSize: 12 }}>{row.spec || '—'}</span> },
                             { label: 'Landing ₹',    val: <span style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--text-muted, #6b6d82)' }}>{priceInc > 0 ? `₹${priceInc.toLocaleString('en-IN')}` : '—'}</span> },
                             { label: 'Selling ₹',    val: <span style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--accent, #c8963e)' }}>{flentP > 0 ? `₹${flentP.toLocaleString('en-IN')}` : '—'}</span> },
-                            { label: 'Market ₹',     val: <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>{(parseFloat(row.market_price)||0) > 0 ? `₹${(parseFloat(row.market_price)||0).toLocaleString('en-IN')}` : '—'}</span> },
                             { label: 'Margin %',     val: <span style={{ fontFamily: 'var(--font-mono, monospace)', color: margin > 0 ? '#3dba7a' : 'var(--text-muted, #6b6d82)' }}>{margin > 0 ? `${margin}%` : '—'}</span> },
                             { label: 'AVAILABLE',    val: <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>{row.quantity_remaining} units</span> },
                             { label: 'TOTAL QTY',    val: <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>{row.qty || '—'}</span> },
@@ -526,10 +516,6 @@ export default function InventoryDashboard() {
                 <div>
                   <span style={s.lbl}>Selling ₹</span>
                   <input type="number" value={addForm.flent_price} onChange={e => setAddForm(p => ({ ...p, flent_price: e.target.value }))} placeholder="0" style={{ ...inpS, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)' }} />
-                </div>
-                <div>
-                  <span style={s.lbl}>Market ₹</span>
-                  <input type="number" value={addForm.market_price} onChange={e => setAddForm(p => ({ ...p, market_price: e.target.value }))} placeholder="0" style={{ ...inpS, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)' }} />
                 </div>
                 <div>
                   <span style={s.lbl}>Spec</span>
