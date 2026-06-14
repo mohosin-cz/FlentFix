@@ -469,6 +469,23 @@ export default function Dashboard() {
               </div>
             </section>
 
+            {/* Quick Actions — desktop only */}
+            <section className="dash-quick" style={{ display: 'none' }}>
+              <div style={s.panel}>
+                <div style={s.panelHead}>
+                  <span style={s.panelTitle}>quick_actions</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {QUICK_ACTIONS.map(a => (
+                    <button key={a.path} className="qa-btn" onClick={() => navigate(a.path)} style={s.qaBtn}>
+                      <span style={{ color: 'var(--accent, #c8963e)', fontWeight: 700, fontSize: 14 }}>{a.icon}</span>
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
             {/* Activity feed */}
             <section style={s.panel}>
               <div style={s.panelHead}>
@@ -494,23 +511,6 @@ export default function Dashboard() {
                   ))}
                 </div>
               )}
-            </section>
-
-            {/* Quick Actions — desktop only */}
-            <section className="dash-quick" style={{ display: 'none' }}>
-              <div style={s.panel}>
-                <div style={s.panelHead}>
-                  <span style={s.panelTitle}>quick_actions</span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  {QUICK_ACTIONS.map(a => (
-                    <button key={a.path} className="qa-btn" onClick={() => navigate(a.path)} style={s.qaBtn}>
-                      <span style={{ color: 'var(--accent, #c8963e)', fontWeight: 700, fontSize: 14 }}>{a.icon}</span>
-                      {a.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </section>
 
           </div>
