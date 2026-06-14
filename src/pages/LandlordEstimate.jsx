@@ -343,8 +343,8 @@ const CSS = `
   .le-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
   .le-btn-approve {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 9px 20px; border-radius: 100px;
+    display: inline-flex; align-items: center;
+    padding: 9px 18px; border-radius: 2px;
     background: var(--le-ink); color: var(--le-paper); border: none;
     font-family: var(--le-sans); font-size: 12px; font-weight: 600;
     cursor: pointer; transition: opacity 0.15s; white-space: nowrap;
@@ -354,19 +354,18 @@ const CSS = `
   .le-btn-approve:disabled { opacity: 0.4; cursor: default; }
 
   .le-btn-ask {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 9px 18px; border-radius: 100px;
-    background: none; color: var(--le-ink-soft);
-    border: 1.5px solid var(--le-hairline-strong);
-    font-family: var(--le-sans); font-size: 12px;
-    cursor: pointer; transition: border-color 0.15s, color 0.15s;
+    display: inline-flex; align-items: center;
+    background: none; border: none; padding: 0;
+    color: var(--le-ink-soft); font-family: var(--le-sans); font-size: 12px;
+    text-decoration: underline; text-underline-offset: 3px;
+    cursor: pointer; transition: color 0.15s;
     min-height: 44px;
   }
-  .le-btn-ask:hover { border-color: var(--le-ink); color: var(--le-ink); }
+  .le-btn-ask:hover { color: var(--le-ink); }
 
   .le-btn-approved-badge {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 9px 18px; border-radius: 100px;
+    padding: 9px 18px; border-radius: 2px;
     background: rgba(58,102,66,0.08); color: var(--le-green);
     border: 1.5px solid rgba(58,102,66,0.22);
     font-family: var(--le-sans); font-size: 12px; font-weight: 600;
@@ -375,7 +374,7 @@ const CSS = `
 
   .le-btn-disputed-badge {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 9px 18px; border-radius: 100px;
+    padding: 9px 18px; border-radius: 2px;
     background: rgba(199,107,74,0.08); color: var(--le-clay);
     border: 1.5px solid rgba(199,107,74,0.22);
     font-family: var(--le-sans); font-size: 12px; font-weight: 600;
@@ -419,7 +418,7 @@ const CSS = `
   .le-dispute-actions { display: flex; gap: 8px; }
 
   .le-btn-submit {
-    padding: 9px 20px; border-radius: 100px;
+    padding: 9px 20px; border-radius: 2px;
     background: var(--le-ink); color: var(--le-paper); border: none;
     font-family: var(--le-sans); font-size: 12px; font-weight: 600;
     cursor: pointer; min-height: 40px;
@@ -427,7 +426,7 @@ const CSS = `
   .le-btn-submit:disabled { opacity: 0.4; cursor: default; }
 
   .le-btn-cancel {
-    padding: 9px 16px; border-radius: 100px;
+    padding: 9px 16px; border-radius: 2px;
     background: none; color: var(--le-ink-soft);
     border: 1.5px solid var(--le-hairline-strong);
     font-family: var(--le-sans); font-size: 12px; cursor: pointer;
@@ -498,7 +497,7 @@ const CSS = `
 
   .le-btn-approve-all {
     padding: 12px 28px; background: var(--le-apricot);
-    color: var(--le-ink); border: none; border-radius: 100px;
+    color: var(--le-ink); border: none; border-radius: 2px;
     font-family: var(--le-sans); font-size: 14px; font-weight: 700;
     cursor: pointer; transition: opacity 0.15s; white-space: nowrap;
     min-height: 44px;
@@ -542,7 +541,7 @@ const CSS = `
 
   .le-btn-name-confirm {
     width: 100%; padding: 13px; background: var(--le-ink); color: var(--le-paper);
-    border: none; border-radius: 100px;
+    border: none; border-radius: 2px;
     font-family: var(--le-sans); font-size: 14px; font-weight: 600; cursor: pointer;
     min-height: 44px;
   }
@@ -577,9 +576,9 @@ const CSS = `
 
     .le-actions { flex-direction: column; }
     .le-btn-approve,
-    .le-btn-ask,
     .le-btn-approved-badge,
     .le-btn-disputed-badge { width: 100%; justify-content: center; font-size: 13px; }
+    .le-btn-ask { font-size: 13px; }
 
     .le-reason-tag { font-size: 12px; min-height: 42px; }
 
@@ -590,6 +589,32 @@ const CSS = `
     }
     .le-btn-approve-all { width: 100%; text-align: center; padding: 15px; font-size: 15px; }
     .le-bottom-total-num { font-size: 18px; }
+  }
+
+  /* ── Focus rings ── */
+  .le-btn-approve:focus-visible,
+  .le-btn-ask:focus-visible,
+  .le-btn-approved-badge:focus-visible,
+  .le-btn-submit:focus-visible,
+  .le-btn-cancel:focus-visible,
+  .le-btn-name-confirm:focus-visible,
+  .le-reason-tag:focus-visible,
+  .le-item-thumb-wrap:focus-visible {
+    outline: 2px solid var(--le-clay);
+    outline-offset: 2px;
+  }
+
+  .le-bottom-bar .le-btn-approve-all:focus-visible {
+    outline: 2px solid var(--le-paper);
+    outline-offset: 2px;
+  }
+
+  /* ── Reduced motion ── */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
   }
 `
 
@@ -1056,7 +1081,7 @@ export default function LandlordEstimate() {
                               disabled={!!submitting[item.id]}
                               onClick={() => requireName(() => approveItem(item.id))}
                             >
-                              ✓ Approve
+                              Approve
                             </button>
                             <button
                               className="le-btn-ask"
