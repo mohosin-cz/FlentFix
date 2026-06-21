@@ -126,7 +126,196 @@ tr:hover .wb-more-btn { opacity: 1; }
   .wb-tval { font-size: 13px; }
   .wb-content { padding: 10px 10px 110px; }
 }
+.wb-media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+@media (max-width: 640px) { .wb-media-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); } }
 `
+
+// ─── MediaLightbox ───────────────────────────────────────────────────────────
+
+function MediaLightbox({ urls, idx, onClose }) {
+  const [cur, setCur] = useState(idx)
+  useEffect(() => {
+    function handle(e) {
+      if (e.key === 'Escape')      onClose()
+      if (e.key === 'ArrowRight')  setCur(i => Math.min(i + 1, urls.length - 1))
+      if (e.key === 'ArrowLeft')   setCur(i => Math.max(i - 1, 0))
+    }
+    document.addEventListener('keydown', handle)
+    return () => document.removeEventListener('keydown', handle)
+  }, [urls.length, onClose])
+  const url   = urls[cur]
+  const isVid = /\.(mp4|mov|webm)$/i.test(url)
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <button onClick={onClose} style={{ position: 'fixed', top: 16, right: 16, width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9901 }}>×</button>
+      <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, maxWidth: '92vw' }}>
+        {isVid
+          ? <video src={url} controls autoPlay style={{ maxWidth: '90vw', maxHeight: '80vh', borderRadius: 6 }} />
+          : <img src={url} alt="" style={{ maxWidth: '90vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 6 }} />
+        }
+        {urls.length > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={e => { e.stopPropagation(); setCur(i => Math.max(i - 1, 0)) }} disabled={cur === 0} style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', cursor: cur === 0 ? 'default' : 'pointer', color: '#fff', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: cur === 0 ? 0.3 : 1 }}>‹</button>
+            <span style={{ fontSize: 11, color: '#aaa', fontFamily: 'var(--font-mono, monospace)' }}>{cur + 1} / {urls.length}</span>
+            <button onClick={e => { e.stopPropagation(); setCur(i => Math.min(i + 1, urls.length - 1)) }} disabled={cur === urls.length - 1} style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', cursor: cur === urls.length - 1 ? 'default' : 'pointer', color: '#fff', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: cur === urls.length - 1 ? 0.3 : 1 }}>›</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── MediaStrip (compact in-row thumbnail) ────────────────────────────────────
+
+function MediaStrip({ media = [], onOpenPanel, onOpenLightbox }) {
+  const isVid  = m => m.type === 'video' || /\.(mp4|mov|webm)$/i.test(m.url)
+  const photos = media.filter(m => !isVid(m))
+  const videos = media.filter(m =>  isVid(m))
+  const first  = media[0]
+  if (!first) {
+    return (
+      <div onClick={e => { e.stopPropagation(); onOpenPanel() }} style={{ height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#3a3c4e', fontSize: 10, fontFamily: 'var(--font-mono, monospace)', userSelect: 'none' }}>
+        + add
+      </div>
+    )
+  }
+  return (
+    <div style={{ height: 36, display: 'flex', alignItems: 'center', gap: 5, padding: '0 3px' }}>
+      <div
+        onClick={e => { e.stopPropagation(); onOpenLightbox(0) }}
+        style={{ width: 42, height: 30, borderRadius: 3, overflow: 'hidden', flexShrink: 0, cursor: 'pointer', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        {isVid(first)
+          ? <span style={{ color: '#fff', fontSize: 13, lineHeight: 1 }}>▶</span>
+          : <img src={first.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none' }} />
+        }
+      </div>
+      <div onClick={e => { e.stopPropagation(); onOpenPanel() }} style={{ display: 'flex', flexDirection: 'column', gap: 1, cursor: 'pointer', minWidth: 0 }}>
+        {photos.length > 0 && <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.3, whiteSpace: 'nowrap' }}>▤ {photos.length}</span>}
+        {videos.length > 0 && <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.3, whiteSpace: 'nowrap' }}>▶ {videos.length}</span>}
+      </div>
+    </div>
+  )
+}
+
+// ─── MediaPanel (bottom-sheet media manager) ─────────────────────────────────
+
+function MediaPanel({ item, media, onClose, onAddMedia, onDeleteMedia, onReplaceMedia, onSetPrimary, onOpenLightbox }) {
+  const addRef     = useRef(null)
+  const replaceRef = useRef(null)
+  const [replaceTarget, setReplaceTarget] = useState(null)
+  const [uploading, setUploading]         = useState(false)
+
+  async function handleAdd(e) {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+    e.target.value = ''
+    setUploading(true)
+    await onAddMedia(files)
+    setUploading(false)
+  }
+
+  async function handleReplace(e) {
+    const file = e.target.files?.[0]
+    if (!file || !replaceTarget) return
+    e.target.value = ''
+    setUploading(true)
+    await onReplaceMedia(replaceTarget, file)
+    setReplaceTarget(null)
+    setUploading(false)
+  }
+
+  const isVid = m => m.type === 'video' || /\.(mp4|mov|webm)$/i.test(m.url)
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 800 }} />
+      <div onClick={e => e.stopPropagation()} style={{ position: 'fixed', bottom: 0, left: 0, right: 0, maxHeight: '88vh', background: 'var(--bg-panel, #1e2028)', borderRadius: '14px 14px 0 0', border: '1px solid var(--border, #2e3040)', zIndex: 801, display: 'flex', flexDirection: 'column', boxShadow: '0 -8px 40px rgba(0,0,0,0.6)' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 10px', borderBottom: '1px solid var(--border, #2e3040)', flexShrink: 0 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{item.item_name || 'Item'} — Media</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 2 }}>
+              {media.length} file{media.length !== 1 ? 's' : ''}{item.area ? ` · ${item.area}` : ''}
+              {!item.line_item_id && <span style={{ color: '#f0a050', marginLeft: 6 }}>· inspection link required for media</span>}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ width: 36, height: 36, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #6b6d82)', fontSize: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6 }}>×</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '14px 16px 28px', overflowY: 'auto', flex: 1 }}>
+          {/* Hidden file inputs */}
+          <input ref={addRef}     type="file" accept="image/*,video/*" multiple style={{ display: 'none' }} onChange={handleAdd} />
+          <input ref={replaceRef} type="file" accept="image/*,video/*"          style={{ display: 'none' }} onChange={handleReplace} />
+
+          {/* Add button */}
+          {item.line_item_id && (
+            <button
+              onClick={() => addRef.current?.click()}
+              disabled={uploading}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', marginBottom: 16, minHeight: 44, border: `1px dashed ${uploading ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, borderRadius: 8, background: uploading ? 'rgba(200,150,62,0.06)' : 'none', fontSize: 13, color: uploading ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)', cursor: uploading ? 'wait' : 'pointer', fontFamily: 'inherit' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 11v2a1 1 0 001 1h12a1 1 0 001-1v-2M8 1v9M5 4l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              {uploading ? 'Uploading…' : '+ Add photos / videos'}
+            </button>
+          )}
+
+          {/* Grid */}
+          {media.length === 0 ? (
+            <div style={{ padding: '28px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)' }}>
+              {item.line_item_id ? 'No media yet — add photos or videos above.' : 'This item was added manually and cannot have inspection media attached.'}
+            </div>
+          ) : (
+            <div className="wb-media-grid">
+              {media.map((m, idx) => {
+                const isPrimary = idx === 0
+                const vid       = isVid(m)
+                return (
+                  <div key={m.id} style={{ borderRadius: 8, overflow: 'hidden', background: '#0d0e14', border: `2px solid ${isPrimary ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}` }}>
+                    {/* Thumb */}
+                    <div onClick={() => onOpenLightbox(idx)} style={{ width: '100%', paddingTop: '72%', position: 'relative', cursor: 'pointer' }}>
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {vid
+                          ? <span style={{ color: '#fff', fontSize: 28, lineHeight: 1 }}>▶</span>
+                          : <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none' }} />
+                        }
+                      </div>
+                      {isPrimary && (
+                        <div style={{ position: 'absolute', top: 5, left: 5, fontSize: 8, padding: '2px 6px', borderRadius: 3, background: 'var(--accent, #c8963e)', color: '#000', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, letterSpacing: '0.06em' }}>PRIMARY</div>
+                      )}
+                      {vid && (
+                        <div style={{ position: 'absolute', top: 5, right: 5, fontSize: 8, padding: '2px 5px', borderRadius: 3, background: 'rgba(0,0,0,0.6)', color: '#fff', fontFamily: 'var(--font-mono, monospace)' }}>VIDEO</div>
+                      )}
+                    </div>
+                    {/* Actions */}
+                    <div style={{ padding: '6px 6px 8px', display: 'flex', gap: 4 }}>
+                      {!isPrimary && media.length > 1 && (
+                        <button
+                          onClick={() => onSetPrimary(m)}
+                          style={{ flex: 1, padding: '7px 0', minHeight: 36, background: 'none', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 4, fontSize: 9, cursor: 'pointer', color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}
+                        >★ Primary</button>
+                      )}
+                      <button
+                        onClick={() => { setReplaceTarget(m); setTimeout(() => replaceRef.current?.click(), 50) }}
+                        style={{ flex: 1, padding: '7px 0', minHeight: 36, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, fontSize: 9, cursor: 'pointer', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}
+                      >⇄ Swap</button>
+                      <button
+                        onClick={() => onDeleteMedia(m)}
+                        style={{ flex: isPrimary || media.length === 1 ? '0 0 auto' : 1, padding: '7px 8px', minHeight: 36, background: 'none', border: '1px solid rgba(248,113,113,0.35)', borderRadius: 4, fontSize: 9, cursor: 'pointer', color: '#f87171', fontFamily: 'var(--font-mono, monospace)' }}
+                      >× Del</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
 
 // ─── RateDrawer ───────────────────────────────────────────────────────────────
 
@@ -325,6 +514,9 @@ export default function EstimateWorkbench() {
   const [generating, setGenerating]       = useState(false)
   const [copied, setCopied]               = useState(false)
   const [moreOpen, setMoreOpen]           = useState(false)
+  const [mediaMap, setMediaMap]           = useState({}) // { [lineItemId]: [{id,url,type}] }
+  const [mediaPanel, setMediaPanel]       = useState(null) // estimate_items row | null
+  const [lightbox, setLightbox]           = useState(null) // { urls, idx } | null
 
   useEffect(() => { loadData() }, [id])
 
@@ -344,10 +536,81 @@ export default function EstimateWorkbench() {
       supabase.from('inspections').select('id,pid,house_type,inspection_date').eq('id', est.inspection_id).maybeSingle(),
       supabase.from('estimates').select('id', { count: 'exact', head: true }).eq('pid', est.pid),
     ])
-    setItems(itemsRes.data || [])
+    const fetchedItems = itemsRes.data || []
+    setItems(fetchedItems)
     setInspection(inspRes.data || null)
     setVersionCount(count || 1)
     setLoading(false)
+    loadMedia(fetchedItems)
+  }
+
+  async function loadMedia(itemsList) {
+    const lineItemIds = (itemsList || items).map(i => i.line_item_id).filter(Boolean)
+    if (!lineItemIds.length) { setMediaMap({}); return }
+    const { data } = await supabase
+      .from('line_item_media')
+      .select('id, line_item_id, url, type')
+      .in('line_item_id', lineItemIds)
+      .order('id', { ascending: true })
+    if (data) {
+      const map = {}
+      data.forEach(m => { if (!map[m.line_item_id]) map[m.line_item_id] = []; map[m.line_item_id].push(m) })
+      setMediaMap(map)
+    }
+  }
+
+  function updateMediaList(lineItemId, updater) {
+    setMediaMap(prev => ({ ...prev, [lineItemId]: updater(prev[lineItemId] || []) }))
+  }
+
+  async function handleAddMedia(lineItemId, files) {
+    for (const file of files) {
+      const ext  = file.name.split('.').pop()
+      const path = `workbench/${lineItemId}/${Date.now()}.${ext}`
+      const { data: uploaded, error } = await supabase.storage.from('inspection-media').upload(path, file, { upsert: true })
+      if (error) continue
+      const { data: { publicUrl } } = supabase.storage.from('inspection-media').getPublicUrl(uploaded.path)
+      const type = file.type.startsWith('video') ? 'video' : 'image'
+      const { data: row } = await supabase.from('line_item_media').insert({ line_item_id: lineItemId, url: publicUrl, type }).select().single()
+      if (row) updateMediaList(lineItemId, prev => [...prev, row])
+    }
+  }
+
+  async function handleDeleteMedia(m) {
+    if (!window.confirm('Delete this media file?')) return
+    await supabase.from('line_item_media').delete().eq('id', m.id)
+    const storagePath = m.url.split('/object/public/inspection-media/')[1]
+    if (storagePath) await supabase.storage.from('inspection-media').remove([decodeURIComponent(storagePath)])
+    updateMediaList(m.line_item_id, prev => prev.filter(x => x.id !== m.id))
+  }
+
+  async function handleReplaceMedia(m, file) {
+    const ext  = file.name.split('.').pop()
+    const path = `workbench/${m.line_item_id}/${Date.now()}.${ext}`
+    const { data: uploaded, error } = await supabase.storage.from('inspection-media').upload(path, file, { upsert: true })
+    if (error) return
+    const { data: { publicUrl } } = supabase.storage.from('inspection-media').getPublicUrl(uploaded.path)
+    const type = file.type.startsWith('video') ? 'video' : 'image'
+    await supabase.from('line_item_media').update({ url: publicUrl, type }).eq('id', m.id)
+    const storagePath = m.url.split('/object/public/inspection-media/')[1]
+    if (storagePath) await supabase.storage.from('inspection-media').remove([decodeURIComponent(storagePath)])
+    updateMediaList(m.line_item_id, prev => prev.map(x => x.id === m.id ? { ...x, url: publicUrl, type } : x))
+  }
+
+  async function handleSetPrimary(lineItemId, targetMedia) {
+    const list = mediaMap[lineItemId] || []
+    if (list.length < 2) return
+    const primary = list[0]
+    if (primary.id === targetMedia.id) return
+    await Promise.all([
+      supabase.from('line_item_media').update({ url: targetMedia.url, type: targetMedia.type }).eq('id', primary.id),
+      supabase.from('line_item_media').update({ url: primary.url,    type: primary.type    }).eq('id', targetMedia.id),
+    ])
+    updateMediaList(lineItemId, prev => prev.map(x => {
+      if (x.id === primary.id)     return { ...x, url: targetMedia.url, type: targetMedia.type }
+      if (x.id === targetMedia.id) return { ...x, url: primary.url,    type: primary.type    }
+      return x
+    }))
   }
 
   // Derived
@@ -728,6 +991,15 @@ export default function EstimateWorkbench() {
           </span>
         </td>
 
+        {/* Media */}
+        <td style={{ padding: 0 }} onClick={e => e.stopPropagation()}>
+          <MediaStrip
+            media={mediaMap[item.line_item_id] || []}
+            onOpenPanel={() => setMediaPanel(item)}
+            onOpenLightbox={idx => setLightbox({ urls: (mediaMap[item.line_item_id] || []).map(m => m.url), idx })}
+          />
+        </td>
+
         {/* Row actions ⋯ */}
         <td style={{ padding: 0, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
           <button className="wb-more-btn"
@@ -824,6 +1096,32 @@ export default function EstimateWorkbench() {
             style={{ flex: 1, padding: '8px 0', minHeight: 40, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>⇄ Material</button>
           <button onClick={() => openSwapDrawer('swap-labour', item.id)}
             style={{ flex: 1, padding: '8px 0', minHeight: 40, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>⇄ Labour</button>
+        </div>
+
+        {/* Media */}
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted, #6b6d82)', marginBottom: 6, fontFamily: 'var(--font-mono, monospace)' }}>Media</div>
+          {(() => {
+            const media = mediaMap[item.line_item_id] || []
+            const isVid = m => m.type === 'video' || /\.(mp4|mov|webm)$/i.test(m.url)
+            return (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                {media.slice(0, 4).map((m, idx) => (
+                  <div key={m.id} onClick={() => setLightbox({ urls: media.map(x => x.url), idx })} style={{ width: 64, height: 48, borderRadius: 4, overflow: 'hidden', background: '#111', border: idx === 0 ? '2px solid var(--accent, #c8963e)' : '1px solid var(--border, #2e3040)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {isVid(m)
+                      ? <span style={{ color: '#fff', fontSize: 16, lineHeight: 1 }}>▶</span>
+                      : <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none' }} />
+                    }
+                  </div>
+                ))}
+                {media.length > 4 && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>+{media.length - 4}</div>}
+                <button
+                  onClick={() => setMediaPanel(item)}
+                  style={{ minWidth: 56, minHeight: 44, padding: '0 8px', background: 'none', border: '1px dashed var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
+                >{media.length ? 'Manage' : '+ Add'}</button>
+              </div>
+            )
+          })()}
         </div>
 
         {/* Row actions */}
@@ -943,7 +1241,7 @@ export default function EstimateWorkbench() {
                     </div>
                   ) : (
                     <div style={{ border: '1px solid var(--border, #2e3040)', borderTop: 'none', borderRadius: '0 0 7px 7px', overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 964 }}>
                         <colgroup>
                           <col style={{ width: 26 }} />
                           <col style={{ width: 78 }} />
@@ -955,11 +1253,12 @@ export default function EstimateWorkbench() {
                           <col style={{ width: 82 }} />
                           <col style={{ width: 74 }} />
                           <col style={{ width: 76 }} />
+                          <col style={{ width: 64 }} />
                           <col style={{ width: 36 }} />
                         </colgroup>
                         <thead>
                           <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border, #2e3040)' }}>
-                            {['', 'Area', 'Item', 'Description', 'Material', 'Labour', 'Qty', 'Type', 'Total', 'Status', ''].map((h, i) => (
+                            {['', 'Area', 'Item', 'Description', 'Material', 'Labour', 'Qty', 'Type', 'Total', 'Status', 'Media', ''].map((h, i) => (
                               <th key={i} style={{ padding: '5px 8px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted, #6b6d82)', textAlign: i === 8 ? 'right' : 'left', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}>{h}</th>
                             ))}
                           </tr>
@@ -1067,6 +1366,29 @@ export default function EstimateWorkbench() {
             )}
           </div>
         </>
+      )}
+
+      {/* ── Media panel ── */}
+      {mediaPanel && (
+        <MediaPanel
+          item={mediaPanel}
+          media={mediaMap[mediaPanel.line_item_id] || []}
+          onClose={() => setMediaPanel(null)}
+          onAddMedia={files => handleAddMedia(mediaPanel.line_item_id, files)}
+          onDeleteMedia={m => handleDeleteMedia(m)}
+          onReplaceMedia={(m, file) => handleReplaceMedia(m, file)}
+          onSetPrimary={m => handleSetPrimary(mediaPanel.line_item_id, m)}
+          onOpenLightbox={idx => setLightbox({ urls: (mediaMap[mediaPanel.line_item_id] || []).map(m => m.url), idx })}
+        />
+      )}
+
+      {/* ── Lightbox ── */}
+      {lightbox && lightbox.urls.length > 0 && (
+        <MediaLightbox
+          urls={lightbox.urls}
+          idx={lightbox.idx}
+          onClose={() => setLightbox(null)}
+        />
       )}
 
       {/* ── Rate drawer ── */}
