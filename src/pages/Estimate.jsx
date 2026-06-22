@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
@@ -9,7 +9,7 @@ import LogoSpinner from '../components/LogoSpinner'
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const VALID_COLUMNS = new Set([
-  'issue_description', 'item_name', 'area', 'trade',
+  'issue_description', 'item_name', 'area', 'trade', 'action',
   'material_description', 'material_cost', 'labour_description', 'labour_cost',
   'qty', 'cost_type', 'status', 'sort_order',
 ])
@@ -41,6 +41,7 @@ const ITEM_STATUS_COLOR = {
   approved: '#4dd9c0',
   disputed: '#f0a050',
   removed:  '#f87171',
+  excluded: '#3a3c4e',
   resolved: '#86efac',
 }
 
@@ -49,8 +50,15 @@ const ITEM_STATUS_COLOR = {
 function fmt(n) { return (n || 0).toLocaleString('en-IN') }
 
 function lineTot(item) {
-  if (item.status === 'removed' || item.cost_type === 'nil' || item.cost_type === 'actuals') return 0
+  if (['removed', 'excluded'].includes(item.status)) return 0
+  if (item.cost_type === 'nil' || item.cost_type === 'actuals') return 0
   return (item.material_cost || 0) + (item.labour_cost || 0)
+}
+
+function needsPricing(item) {
+  return item.cost_type === 'priced'
+    && !['removed', 'excluded'].includes(item.status)
+    && (item.material_cost || 0) + (item.labour_cost || 0) === 0
 }
 
 function tc(t) { return TRADE_COLORS[(t || '').toLowerCase()] || '#9394a8' }
@@ -68,77 +76,140 @@ function maxSort(items) {
 // ─── CSS ─────────────────────────────────────────────────────────────────────
 
 const CSS = `
-.wb-toolbar {
-  position: sticky; top: 0; z-index: 40;
-  height: 52px; display: flex; align-items: center; gap: 10px;
-  padding: 0 16px;
-  background: var(--bg-panel, #1e2028);
-  border-bottom: 1px solid var(--border, #2e3040);
-}
-.wb-toolbar-left  { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; overflow: hidden; }
-.wb-toolbar-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.wb-back-btn {
-  width: 32px; height: 32px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--bg-input, #252731); border: 1px solid var(--border, #2e3040);
-  border-radius: 6px; color: var(--text-dim, #9394a8); cursor: pointer;
-}
-.wb-pid { font-family: var(--font-mono, monospace); font-size: 13px; font-weight: 600; color: var(--text, #e8e8f0); white-space: nowrap; }
-.wb-ver { font-family: var(--font-mono, monospace); font-size: 10px; color: var(--text-muted, #6b6d82); white-space: nowrap; }
-.wb-schip {
-  font-size: 9px; padding: 2px 8px; border-radius: 100px;
-  font-family: var(--font-mono, monospace); font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; flex-shrink: 0;
-}
-.wb-totals {
-  display: flex; align-items: center; gap: 8px; padding: 0 10px;
-  border-left: 1px solid var(--border, #2e3040); flex-shrink: 0;
-}
-.wb-tval { font-family: var(--font-mono, monospace); font-size: 14px; font-weight: 700; color: var(--accent, #c8963e); }
-.wb-tcnt { font-family: var(--font-mono, monospace); font-size: 10px; color: var(--text-muted, #6b6d82); }
-.wb-tbtn {
-  height: 30px; padding: 0 10px; border-radius: 5px;
-  font-size: 11px; font-weight: 600; cursor: pointer;
-  font-family: var(--font-mono, monospace); white-space: nowrap;
-  display: flex; align-items: center; gap: 4px;
-}
-.wb-outline { background: none; border: 1px solid var(--border, #2e3040); color: var(--text-muted, #6b6d82); }
-.wb-outline:hover { border-color: var(--text-dim, #9394a8); color: var(--text, #e8e8f0); }
-.wb-accent { background: var(--accent, #c8963e); border: none; color: #000; }
-.wb-accent:hover { opacity: 0.88; }
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
 
-.wb-content { max-width: 1280px; margin: 0 auto; padding: 16px 16px 100px; }
+/* ── Shell ── */
+.wb-shell { display:flex; flex-direction:column; height:100svh; background:var(--bg,#16171f); overflow:hidden; color:var(--text,#e8e8f0); }
+.wb-body  { flex:1; display:flex; overflow:hidden; min-height:0; }
+.wb-main  { flex:1; overflow-y:auto; min-width:0; padding-bottom:40px; }
+.wb-drw-col { width:380px; flex-shrink:0; border-left:1px solid var(--border,#2e3040); overflow-y:auto; background:var(--bg-panel,#1e2028); display:flex; flex-direction:column; }
 
-.wb-more-btn { opacity: 0; transition: opacity 0.1s; }
-tr:hover .wb-more-btn { opacity: 1; }
-.wb-more-btn:hover { background: rgba(255,255,255,0.07) !important; color: var(--text, #e8e8f0) !important; }
+/* ── Command bar ── */
+.wb-cmd { flex-shrink:0; height:52px; display:flex; align-items:center; gap:8px; padding:0 16px; border-bottom:1px solid var(--border,#2e3040); background:var(--bg-panel,#1e2028); }
+.wb-cmd-l { display:flex; align-items:center; gap:8px; flex:1; min-width:0; overflow:hidden; }
+.wb-cmd-r { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.wb-cmd-div { width:1px; height:20px; background:var(--border,#2e3040); margin:0 2px; flex-shrink:0; }
 
-.wb-cost-wrap:hover .wb-swap-btn { opacity: 1 !important; }
-.wb-swap-btn:hover { background: rgba(255,255,255,0.07) !important; color: var(--accent, #c8963e) !important; }
+/* ── Summary bar ── */
+.wb-sum { flex-shrink:0; min-height:44px; display:flex; align-items:center; gap:6px; padding:0 16px; border-bottom:1px solid var(--border,#2e3040); background:rgba(255,255,255,0.012); overflow-x:auto; white-space:nowrap; flex-wrap:wrap; }
+.wb-sum::-webkit-scrollbar { display:none; }
 
-.wb-row { transition: background 0.08s; }
-.wb-row:hover { background: rgba(255,255,255,0.018) !important; }
+/* ── Notes panel ── */
+.wb-notes-bar { flex-shrink:0; padding:10px 16px; border-bottom:1px solid var(--border,#2e3040); background:var(--bg-panel,#1e2028); display:flex; align-items:flex-start; gap:10px; }
 
-@media (max-width: 640px) {
-  .wb-toolbar { padding: 0 10px; gap: 6px; }
-  .wb-ver { display: none; }
-  .wb-totals { padding: 0 8px; }
-  .wb-tval { font-size: 13px; }
-  .wb-content { padding: 10px 10px 110px; }
+/* ── Trade group ── */
+.wb-group { }
+.wb-group-hd {
+  display:flex; align-items:center; gap:10px; padding:6px 14px 6px 10px;
+  background:var(--bg,#16171f); border-bottom:1px solid var(--border,#2e3040);
+  cursor:pointer; user-select:none; position:sticky; top:0; z-index:10;
 }
-.wb-media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
-@media (max-width: 640px) { .wb-media-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); } }
+.wb-group-hd:hover { background:rgba(255,255,255,0.02); }
+.wb-group-body { }
+
+/* ── Item row ── */
+.wb-row {
+  display:grid;
+  grid-template-columns: 22px minmax(150px,190px) 1fr 98px 84px 60px 26px;
+  align-items:center; min-height:52px;
+  border-bottom:1px solid rgba(46,48,64,0.55);
+  cursor:pointer; transition:background 0.08s; position:relative;
+}
+.wb-row:hover { background:rgba(255,255,255,0.025); }
+.wb-row.is-active { background:rgba(200,150,62,0.055); }
+.wb-row.is-active::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--accent,#c8963e); }
+.wb-row.is-removed { opacity:0.4; }
+.wb-row.is-excluded { opacity:0.38; }
+.wb-row-handle { padding:0 4px; text-align:center; color:#252835; font-size:13px; cursor:grab; }
+.wb-ident { padding:6px 8px 6px 6px; min-width:0; }
+.wb-ident-area { font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--text-muted,#6b6d82); text-transform:uppercase; letter-spacing:0.08em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:2px; }
+.wb-ident-name { font-family:'Inter',var(--font-sans,sans-serif); font-size:12px; font-weight:600; color:var(--text,#e8e8f0); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wb-ident-chips { display:flex; gap:4px; margin-top:3px; flex-wrap:wrap; }
+.wb-finding { padding:6px 8px; min-width:0; }
+.wb-finding-text { font-family:'Inter',var(--font-sans,sans-serif); font-size:11px; color:var(--text-dim,#9394a8); overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-height:1.4; }
+.wb-finding-action { font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--accent,#c8963e); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; opacity:0.85; }
+.wb-cost-cell { padding:0 8px; text-align:right; }
+.wb-type-seg  { display:flex; gap:2px; padding:0 4px; }
+.wb-tseg { padding:4px 5px; border-radius:5px; border:none; cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; transition:all 0.1s; background:none; color:#2e3040; }
+.wb-tseg:hover { color:var(--text-muted,#6b6d82); background:rgba(255,255,255,0.04); }
+.wb-tseg.p-on { background:rgba(200,150,62,0.18); color:var(--accent,#c8963e); }
+.wb-tseg.a-on { background:rgba(77,217,192,0.15); color:#4dd9c0; }
+.wb-tseg.n-on { background:rgba(147,148,168,0.12); color:#9394a8; }
+.wb-kebab { width:22px; height:22px; border:none; background:none; cursor:pointer; color:#2e3040; border-radius:5px; font-size:14px; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.1s; }
+.wb-row:hover .wb-kebab { opacity:1; }
+.wb-kebab:hover { color:var(--text,#e8e8f0) !important; background:rgba(255,255,255,0.07) !important; }
+
+/* ── Add-item row ── */
+.wb-add-row { display:flex; align-items:center; padding:6px 12px; border-bottom:1px solid rgba(46,48,64,0.55); }
+.wb-add-btn { display:flex; align-items:center; gap:6px; padding:5px 10px; background:none; border:1px dashed var(--border,#2e3040); border-radius:5px; cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--text-muted,#6b6d82); transition:all 0.15s; }
+.wb-add-btn:hover { border-color:var(--text-dim,#9394a8); color:var(--text,#e8e8f0); }
+
+/* ── Drawer ── */
+.wb-drw-hd { padding:14px 16px 12px; border-bottom:1px solid var(--border,#2e3040); flex-shrink:0; }
+.wb-drw-eyebrow { font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--text-muted,#6b6d82); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:3px; }
+.wb-drw-title  { font-family:'Inter',var(--font-sans,sans-serif); font-size:15px; font-weight:600; color:var(--text,#e8e8f0); }
+.wb-drw-nav  { display:flex; align-items:center; gap:6px; margin-top:8px; }
+.wb-drw-sec  { padding:12px 16px; border-bottom:1px solid rgba(46,48,64,0.5); }
+.wb-drw-lbl  { font-family:'IBM Plex Mono',monospace; font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-muted,#6b6d82); margin-bottom:6px; }
+.wb-drw-ta   { width:100%; padding:9px 11px; background:var(--bg-input,#252731); border:1px solid var(--border,#2e3040); border-radius:5px; color:var(--text,#e8e8f0); font-family:'Inter',var(--font-sans,sans-serif); font-size:13px; resize:vertical; outline:none; box-sizing:border-box; min-height:70px; transition:border-color 0.15s; }
+.wb-drw-ta:focus { border-color:var(--accent,#c8963e); }
+.wb-drw-inp  { width:100%; padding:8px 10px; background:var(--bg-input,#252731); border:1px solid var(--border,#2e3040); border-radius:5px; color:var(--text,#e8e8f0); font-family:'IBM Plex Mono',monospace; font-size:13px; outline:none; box-sizing:border-box; transition:border-color 0.15s; }
+.wb-drw-inp:focus { border-color:var(--accent,#c8963e); }
+.wb-drw-row  { display:grid; grid-template-columns:1fr 80px; gap:8px; margin-bottom:8px; }
+.wb-drw-row3 { display:grid; grid-template-columns:1fr 72px 52px; gap:8px; }
+.wb-drw-placeholder { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:var(--text-muted,#6b6d82); padding:40px 20px; text-align:center; }
+
+/* ── Buttons ── */
+.wb-btn { height:32px; padding:0 12px; border-radius:5px; cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; transition:all 0.12s; }
+.wb-btn-primary { background:var(--accent,#c8963e); border:none; color:#000; }
+.wb-btn-primary:hover { opacity:0.88; }
+.wb-btn-outline { background:none; border:1px solid var(--border,#2e3040); color:var(--text-muted,#6b6d82); }
+.wb-btn-outline:hover { border-color:var(--text-dim,#9394a8); color:var(--text,#e8e8f0); }
+.wb-btn-ghost { background:none; border:none; color:var(--text-muted,#6b6d82); }
+.wb-btn-ghost:hover { color:var(--text,#e8e8f0); }
+.wb-btn-back { width:32px; height:32px; padding:0; background:var(--bg-input,#252731); border:1px solid var(--border,#2e3040); border-radius:5px; color:var(--text-dim,#9394a8); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+.wb-btn-icon { width:28px; height:28px; padding:0; background:var(--bg-input,#252731); border:1px solid var(--border,#2e3040); border-radius:5px; color:var(--text-dim,#9394a8); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; font-size:14px; }
+.wb-btn-icon:hover { color:var(--text,#e8e8f0); }
+.wb-btn-icon:disabled { opacity:0.35; cursor:default; }
+
+/* ── Pill / chip ── */
+.wb-pill { display:inline-flex; align-items:center; gap:5px; padding:0 9px; height:26px; border-radius:100px; font-family:'IBM Plex Mono',monospace; font-size:10px; white-space:nowrap; flex-shrink:0; }
+.wb-chip { display:inline-flex; align-items:center; gap:3px; padding:1px 6px; border-radius:100px; font-family:'IBM Plex Mono',monospace; font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; }
+
+/* ── Context menu ── */
+.wb-ctx { position:fixed; background:var(--bg-panel,#1e2028); border:1px solid var(--border,#2e3040); border-radius:7px; box-shadow:0 8px 32px rgba(0,0,0,0.5); z-index:600; min-width:140px; overflow:hidden; }
+.wb-ctx-item { display:block; width:100%; padding:9px 13px; background:none; border:none; cursor:pointer; font-size:12px; text-align:left; font-family:inherit; color:var(--text,#e8e8f0); }
+.wb-ctx-item:hover { background:rgba(255,255,255,0.06); }
+
+/* ── Hints ── */
+.wb-hints { position:fixed; bottom:0; left:0; right:0; height:28px; display:flex; align-items:center; gap:14px; padding:0 16px; background:rgba(16,17,22,0.96); border-top:1px solid rgba(46,48,64,0.5); z-index:19; backdrop-filter:blur(8px); overflow:hidden; }
+.wb-hint  { font-family:'IBM Plex Mono',monospace; font-size:9px; color:#2e3040; display:flex; align-items:center; gap:4px; }
+.wb-hint kbd { color:var(--text-muted,#6b6d82); font-family:inherit; }
+
+/* ── Drawer media grid ── */
+.wb-drw-mg { display:grid; grid-template-columns:repeat(auto-fill,minmax(86px,1fr)); gap:8px; }
+.wb-media-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:10px; }
+
+/* ── Responsive ── */
+@media (max-width:1100px) { .wb-drw-col { display:none !important; } }
+@media (min-width:1101px) { .wb-overlay-scrim { display:none !important; } .wb-overlay-drw  { display:none !important; } }
+@media (max-width:640px) {
+  .wb-cmd { padding:0 10px; gap:6px; }
+  .wb-sum { padding:0 10px; }
+  .wb-row { grid-template-columns: 0 1fr 0 90px 0 56px 26px; }
+  .wb-row-handle, .wb-finding, .wb-type-seg { display:none; }
+}
 `
 
-// ─── MediaLightbox ───────────────────────────────────────────────────────────
+// ─── MediaLightbox ────────────────────────────────────────────────────────────
 
 function MediaLightbox({ urls, idx, onClose }) {
   const [cur, setCur] = useState(idx)
   useEffect(() => {
     function handle(e) {
-      if (e.key === 'Escape')      onClose()
-      if (e.key === 'ArrowRight')  setCur(i => Math.min(i + 1, urls.length - 1))
-      if (e.key === 'ArrowLeft')   setCur(i => Math.max(i - 1, 0))
+      if (e.key === 'Escape')     onClose()
+      if (e.key === 'ArrowRight') setCur(i => Math.min(i + 1, urls.length - 1))
+      if (e.key === 'ArrowLeft')  setCur(i => Math.max(i - 1, 0))
     }
     document.addEventListener('keydown', handle)
     return () => document.removeEventListener('keydown', handle)
@@ -149,15 +220,13 @@ function MediaLightbox({ urls, idx, onClose }) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <button onClick={onClose} style={{ position: 'fixed', top: 16, right: 16, width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9901 }}>×</button>
       <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, maxWidth: '92vw' }}>
-        {isVid
-          ? <video src={url} controls autoPlay style={{ maxWidth: '90vw', maxHeight: '80vh', borderRadius: 6 }} />
-          : <img src={url} alt="" style={{ maxWidth: '90vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 6 }} />
-        }
+        {isVid ? <video src={url} controls autoPlay style={{ maxWidth: '90vw', maxHeight: '80vh', borderRadius: 6 }} />
+                : <img src={url} alt="" style={{ maxWidth: '90vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 6 }} />}
         {urls.length > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button onClick={e => { e.stopPropagation(); setCur(i => Math.max(i - 1, 0)) }} disabled={cur === 0} style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', cursor: cur === 0 ? 'default' : 'pointer', color: '#fff', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: cur === 0 ? 0.3 : 1 }}>‹</button>
-            <span style={{ fontSize: 11, color: '#aaa', fontFamily: 'var(--font-mono, monospace)' }}>{cur + 1} / {urls.length}</span>
-            <button onClick={e => { e.stopPropagation(); setCur(i => Math.min(i + 1, urls.length - 1)) }} disabled={cur === urls.length - 1} style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', cursor: cur === urls.length - 1 ? 'default' : 'pointer', color: '#fff', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: cur === urls.length - 1 ? 0.3 : 1 }}>›</button>
+            <button onClick={e => { e.stopPropagation(); setCur(i => Math.max(i-1,0)) }} disabled={cur===0} style={{ width:36,height:36,borderRadius:'50%',background:'rgba(255,255,255,0.15)',border:'none',cursor:cur===0?'default':'pointer',color:'#fff',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',opacity:cur===0?0.3:1 }}>‹</button>
+            <span style={{ fontSize:11,color:'#aaa',fontFamily:'IBM Plex Mono,monospace' }}>{cur+1} / {urls.length}</span>
+            <button onClick={e => { e.stopPropagation(); setCur(i => Math.min(i+1,urls.length-1)) }} disabled={cur===urls.length-1} style={{ width:36,height:36,borderRadius:'50%',background:'rgba(255,255,255,0.15)',border:'none',cursor:cur===urls.length-1?'default':'pointer',color:'#fff',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',opacity:cur===urls.length-1?0.3:1 }}>›</button>
           </div>
         )}
       </div>
@@ -165,146 +234,65 @@ function MediaLightbox({ urls, idx, onClose }) {
   )
 }
 
-// ─── MediaStrip (compact in-row thumbnail) ────────────────────────────────────
-
-function MediaStrip({ media = [], onOpenPanel, onOpenLightbox }) {
-  const isVid  = m => m.type === 'video' || /\.(mp4|mov|webm)$/i.test(m.url)
-  const photos = media.filter(m => !isVid(m))
-  const videos = media.filter(m =>  isVid(m))
-  const first  = media[0]
-  if (!first) {
-    return (
-      <div onClick={e => { e.stopPropagation(); onOpenPanel() }} style={{ height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#3a3c4e', fontSize: 10, fontFamily: 'var(--font-mono, monospace)', userSelect: 'none' }}>
-        + add
-      </div>
-    )
-  }
-  return (
-    <div style={{ height: 36, display: 'flex', alignItems: 'center', gap: 5, padding: '0 3px' }}>
-      <div
-        onClick={e => { e.stopPropagation(); onOpenLightbox(0) }}
-        style={{ width: 42, height: 30, borderRadius: 3, overflow: 'hidden', flexShrink: 0, cursor: 'pointer', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      >
-        {isVid(first)
-          ? <span style={{ color: '#fff', fontSize: 13, lineHeight: 1 }}>▶</span>
-          : <img src={first.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none' }} />
-        }
-      </div>
-      <div onClick={e => { e.stopPropagation(); onOpenPanel() }} style={{ display: 'flex', flexDirection: 'column', gap: 1, cursor: 'pointer', minWidth: 0 }}>
-        {photos.length > 0 && <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.3, whiteSpace: 'nowrap' }}>▤ {photos.length}</span>}
-        {videos.length > 0 && <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.3, whiteSpace: 'nowrap' }}>▶ {videos.length}</span>}
-      </div>
-    </div>
-  )
-}
-
-// ─── MediaPanel (bottom-sheet media manager) ─────────────────────────────────
+// ─── MediaPanel (bottom-sheet) ────────────────────────────────────────────────
 
 function MediaPanel({ item, media, onClose, onAddMedia, onDeleteMedia, onReplaceMedia, onSetPrimary, onOpenLightbox }) {
-  const addRef     = useRef(null)
-  const replaceRef = useRef(null)
+  const addRef = useRef(null), replaceRef = useRef(null)
   const [replaceTarget, setReplaceTarget] = useState(null)
-  const [uploading, setUploading]         = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const isVid = m => m.type === 'video' || /\.(mp4|mov|webm)$/i.test(m.url)
 
   async function handleAdd(e) {
-    const files = Array.from(e.target.files || [])
-    if (!files.length) return
-    e.target.value = ''
-    setUploading(true)
-    await onAddMedia(files)
-    setUploading(false)
+    const files = Array.from(e.target.files || []); if (!files.length) return; e.target.value = ''
+    setUploading(true); await onAddMedia(files); setUploading(false)
   }
-
   async function handleReplace(e) {
-    const file = e.target.files?.[0]
-    if (!file || !replaceTarget) return
-    e.target.value = ''
-    setUploading(true)
-    await onReplaceMedia(replaceTarget, file)
-    setReplaceTarget(null)
-    setUploading(false)
+    const file = e.target.files?.[0]; if (!file || !replaceTarget) return; e.target.value = ''
+    setUploading(true); await onReplaceMedia(replaceTarget, file); setReplaceTarget(null); setUploading(false)
   }
-
-  const isVid = m => m.type === 'video' || /\.(mp4|mov|webm)$/i.test(m.url)
 
   return (
     <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 800 }} />
-      <div onClick={e => e.stopPropagation()} style={{ position: 'fixed', bottom: 0, left: 0, right: 0, maxHeight: '88vh', background: 'var(--bg-panel, #1e2028)', borderRadius: '14px 14px 0 0', border: '1px solid var(--border, #2e3040)', zIndex: 801, display: 'flex', flexDirection: 'column', boxShadow: '0 -8px 40px rgba(0,0,0,0.6)' }}>
-
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 10px', borderBottom: '1px solid var(--border, #2e3040)', flexShrink: 0 }}>
+      <div onClick={onClose} style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:800 }} />
+      <div onClick={e => e.stopPropagation()} style={{ position:'fixed',bottom:0,left:0,right:0,maxHeight:'88vh',background:'var(--bg-panel,#1e2028)',borderRadius:'14px 14px 0 0',border:'1px solid var(--border,#2e3040)',zIndex:801,display:'flex',flexDirection:'column',boxShadow:'0 -8px 40px rgba(0,0,0,0.6)' }}>
+        <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px 10px',borderBottom:'1px solid var(--border,#2e3040)',flexShrink:0 }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{item.item_name || 'Item'} — Media</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 2 }}>
-              {media.length} file{media.length !== 1 ? 's' : ''}{item.area ? ` · ${item.area}` : ''}
-              {!item.line_item_id && <span style={{ color: '#f0a050', marginLeft: 6 }}>· inspection link required for media</span>}
+            <div style={{ fontSize:13,fontWeight:600,color:'var(--text,#e8e8f0)' }}>{item.item_name||'Item'} — Media</div>
+            <div style={{ fontSize:10,color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace',marginTop:2 }}>
+              {media.length} file{media.length!==1?'s':''}{item.area?` · ${item.area}`:''}
             </div>
           </div>
-          <button onClick={onClose} style={{ width: 36, height: 36, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #6b6d82)', fontSize: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6 }}>×</button>
+          <button onClick={onClose} style={{ width:36,height:36,background:'none',border:'none',cursor:'pointer',color:'var(--text-muted,#6b6d82)',fontSize:22,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:6 }}>×</button>
         </div>
-
-        {/* Body */}
-        <div style={{ padding: '14px 16px 28px', overflowY: 'auto', flex: 1 }}>
-          {/* Hidden file inputs */}
-          <input ref={addRef}     type="file" accept="image/*,video/*" multiple style={{ display: 'none' }} onChange={handleAdd} />
-          <input ref={replaceRef} type="file" accept="image/*,video/*"          style={{ display: 'none' }} onChange={handleReplace} />
-
-          {/* Add button */}
+        <div style={{ padding:'14px 16px 28px',overflowY:'auto',flex:1 }}>
+          <input ref={addRef} type="file" accept="image/*,video/*" multiple style={{ display:'none' }} onChange={handleAdd} />
+          <input ref={replaceRef} type="file" accept="image/*,video/*" style={{ display:'none' }} onChange={handleReplace} />
           {item.line_item_id && (
-            <button
-              onClick={() => addRef.current?.click()}
-              disabled={uploading}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', marginBottom: 16, minHeight: 44, border: `1px dashed ${uploading ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, borderRadius: 8, background: uploading ? 'rgba(200,150,62,0.06)' : 'none', fontSize: 13, color: uploading ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)', cursor: uploading ? 'wait' : 'pointer', fontFamily: 'inherit' }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 11v2a1 1 0 001 1h12a1 1 0 001-1v-2M8 1v9M5 4l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <button onClick={() => addRef.current?.click()} disabled={uploading}
+              style={{ display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 14px',marginBottom:16,minHeight:44,border:`1px dashed ${uploading?'var(--accent,#c8963e)':'var(--border,#2e3040)'}`,borderRadius:8,background:uploading?'rgba(200,150,62,0.06)':'none',fontSize:13,color:uploading?'var(--accent,#c8963e)':'var(--text-dim,#9394a8)',cursor:uploading?'wait':'pointer',fontFamily:'inherit' }}>
               {uploading ? 'Uploading…' : '+ Add photos / videos'}
             </button>
           )}
-
-          {/* Grid */}
           {media.length === 0 ? (
-            <div style={{ padding: '28px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)' }}>
-              {item.line_item_id ? 'No media yet — add photos or videos above.' : 'This item was added manually and cannot have inspection media attached.'}
+            <div style={{ padding:'28px 0',textAlign:'center',fontSize:12,color:'var(--text-muted,#6b6d82)' }}>
+              {item.line_item_id ? 'No media yet.' : 'Manually added item — no inspection link.'}
             </div>
           ) : (
             <div className="wb-media-grid">
               {media.map((m, idx) => {
-                const isPrimary = idx === 0
-                const vid       = isVid(m)
+                const isPrimary = idx===0, vid = isVid(m)
                 return (
-                  <div key={m.id} style={{ borderRadius: 8, overflow: 'hidden', background: '#0d0e14', border: `2px solid ${isPrimary ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}` }}>
-                    {/* Thumb */}
-                    <div onClick={() => onOpenLightbox(idx)} style={{ width: '100%', paddingTop: '72%', position: 'relative', cursor: 'pointer' }}>
-                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {vid
-                          ? <span style={{ color: '#fff', fontSize: 28, lineHeight: 1 }}>▶</span>
-                          : <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none' }} />
-                        }
+                  <div key={m.id} style={{ borderRadius:8,overflow:'hidden',background:'#0d0e14',border:`2px solid ${isPrimary?'var(--accent,#c8963e)':'var(--border,#2e3040)'}` }}>
+                    <div onClick={() => onOpenLightbox(idx)} style={{ width:'100%',paddingTop:'72%',position:'relative',cursor:'pointer' }}>
+                      <div style={{ position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center' }}>
+                        {vid ? <span style={{ color:'#fff',fontSize:28 }}>▶</span> : <img src={m.url} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }} />}
                       </div>
-                      {isPrimary && (
-                        <div style={{ position: 'absolute', top: 5, left: 5, fontSize: 8, padding: '2px 6px', borderRadius: 3, background: 'var(--accent, #c8963e)', color: '#000', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, letterSpacing: '0.06em' }}>PRIMARY</div>
-                      )}
-                      {vid && (
-                        <div style={{ position: 'absolute', top: 5, right: 5, fontSize: 8, padding: '2px 5px', borderRadius: 3, background: 'rgba(0,0,0,0.6)', color: '#fff', fontFamily: 'var(--font-mono, monospace)' }}>VIDEO</div>
-                      )}
+                      {isPrimary && <div style={{ position:'absolute',top:5,left:5,fontSize:8,padding:'2px 6px',borderRadius:3,background:'var(--accent,#c8963e)',color:'#000',fontFamily:'IBM Plex Mono,monospace',fontWeight:700 }}>PRIMARY</div>}
                     </div>
-                    {/* Actions */}
-                    <div style={{ padding: '6px 6px 8px', display: 'flex', gap: 4 }}>
-                      {!isPrimary && media.length > 1 && (
-                        <button
-                          onClick={() => onSetPrimary(m)}
-                          style={{ flex: 1, padding: '7px 0', minHeight: 36, background: 'none', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 4, fontSize: 9, cursor: 'pointer', color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}
-                        >★ Primary</button>
-                      )}
-                      <button
-                        onClick={() => { setReplaceTarget(m); setTimeout(() => replaceRef.current?.click(), 50) }}
-                        style={{ flex: 1, padding: '7px 0', minHeight: 36, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, fontSize: 9, cursor: 'pointer', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}
-                      >⇄ Swap</button>
-                      <button
-                        onClick={() => onDeleteMedia(m)}
-                        style={{ flex: isPrimary || media.length === 1 ? '0 0 auto' : 1, padding: '7px 8px', minHeight: 36, background: 'none', border: '1px solid rgba(248,113,113,0.35)', borderRadius: 4, fontSize: 9, cursor: 'pointer', color: '#f87171', fontFamily: 'var(--font-mono, monospace)' }}
-                      >× Del</button>
+                    <div style={{ padding:'6px 6px 8px',display:'flex',gap:4 }}>
+                      {!isPrimary && media.length>1 && <button onClick={() => onSetPrimary(m)} style={{ flex:1,padding:'7px 0',minHeight:36,background:'none',border:'1px solid rgba(200,150,62,0.4)',borderRadius:4,fontSize:9,cursor:'pointer',color:'var(--accent,#c8963e)',fontFamily:'IBM Plex Mono,monospace' }}>★ Primary</button>}
+                      <button onClick={() => { setReplaceTarget(m); setTimeout(() => replaceRef.current?.click(),50) }} style={{ flex:1,padding:'7px 0',minHeight:36,background:'none',border:'1px solid var(--border,#2e3040)',borderRadius:4,fontSize:9,cursor:'pointer',color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace' }}>⇄ Swap</button>
+                      <button onClick={() => onDeleteMedia(m)} style={{ flex:isPrimary||media.length===1?'0 0 auto':1,padding:'7px 8px',minHeight:36,background:'none',border:'1px solid rgba(248,113,113,0.35)',borderRadius:4,fontSize:9,cursor:'pointer',color:'#f87171',fontFamily:'IBM Plex Mono,monospace' }}>× Del</button>
                     </div>
                   </div>
                 )
@@ -317,20 +305,341 @@ function MediaPanel({ item, media, onClose, onAddMedia, onDeleteMedia, onReplace
   )
 }
 
-// ─── RateDrawer ───────────────────────────────────────────────────────────────
+// ─── DrawerMediaSection (inline for ItemDrawer) ───────────────────────────────
 
-function RateDrawer({ open, mode, onClose, onSelectMaterial, onSelectLabour, isMobile }) {
-  const [tab, setTab]             = useState('materials')
-  const [search, setSearch]       = useState('')
-  const [tradeF, setTradeF]       = useState('all')
-  const [matRows, setMatRows]     = useState([])
-  const [labRows, setLabRows]     = useState([])
-  const [loading, setLoading]     = useState(false)
+function DrawerMediaSection({ item, media, onAddMedia, onDeleteMedia, onReplaceMedia, onSetPrimary, onOpenLightbox }) {
+  const addRef = useRef(null), replaceRef = useRef(null)
+  const [replaceTarget, setReplaceTarget] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const isVid = m => m.type === 'video' || /\.(mp4|mov|webm)$/i.test(m.url)
+
+  async function handleAdd(e) {
+    const files = Array.from(e.target.files || []); if (!files.length) return; e.target.value = ''
+    setUploading(true); await onAddMedia(files); setUploading(false)
+  }
+  async function handleReplace(e) {
+    const file = e.target.files?.[0]; if (!file || !replaceTarget) return; e.target.value = ''
+    setUploading(true); await onReplaceMedia(replaceTarget, file); setReplaceTarget(null); setUploading(false)
+  }
+
+  return (
+    <div className="wb-drw-sec">
+      <div className="wb-drw-lbl">Media</div>
+      <input ref={addRef} type="file" accept="image/*,video/*" multiple style={{ display:'none' }} onChange={handleAdd} />
+      <input ref={replaceRef} type="file" accept="image/*,video/*" style={{ display:'none' }} onChange={handleReplace} />
+      {item.line_item_id && (
+        <button onClick={() => addRef.current?.click()} disabled={uploading}
+          style={{ display:'flex',alignItems:'center',gap:6,width:'100%',padding:'8px 12px',marginBottom:media.length?10:0,minHeight:36,border:`1px dashed ${uploading?'var(--accent,#c8963e)':'var(--border,#2e3040)'}`,borderRadius:5,background:'none',fontSize:11,color:uploading?'var(--accent,#c8963e)':'var(--text-muted,#6b6d82)',cursor:uploading?'wait':'pointer',fontFamily:'IBM Plex Mono,monospace' }}>
+          {uploading ? 'Uploading…' : '+ Add photos / videos'}
+        </button>
+      )}
+      {media.length > 0 && (
+        <div className="wb-drw-mg">
+          {media.map((m, idx) => {
+            const isPrimary = idx===0, vid = isVid(m)
+            return (
+              <div key={m.id} style={{ borderRadius:6,overflow:'hidden',background:'#0d0e14',border:`2px solid ${isPrimary?'var(--accent,#c8963e)':'var(--border,#2e3040)'}` }}>
+                <div onClick={() => onOpenLightbox(idx)} style={{ width:'100%',paddingTop:'75%',position:'relative',cursor:'pointer' }}>
+                  <div style={{ position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center' }}>
+                    {vid ? <span style={{ color:'#fff',fontSize:20 }}>▶</span> : <img src={m.url} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }} />}
+                  </div>
+                  {isPrimary && <div style={{ position:'absolute',top:3,left:3,fontSize:7,padding:'1px 4px',borderRadius:2,background:'var(--accent,#c8963e)',color:'#000',fontFamily:'IBM Plex Mono,monospace',fontWeight:700 }}>✦</div>}
+                </div>
+                <div style={{ padding:'4px',display:'flex',gap:3 }}>
+                  {!isPrimary && media.length>1 && <button onClick={() => onSetPrimary(m)} style={{ flex:1,padding:'4px 0',background:'none',border:'1px solid rgba(200,150,62,0.3)',borderRadius:3,fontSize:8,cursor:'pointer',color:'var(--accent,#c8963e)',fontFamily:'IBM Plex Mono,monospace' }}>★</button>}
+                  <button onClick={() => { setReplaceTarget(m); setTimeout(() => replaceRef.current?.click(),50) }} style={{ flex:1,padding:'4px 0',background:'none',border:'1px solid var(--border,#2e3040)',borderRadius:3,fontSize:8,cursor:'pointer',color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace' }}>⇄</button>
+                  <button onClick={() => onDeleteMedia(m)} style={{ flex:1,padding:'4px 0',background:'none',border:'1px solid rgba(248,113,113,0.3)',borderRadius:3,fontSize:8,cursor:'pointer',color:'#f87171',fontFamily:'IBM Plex Mono,monospace' }}>×</button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {!item.line_item_id && media.length===0 && (
+        <div style={{ fontSize:10,color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace' }}>No inspection link — media unavailable</div>
+      )}
+    </div>
+  )
+}
+
+// ─── DrawerMatPicker ──────────────────────────────────────────────────────────
+
+function DrawerMatPicker({ description, onApply }) {
+  const [search, setSearch]   = useState('')
+  const [results, setResults] = useState([])
+  const [open, setOpen]       = useState(false)
+  const wrapRef = useRef(null)
+
+  useEffect(() => {
+    if (search.trim().length < 1) { setResults([]); return }
+    const t = setTimeout(async () => {
+      const { data } = await supabase.from('inventory_items')
+        .select('id,fxin,item_name,flent_price,trade')
+        .gt('flent_price', 0)
+        .or(`item_name.ilike.%${search}%,fxin.ilike.%${search}%`)
+        .limit(10)
+      setResults(data || [])
+    }, 220)
+    return () => clearTimeout(t)
+  }, [search])
 
   useEffect(() => {
     if (!open) return
-    setSearch('')
-    setTradeF('all')
+    const close = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) { setOpen(false); setSearch('') } }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  return (
+    <div ref={wrapRef} style={{ position:'relative' }}>
+      {description ? (
+        <div style={{ display:'flex',alignItems:'center',gap:6,padding:'7px 10px',background:'rgba(200,150,62,0.07)',border:'1px solid rgba(200,150,62,0.25)',borderRadius:5,marginBottom:6 }}>
+          <div style={{ flex:1,fontSize:11,color:'var(--text,#e8e8f0)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{description}</div>
+          <button type="button" onClick={() => { setOpen(true); setSearch('') }} style={{ background:'none',border:'none',cursor:'pointer',color:'var(--text-muted,#6b6d82)',fontSize:11,fontFamily:'IBM Plex Mono,monospace',flexShrink:0 }}>⇄</button>
+        </div>
+      ) : (
+        <input
+          className="wb-drw-inp"
+          value={search}
+          onChange={e => { setSearch(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          placeholder="Search inventory by name or FXIN…"
+          style={{ marginBottom:6 }}
+        />
+      )}
+      {open && description && (
+        <input
+          autoFocus
+          className="wb-drw-inp"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search to replace material…"
+          style={{ marginBottom:6 }}
+        />
+      )}
+      {open && results.length > 0 && (
+        <div style={{ position:'absolute',top:'100%',left:0,right:0,background:'var(--bg-panel,#1e2028)',border:'1px solid var(--border,#2e3040)',borderRadius:6,maxHeight:200,overflowY:'auto',zIndex:200,boxShadow:'0 8px 24px rgba(0,0,0,0.5)' }}>
+          {results.map(r => (
+            <div key={r.id}
+              onMouseDown={() => { onApply(r.item_name, parseFloat(r.flent_price)||0); setOpen(false); setSearch('') }}
+              style={{ padding:'8px 10px',borderBottom:'1px solid var(--border,#2e3040)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8 }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.04)'}
+              onMouseLeave={e => e.currentTarget.style.background='transparent'}
+            >
+              <div style={{ minWidth:0 }}>
+                {r.fxin && <div style={{ fontSize:8,color:'var(--accent,#c8963e)',fontFamily:'IBM Plex Mono,monospace',marginBottom:1 }}>{r.fxin}</div>}
+                <div style={{ fontSize:11,color:'var(--text,#e8e8f0)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{r.item_name}</div>
+              </div>
+              <div style={{ fontSize:11,fontFamily:'IBM Plex Mono,monospace',fontWeight:700,color:'var(--text,#e8e8f0)',flexShrink:0 }}>₹{fmt(r.flent_price)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── ItemDrawer ───────────────────────────────────────────────────────────────
+
+function ItemDrawer({ item, media, allItems, itemIndex, onClose, onUpdate, onAddMedia, onDeleteMedia, onReplaceMedia, onSetPrimary, onOpenLightbox, userEmail, estimateId, onNavigate }) {
+  const [drafts, setDrafts] = useState({})
+
+  useEffect(() => { setDrafts({}) }, [item.id])
+
+  function draft(field) {
+    return field in drafts ? drafts[field] : (item[field] ?? '')
+  }
+
+  function setDraft(field, value) {
+    setDrafts(p => ({ ...p, [field]: value }))
+  }
+
+  async function commit(field) {
+    const value = field in drafts ? drafts[field] : null
+    if (value === null) return
+    setDrafts(p => { const n = { ...p }; delete n[field]; return n })
+    if (value !== (item[field] ?? '')) {
+      const isNum = ['material_cost', 'labour_cost', 'qty'].includes(field)
+      await onUpdate(item.id, { [field]: isNum ? (parseFloat(value) || 0) : value })
+    }
+  }
+
+  const tot = lineTot(item)
+  const isExcluded = item.status === 'excluded'
+  const isRemoved  = item.status === 'removed'
+
+  return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
+      {/* Header */}
+      <div className="wb-drw-hd">
+        <div className="wb-drw-eyebrow">{item.area || 'No area'}</div>
+        <div className="wb-drw-title" style={{ textDecoration: isRemoved||isExcluded ? 'line-through' : 'none', opacity: isRemoved||isExcluded ? 0.55 : 1 }}>
+          {item.item_name || 'Untitled item'}
+        </div>
+        <div className="wb-drw-nav">
+          <span style={{ flex:1, fontSize:10, color:'var(--text-muted,#6b6d82)', fontFamily:'IBM Plex Mono,monospace' }}>
+            Item {itemIndex+1} of {allItems.length}
+          </span>
+          <button className="wb-btn-icon" onClick={() => onNavigate(-1)} disabled={itemIndex===0} title="Previous (↑)">‹</button>
+          <button className="wb-btn-icon" onClick={() => onNavigate(1)}  disabled={itemIndex===allItems.length-1} title="Next (↓)">›</button>
+          <button className="wb-btn-icon" onClick={onClose} title="Close (Esc)" style={{ marginLeft:4 }}>×</button>
+        </div>
+      </div>
+
+      {/* Scrollable body */}
+      <div style={{ flex:1, overflowY:'auto' }}>
+
+        {/* Media */}
+        <DrawerMediaSection
+          item={item} media={media}
+          onAddMedia={onAddMedia} onDeleteMedia={onDeleteMedia}
+          onReplaceMedia={onReplaceMedia} onSetPrimary={onSetPrimary}
+          onOpenLightbox={onOpenLightbox}
+        />
+
+        {/* Finding */}
+        <div className="wb-drw-sec">
+          <div className="wb-drw-lbl">Finding</div>
+          <textarea
+            className="wb-drw-ta"
+            value={draft('issue_description')}
+            onChange={e => setDraft('issue_description', e.target.value)}
+            onBlur={() => commit('issue_description')}
+            placeholder="Describe what was found…"
+            rows={3}
+          />
+        </div>
+
+        {/* What we'll do */}
+        <div className="wb-drw-sec">
+          <div className="wb-drw-lbl">What we'll do</div>
+          <textarea
+            className="wb-drw-ta"
+            value={draft('action')}
+            onChange={e => setDraft('action', e.target.value)}
+            onBlur={() => commit('action')}
+            placeholder="Describe the planned repair or replacement…"
+            rows={2}
+          />
+        </div>
+
+        {/* Cost */}
+        <div className="wb-drw-sec">
+          <div className="wb-drw-lbl">Cost</div>
+          <DrawerMatPicker
+            description={item.material_description || ''}
+            onApply={(desc, price) => onUpdate(item.id, { material_description: desc, material_cost: price })}
+          />
+          <div className="wb-drw-row">
+            <div>
+              <div style={{ fontSize:9,color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace',marginBottom:3 }}>MATERIAL ₹</div>
+              <input type="number" className="wb-drw-inp"
+                value={draft('material_cost')}
+                onChange={e => setDraft('material_cost', e.target.value)}
+                onBlur={() => commit('material_cost')}
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <div style={{ fontSize:9,color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace',marginBottom:3 }}>QTY</div>
+              <input type="number" className="wb-drw-inp"
+                value={draft('qty')}
+                onChange={e => setDraft('qty', e.target.value)}
+                onBlur={() => commit('qty')}
+                placeholder="1"
+              />
+            </div>
+          </div>
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:9,color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace',marginBottom:3 }}>LABOUR DESCRIPTION</div>
+            <input className="wb-drw-inp"
+              value={draft('labour_description')}
+              onChange={e => setDraft('labour_description', e.target.value)}
+              onBlur={() => commit('labour_description')}
+              placeholder="Labour work…"
+            />
+          </div>
+          <div className="wb-drw-row">
+            <div>
+              <div style={{ fontSize:9,color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace',marginBottom:3 }}>LABOUR ₹</div>
+              <input type="number" className="wb-drw-inp"
+                value={draft('labour_cost')}
+                onChange={e => setDraft('labour_cost', e.target.value)}
+                onBlur={() => commit('labour_cost')}
+                placeholder="0"
+              />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', justifyContent:'flex-end' }}>
+              <div style={{ fontSize:9,color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace',marginBottom:3 }}>TOTAL</div>
+              <div style={{ fontFamily:'IBM Plex Mono,monospace', fontSize:14, fontWeight:700, color:needsPricing(item)?'#f0a050':item.cost_type==='actuals'?'#4dd9c0':'var(--accent,#c8963e)', padding:'8px 0' }}>
+                {item.cost_type==='actuals' ? 'On actuals' : item.cost_type==='nil' ? 'Nil' : needsPricing(item) ? '⚠ ₹0' : `₹${fmt(tot)}`}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Type */}
+        <div className="wb-drw-sec">
+          <div className="wb-drw-lbl">Type</div>
+          <div style={{ display:'flex', gap:6 }}>
+            {[['priced','Priced',item.cost_type==='priced'],['actuals','On actuals',item.cost_type==='actuals'],['nil','Not charged',item.cost_type==='nil']].map(([ct,label,active]) => (
+              <button key={ct} onClick={() => onUpdate(item.id, { cost_type: ct })}
+                style={{ flex:1, padding:'9px 0', minHeight:38, borderRadius:5, border:`1px solid ${active?ct==='priced'?'var(--accent,#c8963e)':ct==='actuals'?'#4dd9c0':'rgba(147,148,168,0.4)':'var(--border,#2e3040)'}`, cursor:'pointer', fontSize:10, fontFamily:'IBM Plex Mono,monospace', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em', background:active?ct==='priced'?'rgba(200,150,62,0.12)':ct==='actuals'?'rgba(77,217,192,0.1)':'rgba(147,148,168,0.08)':'none', color:active?ct==='priced'?'var(--accent,#c8963e)':ct==='actuals'?'#4dd9c0':'#9394a8':'var(--text-muted,#6b6d82)' }}
+              >{label}</button>
+            ))}
+          </div>
+          {item.cost_type==='actuals' && (
+            <div style={{ marginTop:8 }}>
+              <div style={{ fontSize:9,color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace',marginBottom:3 }}>BALLPARK ₹ (optional)</div>
+              <input type="number" className="wb-drw-inp"
+                value={draft('material_cost')}
+                onChange={e => setDraft('material_cost', e.target.value)}
+                onBlur={() => commit('material_cost')}
+                placeholder="Rough estimate…"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Exclude */}
+        <div className="wb-drw-sec">
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div>
+              <div className="wb-drw-lbl" style={{ marginBottom:2 }}>Exclude from estimate</div>
+              <div style={{ fontSize:11, color:'var(--text-muted,#6b6d82)' }}>Dims this row and removes it from the total</div>
+            </div>
+            <button
+              onClick={() => onUpdate(item.id, { status: isExcluded ? 'pending' : 'excluded' })}
+              style={{ padding:'8px 14px', borderRadius:5, border:`1px solid ${isExcluded?'rgba(248,113,113,0.45)':'var(--border,#2e3040)'}`, background:isExcluded?'rgba(248,113,113,0.1)':'none', cursor:'pointer', fontSize:11, fontFamily:'IBM Plex Mono,monospace', fontWeight:700, color:isExcluded?'#f87171':'var(--text-muted,#6b6d82)', minWidth:72 }}
+            >{isExcluded ? 'Excluded' : 'Exclude'}</button>
+          </div>
+        </div>
+
+        {/* Dispute thread */}
+        {item.status === 'disputed' && (
+          <div className="wb-drw-sec">
+            <div className="wb-drw-lbl">Dispute thread</div>
+            <DisputeThread itemId={item.id} estimateId={estimateId} item={item} userEmail={userEmail} onResolve={() => {}} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── RateDrawer ───────────────────────────────────────────────────────────────
+
+function RateDrawer({ open, mode, onClose, onSelectMaterial, onSelectLabour, isMobile }) {
+  const [tab, setTab]         = useState('materials')
+  const [search, setSearch]   = useState('')
+  const [tradeF, setTradeF]   = useState('all')
+  const [matRows, setMatRows] = useState([])
+  const [labRows, setLabRows] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setSearch(''); setTradeF('all')
     if (mode === 'swap-labour') setTab('labour')
     else setTab('materials')
   }, [open, mode])
@@ -339,14 +648,11 @@ function RateDrawer({ open, mode, onClose, onSelectMaterial, onSelectLabour, isM
     if (!open || tab !== 'materials') return
     const t = setTimeout(async () => {
       setLoading(true)
-      let q = supabase.from('inventory_items')
-        .select('fxin,item_name,spec,size,trade,flent_price,market_price,price_inc,margin_percent,quantity_remaining')
-        .limit(40)
+      let q = supabase.from('inventory_items').select('fxin,item_name,spec,size,trade,flent_price,market_price,price_inc,margin_percent,quantity_remaining').limit(40)
       if (search.trim()) q = q.ilike('item_name', `%${search.trim()}%`)
       if (tradeF !== 'all') q = q.eq('trade', tradeF)
       const { data } = await q.order('item_name')
-      setMatRows(data || [])
-      setLoading(false)
+      setMatRows(data || []); setLoading(false)
     }, search ? 250 : 0)
     return () => clearTimeout(t)
   }, [open, tab, search, tradeF])
@@ -359,120 +665,86 @@ function RateDrawer({ open, mode, onClose, onSelectMaterial, onSelectLabour, isM
       if (search.trim()) q = q.ilike('work_type', `%${search.trim()}%`)
       if (tradeF !== 'all') q = q.eq('trade', tradeF)
       const { data } = await q.order('trade')
-      setLabRows(data || [])
-      setLoading(false)
+      setLabRows(data || []); setLoading(false)
     }, search ? 250 : 0)
     return () => clearTimeout(t)
   }, [open, tab, search, tradeF])
 
   if (!open) return null
-
   const drawerW = isMobile ? '100%' : 380
   const title   = mode === 'swap-material' ? 'Swap Material' : mode === 'swap-labour' ? 'Swap Labour' : 'Add Item'
   const rows    = tab === 'materials' ? matRows : labRows
 
   return (
     <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 500 }} />
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: drawerW,
-        background: 'var(--bg-panel, #1e2028)', borderLeft: '1px solid var(--border, #2e3040)',
-        zIndex: 501, display: 'flex', flexDirection: 'column',
-        boxShadow: '-8px 0 32px rgba(0,0,0,0.5)',
-      }}>
-        {/* Header */}
-        <div style={{ padding: '12px 14px 0', borderBottom: '1px solid var(--border, #2e3040)', flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{title}</span>
-            <button onClick={onClose} style={{ width: 28, height: 28, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #6b6d82)', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, lineHeight: 1 }}>×</button>
+      <div onClick={onClose} style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.35)',zIndex:500 }} />
+      <div style={{ position:'fixed',top:0,right:0,bottom:0,width:drawerW,background:'var(--bg-panel,#1e2028)',borderLeft:'1px solid var(--border,#2e3040)',zIndex:501,display:'flex',flexDirection:'column',boxShadow:'-8px 0 32px rgba(0,0,0,0.5)' }}>
+        <div style={{ padding:'12px 14px 0',borderBottom:'1px solid var(--border,#2e3040)',flexShrink:0 }}>
+          <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10 }}>
+            <span style={{ fontSize:12,fontWeight:600,color:'var(--text,#e8e8f0)',fontFamily:'IBM Plex Mono,monospace' }}>{title}</span>
+            <button onClick={onClose} style={{ width:28,height:28,background:'none',border:'none',cursor:'pointer',color:'var(--text-muted,#6b6d82)',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:4 }}>×</button>
           </div>
-          <div style={{ display: 'flex' }}>
-            {['materials', 'labour'].map(t => (
+          <div style={{ display:'flex' }}>
+            {['materials','labour'].map(t => (
               <button key={t} onClick={() => { setTab(t); setSearch('') }}
-                style={{ padding: '7px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', textTransform: 'capitalize', borderBottom: tab === t ? '2px solid var(--accent, #c8963e)' : '2px solid transparent', color: tab === t ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)' }}
+                style={{ padding:'7px 14px',background:'none',border:'none',cursor:'pointer',fontSize:12,fontFamily:'IBM Plex Mono,monospace',textTransform:'capitalize',borderBottom:tab===t?'2px solid var(--accent,#c8963e)':'2px solid transparent',color:tab===t?'var(--accent,#c8963e)':'var(--text-muted,#6b6d82)' }}
               >{t}</button>
             ))}
           </div>
         </div>
-
-        {/* Filters */}
-        <div style={{ padding: '9px 12px', borderBottom: '1px solid var(--border, #2e3040)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
-          <input
-            autoFocus
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={tab === 'materials' ? 'Search by name or FXIN…' : 'Search labour…'}
-            style={{ width: '100%', padding: '7px 10px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text, #e8e8f0)', fontSize: 12, outline: 'none', fontFamily: 'var(--font-mono, monospace)', boxSizing: 'border-box' }}
+        <div style={{ padding:'9px 12px',borderBottom:'1px solid var(--border,#2e3040)',flexShrink:0,display:'flex',flexDirection:'column',gap:7 }}>
+          <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
+            placeholder={tab==='materials'?'Search by name or FXIN…':'Search labour…'}
+            style={{ width:'100%',padding:'7px 10px',background:'var(--bg-input,#252731)',border:'1px solid var(--border,#2e3040)',borderRadius:5,color:'var(--text,#e8e8f0)',fontSize:12,outline:'none',fontFamily:'IBM Plex Mono,monospace',boxSizing:'border-box' }}
           />
           <select value={tradeF} onChange={e => setTradeF(e.target.value)}
-            style={{ width: '100%', padding: '7px 10px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: tradeF === 'all' ? 'var(--text-muted, #6b6d82)' : 'var(--text, #e8e8f0)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }}
-          >
+            style={{ width:'100%',padding:'7px 10px',background:'var(--bg-input,#252731)',border:'1px solid var(--border,#2e3040)',borderRadius:5,color:tradeF==='all'?'var(--text-muted,#6b6d82)':'var(--text,#e8e8f0)',fontSize:12,outline:'none',boxSizing:'border-box' }}>
             <option value="all">All trades</option>
-            {Object.keys(TRADE_COLORS).map(t => (
-              <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-            ))}
+            {Object.keys(TRADE_COLORS).map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
           </select>
         </div>
-
-        {/* Results */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {loading && <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)' }}>Loading…</div>}
-          {!loading && rows.length === 0 && (
-            <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)' }}>
-              {search ? 'No results' : `Type to search ${tab}`}
-            </div>
-          )}
-          {!loading && tab === 'materials' && matRows.map(r => {
+        <div style={{ flex:1,overflowY:'auto' }}>
+          {loading && <div style={{ padding:16,textAlign:'center',fontSize:12,color:'var(--text-muted,#6b6d82)' }}>Loading…</div>}
+          {!loading && rows.length===0 && <div style={{ padding:20,textAlign:'center',fontSize:12,color:'var(--text-muted,#6b6d82)' }}>{search?'No results':`Type to search ${tab}`}</div>}
+          {!loading && tab==='materials' && matRows.map(r => {
             const price = invPrice(r)
             return (
-              <div key={r.fxin || r.item_name}
-                onClick={() => onSelectMaterial(r)}
-                style={{ padding: '9px 12px', borderBottom: '1px solid var(--border, #2e3040)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 2 }}>
-                    {r.fxin && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', background: 'rgba(200,150,62,0.12)', padding: '1px 5px', borderRadius: 3 }}>{r.fxin}</span>}
-                    {r.trade && <span style={{ fontSize: 9, color: tc(r.trade), textTransform: 'uppercase', letterSpacing: '0.05em' }}>{r.trade}</span>}
+              <div key={r.fxin||r.item_name} onClick={() => onSelectMaterial(r)}
+                style={{ padding:'9px 12px',borderBottom:'1px solid var(--border,#2e3040)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8 }}
+                onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.04)'}
+                onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                <div style={{ flex:1,minWidth:0 }}>
+                  <div style={{ display:'flex',gap:6,alignItems:'center',marginBottom:2 }}>
+                    {r.fxin && <span style={{ fontSize:9,fontWeight:700,color:'var(--accent,#c8963e)',fontFamily:'IBM Plex Mono,monospace',background:'rgba(200,150,62,0.12)',padding:'1px 5px',borderRadius:3 }}>{r.fxin}</span>}
+                    {r.trade && <span style={{ fontSize:9,color:tc(r.trade),textTransform:'uppercase',letterSpacing:'0.05em' }}>{r.trade}</span>}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {r.item_name}{r.spec ? ` · ${r.spec}` : ''}{r.size ? ` · ${r.size}` : ''}
-                  </div>
-                  {r.quantity_remaining != null && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 1 }}>{r.quantity_remaining} in stock</div>}
+                  <div style={{ fontSize:12,color:'var(--text,#e8e8f0)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{r.item_name}{r.spec?` · ${r.spec}`:''}{r.size?` · ${r.size}`:''}</div>
+                  {r.quantity_remaining!=null && <div style={{ fontSize:10,color:'var(--text-muted,#6b6d82)',marginTop:1 }}>{r.quantity_remaining} in stock</div>}
                 </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: 13, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>₹{fmt(price)}</div>
+                <div style={{ textAlign:'right',flexShrink:0 }}>
+                  <div style={{ fontSize:13,fontFamily:'IBM Plex Mono,monospace',fontWeight:700,color:'var(--text,#e8e8f0)' }}>₹{fmt(price)}</div>
                 </div>
               </div>
             )
           })}
-          {!loading && tab === 'labour' && labRows.map(r => (
-            <div key={r.id}
-              onClick={() => onSelectLabour(r)}
-              style={{ padding: '9px 12px', borderBottom: '1px solid var(--border, #2e3040)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-            >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 9, color: tc(r.trade), textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{r.trade}</div>
-                <div style={{ fontSize: 12, color: 'var(--text, #e8e8f0)' }}>{r.work_type}</div>
-                {r.unit && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 1 }}>per {r.unit}</div>}
+          {!loading && tab==='labour' && labRows.map(r => (
+            <div key={r.id} onClick={() => onSelectLabour(r)}
+              style={{ padding:'9px 12px',borderBottom:'1px solid var(--border,#2e3040)',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8 }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.04)'}
+              onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ fontSize:9,color:tc(r.trade),textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:2 }}>{r.trade}</div>
+                <div style={{ fontSize:12,color:'var(--text,#e8e8f0)' }}>{r.work_type}</div>
+                {r.unit && <div style={{ fontSize:10,color:'var(--text-muted,#6b6d82)',marginTop:1 }}>per {r.unit}</div>}
               </div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: 13, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>₹{fmt(r.cost_per_unit)}</div>
-              </div>
+              <div style={{ fontSize:13,fontFamily:'IBM Plex Mono,monospace',fontWeight:700,color:'var(--text,#e8e8f0)',flexShrink:0 }}>₹{fmt(r.cost_per_unit)}</div>
             </div>
           ))}
         </div>
-
-        {/* Blank row shortcut (add mode only) */}
-        {mode === 'add' && (
-          <div style={{ padding: '9px 12px', borderTop: '1px solid var(--border, #2e3040)', flexShrink: 0 }}>
-            <button
-              onClick={() => onSelectMaterial(null)}
-              style={{ width: '100%', padding: '8px 0', background: 'none', border: '1px dashed var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
-            >+ Add blank row</button>
+        {mode==='add' && (
+          <div style={{ padding:'9px 12px',borderTop:'1px solid var(--border,#2e3040)',flexShrink:0 }}>
+            <button onClick={() => onSelectMaterial(null)}
+              style={{ width:'100%',padding:'8px 0',background:'none',border:'1px dashed var(--border,#2e3040)',borderRadius:5,fontSize:11,color:'var(--text-muted,#6b6d82)',cursor:'pointer',fontFamily:'IBM Plex Mono,monospace' }}>+ Add blank row</button>
           </div>
         )}
       </div>
@@ -483,40 +755,43 @@ function RateDrawer({ open, mode, onClose, onSelectMaterial, onSelectLabour, isM
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function EstimateWorkbench() {
-  const { id }       = useParams()
-  const navigate     = useNavigate()
-  const isMobile     = useIsMobile()
+  const { id }   = useParams()
+  const navigate = useNavigate()
+  const isMobile = useIsMobile()
 
-  // Data
-  const [estimate, setEstimate]     = useState(null)
-  const [items, setItems]           = useState([])
-  const [inspection, setInspection] = useState(null)
-  const [loading, setLoading]       = useState(true)
-  const [error, setError]           = useState(null)
-  const [userEmail, setUserEmail]   = useState(null)
+  // ── Data ────────────────────────────────────────────────────────────────────
+  const [estimate, setEstimate]         = useState(null)
+  const [items, setItems]               = useState([])
+  const [inspection, setInspection]     = useState(null)
+  const [loading, setLoading]           = useState(true)
+  const [error, setError]               = useState(null)
+  const [userEmail, setUserEmail]       = useState(null)
   const [versionCount, setVersionCount] = useState(1)
+  const [mediaMap, setMediaMap]         = useState({})
 
-  // Inline editing
-  const [editingCell, setEditingCell] = useState(null)  // { itemId, field }
-  const [cellDraft, setCellDraft]     = useState('')
+  // ── Interaction ─────────────────────────────────────────────────────────────
+  const [hoveredId, setHoveredId]   = useState(null)
+  const [pinnedId, setPinnedId]     = useState(null)
+  const [inList, setInList]         = useState(false)
 
-  // Drawer
-  const [drawerOpen, setDrawerOpen]     = useState(false)
-  const [drawerMode, setDrawerMode]     = useState('add')
-  const [drawerTarget, setDrawerTarget] = useState(null)
+  // ── Add/swap drawer ─────────────────────────────────────────────────────────
+  const [rateDrawerOpen, setRateDrawerOpen]   = useState(false)
+  const [rateDrawerMode, setRateDrawerMode]   = useState('add')
+  const [rateDrawerTarget, setRateDrawerTarget] = useState(null)
 
-  // UI
-  const [collapsed, setCollapsed]         = useState(new Set())
-  const [openMenu, setOpenMenu]           = useState(null)   // { itemId, status, x, y }
-  const [notesEditing, setNotesEditing]   = useState(false)
-  const [notesDraft, setNotesDraft]       = useState('')
-  const [savingNotes, setSavingNotes]     = useState(false)
-  const [generating, setGenerating]       = useState(false)
-  const [copied, setCopied]               = useState(false)
-  const [moreOpen, setMoreOpen]           = useState(false)
-  const [mediaMap, setMediaMap]           = useState({}) // { [lineItemId]: [{id,url,type}] }
-  const [mediaPanel, setMediaPanel]       = useState(null) // estimate_items row | null
-  const [lightbox, setLightbox]           = useState(null) // { urls, idx } | null
+  // ── Context menu ────────────────────────────────────────────────────────────
+  const [ctxMenu, setCtxMenu] = useState(null) // { itemId, x, y, status }
+
+  // ── UI ──────────────────────────────────────────────────────────────────────
+  const [collapsed, setCollapsed]     = useState(new Set())
+  const [notesEditing, setNotesEditing] = useState(false)
+  const [notesDraft, setNotesDraft]   = useState('')
+  const [savingNotes, setSavingNotes] = useState(false)
+  const [generating, setGenerating]   = useState(false)
+  const [copied, setCopied]           = useState(false)
+  const [lightbox, setLightbox]       = useState(null)
+
+  // ── Load ────────────────────────────────────────────────────────────────────
 
   useEffect(() => { loadData() }, [id])
 
@@ -530,28 +805,23 @@ export default function EstimateWorkbench() {
     if (!est) { setError('Estimate not found'); setLoading(false); return }
     setEstimate(est)
     setNotesDraft(est.notes || '')
-
     const [itemsRes, inspRes, { count }] = await Promise.all([
       supabase.from('estimate_items').select('*').eq('estimate_id', id).order('sort_order'),
       supabase.from('inspections').select('id,pid,house_type,inspection_date').eq('id', est.inspection_id).maybeSingle(),
       supabase.from('estimates').select('id', { count: 'exact', head: true }).eq('pid', est.pid),
     ])
-    const fetchedItems = itemsRes.data || []
-    setItems(fetchedItems)
+    const fetched = itemsRes.data || []
+    setItems(fetched)
     setInspection(inspRes.data || null)
     setVersionCount(count || 1)
     setLoading(false)
-    loadMedia(fetchedItems)
+    loadMedia(fetched)
   }
 
   async function loadMedia(itemsList) {
-    const lineItemIds = (itemsList || items).map(i => i.line_item_id).filter(Boolean)
-    if (!lineItemIds.length) { setMediaMap({}); return }
-    const { data } = await supabase
-      .from('line_item_media')
-      .select('id, line_item_id, url, type')
-      .in('line_item_id', lineItemIds)
-      .order('id', { ascending: true })
+    const ids = (itemsList || items).map(i => i.line_item_id).filter(Boolean)
+    if (!ids.length) { setMediaMap({}); return }
+    const { data } = await supabase.from('line_item_media').select('id,line_item_id,url,type').in('line_item_id', ids).order('id', { ascending: true })
     if (data) {
       const map = {}
       data.forEach(m => { if (!map[m.line_item_id]) map[m.line_item_id] = []; map[m.line_item_id].push(m) })
@@ -559,17 +829,17 @@ export default function EstimateWorkbench() {
     }
   }
 
-  function updateMediaList(lineItemId, updater) {
-    setMediaMap(prev => ({ ...prev, [lineItemId]: updater(prev[lineItemId] || []) }))
+  function updateMediaList(lineItemId, fn) {
+    setMediaMap(p => ({ ...p, [lineItemId]: fn(p[lineItemId] || []) }))
   }
 
   async function handleAddMedia(lineItemId, files) {
     for (const file of files) {
       const ext  = file.name.split('.').pop()
       const path = `workbench/${lineItemId}/${Date.now()}.${ext}`
-      const { data: uploaded, error } = await supabase.storage.from('inspection-media').upload(path, file, { upsert: true })
-      if (error) continue
-      const { data: { publicUrl } } = supabase.storage.from('inspection-media').getPublicUrl(uploaded.path)
+      const { data: up, error: err } = await supabase.storage.from('inspection-media').upload(path, file, { upsert: true })
+      if (err) continue
+      const { data: { publicUrl } } = supabase.storage.from('inspection-media').getPublicUrl(up.path)
       const type = file.type.startsWith('video') ? 'video' : 'image'
       const { data: row } = await supabase.from('line_item_media').insert({ line_item_id: lineItemId, url: publicUrl, type }).select().single()
       if (row) updateMediaList(lineItemId, prev => [...prev, row])
@@ -579,103 +849,63 @@ export default function EstimateWorkbench() {
   async function handleDeleteMedia(m) {
     if (!window.confirm('Delete this media file?')) return
     await supabase.from('line_item_media').delete().eq('id', m.id)
-    const storagePath = m.url.split('/object/public/inspection-media/')[1]
-    if (storagePath) await supabase.storage.from('inspection-media').remove([decodeURIComponent(storagePath)])
+    const sp = m.url.split('/object/public/inspection-media/')[1]
+    if (sp) await supabase.storage.from('inspection-media').remove([decodeURIComponent(sp)])
     updateMediaList(m.line_item_id, prev => prev.filter(x => x.id !== m.id))
   }
 
   async function handleReplaceMedia(m, file) {
     const ext  = file.name.split('.').pop()
     const path = `workbench/${m.line_item_id}/${Date.now()}.${ext}`
-    const { data: uploaded, error } = await supabase.storage.from('inspection-media').upload(path, file, { upsert: true })
-    if (error) return
-    const { data: { publicUrl } } = supabase.storage.from('inspection-media').getPublicUrl(uploaded.path)
+    const { data: up, error: err } = await supabase.storage.from('inspection-media').upload(path, file, { upsert: true })
+    if (err) return
+    const { data: { publicUrl } } = supabase.storage.from('inspection-media').getPublicUrl(up.path)
     const type = file.type.startsWith('video') ? 'video' : 'image'
     await supabase.from('line_item_media').update({ url: publicUrl, type }).eq('id', m.id)
-    const storagePath = m.url.split('/object/public/inspection-media/')[1]
-    if (storagePath) await supabase.storage.from('inspection-media').remove([decodeURIComponent(storagePath)])
+    const sp = m.url.split('/object/public/inspection-media/')[1]
+    if (sp) await supabase.storage.from('inspection-media').remove([decodeURIComponent(sp)])
     updateMediaList(m.line_item_id, prev => prev.map(x => x.id === m.id ? { ...x, url: publicUrl, type } : x))
   }
 
-  async function handleSetPrimary(lineItemId, targetMedia) {
+  async function handleSetPrimary(lineItemId, target) {
     const list = mediaMap[lineItemId] || []
     if (list.length < 2) return
     const primary = list[0]
-    if (primary.id === targetMedia.id) return
+    if (primary.id === target.id) return
     await Promise.all([
-      supabase.from('line_item_media').update({ url: targetMedia.url, type: targetMedia.type }).eq('id', primary.id),
-      supabase.from('line_item_media').update({ url: primary.url,    type: primary.type    }).eq('id', targetMedia.id),
+      supabase.from('line_item_media').update({ url: target.url, type: target.type }).eq('id', primary.id),
+      supabase.from('line_item_media').update({ url: primary.url, type: primary.type }).eq('id', target.id),
     ])
     updateMediaList(lineItemId, prev => prev.map(x => {
-      if (x.id === primary.id)     return { ...x, url: targetMedia.url, type: targetMedia.type }
-      if (x.id === targetMedia.id) return { ...x, url: primary.url,    type: primary.type    }
+      if (x.id === primary.id) return { ...x, url: target.url, type: target.type }
+      if (x.id === target.id)  return { ...x, url: primary.url, type: primary.type }
       return x
     }))
   }
 
-  // Derived
-  const tradeGroups = useMemo(() => {
-    const map = {}
-    for (const item of items) {
-      const t = item.trade || 'Other'
-      if (!map[t]) map[t] = []
-      map[t].push(item)
+  // ── Item ops ────────────────────────────────────────────────────────────────
+
+  async function updateItem(itemId, updates) {
+    const safe = {}
+    for (const [k, v] of Object.entries(updates)) {
+      if (VALID_COLUMNS.has(k)) safe[k] = v
     }
-    return Object.entries(map).map(([trade, rows]) => ({
-      trade,
-      rows: [...rows].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
-      total:       rows.reduce((s, i) => s + lineTot(i), 0),
-      activeCount: rows.filter(i => i.status !== 'removed').length,
-    }))
-  }, [items])
-
-  const subtotal     = useMemo(() => items.reduce((s, i) => s + lineTot(i), 0), [items])
-  const activeCount  = useMemo(() => items.filter(i => i.status !== 'removed' && i.cost_type !== 'nil').length, [items])
-  const disputedItems = useMemo(() => items.filter(i => i.status === 'disputed'), [items])
-
-  // ── Inline edit ────────────────────────────────────────────────────────────
-
-  function startEdit(itemId, field, currentValue) {
-    if (!VALID_COLUMNS.has(field)) return
-    setEditingCell({ itemId, field })
-    setCellDraft(String(currentValue ?? ''))
-  }
-
-  async function commitEdit() {
-    if (!editingCell) return
-    const { itemId, field } = editingCell
-    const isNum = ['material_cost', 'labour_cost', 'qty'].includes(field)
-    const value = isNum ? (parseFloat(cellDraft) || 0) : cellDraft
-    setEditingCell(null)
-    setCellDraft('')
+    if (!Object.keys(safe).length) return
     const prev = items.find(i => i.id === itemId)
-    if (!prev || prev[field] === value) return
-    setItems(p => p.map(i => i.id === itemId ? { ...i, [field]: value } : i))
-    const { error: err } = await supabase.from('estimate_items').update({ [field]: value }).eq('id', itemId)
+    setItems(p => p.map(i => i.id === itemId ? { ...i, ...safe } : i))
+    const { error: err } = await supabase.from('estimate_items').update(safe).eq('id', itemId)
     if (err) {
-      setItems(p => p.map(i => i.id === itemId ? { ...i, [field]: prev[field] } : i))
-      console.error('[commitEdit]', err.message)
-      return
+      console.error('[updateItem]', err.message)
+      setItems(p => p.map(i => i.id === itemId ? prev : i))
     }
-    supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { item_id: itemId, field } }).then(() => {})
   }
-
-  function cancelEdit() { setEditingCell(null); setCellDraft('') }
-  function isEditing(itemId, field) { return editingCell?.itemId === itemId && editingCell?.field === field }
-
-  // ── Row ops ────────────────────────────────────────────────────────────────
 
   async function duplicateItem(itemId) {
     const orig = items.find(i => i.id === itemId)
     if (!orig) return
     const { id: _, created_at: __, ...rest } = orig
-    const { data: newItem } = await supabase.from('estimate_items')
-      .insert({ ...rest, sort_order: maxSort(items) + 1, status: 'pending' })
-      .select().single()
-    if (newItem) {
-      setItems(p => [...p, newItem])
-      supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { action: 'duplicate', item_id: itemId } }).then(() => {})
-    }
+    const { data: newItem } = await supabase.from('estimate_items').insert({ ...rest, sort_order: maxSort(items)+1, status: 'pending' }).select().single()
+    if (newItem) setItems(p => [...p, newItem])
   }
 
   async function removeItem(itemId) {
@@ -683,7 +913,6 @@ export default function EstimateWorkbench() {
     setItems(p => p.map(i => i.id === itemId ? { ...i, status: 'removed' } : i))
     const { error: err } = await supabase.from('estimate_items').update({ status: 'removed' }).eq('id', itemId)
     if (err) setItems(p => p.map(i => i.id === itemId ? { ...i, status: prev } : i))
-    else supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { action: 'remove', item_id: itemId } }).then(() => {})
   }
 
   async function restoreItem(itemId) {
@@ -692,83 +921,40 @@ export default function EstimateWorkbench() {
     if (err) setItems(p => p.map(i => i.id === itemId ? { ...i, status: 'removed' } : i))
   }
 
-  async function setCostType(itemId, costType) {
-    setItems(p => p.map(i => i.id === itemId ? { ...i, cost_type: costType } : i))
-    await supabase.from('estimate_items').update({ cost_type: costType }).eq('id', itemId)
-    supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { item_id: itemId, field: 'cost_type', value: costType } }).then(() => {})
-  }
-
-  // ── Drawer ops ─────────────────────────────────────────────────────────────
-
-  function openAddDrawer() { setDrawerMode('add'); setDrawerTarget(null); setDrawerOpen(true) }
-  function openSwapDrawer(mode, itemId) { setDrawerMode(mode); setDrawerTarget(itemId); setDrawerOpen(true) }
+  // ── Add-item drawer ops ──────────────────────────────────────────────────────
 
   async function handleSelectMaterial(r) {
-    if (drawerMode === 'add') {
+    if (rateDrawerMode === 'add') {
       const price = r ? invPrice(r) : 0
-      const row = {
-        estimate_id: id,
-        sort_order: maxSort(items) + 1,
-        trade: r?.trade || '',
-        item_name: r?.item_name || '',
-        area: '',
+      const { data: newItem } = await supabase.from('estimate_items').insert({
+        estimate_id: id, sort_order: maxSort(items)+1,
+        trade: r?.trade||'', item_name: r?.item_name||'', area: '',
         issue_description: '',
-        material_description: r ? `${r.item_name}${r.spec ? ` · ${r.spec}` : ''}${r.size ? ` · ${r.size}` : ''}` : '',
-        material_cost: price,
-        labour_description: '',
-        labour_cost: 0,
-        qty: 1,
-        cost_type: 'priced',
-        status: 'pending',
-      }
-      const { data: newItem } = await supabase.from('estimate_items').insert(row).select().single()
-      if (newItem) {
-        setItems(p => [...p, newItem])
-        supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { action: 'add_material', fxin: r?.fxin } }).then(() => {})
-      }
-    } else if (drawerMode === 'swap-material' && drawerTarget && r) {
-      const price = invPrice(r)
-      const desc  = `${r.item_name}${r.spec ? ` · ${r.spec}` : ''}${r.size ? ` · ${r.size}` : ''}`
-      setItems(p => p.map(i => i.id === drawerTarget ? { ...i, material_description: desc, material_cost: price } : i))
-      await supabase.from('estimate_items').update({ material_description: desc, material_cost: price }).eq('id', drawerTarget)
-      supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { action: 'swap_material', item_id: drawerTarget } }).then(() => {})
+        material_description: r ? `${r.item_name}${r.spec?` · ${r.spec}`:''}${r.size?` · ${r.size}`:''}` : '',
+        material_cost: price, labour_description: '', labour_cost: 0,
+        qty: 1, cost_type: 'priced', status: 'pending',
+      }).select().single()
+      if (newItem) { setItems(p => [...p, newItem]); setPinnedId(newItem.id) }
     }
-    setDrawerOpen(false)
+    setRateDrawerOpen(false)
   }
 
   async function handleSelectLabour(r) {
     if (!r) return
-    if (drawerMode === 'add') {
-      const row = {
-        estimate_id: id,
-        sort_order: maxSort(items) + 1,
-        trade: r.trade || '',
-        item_name: r.work_type || '',
-        area: '',
-        issue_description: '',
-        material_description: '',
-        material_cost: 0,
-        labour_description: `${r.work_type}${r.unit ? ` · per ${r.unit}` : ''}`,
-        labour_cost: r.cost_per_unit || 0,
-        qty: 1,
-        cost_type: 'priced',
-        status: 'pending',
-      }
-      const { data: newItem } = await supabase.from('estimate_items').insert(row).select().single()
-      if (newItem) {
-        setItems(p => [...p, newItem])
-        supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { action: 'add_labour', labour_id: r.id } }).then(() => {})
-      }
-    } else if (drawerMode === 'swap-labour' && drawerTarget) {
-      const desc = `${r.work_type}${r.unit ? ` · per ${r.unit}` : ''}`
-      setItems(p => p.map(i => i.id === drawerTarget ? { ...i, labour_description: desc, labour_cost: r.cost_per_unit || 0 } : i))
-      await supabase.from('estimate_items').update({ labour_description: desc, labour_cost: r.cost_per_unit || 0 }).eq('id', drawerTarget)
-      supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'edited', actor: userEmail, meta: { action: 'swap_labour', item_id: drawerTarget } }).then(() => {})
+    if (rateDrawerMode === 'add') {
+      const { data: newItem } = await supabase.from('estimate_items').insert({
+        estimate_id: id, sort_order: maxSort(items)+1,
+        trade: r.trade||'', item_name: r.work_type||'', area: '',
+        issue_description: '', material_description: '', material_cost: 0,
+        labour_description: `${r.work_type}${r.unit?` · per ${r.unit}`:''}`,
+        labour_cost: r.cost_per_unit||0, qty: 1, cost_type: 'priced', status: 'pending',
+      }).select().single()
+      if (newItem) { setItems(p => [...p, newItem]); setPinnedId(newItem.id) }
     }
-    setDrawerOpen(false)
+    setRateDrawerOpen(false)
   }
 
-  // ── Notes ──────────────────────────────────────────────────────────────────
+  // ── Notes ────────────────────────────────────────────────────────────────────
 
   async function saveNotes() {
     setSavingNotes(true)
@@ -778,10 +964,10 @@ export default function EstimateWorkbench() {
     setSavingNotes(false)
   }
 
-  // ── Regenerate ─────────────────────────────────────────────────────────────
+  // ── Regenerate ───────────────────────────────────────────────────────────────
 
   async function handleRegenerate() {
-    if (!window.confirm('Regenerate will replace all items from the inspection, discarding manual edits. Continue?')) return
+    if (!window.confirm('Regenerate will replace all items from the inspection. Continue?')) return
     setGenerating(true)
     const inspId = estimate?.inspection_id || await resolveInspectionWithData(estimate?.pid)
     if (!inspId) { setGenerating(false); return }
@@ -790,616 +976,407 @@ export default function EstimateWorkbench() {
     setGenerating(false)
   }
 
-  // ── Share ──────────────────────────────────────────────────────────────────
+  // ── Share / Send ─────────────────────────────────────────────────────────────
 
   async function handleCopy(markSent = false) {
-    const shareUrl = estimate?.share_token
+    const url = estimate?.share_token
       ? `${window.location.origin}/e/${estimate.share_token}`
       : `${window.location.origin}/estimate/${id}`
     try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(shareUrl)
-      } else {
-        const ta = document.createElement('textarea')
-        ta.value = shareUrl; ta.style.cssText = 'position:fixed;opacity:0'
-        document.body.appendChild(ta); ta.focus(); ta.select()
-        document.execCommand('copy'); document.body.removeChild(ta)
-      }
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(url)
+      else { const ta = document.createElement('textarea'); ta.value = url; ta.style.cssText='position:fixed;opacity:0'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta) }
     } catch (_) {}
     if (markSent && estimate?.status === 'draft') {
       await supabase.from('estimates').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', id)
       await supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'sent', actor: userEmail })
       setEstimate(p => ({ ...p, status: 'sent' }))
     }
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2200)
+    setCopied(true); setTimeout(() => setCopied(false), 2200)
   }
 
-  // ─── Early returns ────────────────────────────────────────────────────────
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────────
+
+  const navigable = useMemo(() =>
+    items.filter(i => i.status !== 'removed').sort((a,b) => (a.sort_order||0)-(b.sort_order||0))
+  , [items])
+
+  const activeId = inList ? (hoveredId || pinnedId) : pinnedId
+
+  useEffect(() => {
+    function handle(e) {
+      if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName) || e.target.isContentEditable) return
+      const curIdx = activeId ? navigable.findIndex(i => i.id === activeId) : -1
+
+      if (e.key === 'ArrowDown' || e.key === 'j') {
+        e.preventDefault()
+        const next = navigable[curIdx+1]
+        if (next) { setPinnedId(next.id); document.getElementById(`wb-row-${next.id}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }
+      } else if (e.key === 'ArrowUp' || e.key === 'k') {
+        e.preventDefault()
+        const prev = navigable[curIdx-1]
+        if (prev) { setPinnedId(prev.id); document.getElementById(`wb-row-${prev.id}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }
+      } else if (e.key === 'Home') {
+        e.preventDefault(); if (navigable[0]) setPinnedId(navigable[0].id)
+      } else if (e.key === 'End') {
+        e.preventDefault(); const last = navigable[navigable.length-1]; if (last) setPinnedId(last.id)
+      } else if (e.key === 'Escape') {
+        setPinnedId(null)
+      } else if (activeId) {
+        if (e.key === 'p' || e.key === 'P') { e.preventDefault(); updateItem(activeId, { cost_type: 'priced' }) }
+        else if (e.key === 'a' || e.key === 'A') { e.preventDefault(); updateItem(activeId, { cost_type: 'actuals' }) }
+        else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); updateItem(activeId, { cost_type: 'nil' }) }
+        else if (e.key === 'e' || e.key === 'E') {
+          e.preventDefault()
+          const item = items.find(i => i.id === activeId)
+          if (item) updateItem(activeId, { status: item.status === 'excluded' ? 'pending' : 'excluded' })
+        }
+      }
+    }
+    document.addEventListener('keydown', handle)
+    return () => document.removeEventListener('keydown', handle)
+  }, [activeId, navigable, items])
+
+  // ── Derived ──────────────────────────────────────────────────────────────────
+
+  const tradeGroups = useMemo(() => {
+    const map = {}
+    for (const item of items) {
+      const t = item.trade || 'Other'
+      if (!map[t]) map[t] = []
+      map[t].push(item)
+    }
+    return Object.entries(map).map(([trade, rows]) => ({
+      trade,
+      rows: [...rows].sort((a,b) => (a.sort_order||0)-(b.sort_order||0)),
+      groupTotal: rows.filter(i => !['removed','excluded'].includes(i.status)).reduce((s,i) => s+lineTot(i), 0),
+    }))
+  }, [items])
+
+  const firmTotal   = useMemo(() => items.filter(i => !['removed','excluded'].includes(i.status) && i.cost_type==='priced').reduce((s,i) => s+Math.max(lineTot(i),0), 0), [items])
+  const pricedCount = useMemo(() => items.filter(i => !['removed','excluded'].includes(i.status) && i.cost_type==='priced' && !needsPricing(i)).length, [items])
+  const actualsCount = useMemo(() => items.filter(i => !['removed','excluded'].includes(i.status) && i.cost_type==='actuals').length, [items])
+  const noneCount    = useMemo(() => items.filter(i => !['removed','excluded'].includes(i.status) && i.cost_type==='nil').length, [items])
+  const needsCount   = useMemo(() => items.filter(i => needsPricing(i)).length, [items])
+  const excludedCount = useMemo(() => items.filter(i => i.status==='excluded').length, [items])
+
+  const drawerItem = useMemo(() => {
+    const id_ = inList ? (hoveredId||pinnedId) : pinnedId
+    return id_ ? items.find(i => i.id === id_) || null : null
+  }, [hoveredId, pinnedId, inList, items])
+
+  const navItems     = navigable.filter(i => i.status !== 'excluded')
+  const drawerIdx    = drawerItem ? navItems.findIndex(i => i.id === drawerItem.id) : -1
+
+  function navigateDrawer(delta) {
+    if (drawerIdx < 0) return
+    const next = navItems[drawerIdx+delta]
+    if (next) { setPinnedId(next.id); document.getElementById(`wb-row-${next.id}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }
+  }
+
+  // ── Early returns ─────────────────────────────────────────────────────────────
 
   if (loading) return <LogoSpinner full />
-  if (error) return (
-    <div style={{ minHeight: '100svh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg, #16171f)', color: '#f87171', fontFamily: 'var(--font-mono, monospace)', fontSize: 13 }}>{error}</div>
-  )
+  if (error) return <div style={{ minHeight:'100svh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg,#16171f)',color:'#f87171',fontFamily:'IBM Plex Mono,monospace',fontSize:13 }}>{error}</div>
 
   const pid         = estimate?.pid || ''
   const status      = estimate?.status || 'draft'
   const statusColor = EST_STATUS_COLOR[status] || '#9898a4'
   const shareUrl    = estimate?.share_token ? `${window.location.origin}/e/${estimate.share_token}` : null
 
-  // ─── Render helpers ───────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────────
 
-  function cellInput(itemId, field, mono = false, type = 'text') {
-    return (
-      <input
-        autoFocus
-        type={type}
-        value={cellDraft}
-        onChange={e => setCellDraft(e.target.value)}
-        onBlur={commitEdit}
-        onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); e.stopPropagation() }}
-        onClick={e => e.stopPropagation()}
-        style={{
-          display: 'block', width: '100%', height: 36, padding: '0 8px',
-          background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)',
-          borderRadius: 0, color: 'var(--text, #e8e8f0)', fontSize: 13, outline: 'none',
-          fontFamily: mono ? 'var(--font-mono, monospace)' : 'inherit',
-        }}
-      />
-    )
-  }
+  function renderRow(item) {
+    const tot      = lineTot(item)
+    const isActive = item.id === activeId
+    const cls      = ['wb-row', isActive?'is-active':'', item.status==='removed'?'is-removed':'', item.status==='excluded'?'is-excluded':''].filter(Boolean).join(' ')
+    const np       = needsPricing(item)
+    const color    = item.color || tc(item.trade||'')
 
-  function renderTextCell(item, field, mono = false, dimmed = false) {
-    const val        = item[field] ?? ''
-    const isRemoved  = item.status === 'removed'
-    if (isEditing(item.id, field)) {
-      return <td onClick={e => e.stopPropagation()} style={{ padding: 0 }}>{cellInput(item.id, field, mono)}</td>
-    }
     return (
-      <td
-        onClick={e => { e.stopPropagation(); startEdit(item.id, field, val) }}
-        style={{ cursor: 'text', padding: 0 }}
+      <div
+        key={item.id}
+        id={`wb-row-${item.id}`}
+        className={cls}
+        onMouseEnter={() => setHoveredId(item.id)}
+        onMouseLeave={() => setHoveredId(null)}
+        onClick={() => setPinnedId(p => p === item.id ? null : item.id)}
       >
-        <div style={{ padding: '0 8px', height: 36, display: 'flex', alignItems: 'center' }}>
-          <span style={{
-            fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            fontFamily: mono ? 'var(--font-mono, monospace)' : 'inherit',
-            color: val ? (dimmed ? 'var(--text-muted, #6b6d82)' : 'var(--text, #e8e8f0)') : '#3a3c4e',
-            textDecoration: isRemoved ? 'line-through' : 'none',
-            opacity: isRemoved ? 0.5 : 1,
-          }}>{val || '—'}</span>
-        </div>
-      </td>
-    )
-  }
+        {/* Handle */}
+        <div className="wb-row-handle">⠿</div>
 
-  function renderCostCell(item, descField, costField, label) {
-    const desc       = item[descField] || ''
-    const cost       = item[costField] || 0
-    const isRemoved  = item.status === 'removed'
-    const editDesc   = isEditing(item.id, descField)
-    const editCost   = isEditing(item.id, costField)
-    const isSwapMat  = costField === 'material_cost'
-
-    return (
-      <td style={{ padding: 0 }}>
-        <div className="wb-cost-wrap" style={{ padding: '3px 6px 3px 8px', minHeight: 36, opacity: isRemoved ? 0.45 : 1 }}>
-          {/* Description row */}
-          {editDesc ? (
-            <input autoFocus value={cellDraft} onChange={e => setCellDraft(e.target.value)}
-              onBlur={commitEdit}
-              onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); e.stopPropagation() }}
-              onClick={e => e.stopPropagation()}
-              style={{ width: '100%', height: 17, padding: '0 4px', background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)', borderRadius: 2, color: 'var(--text, #e8e8f0)', fontSize: 11, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-            />
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 17 }}>
-              <span
-                onClick={e => { e.stopPropagation(); startEdit(item.id, descField, desc) }}
-                style={{ fontSize: 11, color: desc ? 'var(--text-muted, #6b6d82)' : '#3a3c4e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'text', flex: 1, lineHeight: 1 }}
-              >{desc || `${label}…`}</span>
-              <span
-                className="wb-swap-btn"
-                title={`Swap ${label.toLowerCase()}`}
-                onClick={e => { e.stopPropagation(); openSwapDrawer(isSwapMat ? 'swap-material' : 'swap-labour', item.id) }}
-                style={{ flexShrink: 0, width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, borderRadius: 2, cursor: 'pointer', color: 'var(--text-muted, #6b6d82)', fontSize: 10, lineHeight: 1 }}
-              >⇄</span>
+        {/* Area + Item */}
+        <div className="wb-ident">
+          {item.area && <div className="wb-ident-area">{item.area}</div>}
+          <div className="wb-ident-name">{item.item_name || '—'}</div>
+          {(item.status === 'disputed' || item.status === 'excluded') && (
+            <div className="wb-ident-chips">
+              {item.status === 'disputed' && <span className="wb-chip" style={{ background:'rgba(240,160,80,0.15)',color:'#f0a050' }}>● Disputed</span>}
+              {item.status === 'excluded' && <span className="wb-chip" style={{ background:'rgba(58,60,78,0.5)',color:'#6b6d82' }}>Excluded</span>}
             </div>
           )}
-          {/* Cost row */}
-          {editCost ? (
-            <input autoFocus type="number" value={cellDraft} onChange={e => setCellDraft(e.target.value)}
-              onBlur={commitEdit}
-              onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); e.stopPropagation() }}
-              onClick={e => e.stopPropagation()}
-              style={{ width: '100%', height: 17, padding: '0 4px', background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)', borderRadius: 2, color: 'var(--text, #e8e8f0)', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', outline: 'none', marginTop: 1, boxSizing: 'border-box' }}
-            />
+        </div>
+
+        {/* Finding → action */}
+        <div className="wb-finding">
+          {item.issue_description && <div className="wb-finding-text">{item.issue_description}</div>}
+          {item.action && <div className="wb-finding-action">→ {item.action}</div>}
+        </div>
+
+        {/* Cost */}
+        <div className="wb-cost-cell">
+          {item.status === 'removed' ? (
+            <span style={{ fontSize:10,color:'#f87171',fontFamily:'IBM Plex Mono,monospace' }}>Removed</span>
+          ) : item.cost_type === 'actuals' ? (
+            <span style={{ fontSize:10,color:'#4dd9c0',fontFamily:'IBM Plex Mono,monospace',fontWeight:600 }}>On actuals</span>
+          ) : item.cost_type === 'nil' ? (
+            <span style={{ fontSize:10,color:'#3a3c4e',fontFamily:'IBM Plex Mono,monospace' }}>not charged</span>
+          ) : np ? (
+            <span style={{ fontSize:9,color:'#f0a050',fontFamily:'IBM Plex Mono,monospace',fontWeight:600 }}>⚠ needs pricing</span>
           ) : (
-            <div
-              onClick={e => { e.stopPropagation(); startEdit(item.id, costField, cost) }}
-              style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: cost > 0 ? 'var(--text, #e8e8f0)' : '#3a3c4e', cursor: 'text', lineHeight: 1, marginTop: 1, textDecoration: isRemoved ? 'line-through' : 'none' }}
-            >{cost > 0 ? `₹${fmt(cost)}` : '₹0'}</div>
+            <span style={{ fontSize:13,color:'var(--accent,#c8963e)',fontFamily:'IBM Plex Mono,monospace',fontWeight:700 }}>₹{fmt(tot)}</span>
           )}
         </div>
-      </td>
-    )
-  }
 
-  function renderDesktopRow(item) {
-    const tot           = lineTot(item)
-    const isRemoved     = item.status === 'removed'
-    const itemStatColor = ITEM_STATUS_COLOR[item.status] || '#9898a4'
-
-    return (
-      <tr key={item.id} className="wb-row" style={{ borderBottom: '1px solid var(--border, #2e3040)' }}>
-        {/* Drag handle */}
-        <td style={{ padding: '0 4px', textAlign: 'center', color: '#333848', fontSize: 12, cursor: 'grab', userSelect: 'none' }}>⠿</td>
-
-        {/* Area */}
-        {renderTextCell(item, 'area', false, true)}
-
-        {/* Item name */}
-        {renderTextCell(item, 'item_name')}
-
-        {/* Description */}
-        {renderTextCell(item, 'issue_description')}
-
-        {/* Material */}
-        {renderCostCell(item, 'material_description', 'material_cost', 'Material')}
-
-        {/* Labour */}
-        {renderCostCell(item, 'labour_description', 'labour_cost', 'Labour')}
-
-        {/* Qty */}
-        <td onClick={e => { e.stopPropagation(); startEdit(item.id, 'qty', item.qty) }} style={{ padding: 0, cursor: 'text' }}>
-          {isEditing(item.id, 'qty') ? (
-            <input autoFocus type="number" value={cellDraft} onChange={e => setCellDraft(e.target.value)}
-              onBlur={commitEdit}
-              onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); e.stopPropagation() }}
-              onClick={e => e.stopPropagation()}
-              style={{ display: 'block', width: '100%', height: 36, padding: '0 8px', background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)', borderRadius: 0, color: 'var(--text, #e8e8f0)', fontSize: 13, fontFamily: 'var(--font-mono, monospace)', outline: 'none' }}
-            />
-          ) : (
-            <div style={{ padding: '0 8px', height: 36, display: 'flex', alignItems: 'center', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: 'var(--text, #e8e8f0)', opacity: isRemoved ? 0.45 : 1 }}>
-              {item.qty || 1}
-            </div>
-          )}
-        </td>
-
-        {/* Cost type */}
-        <td onClick={e => e.stopPropagation()} style={{ padding: '0 3px' }}>
-          <div style={{ display: 'flex', gap: 2 }}>
-            {[['priced','P'], ['actuals','A'], ['nil','N']].map(([ct, label]) => (
-              <button key={ct} onClick={e => { e.stopPropagation(); setCostType(item.id, ct) }}
-                style={{ padding: '2px 5px', borderRadius: 3, border: 'none', cursor: 'pointer', fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', fontFamily: 'var(--font-mono, monospace)', background: item.cost_type === ct ? 'rgba(200,150,62,0.2)' : 'none', color: item.cost_type === ct ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', transition: 'all 0.1s' }}
-              >{label}</button>
-            ))}
-          </div>
-        </td>
-
-        {/* Total */}
-        <td style={{ padding: '0 8px', textAlign: 'right' }}>
-          <span style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, color: item.cost_type === 'actuals' ? 'var(--text-muted, #6b6d82)' : item.cost_type === 'nil' || isRemoved ? '#3a3c4e' : 'var(--accent, #c8963e)', textDecoration: isRemoved ? 'line-through' : 'none' }}>
-            {item.cost_type === 'actuals' ? 'act' : item.cost_type === 'nil' ? 'nil' : `₹${fmt(tot)}`}
-          </span>
-        </td>
-
-        {/* Status */}
-        <td style={{ padding: '0 5px' }}>
-          <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 100, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', background: `${itemStatColor}18`, color: itemStatColor, whiteSpace: 'nowrap' }}>
-            {item.status || 'pending'}
-          </span>
-        </td>
+        {/* Type segmented */}
+        <div className="wb-type-seg" onClick={e => e.stopPropagation()}>
+          <button className={`wb-tseg ${item.cost_type==='priced'?'p-on':''}`} onClick={() => updateItem(item.id,{cost_type:'priced'})} title="Priced (P)">P</button>
+          <button className={`wb-tseg ${item.cost_type==='actuals'?'a-on':''}`} onClick={() => updateItem(item.id,{cost_type:'actuals'})} title="Actuals (A)">A</button>
+          <button className={`wb-tseg ${item.cost_type==='nil'?'n-on':''}`} onClick={() => updateItem(item.id,{cost_type:'nil'})} title="None (N)">N</button>
+        </div>
 
         {/* Media */}
-        <td style={{ padding: 0 }} onClick={e => e.stopPropagation()}>
+        <div onClick={e => e.stopPropagation()}>
           <MediaStrip
             media={mediaMap[item.line_item_id] || []}
-            onOpenPanel={() => setMediaPanel(item)}
-            onOpenLightbox={idx => setLightbox({ urls: (mediaMap[item.line_item_id] || []).map(m => m.url), idx })}
+            onOpenPanel={() => setPinnedId(item.id)}
+            onOpenLightbox={idx => setLightbox({ urls: (mediaMap[item.line_item_id]||[]).map(m=>m.url), idx })}
           />
-        </td>
+        </div>
 
-        {/* Row actions ⋯ */}
-        <td style={{ padding: 0, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-          <button className="wb-more-btn"
+        {/* Kebab */}
+        <div onClick={e => e.stopPropagation()}>
+          <button className="wb-kebab"
             onClick={e => {
-              e.stopPropagation()
               const rect = e.currentTarget.getBoundingClientRect()
-              setOpenMenu({ itemId: item.id, status: item.status, x: rect.right - 148, y: rect.bottom + 4 })
+              setCtxMenu({ itemId: item.id, status: item.status, x: rect.right-148, y: rect.bottom+4 })
             }}
-            style={{ width: 28, height: 28, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted, #6b6d82)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, fontSize: 15, margin: '0 auto' }}
           >⋯</button>
-        </td>
-      </tr>
-    )
-  }
-
-  function renderMobileCard(item) {
-    const tot           = lineTot(item)
-    const isRemoved     = item.status === 'removed'
-    const itemStatColor = ITEM_STATUS_COLOR[item.status] || '#9898a4'
-
-    function mField(field, label, type = 'text') {
-      const val = item[field] ?? ''
-      return (
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted, #6b6d82)', marginBottom: 4, fontFamily: 'var(--font-mono, monospace)' }}>{label}</div>
-          {isEditing(item.id, field) ? (
-            <input autoFocus type={type} value={cellDraft} onChange={e => setCellDraft(e.target.value)}
-              onBlur={commitEdit}
-              onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit() }}
-              style={{ width: '100%', padding: 10, fontSize: 16, background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)', borderRadius: 5, color: 'var(--text, #e8e8f0)', outline: 'none', fontFamily: type === 'number' ? 'var(--font-mono, monospace)' : 'inherit', boxSizing: 'border-box' }}
-            />
-          ) : (
-            <div onClick={() => startEdit(item.id, field, val)}
-              style={{ fontSize: 14, color: val ? 'var(--text, #e8e8f0)' : '#3a3c4e', padding: '9px 10px', background: 'var(--bg-input, #252731)', borderRadius: 5, cursor: 'text', minHeight: 42, display: 'flex', alignItems: 'center', fontFamily: type === 'number' ? 'var(--font-mono, monospace)' : 'inherit', textDecoration: isRemoved ? 'line-through' : 'none' }}
-            >{val || '—'}</div>
-          )}
-        </div>
-      )
-    }
-
-    return (
-      <div key={item.id} style={{ background: 'var(--bg, #16171f)', border: `1px solid ${isRemoved ? '#f8717133' : 'var(--border, #2e3040)'}`, borderRadius: 7, padding: 12, marginBottom: 8, opacity: isRemoved ? 0.65 : 1 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', textDecoration: isRemoved ? 'line-through' : 'none' }}>{item.item_name || '—'}</div>
-            <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 100, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, textTransform: 'uppercase', background: `${itemStatColor}18`, color: itemStatColor, display: 'inline-block', marginTop: 4 }}>{item.status || 'pending'}</span>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 15, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, color: 'var(--accent, #c8963e)' }}>
-              {item.cost_type === 'actuals' ? 'On actuals' : item.cost_type === 'nil' ? 'Nil' : `₹${fmt(tot)}`}
-            </div>
-          </div>
-        </div>
-
-        {mField('area', 'Area')}
-        {mField('issue_description', 'Description')}
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-          <div>
-            <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted, #6b6d82)', marginBottom: 4, fontFamily: 'var(--font-mono, monospace)' }}>Material ₹</div>
-            {isEditing(item.id, 'material_cost') ? (
-              <input autoFocus type="number" value={cellDraft} onChange={e => setCellDraft(e.target.value)} onBlur={commitEdit} onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit() }}
-                style={{ width: '100%', padding: 10, fontSize: 16, background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)', borderRadius: 5, color: 'var(--text, #e8e8f0)', outline: 'none', fontFamily: 'var(--font-mono, monospace)', boxSizing: 'border-box' }} />
-            ) : (
-              <div onClick={() => startEdit(item.id, 'material_cost', item.material_cost)} style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', padding: '9px 10px', background: 'var(--bg-input, #252731)', borderRadius: 5, cursor: 'text', minHeight: 42, display: 'flex', alignItems: 'center', fontFamily: 'var(--font-mono, monospace)' }}>₹{fmt(item.material_cost)}</div>
-            )}
-          </div>
-          <div>
-            <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted, #6b6d82)', marginBottom: 4, fontFamily: 'var(--font-mono, monospace)' }}>Labour ₹</div>
-            {isEditing(item.id, 'labour_cost') ? (
-              <input autoFocus type="number" value={cellDraft} onChange={e => setCellDraft(e.target.value)} onBlur={commitEdit} onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit() }}
-                style={{ width: '100%', padding: 10, fontSize: 16, background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)', borderRadius: 5, color: 'var(--text, #e8e8f0)', outline: 'none', fontFamily: 'var(--font-mono, monospace)', boxSizing: 'border-box' }} />
-            ) : (
-              <div onClick={() => startEdit(item.id, 'labour_cost', item.labour_cost)} style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', padding: '9px 10px', background: 'var(--bg-input, #252731)', borderRadius: 5, cursor: 'text', minHeight: 42, display: 'flex', alignItems: 'center', fontFamily: 'var(--font-mono, monospace)' }}>₹{fmt(item.labour_cost)}</div>
-            )}
-          </div>
-        </div>
-
-        {/* Cost type */}
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted, #6b6d82)', marginBottom: 5, fontFamily: 'var(--font-mono, monospace)' }}>Cost Type</div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {['priced', 'actuals', 'nil'].map(ct => (
-              <button key={ct} onClick={() => setCostType(item.id, ct)}
-                style={{ flex: 1, padding: '10px 0', minHeight: 44, borderRadius: 5, border: `1px solid ${item.cost_type === ct ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, cursor: 'pointer', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', fontFamily: 'var(--font-mono, monospace)', background: item.cost_type === ct ? 'rgba(200,150,62,0.12)' : 'none', color: item.cost_type === ct ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)' }}
-              >{ct}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* Swap buttons */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-          <button onClick={() => openSwapDrawer('swap-material', item.id)}
-            style={{ flex: 1, padding: '8px 0', minHeight: 40, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>⇄ Material</button>
-          <button onClick={() => openSwapDrawer('swap-labour', item.id)}
-            style={{ flex: 1, padding: '8px 0', minHeight: 40, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>⇄ Labour</button>
-        </div>
-
-        {/* Media */}
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted, #6b6d82)', marginBottom: 6, fontFamily: 'var(--font-mono, monospace)' }}>Media</div>
-          {(() => {
-            const media = mediaMap[item.line_item_id] || []
-            const isVid = m => m.type === 'video' || /\.(mp4|mov|webm)$/i.test(m.url)
-            return (
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                {media.slice(0, 4).map((m, idx) => (
-                  <div key={m.id} onClick={() => setLightbox({ urls: media.map(x => x.url), idx })} style={{ width: 64, height: 48, borderRadius: 4, overflow: 'hidden', background: '#111', border: idx === 0 ? '2px solid var(--accent, #c8963e)' : '1px solid var(--border, #2e3040)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {isVid(m)
-                      ? <span style={{ color: '#fff', fontSize: 16, lineHeight: 1 }}>▶</span>
-                      : <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none' }} />
-                    }
-                  </div>
-                ))}
-                {media.length > 4 && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>+{media.length - 4}</div>}
-                <button
-                  onClick={() => setMediaPanel(item)}
-                  style={{ minWidth: 56, minHeight: 44, padding: '0 8px', background: 'none', border: '1px dashed var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
-                >{media.length ? 'Manage' : '+ Add'}</button>
-              </div>
-            )
-          })()}
-        </div>
-
-        {/* Row actions */}
-        <div style={{ display: 'flex', gap: 6, paddingTop: 8, borderTop: '1px solid var(--border, #2e3040)' }}>
-          <button onClick={() => duplicateItem(item.id)} style={{ flex: 1, padding: '10px 0', minHeight: 44, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Duplicate</button>
-          {isRemoved
-            ? <button onClick={() => restoreItem(item.id)} style={{ flex: 1, padding: '10px 0', minHeight: 44, background: 'none', border: '1px solid #4dd9c0', borderRadius: 5, fontSize: 11, color: '#4dd9c0', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Restore</button>
-            : <button onClick={() => removeItem(item.id)} style={{ flex: 1, padding: '10px 0', minHeight: 44, background: 'none', border: '1px solid #f87171', borderRadius: 5, fontSize: 11, color: '#f87171', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Remove</button>
-          }
         </div>
       </div>
     )
   }
-
-  // ─── Main render ──────────────────────────────────────────────────────────
 
   return (
-    <div
-      style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}
-      onClick={() => { if (editingCell) commitEdit(); if (openMenu) setOpenMenu(null); if (moreOpen) setMoreOpen(false) }}
-    >
+    <div className="wb-shell" onClick={() => { if (ctxMenu) setCtxMenu(null) }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      {/* ── Toolbar ── */}
-      <div className="wb-toolbar" onClick={e => e.stopPropagation()}>
-        <div className="wb-toolbar-left">
-          <button className="wb-back-btn" onClick={() => navigate(`/properties/${pid}/estimates`)}>
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-              <path d="M8 2L3 6.5 8 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+      {/* ── Command bar ── */}
+      <div className="wb-cmd" onClick={e => e.stopPropagation()}>
+        <div className="wb-cmd-l">
+          <button className="wb-btn-back" onClick={() => navigate(`/properties/${pid}/estimates`)}>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M8 2L3 6.5 8 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
-          <span className="wb-pid">PID {pid}</span>
-          {inspection?.house_type && <span className="wb-ver">· {inspection.house_type}</span>}
-          <span className="wb-ver">v{versionCount}</span>
-          <span className="wb-schip" style={{ background: `${statusColor}18`, color: statusColor }}>{status}</span>
+          <span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:13,fontWeight:600,color:'var(--text,#e8e8f0)',whiteSpace:'nowrap' }}>PID {pid}</span>
+          {inspection?.house_type && <span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10,color:'var(--text-muted,#6b6d82)' }}>{inspection.house_type}</span>}
+          <span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10,color:'var(--text-muted,#6b6d82)' }}>v{versionCount}</span>
+          {status === 'viewed' && <span className="wb-chip" style={{ background:'rgba(200,150,62,0.15)',color:'var(--accent,#c8963e)' }}>VIEWED</span>}
+          <span className="wb-chip" style={{ background:`${statusColor}18`,color:statusColor }}>{status}</span>
         </div>
-        <div className="wb-totals">
-          <span className="wb-tval">₹{fmt(subtotal)}</span>
-          <span className="wb-tcnt">{activeCount} items</span>
-        </div>
-        <div className="wb-toolbar-right">
-          {!isMobile ? (
-            <>
-              <button className="wb-tbtn wb-outline" onClick={handleRegenerate} disabled={generating}>{generating ? '…' : '↺ Regen'}</button>
-              <button className="wb-tbtn wb-outline" onClick={e => { e.stopPropagation(); setNotesEditing(true) }}>Notes</button>
-              {shareUrl && <button className="wb-tbtn wb-outline" onClick={() => window.open(shareUrl, '_blank')}>Preview ↗</button>}
-              {shareUrl && (
-                <button className="wb-tbtn wb-outline" onClick={e => { e.stopPropagation(); handleCopy(false) }}>
-                  {copied ? '✓ Copied' : 'Copy link'}
-                </button>
-              )}
-              <button className="wb-tbtn wb-accent" onClick={e => { e.stopPropagation(); handleCopy(true) }}>
-                {copied ? '✓ Sent!' : 'Send ↗'}
-              </button>
-            </>
-          ) : (
-            <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
-              <button className="wb-tbtn wb-outline" onClick={() => setMoreOpen(p => !p)}>⋯</button>
-              {moreOpen && (
-                <>
-                  <div onClick={() => setMoreOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 100 }} />
-                  <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, zIndex: 101, minWidth: 168, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
-                    {[
-                      { label: '↺ Regenerate', fn: () => { setMoreOpen(false); handleRegenerate() } },
-                      { label: 'Edit Notes', fn: () => { setMoreOpen(false); setNotesEditing(true) } },
-                      shareUrl && { label: 'Preview ↗', fn: () => { setMoreOpen(false); window.open(shareUrl, '_blank') } },
-                      shareUrl && { label: 'Copy link', fn: () => { setMoreOpen(false); handleCopy(false) } },
-                      { label: 'Send to landlord', fn: () => { setMoreOpen(false); handleCopy(true) }, accent: true },
-                    ].filter(Boolean).map((item, i) => (
-                      <button key={i} onClick={item.fn}
-                        style={{ display: 'block', width: '100%', padding: '11px 14px', minHeight: 44, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, textAlign: 'left', fontFamily: 'var(--font-mono, monospace)', color: item.accent ? 'var(--accent, #c8963e)' : 'var(--text, #e8e8f0)', borderBottom: i < 3 ? '1px solid var(--border, #2e3040)' : 'none' }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
-                      >{item.label}</button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+        <div className="wb-cmd-r">
+          <button className="wb-btn wb-btn-ghost" onClick={() => setNotesEditing(p => !p)}>Notes</button>
+          <button className="wb-btn wb-btn-ghost" onClick={handleRegenerate} disabled={generating}>{generating?'Regen…':'Regen'}</button>
+          <div className="wb-cmd-div" />
+          {shareUrl && <button className="wb-btn wb-btn-outline" onClick={() => window.open(shareUrl,'_blank')}>Preview</button>}
+          <button className="wb-btn wb-btn-outline" onClick={() => handleCopy(false)}>{copied?'Copied!':'Copy link'}</button>
+          <div className="wb-cmd-div" />
+          <button className="wb-btn wb-btn-primary" onClick={() => handleCopy(true)}>
+            {estimate?.status==='draft' ? 'Send' : 'Resend'}
+          </button>
         </div>
       </div>
 
-      {/* ── Content ── */}
-      <div className="wb-content">
+      {/* ── Summary bar ── */}
+      <div className="wb-sum">
+        <div className="wb-pill" style={{ background:'rgba(200,150,62,0.1)',border:'1px solid rgba(200,150,62,0.25)' }}>
+          <span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:9,color:'var(--text-muted,#6b6d82)',textTransform:'uppercase',letterSpacing:'0.08em' }}>Firm total</span>
+          <span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:14,fontWeight:700,color:'var(--accent,#c8963e)' }}>₹{fmt(firmTotal)}</span>
+        </div>
+        {pricedCount > 0 && <div className="wb-pill" style={{ border:'1px solid var(--border,#2e3040)',color:'var(--text-muted,#6b6d82)' }}><span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10 }}>Priced {pricedCount}</span></div>}
+        {actualsCount > 0 && <div className="wb-pill" style={{ border:'1px solid rgba(77,217,192,0.25)',background:'rgba(77,217,192,0.07)',color:'#4dd9c0' }}><span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10 }}>On actuals {actualsCount}</span></div>}
+        {noneCount > 0 && <div className="wb-pill" style={{ border:'1px solid rgba(147,148,168,0.2)',color:'#6b6d82' }}><span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10 }}>Not charged {noneCount}</span></div>}
+        {needsCount > 0 && <div className="wb-pill" style={{ border:'1px solid rgba(240,160,80,0.35)',background:'rgba(240,160,80,0.08)',color:'#f0a050' }}><span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10 }}>⚠ Needs pricing {needsCount}</span></div>}
+        {excludedCount > 0 && <div className="wb-pill" style={{ border:'1px solid rgba(58,60,78,0.8)',color:'#6b6d82' }}><span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10 }}>Excluded {excludedCount}</span></div>}
+      </div>
 
-        {/* Trade groups */}
-        {tradeGroups.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted, #6b6d82)', fontSize: 13 }}>
-            <div style={{ marginBottom: 16 }}>No items yet.</div>
-            <button onClick={openAddDrawer}
-              style={{ padding: '10px 20px', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 6, color: '#000', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
-            >+ Add First Item</button>
+      {/* ── Notes panel ── */}
+      {notesEditing && (
+        <div className="wb-notes-bar" onClick={e => e.stopPropagation()}>
+          <textarea
+            value={notesDraft}
+            onChange={e => setNotesDraft(e.target.value)}
+            placeholder="Internal notes for this estimate…"
+            rows={3}
+            style={{ flex:1,padding:'8px 10px',background:'var(--bg-input,#252731)',border:'1px solid var(--border,#2e3040)',borderRadius:5,color:'var(--text,#e8e8f0)',fontSize:13,resize:'vertical',outline:'none',fontFamily:'Inter,var(--font-sans,sans-serif)' }}
+          />
+          <div style={{ display:'flex',flexDirection:'column',gap:6 }}>
+            <button className="wb-btn wb-btn-primary" onClick={saveNotes} disabled={savingNotes}>{savingNotes?'Saving…':'Save'}</button>
+            <button className="wb-btn wb-btn-ghost"   onClick={() => setNotesEditing(false)}>Cancel</button>
           </div>
-        ) : (
-          <>
-            {tradeGroups.map(({ trade, rows, total, activeCount: ac }) => {
+        </div>
+      )}
+
+      {/* ── Body: content + drawer ── */}
+      <div className="wb-body">
+
+        {/* ── Main content ── */}
+        <div
+          className="wb-main"
+          onMouseEnter={() => setInList(true)}
+          onMouseLeave={() => { setInList(false); setHoveredId(null) }}
+        >
+          <div style={{ padding: '12px 0 60px' }}>
+            {tradeGroups.map(({ trade, rows, groupTotal }) => {
+              const color      = tc(trade)
               const isCollapsed = collapsed.has(trade)
-              const color       = tc(trade)
+              const groupActive = rows.some(r => r.id === activeId)
+
               return (
-                <div key={trade} style={{ marginBottom: 10 }}>
-                  {/* Trade header */}
-                  <div
-                    onClick={e => { e.stopPropagation(); setCollapsed(prev => { const n = new Set(prev); isCollapsed ? n.delete(trade) : n.add(trade); return n }) }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', cursor: 'pointer', userSelect: 'none', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: isCollapsed ? 7 : '7px 7px 0 0', borderLeft: `3px solid ${color}` }}
-                  >
-                    <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', display: 'inline-block', lineHeight: 1, transition: 'transform 0.15s', transform: isCollapsed ? 'none' : 'rotate(90deg)' }}>▶</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text, #e8e8f0)', flex: 1 }}>{trade}</span>
-                    <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{ac} items</span>
-                    <span style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, color: total > 0 ? color : 'var(--text-muted, #6b6d82)' }}>₹{fmt(total)}</span>
+                <div key={trade} className="wb-group">
+                  {/* Group header */}
+                  <div className="wb-group-hd" onClick={() => setCollapsed(p => { const n=new Set(p); n.has(trade)?n.delete(trade):n.add(trade); return n })}>
+                    <div style={{ width:3,height:14,borderRadius:2,background:color,flexShrink:0 }} />
+                    <span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',color }} >{trade}</span>
+                    <span style={{ fontSize:9,color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace' }}>{rows.filter(r=>r.status!=='removed').length} items</span>
+                    <span style={{ flex:1 }} />
+                    {groupTotal > 0 && <span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:12,fontWeight:700,color:'var(--text-dim,#9394a8)' }}>₹{fmt(groupTotal)}</span>}
+                    <span style={{ fontSize:12,color:'var(--text-muted,#6b6d82)',marginLeft:8 }}>{isCollapsed?'▸':'▾'}</span>
                   </div>
 
-                  {/* Items */}
-                  {!isCollapsed && (isMobile ? (
-                    <div style={{ border: '1px solid var(--border, #2e3040)', borderTop: 'none', borderRadius: '0 0 7px 7px', padding: '8px', background: 'var(--bg-panel, #1e2028)' }}>
-                      {rows.map(item => renderMobileCard(item))}
+                  {/* Rows */}
+                  {!isCollapsed && (
+                    <div className="wb-group-body" style={{ overflowX:'auto' }}>
+                      <div style={{ minWidth:580 }}>
+                        {rows.map(renderRow)}
+                        {/* Add item */}
+                        <div className="wb-add-row">
+                          <button className="wb-add-btn" onClick={e => { e.stopPropagation(); setRateDrawerMode('add'); setRateDrawerOpen(true) }}>+ Add item</button>
+                        </div>
+                      </div>
                     </div>
-                  ) : (
-                    <div style={{ border: '1px solid var(--border, #2e3040)', borderTop: 'none', borderRadius: '0 0 7px 7px', overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 964 }}>
-                        <colgroup>
-                          <col style={{ width: 26 }} />
-                          <col style={{ width: 78 }} />
-                          <col style={{ width: 114 }} />
-                          <col />
-                          <col style={{ width: 142 }} />
-                          <col style={{ width: 142 }} />
-                          <col style={{ width: 48 }} />
-                          <col style={{ width: 82 }} />
-                          <col style={{ width: 74 }} />
-                          <col style={{ width: 76 }} />
-                          <col style={{ width: 64 }} />
-                          <col style={{ width: 36 }} />
-                        </colgroup>
-                        <thead>
-                          <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border, #2e3040)' }}>
-                            {['', 'Area', 'Item', 'Description', 'Material', 'Labour', 'Qty', 'Type', 'Total', 'Status', 'Media', ''].map((h, i) => (
-                              <th key={i} style={{ padding: '5px 8px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted, #6b6d82)', textAlign: i === 8 ? 'right' : 'left', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map(item => renderDesktopRow(item))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ))}
+                  )}
                 </div>
               )
             })}
 
-            {/* Add item */}
-            <button onClick={e => { e.stopPropagation(); openAddDrawer() }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent, #c8963e)'; e.currentTarget.style.color = 'var(--accent, #c8963e)' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border, #2e3040)'; e.currentTarget.style.color = 'var(--text-muted, #6b6d82)' }}
-              style={{ marginTop: 6, padding: '7px 14px', height: 34, background: 'none', border: '1px dashed var(--border, #2e3040)', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s' }}
-            >+ Add item</button>
-          </>
-        )}
-
-        {/* Notes card */}
-        <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Notes & Terms</span>
-            {notesEditing ? (
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => { setNotesEditing(false); setNotesDraft(estimate?.notes || '') }} style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 0 }}>Cancel</button>
-                <button onClick={saveNotes} disabled={savingNotes} style={{ fontSize: 11, color: 'var(--accent, #c8963e)', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 0 }}>{savingNotes ? 'Saving…' : 'Save'}</button>
+            {/* Add first item if no groups */}
+            {tradeGroups.length === 0 && (
+              <div style={{ padding:'40px 20px',textAlign:'center' }}>
+                <div style={{ fontSize:12,color:'var(--text-muted,#6b6d82)',marginBottom:12 }}>No items yet</div>
+                <button className="wb-btn wb-btn-outline" onClick={() => { setRateDrawerMode('add'); setRateDrawerOpen(true) }}>+ Add item</button>
               </div>
-            ) : (
-              <button onClick={e => { e.stopPropagation(); setNotesEditing(true) }} style={{ fontSize: 11, color: 'var(--accent, #c8963e)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 0 }}>Edit</button>
             )}
           </div>
-          {notesEditing ? (
-            <textarea
-              value={notesDraft}
-              onChange={e => setNotesDraft(e.target.value)}
-              onClick={e => e.stopPropagation()}
-              placeholder="Notes for the landlord (terms, scope exclusions, validity period)…"
-              style={{ width: '100%', minHeight: 90, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text, #e8e8f0)', fontSize: 13, padding: '8px 10px', resize: 'vertical', outline: 'none', fontFamily: 'var(--font-sans, Poppins, sans-serif)', boxSizing: 'border-box' }}
-              onFocus={e => { e.target.style.borderColor = 'var(--accent, #c8963e)' }}
-              onBlur={e => { e.target.style.borderColor = 'var(--border, #2e3040)' }}
+        </div>
+
+        {/* ── Docked drawer (desktop ≥1101px) ── */}
+        <div className="wb-drw-col">
+          {drawerItem ? (
+            <ItemDrawer
+              key={drawerItem.id}
+              item={drawerItem}
+              media={mediaMap[drawerItem.line_item_id] || []}
+              allItems={navItems}
+              itemIndex={drawerIdx}
+              onClose={() => setPinnedId(null)}
+              onNavigate={delta => navigateDrawer(delta)}
+              onUpdate={updateItem}
+              onAddMedia={files => handleAddMedia(drawerItem.line_item_id, files)}
+              onDeleteMedia={handleDeleteMedia}
+              onReplaceMedia={handleReplaceMedia}
+              onSetPrimary={m => handleSetPrimary(drawerItem.line_item_id, m)}
+              onOpenLightbox={idx => setLightbox({ urls: (mediaMap[drawerItem.line_item_id]||[]).map(m=>m.url), idx })}
+              userEmail={userEmail}
+              estimateId={id}
             />
           ) : (
-            <div style={{ fontSize: 13, color: estimate?.notes ? 'var(--text-muted, #6b6d82)' : '#3a3c4e', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontStyle: estimate?.notes ? 'normal' : 'italic' }}>
-              {estimate?.notes || 'No notes — click Edit to add.'}
+            <div className="wb-drw-placeholder">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              <div style={{ fontSize:11,fontFamily:'IBM Plex Mono,monospace' }}>Hover a line item</div>
+              <div style={{ fontSize:10,color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace' }}>or click to pin</div>
             </div>
           )}
         </div>
-
-        {/* Disputes */}
-        {disputedItems.length > 0 && (
-          <div style={{ marginTop: 20 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#f0a050', fontFamily: 'var(--font-mono, monospace)', marginBottom: 10 }}>
-              Disputes ({disputedItems.length})
-            </div>
-            {disputedItems.map(item => (
-              <div key={item.id} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(240,160,80,0.35)', borderRadius: 8, padding: 14, marginBottom: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', marginBottom: 2 }}>{item.item_name || '—'}</div>
-                    {item.issue_description && <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', lineHeight: 1.5 }}>{item.issue_description}</div>}
-                    <div style={{ display: 'flex', gap: 5, marginTop: 6 }}>
-                      {item.area  && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 3, background: 'var(--bg-input, #252731)', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{item.area}</span>}
-                      {item.trade && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 3, background: 'var(--bg-input, #252731)', color: tc(item.trade), fontFamily: 'var(--font-mono, monospace)' }}>{item.trade}</span>}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>₹{fmt(lineTot(item))}</div>
-                    <div style={{ fontSize: 10, color: '#f0a050', marginTop: 2 }}>⚑ disputed</div>
-                  </div>
-                </div>
-                <DisputeThread itemId={item.id} estimateId={id} item={item} userEmail={userEmail} onResolve={loadData} />
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* ── Row menu ── */}
-      {openMenu && (
+      {/* ── Overlay drawer (≤1100px) ── */}
+      {pinnedId && (
         <>
-          <div onClick={() => setOpenMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 9000 }} />
-          <div style={{ position: 'fixed', top: openMenu.y, left: openMenu.x, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', zIndex: 9001, minWidth: 148, overflow: 'hidden' }}>
-            <button onClick={() => { duplicateItem(openMenu.itemId); setOpenMenu(null) }}
-              style={{ display: 'block', width: '100%', padding: '9px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, textAlign: 'left', fontFamily: 'inherit', color: 'var(--text, #e8e8f0)' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
-            >Duplicate</button>
-            {openMenu.status === 'removed' ? (
-              <button onClick={() => { restoreItem(openMenu.itemId); setOpenMenu(null) }}
-                style={{ display: 'block', width: '100%', padding: '9px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, textAlign: 'left', fontFamily: 'inherit', color: '#4dd9c0', borderTop: '1px solid var(--border, #2e3040)' }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
-              >Restore</button>
-            ) : (
-              <button onClick={() => { removeItem(openMenu.itemId); setOpenMenu(null) }}
-                style={{ display: 'block', width: '100%', padding: '9px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, textAlign: 'left', fontFamily: 'inherit', color: '#f87171', borderTop: '1px solid var(--border, #2e3040)' }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
-              >Remove</button>
+          <div className="wb-overlay-scrim" onClick={() => setPinnedId(null)} style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:200 }} />
+          <div className="wb-overlay-drw" style={{ position:'fixed',top:0,right:0,bottom:0,width:'min(100vw,420px)',background:'var(--bg-panel,#1e2028)',borderLeft:'1px solid var(--border,#2e3040)',zIndex:201,display:'flex',flexDirection:'column',boxShadow:'-8px 0 32px rgba(0,0,0,0.6)',overflowY:'auto' }}>
+            {drawerItem && (
+              <ItemDrawer
+                key={drawerItem.id}
+                item={drawerItem}
+                media={mediaMap[drawerItem.line_item_id] || []}
+                allItems={navItems}
+                itemIndex={drawerIdx}
+                onClose={() => setPinnedId(null)}
+                onNavigate={delta => navigateDrawer(delta)}
+                onUpdate={updateItem}
+                onAddMedia={files => handleAddMedia(drawerItem.line_item_id, files)}
+                onDeleteMedia={handleDeleteMedia}
+                onReplaceMedia={handleReplaceMedia}
+                onSetPrimary={m => handleSetPrimary(drawerItem.line_item_id, m)}
+                onOpenLightbox={idx => setLightbox({ urls: (mediaMap[drawerItem.line_item_id]||[]).map(m=>m.url), idx })}
+                userEmail={userEmail}
+                estimateId={id}
+              />
             )}
           </div>
         </>
       )}
 
-      {/* ── Media panel ── */}
-      {mediaPanel && (
-        <MediaPanel
-          item={mediaPanel}
-          media={mediaMap[mediaPanel.line_item_id] || []}
-          onClose={() => setMediaPanel(null)}
-          onAddMedia={files => handleAddMedia(mediaPanel.line_item_id, files)}
-          onDeleteMedia={m => handleDeleteMedia(m)}
-          onReplaceMedia={(m, file) => handleReplaceMedia(m, file)}
-          onSetPrimary={m => handleSetPrimary(mediaPanel.line_item_id, m)}
-          onOpenLightbox={idx => setLightbox({ urls: (mediaMap[mediaPanel.line_item_id] || []).map(m => m.url), idx })}
-        />
+      {/* ── Context menu ── */}
+      {ctxMenu && (
+        <>
+          <div style={{ position:'fixed',inset:0,zIndex:599 }} onClick={() => setCtxMenu(null)} />
+          <div className="wb-ctx" style={{ left:ctxMenu.x, top:ctxMenu.y }}>
+            <button className="wb-ctx-item" onClick={() => { duplicateItem(ctxMenu.itemId); setCtxMenu(null) }}>Duplicate</button>
+            <button className="wb-ctx-item"
+              onClick={() => { const item=items.find(i=>i.id===ctxMenu.itemId); updateItem(ctxMenu.itemId,{status:item?.status==='excluded'?'pending':'excluded'}); setCtxMenu(null) }}
+              style={{ color:ctxMenu.status==='excluded'?'var(--text,#e8e8f0)':'var(--text-muted,#6b6d82)' }}
+            >{ctxMenu.status==='excluded' ? 'Restore' : 'Exclude'}</button>
+            {ctxMenu.status === 'removed' ? (
+              <button className="wb-ctx-item" style={{ color:'#4dd9c0' }} onClick={() => { restoreItem(ctxMenu.itemId); setCtxMenu(null) }}>Restore</button>
+            ) : (
+              <button className="wb-ctx-item" style={{ color:'#f87171' }} onClick={() => { removeItem(ctxMenu.itemId); setCtxMenu(null) }}>Remove</button>
+            )}
+          </div>
+        </>
       )}
 
-      {/* ── Lightbox ── */}
-      {lightbox && lightbox.urls.length > 0 && (
-        <MediaLightbox
-          urls={lightbox.urls}
-          idx={lightbox.idx}
-          onClose={() => setLightbox(null)}
-        />
-      )}
-
-      {/* ── Rate drawer ── */}
+      {/* ── Rate drawer (add item) ── */}
       <RateDrawer
-        open={drawerOpen}
-        mode={drawerMode}
-        onClose={() => setDrawerOpen(false)}
+        open={rateDrawerOpen}
+        mode={rateDrawerMode}
+        onClose={() => setRateDrawerOpen(false)}
         onSelectMaterial={handleSelectMaterial}
         onSelectLabour={handleSelectLabour}
         isMobile={isMobile}
       />
+
+      {/* ── Lightbox ── */}
+      {lightbox && lightbox.urls.length > 0 && (
+        <MediaLightbox urls={lightbox.urls} idx={lightbox.idx} onClose={() => setLightbox(null)} />
+      )}
+
+      {/* ── Keyboard hints bar ── */}
+      <div className="wb-hints">
+        <span className="wb-hint"><kbd>↑↓</kbd> / <kbd>j k</kbd> navigate</span>
+        <span className="wb-hint"><kbd>P</kbd> priced · <kbd>A</kbd> actuals · <kbd>N</kbd> none</span>
+        <span className="wb-hint"><kbd>E</kbd> exclude</span>
+        <span className="wb-hint"><kbd>Esc</kbd> close</span>
+      </div>
     </div>
   )
 }

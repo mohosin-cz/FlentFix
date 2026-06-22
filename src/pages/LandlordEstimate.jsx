@@ -620,7 +620,7 @@ export default function LandlordEstimate() {
   }
 
   // ── Computed ──────────────────────────────────────────────────────────────
-  const visibleItems   = items.filter(i => i.status !== 'removed')
+  const visibleItems   = items.filter(i => i.status !== 'removed' && i.status !== 'excluded')
   const pendingCount   = visibleItems.filter(i => !i.status || i.status === 'pending').length
   const grandTotal     = visibleItems.reduce((s, i) => s + (itemTotal(i) || 0), 0)
   const attentionCount = visibleItems.filter(i => { const t = itemTotal(i); return (t != null && t > 0) || i.cost_type === 'actuals' }).length
