@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, Component } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
@@ -302,6 +302,40 @@ function MediaPanel({ item, media, onClose, onAddMedia, onDeleteMedia, onReplace
         </div>
       </div>
     </>
+  )
+}
+
+// ─── MediaStrip (compact row thumbnail) ──────────────────────────────────────
+
+function MediaStrip({ media = [], onOpenPanel, onOpenLightbox }) {
+  const isVid  = m => m.type === 'video' || /\.(mp4|mov|webm)$/i.test(m.url)
+  const first  = media[0]
+  if (!first) {
+    return (
+      <div onClick={e => { e.stopPropagation(); onOpenPanel() }}
+        style={{ height:36,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#252835',fontSize:10,fontFamily:'IBM Plex Mono,monospace',userSelect:'none' }}>
+        + add
+      </div>
+    )
+  }
+  const photos = media.filter(m => !isVid(m))
+  const videos = media.filter(m =>  isVid(m))
+  return (
+    <div style={{ height:36,display:'flex',alignItems:'center',gap:5,padding:'0 3px' }}>
+      <div
+        onClick={e => { e.stopPropagation(); onOpenLightbox(0) }}
+        style={{ width:42,height:30,borderRadius:3,overflow:'hidden',flexShrink:0,cursor:'pointer',background:'#111',display:'flex',alignItems:'center',justifyContent:'center' }}
+      >
+        {isVid(first)
+          ? <span style={{ color:'#fff',fontSize:13,lineHeight:1 }}>▶</span>
+          : <img src={first.url} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }} onError={e => { e.target.style.display='none' }} />
+        }
+      </div>
+      <div onClick={e => { e.stopPropagation(); onOpenPanel() }} style={{ display:'flex',flexDirection:'column',gap:1,cursor:'pointer',minWidth:0 }}>
+        {photos.length > 0 && <span style={{ fontSize:9,color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace',lineHeight:1.3,whiteSpace:'nowrap' }}>▤ {photos.length}</span>}
+        {videos.length > 0 && <span style={{ fontSize:9,color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace',lineHeight:1.3,whiteSpace:'nowrap' }}>▶ {videos.length}</span>}
+      </div>
+    </div>
   )
 }
 
@@ -752,9 +786,29 @@ function RateDrawer({ open, mode, onClose, onSelectMaterial, onSelectLabour, isM
   )
 }
 
+// ─── Error boundary ───────────────────────────────────────────────────────────
+
+class WbErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { err: null } }
+  static getDerivedStateFromError(err) { return { err } }
+  render() {
+    if (!this.state.err) return this.props.children
+    return (
+      <div style={{ minHeight:'100svh',background:'#16171f',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,padding:24,fontFamily:'IBM Plex Mono,monospace' }}>
+        <div style={{ fontSize:12,color:'#f87171',fontWeight:700 }}>Workbench error</div>
+        <div style={{ fontSize:11,color:'#6b6d82',maxWidth:480,textAlign:'center',wordBreak:'break-word' }}>{String(this.state.err)}</div>
+        <button onClick={() => { this.setState({ err: null }); window.location.reload() }}
+          style={{ marginTop:8,padding:'8px 20px',background:'none',border:'1px solid #2e3040',borderRadius:5,color:'#9394a8',cursor:'pointer',fontFamily:'inherit',fontSize:11 }}>
+          Reload
+        </button>
+      </div>
+    )
+  }
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function EstimateWorkbench() {
+function EstimateWorkbenchInner() {
   const { id }   = useParams()
   const navigate = useNavigate()
   const isMobile = useIsMobile()
@@ -1378,5 +1432,13 @@ export default function EstimateWorkbench() {
         <span className="wb-hint"><kbd>Esc</kbd> close</span>
       </div>
     </div>
+  )
+}
+
+export default function EstimateWorkbench() {
+  return (
+    <WbErrorBoundary>
+      <EstimateWorkbenchInner />
+    </WbErrorBoundary>
   )
 }
