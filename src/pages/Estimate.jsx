@@ -110,7 +110,7 @@ const CSS = `
 /* ── Item row ── */
 .wb-row {
   display:grid;
-  grid-template-columns: 22px minmax(150px,190px) 1fr 98px 84px 60px 26px;
+  grid-template-columns: 22px minmax(150px,190px) 1fr 100px 176px 60px 26px;
   align-items:center; min-height:52px;
   border-bottom:1px solid rgba(46,48,64,0.55);
   cursor:pointer; transition:background 0.08s; position:relative;
@@ -130,7 +130,7 @@ const CSS = `
 .wb-finding-action { font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--accent,#c8963e); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; opacity:0.85; }
 .wb-cost-cell { padding:0 8px; text-align:right; }
 .wb-type-seg  { display:flex; gap:2px; padding:0 4px; }
-.wb-tseg { padding:4px 5px; border-radius:5px; border:none; cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; transition:all 0.1s; background:none; color:#2e3040; }
+.wb-tseg { flex:1; padding:5px 0; border-radius:5px; border:none; cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:600; letter-spacing:0.02em; transition:all 0.1s; background:none; color:#2e3040; white-space:nowrap; }
 .wb-tseg:hover { color:var(--text-muted,#6b6d82); background:rgba(255,255,255,0.04); }
 .wb-tseg.p-on { background:rgba(200,150,62,0.18); color:var(--accent,#c8963e); }
 .wb-tseg.a-on { background:rgba(77,217,192,0.15); color:#4dd9c0; }
@@ -824,9 +824,7 @@ function EstimateWorkbenchInner() {
   const [mediaMap, setMediaMap]         = useState({})
 
   // ── Interaction ─────────────────────────────────────────────────────────────
-  const [hoveredId, setHoveredId]   = useState(null)
-  const [pinnedId, setPinnedId]     = useState(null)
-  const [inList, setInList]         = useState(false)
+  const [pinnedId, setPinnedId] = useState(null)
 
   // ── Add/swap drawer ─────────────────────────────────────────────────────────
   const [rateDrawerOpen, setRateDrawerOpen]   = useState(false)
@@ -1054,12 +1052,12 @@ function EstimateWorkbenchInner() {
     items.filter(i => i.status !== 'removed').sort((a,b) => (a.sort_order||0)-(b.sort_order||0))
   , [items])
 
-  const activeId = inList ? (hoveredId || pinnedId) : pinnedId
+  const activeId = pinnedId
 
   useEffect(() => {
     function handle(e) {
       if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName) || e.target.isContentEditable) return
-      const curIdx = activeId ? navigable.findIndex(i => i.id === activeId) : -1
+      const curIdx = pinnedId ? navigable.findIndex(i => i.id === pinnedId) : -1
 
       if (e.key === 'ArrowDown' || e.key === 'j') {
         e.preventDefault()
@@ -1074,21 +1072,25 @@ function EstimateWorkbenchInner() {
       } else if (e.key === 'End') {
         e.preventDefault(); const last = navigable[navigable.length-1]; if (last) setPinnedId(last.id)
       } else if (e.key === 'Escape') {
-        setPinnedId(null)
-      } else if (activeId) {
-        if (e.key === 'p' || e.key === 'P') { e.preventDefault(); updateItem(activeId, { cost_type: 'priced' }) }
-        else if (e.key === 'a' || e.key === 'A') { e.preventDefault(); updateItem(activeId, { cost_type: 'actuals' }) }
-        else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); updateItem(activeId, { cost_type: 'nil' }) }
+        e.preventDefault(); setPinnedId(null)
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        if (pinnedId) setPinnedId(null)
+        else if (navigable[0]) { setPinnedId(navigable[0].id); document.getElementById(`wb-row-${navigable[0].id}`)?.scrollIntoView({ block: 'nearest' }) }
+      } else if (pinnedId) {
+        if (e.key === 'p' || e.key === 'P') { e.preventDefault(); updateItem(pinnedId, { cost_type: 'priced' }) }
+        else if (e.key === 'a' || e.key === 'A') { e.preventDefault(); updateItem(pinnedId, { cost_type: 'actuals' }) }
+        else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); updateItem(pinnedId, { cost_type: 'nil' }) }
         else if (e.key === 'e' || e.key === 'E') {
           e.preventDefault()
-          const item = items.find(i => i.id === activeId)
-          if (item) updateItem(activeId, { status: item.status === 'excluded' ? 'pending' : 'excluded' })
+          const item = items.find(i => i.id === pinnedId)
+          if (item) updateItem(pinnedId, { status: item.status === 'excluded' ? 'pending' : 'excluded' })
         }
       }
     }
     document.addEventListener('keydown', handle)
     return () => document.removeEventListener('keydown', handle)
-  }, [activeId, navigable, items])
+  }, [pinnedId, navigable, items])
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 
@@ -1114,9 +1116,8 @@ function EstimateWorkbenchInner() {
   const excludedCount = useMemo(() => items.filter(i => i.status==='excluded').length, [items])
 
   const drawerItem = useMemo(() => {
-    const id_ = inList ? (hoveredId||pinnedId) : pinnedId
-    return id_ ? items.find(i => i.id === id_) || null : null
-  }, [hoveredId, pinnedId, inList, items])
+    return pinnedId ? items.find(i => i.id === pinnedId) || null : null
+  }, [pinnedId, items])
 
   const navItems     = navigable.filter(i => i.status !== 'excluded')
   const drawerIdx    = drawerItem ? navItems.findIndex(i => i.id === drawerItem.id) : -1
@@ -1151,8 +1152,6 @@ function EstimateWorkbenchInner() {
         key={item.id}
         id={`wb-row-${item.id}`}
         className={cls}
-        onMouseEnter={() => setHoveredId(item.id)}
-        onMouseLeave={() => setHoveredId(null)}
         onClick={() => setPinnedId(p => p === item.id ? null : item.id)}
       >
         {/* Handle */}
@@ -1183,19 +1182,22 @@ function EstimateWorkbenchInner() {
           ) : item.cost_type === 'actuals' ? (
             <span style={{ fontSize:10,color:'#4dd9c0',fontFamily:'IBM Plex Mono,monospace',fontWeight:600 }}>On actuals</span>
           ) : item.cost_type === 'nil' ? (
-            <span style={{ fontSize:10,color:'#3a3c4e',fontFamily:'IBM Plex Mono,monospace' }}>not charged</span>
+            <span style={{ fontSize:10,color:'#3a3c4e',fontFamily:'IBM Plex Mono,monospace' }}>₹0 / not charged</span>
           ) : np ? (
-            <span style={{ fontSize:9,color:'#f0a050',fontFamily:'IBM Plex Mono,monospace',fontWeight:600 }}>⚠ needs pricing</span>
+            <span style={{ fontSize:9,color:'#f0a050',fontFamily:'IBM Plex Mono,monospace',fontWeight:700,padding:'2px 5px',borderRadius:3,background:'rgba(240,160,80,0.1)' }}>⚠ needs pricing</span>
           ) : (
-            <span style={{ fontSize:13,color:'var(--accent,#c8963e)',fontFamily:'IBM Plex Mono,monospace',fontWeight:700 }}>₹{fmt(tot)}</span>
+            <div style={{ display:'flex',flexDirection:'column',alignItems:'flex-end',gap:1 }}>
+              <span style={{ fontSize:9,color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace',letterSpacing:'0.02em' }}>₹{fmt(item.material_cost||0)} + ₹{fmt(item.labour_cost||0)}</span>
+              <span style={{ fontSize:13,color:'var(--accent,#c8963e)',fontFamily:'IBM Plex Mono,monospace',fontWeight:700 }}>₹{fmt(tot)}</span>
+            </div>
           )}
         </div>
 
         {/* Type segmented */}
         <div className="wb-type-seg" onClick={e => e.stopPropagation()}>
-          <button className={`wb-tseg ${item.cost_type==='priced'?'p-on':''}`} onClick={() => updateItem(item.id,{cost_type:'priced'})} title="Priced (P)">P</button>
-          <button className={`wb-tseg ${item.cost_type==='actuals'?'a-on':''}`} onClick={() => updateItem(item.id,{cost_type:'actuals'})} title="Actuals (A)">A</button>
-          <button className={`wb-tseg ${item.cost_type==='nil'?'n-on':''}`} onClick={() => updateItem(item.id,{cost_type:'nil'})} title="None (N)">N</button>
+          <button className={`wb-tseg ${item.cost_type==='priced'?'p-on':''}`} onClick={() => updateItem(item.id,{cost_type:'priced'})} title="Priced (P)">Priced</button>
+          <button className={`wb-tseg ${item.cost_type==='actuals'?'a-on':''}`} onClick={() => updateItem(item.id,{cost_type:'actuals'})} title="Actual (A)">Actual</button>
+          <button className={`wb-tseg ${item.cost_type==='nil'?'n-on':''}`} onClick={() => updateItem(item.id,{cost_type:'nil'})} title="None (N)">None</button>
         </div>
 
         {/* Media */}
@@ -1233,8 +1235,7 @@ function EstimateWorkbenchInner() {
           <span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:13,fontWeight:600,color:'var(--text,#e8e8f0)',whiteSpace:'nowrap' }}>PID {pid}</span>
           {inspection?.house_type && <span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10,color:'var(--text-muted,#6b6d82)' }}>{inspection.house_type}</span>}
           <span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10,color:'var(--text-muted,#6b6d82)' }}>v{versionCount}</span>
-          {status === 'viewed' && <span className="wb-chip" style={{ background:'rgba(200,150,62,0.15)',color:'var(--accent,#c8963e)' }}>VIEWED</span>}
-          <span className="wb-chip" style={{ background:`${statusColor}18`,color:statusColor }}>{status}</span>
+          <span className="wb-chip" style={{ background:`${statusColor}18`,color:statusColor,textTransform:'uppercase',letterSpacing:'0.06em',fontWeight:700 }}>{status}</span>
         </div>
         <div className="wb-cmd-r">
           <button className="wb-btn wb-btn-ghost" onClick={() => setNotesEditing(p => !p)}>Notes</button>
@@ -1255,10 +1256,10 @@ function EstimateWorkbenchInner() {
           <span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:9,color:'var(--text-muted,#6b6d82)',textTransform:'uppercase',letterSpacing:'0.08em' }}>Firm total</span>
           <span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:14,fontWeight:700,color:'var(--accent,#c8963e)' }}>₹{fmt(firmTotal)}</span>
         </div>
-        {pricedCount > 0 && <div className="wb-pill" style={{ border:'1px solid var(--border,#2e3040)',color:'var(--text-muted,#6b6d82)' }}><span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10 }}>Priced {pricedCount}</span></div>}
-        {actualsCount > 0 && <div className="wb-pill" style={{ border:'1px solid rgba(77,217,192,0.25)',background:'rgba(77,217,192,0.07)',color:'#4dd9c0' }}><span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10 }}>On actuals {actualsCount}</span></div>}
-        {noneCount > 0 && <div className="wb-pill" style={{ border:'1px solid rgba(147,148,168,0.2)',color:'#6b6d82' }}><span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10 }}>Not charged {noneCount}</span></div>}
-        {needsCount > 0 && <div className="wb-pill" style={{ border:'1px solid rgba(240,160,80,0.35)',background:'rgba(240,160,80,0.08)',color:'#f0a050' }}><span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10 }}>⚠ Needs pricing {needsCount}</span></div>}
+        <div className="wb-pill" style={{ border:'1px solid var(--border,#2e3040)',color:pricedCount?'var(--text-dim,#9394a8)':'#3a3c4e' }}><span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10 }}>Priced {pricedCount}</span></div>
+        <div className="wb-pill" style={{ border:`1px solid ${actualsCount?'rgba(77,217,192,0.25)':'rgba(46,48,64,0.5)'}`,background:actualsCount?'rgba(77,217,192,0.07)':'none',color:actualsCount?'#4dd9c0':'#2e3040' }}><span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10 }}>On actuals {actualsCount}</span></div>
+        <div className="wb-pill" style={{ border:`1px solid ${noneCount?'rgba(147,148,168,0.2)':'rgba(46,48,64,0.5)'}`,color:noneCount?'#6b6d82':'#2e3040' }}><span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10 }}>Not charged {noneCount}</span></div>
+        <div className="wb-pill" style={{ border:`1px solid ${needsCount?'rgba(240,160,80,0.35)':'rgba(46,48,64,0.5)'}`,background:needsCount?'rgba(240,160,80,0.08)':'none',color:needsCount?'#f0a050':'#2e3040' }}><span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10 }}>{needsCount?'⚠ ':''}Needs pricing {needsCount}</span></div>
         {excludedCount > 0 && <div className="wb-pill" style={{ border:'1px solid rgba(58,60,78,0.8)',color:'#6b6d82' }}><span style={{ fontFamily:'IBM Plex Mono,monospace',fontSize:10 }}>Excluded {excludedCount}</span></div>}
       </div>
 
@@ -1283,11 +1284,7 @@ function EstimateWorkbenchInner() {
       <div className="wb-body">
 
         {/* ── Main content ── */}
-        <div
-          className="wb-main"
-          onMouseEnter={() => setInList(true)}
-          onMouseLeave={() => { setInList(false); setHoveredId(null) }}
-        >
+        <div className="wb-main">
           <div style={{ padding: '12px 0 60px' }}>
             {tradeGroups.map(({ trade, rows, groupTotal }) => {
               const color      = tc(trade)
@@ -1309,7 +1306,7 @@ function EstimateWorkbenchInner() {
                   {/* Rows */}
                   {!isCollapsed && (
                     <div className="wb-group-body" style={{ overflowX:'auto' }}>
-                      <div style={{ minWidth:580 }}>
+                      <div style={{ minWidth:680 }}>
                         {rows.map(renderRow)}
                         {/* Add item */}
                         <div className="wb-add-row">
@@ -1332,9 +1329,9 @@ function EstimateWorkbenchInner() {
           </div>
         </div>
 
-        {/* ── Docked drawer (desktop ≥1101px) ── */}
-        <div className="wb-drw-col">
-          {drawerItem ? (
+        {/* ── Docked drawer (desktop ≥1101px, only when open) ── */}
+        {drawerItem && (
+          <div className="wb-drw-col">
             <ItemDrawer
               key={drawerItem.id}
               item={drawerItem}
@@ -1352,14 +1349,8 @@ function EstimateWorkbenchInner() {
               userEmail={userEmail}
               estimateId={id}
             />
-          ) : (
-            <div className="wb-drw-placeholder">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-              <div style={{ fontSize:11,fontFamily:'IBM Plex Mono,monospace' }}>Hover a line item</div>
-              <div style={{ fontSize:10,color:'var(--text-muted,#6b6d82)',fontFamily:'IBM Plex Mono,monospace' }}>or click to pin</div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ── Overlay drawer (≤1100px) ── */}
@@ -1426,10 +1417,11 @@ function EstimateWorkbenchInner() {
 
       {/* ── Keyboard hints bar ── */}
       <div className="wb-hints">
-        <span className="wb-hint"><kbd>↑↓</kbd> / <kbd>j k</kbd> navigate</span>
-        <span className="wb-hint"><kbd>P</kbd> priced · <kbd>A</kbd> actuals · <kbd>N</kbd> none</span>
+        <span className="wb-hint">Click a row to expand · click again to collapse</span>
+        <span className="wb-hint"><kbd>↑↓</kbd> / <kbd>j k</kbd> navigate · <kbd>Enter</kbd> toggle</span>
+        <span className="wb-hint"><kbd>P</kbd> Priced · <kbd>A</kbd> Actual · <kbd>N</kbd> None</span>
         <span className="wb-hint"><kbd>E</kbd> exclude</span>
-        <span className="wb-hint"><kbd>Esc</kbd> close</span>
+        <span className="wb-hint"><kbd>Esc</kbd> collapse</span>
       </div>
     </div>
   )
