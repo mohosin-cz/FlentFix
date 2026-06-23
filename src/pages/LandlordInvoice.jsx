@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { advanceStage } from '../utils/propertyJourney'
+import FlentWordmark from '../components/FlentWordmark'
 
 // ─── Column sanitizers ────────────────────────────────────────────────────────
 const INVOICE_COLUMNS = [
@@ -431,7 +432,7 @@ export default function LandlordInvoice() {
         {/* ── TOP: Branding + Invoice title ── */}
         <div style={{ padding: '40px 48px 32px', borderBottom: '2px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px', color: '#1a1a1a', marginBottom: 6 }}>FLENT</div>
+            <FlentWordmark height={30} variant="dark" style={{ marginBottom: 6 }} />
             <div style={{ fontSize: 12, color: '#666', lineHeight: 1.8 }}>
               Property Management<br />
               Bangalore, India<br />

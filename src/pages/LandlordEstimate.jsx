@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import LogoSpinner from '../components/LogoSpinner'
+import FlentWordmark from '../components/FlentWordmark'
 
 const HERO_TITLE    = 'Your home, cared for'
 const HERO_SUBTITLE = 'before anyone moves in.'
@@ -662,7 +663,7 @@ export default function LandlordEstimate() {
 
       {/* topbar */}
       <div className="le-topbar">
-        <span className="le-logo-pill">flent</span>
+        <FlentWordmark height={22} variant="dark" />
         <span className="le-topbar-tag">Estimate Review</span>
       </div>
 

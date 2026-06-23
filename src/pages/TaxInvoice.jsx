@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useIsMobile'
 import LogoSpinner from '../components/LogoSpinner'
+import FlentWordmark from '../components/FlentWordmark'
 
 // ─── Number to words (Indian system) ─────────────────────────────────────────
 
@@ -176,14 +177,9 @@ export default function TaxInvoice() {
               gap: 16,
             }}>
               {/* Brand */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 40, height: 40, background: '#fff', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4, flexShrink: 0 }}>
-                  <img src="/logo.svg" alt="Flent" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', letterSpacing: '-0.01em' }}>Flent</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 1 }}>GSTIN: 29ABLCS8677C1Z0</div>
-                </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <FlentWordmark height={26} variant="light" />
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>GSTIN: 29ABLCS8677C1Z0</div>
               </div>
 
               {/* TAX INVOICE badge */}
