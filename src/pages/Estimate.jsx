@@ -113,7 +113,10 @@ const CSS = `
 .row:hover{background:var(--panel2)}
 .row.active{background:rgba(227,170,90,.07);box-shadow:inset 2px 0 0 var(--gold)}
 .row.dim{opacity:.5}
-.hnd{color:var(--faint);font-size:12px;cursor:grab}
+.hnd{color:var(--faint);font-size:12px;cursor:grab;user-select:none}
+.hnd:active{cursor:grabbing}
+.row.drag-over{background:rgba(227,170,90,.1)!important;box-shadow:inset 2px 0 0 var(--gold),inset 0 2px 0 rgba(227,170,90,.25)}
+.grp.drag-target>.ghead{background:rgba(227,170,90,.06)}
 .sc{font-family:var(--mono);font-weight:600;font-size:11px;padding:2px 0;border-radius:4px;text-align:center;display:block}
 .sc.lo{color:#e8a3a3;background:rgba(208,112,80,.16);border:1px solid rgba(208,112,80,.4)}
 .sc.mid{color:var(--amber);background:rgba(225,169,63,.13);border:1px solid rgba(225,169,63,.35)}
@@ -832,6 +835,10 @@ function EstimateWorkbenchInner() {
   const [copied, setCopied]               = useState(false)
   const [lightbox, setLightbox]           = useState(null)
 
+  const dragRef         = useRef(null)   // { itemId, trade }
+  const [dragOverId,    setDragOverId]    = useState(null)
+  const [dragOverTrade, setDragOverTrade] = useState(null)
+
   // ── Load ─────────────────────────────────────────────────────────────────────
 
   useEffect(() => { loadData() }, [id])
@@ -952,6 +959,70 @@ function EstimateWorkbenchInner() {
     if (err) { console.error('[updateItem]', err.message); setItems(p => p.map(i => i.id===itemId ? prev : i)) }
   }
 
+  // ── Reorder / move-across-trade ───────────────────────────────────────────────
+
+  async function saveSortBatch(changes) {
+    // Only writes sort_order and optionally trade — never total_cost (GENERATED)
+    await Promise.all(changes.map(({ id, sort_order, trade }) => {
+      const upd = { sort_order }
+      if (trade !== undefined) upd.trade = trade
+      return supabase.from('estimate_items').update(upd).eq('id', id)
+    }))
+  }
+
+  function getGroupSorted(trade) {
+    return items
+      .filter(i => (i.trade || '') === trade && i.status !== 'removed')
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+  }
+
+  function reorderWithinGroup(trade, fromId, toId) {
+    if (fromId === toId) return
+    const group = getGroupSorted(trade)
+    const fromIdx = group.findIndex(i => i.id === fromId)
+    const toIdx   = group.findIndex(i => i.id === toId)
+    if (fromIdx === -1 || toIdx === -1) return
+    const reordered = [...group]
+    const [moved] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, moved)
+    const changes = reordered.map((it, i) => ({ id: it.id, sort_order: (i + 1) * 10 }))
+    setItems(prev => prev.map(it => { const c = changes.find(ch => ch.id === it.id); return c ? { ...it, sort_order: c.sort_order } : it }))
+    saveSortBatch(changes)
+  }
+
+  function moveItemInGroup(trade, itemId, direction) {
+    const group = getGroupSorted(trade)
+    const idx = group.findIndex(i => i.id === itemId)
+    if (idx === -1) return
+    const newIdx = idx + direction
+    if (newIdx < 0 || newIdx >= group.length) return
+    const reordered = [...group]
+    const [moved] = reordered.splice(idx, 1)
+    reordered.splice(newIdx, 0, moved)
+    const changes = reordered.map((it, i) => ({ id: it.id, sort_order: (i + 1) * 10 }))
+    setItems(prev => prev.map(it => { const c = changes.find(ch => ch.id === it.id); return c ? { ...it, sort_order: c.sort_order } : it }))
+    saveSortBatch(changes)
+  }
+
+  async function moveAcrossTrade(itemId, newTrade) {
+    const srcItem = items.find(i => i.id === itemId)
+    if (!srcItem) return
+    const destItems = items
+      .filter(i => (i.trade || '') === newTrade && i.status !== 'removed' && i.id !== itemId)
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    const newDestGroup = [...destItems, srcItem]
+    const changes = newDestGroup.map((it, i) => ({
+      id: it.id, sort_order: (i + 1) * 10,
+      ...(it.id === itemId ? { trade: newTrade } : {}),
+    }))
+    setItems(prev => prev.map(it => {
+      const c = changes.find(ch => ch.id === it.id)
+      if (!c) return it
+      return { ...it, sort_order: c.sort_order, ...(it.id === itemId ? { trade: newTrade } : {}) }
+    }))
+    await saveSortBatch(changes)
+  }
+
   async function duplicateItem(itemId) {
     const orig = items.find(i => i.id === itemId)
     if (!orig) return
@@ -1051,7 +1122,7 @@ function EstimateWorkbenchInner() {
   const tradeGroups = useMemo(() => {
     const map = {}
     for (const item of items) {
-      const t = item.trade || 'Other'
+      const t = item.trade || ''
       if (!map[t]) map[t] = []
       map[t].push(item)
     }
@@ -1076,7 +1147,13 @@ function EstimateWorkbenchInner() {
     function handle(e) {
       if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName) || e.target.isContentEditable) return
       const curIdx = pinnedId ? navigable.findIndex(i => i.id === pinnedId) : -1
-      if (e.key === 'ArrowDown' || e.key === 'j') {
+      if (e.altKey && e.key === 'ArrowDown') {
+        e.preventDefault()
+        if (pinnedId) { const it = items.find(i => i.id === pinnedId); if (it) moveItemInGroup(it.trade || '', pinnedId, 1) }
+      } else if (e.altKey && e.key === 'ArrowUp') {
+        e.preventDefault()
+        if (pinnedId) { const it = items.find(i => i.id === pinnedId); if (it) moveItemInGroup(it.trade || '', pinnedId, -1) }
+      } else if (e.key === 'ArrowDown' || e.key === 'j') {
         e.preventDefault()
         const next = navigable[curIdx+1] || navigable[0]
         if (next) { setPinnedId(next.id); document.getElementById(`row-${next.id}`)?.scrollIntoView({ block:'nearest', behavior:'smooth' }) }
@@ -1203,11 +1280,20 @@ function EstimateWorkbenchInner() {
             const visibleRows = rows.filter(r => r.status !== 'removed')
 
             return (
-              <div key={trade} className="grp" style={{ '--trade-col': color }}>
+              <div key={trade || '__unc'} className={`grp ${dragOverTrade === trade ? 'drag-target' : ''}`} style={{ '--trade-col': color }}
+                onDragEnter={() => { if (dragRef.current && (dragRef.current.trade || '') !== trade) setDragOverTrade(trade) }}
+                onDragOver={e => { if (dragRef.current) e.preventDefault() }}
+                onDrop={e => {
+                  e.preventDefault()
+                  if (!dragRef.current) return
+                  const { itemId: fId, trade: sT } = dragRef.current
+                  if (sT !== trade) moveAcrossTrade(fId, trade)
+                  dragRef.current = null; setDragOverId(null); setDragOverTrade(null)
+                }}>
                 {/* Group header */}
                 <div className="ghead" style={{ borderLeftColor: color }}
                   onClick={() => setCollapsed(p => { const n=new Set(p); n.has(trade)?n.delete(trade):n.add(trade); return n })}>
-                  <span className="gt">{isCollapsed ? '▸' : '▾'} {trade}</span>
+                  <span className="gt">{isCollapsed ? '▸' : '▾'} {trade || 'Uncategorised'}</span>
                   <span className="gr"><b>{visibleRows.length} items</b> · ₹{fmt(subtotal)}</span>
                 </div>
 
@@ -1236,13 +1322,26 @@ function EstimateWorkbenchInner() {
                         const isActive = item.id === pinnedId
                         const isDim    = type === 'none' || item.status === 'excluded'
                         const score    = getScore(item)
-                        const rowCls   = ['row', isActive?'active':'', isDim?'dim':''].filter(Boolean).join(' ')
+                        const rowCls   = ['row', isActive?'active':'', isDim?'dim':'', dragOverId===item.id?'drag-over':''].filter(Boolean).join(' ')
                         const media    = mediaMap[item.line_item_id] || []
 
                         return (
                           <div key={item.id} id={`row-${item.id}`} className={rowCls}
-                            onClick={() => setPinnedId(p => p===item.id ? null : item.id)}>
-                            <div className="hnd">⠿</div>
+                            onClick={() => setPinnedId(p => p===item.id ? null : item.id)}
+                            onDragEnter={e => { if (dragRef.current && dragRef.current.itemId !== item.id) { e.preventDefault(); setDragOverId(item.id) } }}
+                            onDragOver={e => { if (dragRef.current) e.preventDefault() }}
+                            onDrop={e => {
+                              e.preventDefault()
+                              if (!dragRef.current || dragRef.current.itemId === item.id) { setDragOverId(null); return }
+                              const { itemId: fId, trade: sT } = dragRef.current
+                              const dT = item.trade || ''
+                              if (sT === dT) reorderWithinGroup(sT, fId, item.id)
+                              else moveAcrossTrade(fId, dT)
+                              dragRef.current = null; setDragOverId(null); setDragOverTrade(null)
+                            }}>
+                            <div className="hnd" draggable
+                              onDragStart={e => { e.stopPropagation(); dragRef.current = { itemId: item.id, trade: item.trade || '' }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', item.id) }}
+                              onDragEnd={() => { dragRef.current = null; setDragOverId(null); setDragOverTrade(null) }}>⠿</div>
                             <div><ScoreChip score={score} /></div>
                             <div className="idn">
                               <div className="ar">{item.area || '—'}</div>
@@ -1269,7 +1368,7 @@ function EstimateWorkbenchInner() {
                                 onClick={e => {
                                   e.stopPropagation()
                                   const rect = e.currentTarget.getBoundingClientRect()
-                                  setCtxMenu({ itemId:item.id, status:item.status, x:rect.right-148, y:rect.bottom+4 })
+                                  setCtxMenu({ itemId:item.id, status:item.status, trade:item.trade||'', x:rect.right-148, y:rect.bottom+4 })
                                 }}>⋯</button>
                             </div>
                           </div>
@@ -1335,6 +1434,17 @@ function EstimateWorkbenchInner() {
               ? <button className="ctx-item" style={{ color:'var(--teal)' }} onClick={() => { restoreItem(ctxMenu.itemId); setCtxMenu(null) }}>Restore</button>
               : <button className="ctx-item" style={{ color:'var(--clay)' }} onClick={() => { removeItem(ctxMenu.itemId); setCtxMenu(null) }}>Remove</button>
             }
+            {tradeGroups.filter(g => g.trade !== ctxMenu.trade).length > 0 && (
+              <>
+                <div style={{ padding:'5px 13px 2px',fontSize:9,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--faint)',fontFamily:'var(--mono)',borderTop:'1px solid var(--line)',marginTop:2 }}>Move to trade</div>
+                {tradeGroups.filter(g => g.trade !== ctxMenu.trade).map(g => (
+                  <button key={g.trade||'__unc'} className="ctx-item" style={{ paddingLeft:20 }}
+                    onClick={() => { moveAcrossTrade(ctxMenu.itemId, g.trade); setCtxMenu(null) }}>
+                    → {g.trade || 'Uncategorised'}
+                  </button>
+                ))}
+              </>
+            )}
           </div>
         </>
       )}
@@ -1349,11 +1459,8 @@ function EstimateWorkbenchInner() {
 
       {/* Hint bar */}
       <div className="hint">
-        Click a row to expand · click again to collapse ·{' '}
-        <kbd>↑</kbd><kbd>↓</kbd> navigate ·{' '}
-        <kbd>P</kbd><kbd>A</kbd><kbd>N</kbd> type ·{' '}
-        <kbd>E</kbd> exclude ·{' '}
-        <kbd>Esc</kbd> close
+        Click row · <kbd>↑</kbd><kbd>↓</kbd> navigate · drag <kbd>⠿</kbd> reorder · <kbd>Alt</kbd>+<kbd>↑↓</kbd> move within group ·{' '}
+        <kbd>P</kbd><kbd>A</kbd><kbd>N</kbd> type · <kbd>E</kbd> exclude · <kbd>Esc</kbd> close
       </div>
     </div>
   )
