@@ -87,6 +87,22 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
   function toTitle(key) {
     return key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').replace(/\b\w/g, c => c.toUpperCase()).trim()
   }
+  const KEY_LABELS = {
+    // Common Bath (cb* prefix — toTitle gives "Cb Gey", "Cb Sw", etc.)
+    cbSw: 'Switchboard', cbGey: 'Geyser', cbExh: 'Exhaust Fan',
+    cbMl: 'Mirror Light', cbTap: 'Tap / Basin Mixer', cbSh: 'Shower',
+    cbFl: 'Flush Mechanism', cbJs: 'Jet Spray', cbHc: 'Hot/Cold Mixer',
+    cbDr: 'Door', cbFt: 'Floor Tiles', cbWt: 'Wall Tiles',
+    cbMi: 'Mirror', cbTr: 'Towel Rod', cbSd: 'Soap Dish',
+    // Attached Bathroom (b* prefix — toTitle gives "B Switchboard", "B Door")
+    bSwitchboard: 'Switchboard', bDoor: 'Door',
+    // Labels toTitle gets wrong
+    acPoint: 'AC Point', tvUnit: 'TV Unit',
+    tap: 'Tap / Basin Mixer', flush: 'Flush Mechanism', hotCold: 'Hot/Cold Mixer',
+    ro: 'RO / Water Purifier', chimney: 'Chimney / Exhaust',
+    grille: 'Grille / Railing', counter: 'Counter Surface',
+    wmPoint: 'Washing Machine Point', wmInlet: 'Washing Machine Inlet',
+  }
   const rows = []
   const data        = draft.data || {}
   const customItems = draft.customItems || {}
@@ -123,7 +139,7 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
         cards.forEach((card, ci) => {
           const sel    = card.selectedIssues || []
           const suffix = cards.length > 1 ? ` (${ci + 1})` : ''
-          const base   = { inspection_id: inspectionId, section_name: tabLabel, area: secLabel, item_name: toTitle(itemKey) + suffix, trade }
+          const base   = { inspection_id: inspectionId, section_name: tabLabel, area: secLabel, item_name: (KEY_LABELS[itemKey] || toTitle(itemKey)) + suffix, trade }
           if (!card.notAvailable && sel.length === 0) return
           if (card.notAvailable) {
             rows.push({ ...base, issue_description: card.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available', _media: card.media || [] })
