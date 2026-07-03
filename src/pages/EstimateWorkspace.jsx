@@ -75,7 +75,7 @@ export default function EstimateWorkspace() {
       supabase.auth.getUser(),
       supabase
         .from('estimates')
-        .select('*, estimate_items(id, status, material_cost, labour_cost, item_name, area, trade, issue_description, sort_order), estimate_events(*), estimate_disputes(count)')
+        .select('*, estimate_items(id, status, cost_type, material_cost, labour_cost, item_name, area, trade, issue_description, sort_order), estimate_events(*), estimate_disputes(count)')
         .eq('pid', pid)
         .order('created_at', { ascending: false }),
       supabase.from('inspections').select('house_type, config').eq('pid', pid).order('created_at', { ascending: false }).limit(1).maybeSingle(),
@@ -157,14 +157,14 @@ export default function EstimateWorkspace() {
     return null
   }
 
-  // Stats from current estimate items
+  // Stats from current estimate — headline total always from estimates.total (canonical stored value).
   function getStats(est) {
     const items = est?.estimate_items || []
-    const total = items.reduce((s, i) => s + (parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0), 0)
+    const actualsCount = items.filter(i => i.cost_type === 'actuals' && !['removed', 'excluded'].includes(i.status)).length
     const approved  = items.filter(i => i.status === 'approved').length
     const disputed  = items.filter(i => i.status === 'disputed').length
     const pending   = items.filter(i => !i.status || i.status === 'pending').length
-    return { count: items.length, total, approved, disputed, pending }
+    return { count: items.length, total: est?.total ?? 0, actualsCount, approved, disputed, pending }
   }
 
   // All events across all estimates, newest first
@@ -267,9 +267,11 @@ export default function EstimateWorkspace() {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>
-                      {stats.total > 0 ? `₹${stats.total.toLocaleString('en-IN')}` : '—'}
+                      {(stats.total || 0) > 0 ? `₹${stats.total.toLocaleString('en-IN')}` : '—'}
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>total estimate</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>
+                      total estimate{stats.actualsCount > 0 ? ` · +${stats.actualsCount} on actuals` : ''}
+                    </div>
                   </div>
                 </div>
 
