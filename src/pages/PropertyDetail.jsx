@@ -168,29 +168,34 @@ export default function PropertyDetail() {
 
     if (!inspData?.length) return
 
-    // Bug 1 fix: find the inspection that actually has line items
-    let activeInspection = null
-    for (const insp of inspData) {
-      const { count } = await supabase
+    try {
+      // Find the inspection that actually has line items (limit=1 avoids 503-prone HEAD queries)
+      let activeInspection = null
+      for (const insp of inspData) {
+        const { data: probe } = await supabase
+          .from('inspection_line_items')
+          .select('id')
+          .eq('inspection_id', insp.id)
+          .limit(1)
+        if (probe?.length > 0) { activeInspection = insp; break }
+      }
+      if (!activeInspection) activeInspection = inspData[0]
+
+      // Fetch line items scoped to the active inspection only
+      const { data: lineItems } = await supabase
         .from('inspection_line_items')
-        .select('id', { count: 'exact', head: true })
-        .eq('inspection_id', insp.id)
-      if (count > 0) { activeInspection = insp; break }
+        .select('id, inspection_id, material_cost, labour_cost, issue_description')
+        .eq('inspection_id', activeInspection.id)
+
+      const totalCost = (lineItems || []).reduce((s, r) => s + (parseFloat(r.material_cost) || 0) + (parseFloat(r.labour_cost) || 0), 0)
+      const issues = (lineItems || []).filter(r => {
+        const d = (r.issue_description || '').toLowerCase()
+        return !d.includes('functional') && !d.includes('no issues') && !d.includes('no issue')
+      }).length
+      setStats({ totalCost, issues, totalItems: (lineItems || []).length })
+    } catch (e) {
+      console.error('[PropertyDetail] stats fetch degraded:', e.message)
     }
-    if (!activeInspection) activeInspection = inspData[0]
-
-    // Fetch line items scoped to the active inspection only
-    const { data: lineItems } = await supabase
-      .from('inspection_line_items')
-      .select('id, inspection_id, material_cost, labour_cost, issue_description')
-      .eq('inspection_id', activeInspection.id)
-
-    const totalCost = (lineItems || []).reduce((s, r) => s + (parseFloat(r.material_cost) || 0) + (parseFloat(r.labour_cost) || 0), 0)
-    const issues = (lineItems || []).filter(r => {
-      const d = (r.issue_description || '').toLowerCase()
-      return !d.includes('functional') && !d.includes('no issues') && !d.includes('no issue')
-    }).length
-    setStats({ totalCost, issues, totalItems: (lineItems || []).length })
   }, [pid])
 
   const { pullDistance, isRefreshing } = usePullToRefresh(fetchData)

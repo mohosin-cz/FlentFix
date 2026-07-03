@@ -38,9 +38,9 @@ function itemTot(it) {
   return ((it.material_cost||0)+(it.labour_cost||0))*(it.qty||1)
 }
 
-function getScore(it)  { return it.inspection_line_items?.score ?? it.score ?? null }
-function getNotes(it)  { return it.inspection_line_items?.notes ?? it.inspector_notes ?? '' }
-function getAvail(it)  { return it.inspection_line_items?.availability ?? it.availability ?? '' }
+function getScore(it)  { return it.inspection_line_items?.item_score ?? null }
+function getNotes(it)  { return it.inspection_line_items?.notes ?? '' }
+function getAvail(it)  { return it.inspection_line_items?.availability_status ?? '' }
 
 function needsPricing(it) {
   return it.cost_type === 'priced'
@@ -399,7 +399,7 @@ function ItemDrawer({
   item, media, allItems, itemIndex,
   onClose, onNavigate, onUpdate,
   onAddMedia, onDeleteMedia, onReplaceMedia, onSetPrimary,
-  onOpenLightbox, userEmail, estimateId,
+  onOpenLightbox, userEmail, estimateId, readOnly,
 }) {
   const [drafts, setDrafts] = useState({})
   useEffect(() => setDrafts({}), [item.id])
@@ -450,20 +450,20 @@ function ItemDrawer({
         <DrawerMatPicker
           description={item.material_description || ''}
           fxin={item.material_fxin || ''}
-          onApply={r => onUpdate(item.id, { material_description: r.item_name, material_cost: invPrice(r) })}
+          onApply={readOnly ? () => {} : r => onUpdate(item.id, { material_description: r.item_name, material_cost: invPrice(r) })}
         />
         <div style={{ marginTop:6 }}>
           <div className="crow">
             <span className="lbl">Material</span>
-            <input className="inp" type="number" value={dv('material_cost')} onChange={e => sd('material_cost', e.target.value)} onBlur={() => commit('material_cost')} />
+            <input className="inp" type="number" value={dv('material_cost')} onChange={e => sd('material_cost', e.target.value)} onBlur={() => commit('material_cost')} disabled={readOnly} />
           </div>
           <div className="crow">
             <span className="lbl">Labour</span>
-            <input className="inp" type="number" value={dv('labour_cost')} onChange={e => sd('labour_cost', e.target.value)} onBlur={() => commit('labour_cost')} />
+            <input className="inp" type="number" value={dv('labour_cost')} onChange={e => sd('labour_cost', e.target.value)} onBlur={() => commit('labour_cost')} disabled={readOnly} />
           </div>
           <div className="crow">
             <span className="lbl">Qty</span>
-            <input className="inp" type="number" value={dv('qty')} onChange={e => sd('qty', e.target.value)} onBlur={() => commit('qty')} style={{ width:60 }} />
+            <input className="inp" type="number" value={dv('qty')} onChange={e => sd('qty', e.target.value)} onBlur={() => commit('qty')} style={{ width:60 }} disabled={readOnly} />
           </div>
         </div>
         {type === 'priced' && <div className="tot2"><span className="ey">Total</span><span className="v">₹{fmt(tot)}</span></div>}
@@ -515,13 +515,13 @@ function ItemDrawer({
         {/* Finding */}
         <div className="sec">
           <span className="ey">Finding</span>
-          <textarea className="fld-ta" value={dv('issue_description')} onChange={e => sd('issue_description', e.target.value)} onBlur={() => commit('issue_description')} placeholder="Describe what was found…" rows={3} />
+          <textarea className="fld-ta" value={dv('issue_description')} onChange={e => sd('issue_description', e.target.value)} onBlur={() => commit('issue_description')} placeholder="Describe what was found…" rows={3} disabled={readOnly} />
         </div>
 
         {/* What we'll do */}
         <div className="sec">
           <span className="ey">What we'll do</span>
-          <textarea className="fld-ta" value={dv('action')} onChange={e => sd('action', e.target.value)} onBlur={() => commit('action')} placeholder="Planned repair or replacement…" rows={2} />
+          <textarea className="fld-ta" value={dv('action')} onChange={e => sd('action', e.target.value)} onBlur={() => commit('action')} placeholder="Planned repair or replacement…" rows={2} disabled={readOnly} />
         </div>
 
         {/* Inspector notes */}
@@ -561,21 +561,23 @@ function ItemDrawer({
           <input
             style={{ background:'none',border:'none',outline:'none',fontFamily:'var(--mono)',fontSize:12,color: warr ? 'var(--ink2)' : 'var(--faint)',textAlign:'right',width:120 }}
             value={dv('warranty')} onChange={e => sd('warranty', e.target.value)} onBlur={() => commit('warranty')}
-            placeholder="—"
+            placeholder="—" disabled={readOnly}
           />
         </div>
 
         {/* Type */}
         <div className="sec">
           <span className="ey">Type · <span style={{ color:'var(--faint)' }}>P / A / N</span></span>
-          <TypeSeg type={type} onSet={t => onUpdate(item.id, { cost_type: dbType(t) })} stopProp={false} />
+          <TypeSeg type={type} onSet={readOnly ? () => {} : t => onUpdate(item.id, { cost_type: dbType(t) })} stopProp={false} />
         </div>
 
         {/* Exclude toggle */}
-        <div className="sec tg">
-          <span className="ey">Exclude · <span style={{ color:'var(--faint)' }}>E</span></span>
-          <div className={`sw ${excl ? 'on' : ''}`} onClick={() => onUpdate(item.id, { status: excl ? 'pending' : 'excluded' })} />
-        </div>
+        {!readOnly && (
+          <div className="sec tg">
+            <span className="ey">Exclude · <span style={{ color:'var(--faint)' }}>E</span></span>
+            <div className={`sw ${excl ? 'on' : ''}`} onClick={() => onUpdate(item.id, { status: excl ? 'pending' : 'excluded' })} />
+          </div>
+        )}
 
         {/* History */}
         {hist && (
@@ -841,6 +843,8 @@ function EstimateWorkbenchInner() {
   const [savingNotes, setSavingNotes]     = useState(false)
   const [generating, setGenerating]       = useState(false)
   const [copied, setCopied]               = useState(false)
+  const [hasUnsent, setHasUnsent]         = useState(false)
+  const [locking, setLocking]             = useState(false)
   const [lightbox, setLightbox]           = useState(null)
 
   const dragRef         = useRef(null)   // { itemId, trade }
@@ -855,7 +859,7 @@ function EstimateWorkbenchInner() {
     setLoading(true)
     const [{ data: { user } }, { data: est }] = await Promise.all([
       supabase.auth.getUser(),
-      supabase.from('estimates').select('id,pid,inspection_id,status,notes,share_token,created_at,created_by,total').eq('id', id).maybeSingle(),
+      supabase.from('estimates').select('id,pid,inspection_id,status,notes,share_token,created_at,created_by,total,current_version,locked,locked_at,locked_by').eq('id', id).maybeSingle(),
     ])
     setUserEmail(user?.email || null)
     if (!est) { setError('Estimate not found'); setLoading(false); return }
@@ -866,7 +870,7 @@ function EstimateWorkbenchInner() {
     let itemsData = null
     const { data: d1, error: e1 } = await supabase
       .from('estimate_items')
-      .select('*, inspection_line_items(score, notes, availability)')
+      .select('*, inspection_line_items(item_score, notes, availability_status, action)')
       .eq('estimate_id', id)
       .order('sort_order')
     if (e1) {
@@ -876,14 +880,14 @@ function EstimateWorkbenchInner() {
       itemsData = d1
     }
 
-    const [inspRes, { count }] = await Promise.all([
+    const [inspRes, estCountRes] = await Promise.all([
       supabase.from('inspections').select('id,pid,house_type,inspection_date').eq('id', est.inspection_id).maybeSingle(),
-      supabase.from('estimates').select('id', { count:'exact', head:true }).eq('pid', est.pid),
+      supabase.from('estimates').select('id').eq('pid', est.pid),
     ])
     const fetched = itemsData || []
     setItems(fetched)
     setInspection(inspRes.data || null)
-    setVersionCount(count || 1)
+    setVersionCount(estCountRes.data?.length || 1)
     setLoading(false)
     loadMedia(fetched)
 
@@ -983,6 +987,7 @@ function EstimateWorkbenchInner() {
         .filter(i => !['removed', 'excluded'].includes(i.status) && i.cost_type === 'priced')
         .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
       supabase.from('estimates').update({ total: firmTotal }).eq('id', id)
+      if (estimate?.status !== 'draft') setHasUnsent(true)
     }
   }
 
@@ -1116,20 +1121,70 @@ function EstimateWorkbenchInner() {
     setGenerating(false)
   }
 
-  async function handleCopy(markSent = false) {
+  function copyLink() {
     const url = estimate?.share_token
       ? `${window.location.origin}/e/${estimate.share_token}`
       : `${window.location.origin}/estimate/${id}`
     try {
-      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(url)
+      if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(url)
       else { const ta = document.createElement('textarea'); ta.value = url; ta.style.cssText='position:fixed;opacity:0'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta) }
-    } catch (_) {}
-    if (markSent && estimate?.status === 'draft') {
-      await supabase.from('estimates').update({ status:'sent', sent_at: new Date().toISOString() }).eq('id', id)
-      await supabase.from('estimate_events').insert({ estimate_id:id, event_type:'sent', actor:userEmail })
-      setEstimate(p => ({ ...p, status:'sent' }))
-    }
+    } catch { /* ignore clipboard */ }
     setCopied(true); setTimeout(() => setCopied(false), 2200)
+  }
+
+  async function handleSend() {
+    const liveItems = items.filter(i => i.status !== 'removed')
+    const snapTotal = liveItems
+      .filter(i => i.status !== 'excluded' && i.cost_type === 'priced')
+      .reduce((s, i) => s + ((parseFloat(i.material_cost)||0) + (parseFloat(i.labour_cost)||0)) * (i.qty||1), 0)
+    const nextVersion = (estimate?.current_version || 0) + 1
+
+    const { data: ver, error: vErr } = await supabase
+      .from('estimate_versions')
+      .insert({ estimate_id: id, version_number: nextVersion, total: snapTotal, status: 'active', created_by: userEmail })
+      .select('id').single()
+    if (vErr) { console.error('[handleSend] version create:', vErr.message) }
+
+    if (ver) {
+      const snapRows = liveItems.map(item => ({
+        version_id:           ver.id,
+        estimate_item_id:     item.id,
+        line_item_id:         item.line_item_id,
+        sort_order:           item.sort_order,
+        area:                 item.area,
+        item_name:            item.item_name,
+        trade:                item.trade,
+        issue_description:    item.issue_description,
+        material_description: item.material_description,
+        material_cost:        item.material_cost,
+        action:               item.action,
+        labour_description:   item.labour_description,
+        labour_cost:          item.labour_cost,
+        qty:                  item.qty,
+        cost_type:            item.cost_type,
+        status:               item.status,
+        warranty:             item.warranty,
+      }))
+      const { error: snapErr } = await supabase.from('estimate_version_items').insert(snapRows)
+      if (snapErr) console.error('[handleSend] snapshot items:', snapErr.message)
+      await supabase.from('estimate_versions').update({ status: 'superseded' }).eq('estimate_id', id).neq('id', ver.id)
+    }
+
+    const now = new Date().toISOString()
+    await supabase.from('estimates').update({ current_version: nextVersion, status: 'sent', sent_at: now }).eq('id', id)
+    await supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'sent', actor: userEmail })
+    setEstimate(p => ({ ...p, current_version: nextVersion, status: 'sent', sent_at: now }))
+    setHasUnsent(false)
+    copyLink()
+  }
+
+  async function handleLock() {
+    if (!window.confirm('Mark this estimate as final? All editing will be disabled and the landlord will see a read-only view.')) return
+    setLocking(true)
+    const now = new Date().toISOString()
+    await supabase.from('estimates').update({ locked: true, locked_at: now, locked_by: userEmail }).eq('id', id)
+    setEstimate(p => ({ ...p, locked: true, locked_at: now, locked_by: userEmail }))
+    setLocking(false)
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────────
@@ -1198,7 +1253,7 @@ function EstimateWorkbenchInner() {
         e.preventDefault()
         if (pinnedId) setPinnedId(null)
         else if (navigable[0]) setPinnedId(navigable[0].id)
-      } else if (pinnedId) {
+      } else if (pinnedId && !isLocked) {
         if (e.key === 'p' || e.key === 'P') { e.preventDefault(); updateItem(pinnedId, { cost_type:'priced' }) }
         else if (e.key === 'a' || e.key === 'A') { e.preventDefault(); updateItem(pinnedId, { cost_type:'actuals' }) }
         else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); updateItem(pinnedId, { cost_type:'nil' }) }
@@ -1243,8 +1298,9 @@ function EstimateWorkbenchInner() {
   if (loading) return <LogoSpinner full />
   if (error)   return <div style={{ minHeight:'100vh',background:'#0c0d11',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--clay)',fontFamily:'var(--mono)',fontSize:13 }}>{error}</div>
 
-  const pid     = estimate?.pid || ''
-  const status  = estimate?.status || 'draft'
+  const pid      = estimate?.pid || ''
+  const status   = estimate?.status || 'draft'
+  const isLocked = !!estimate?.locked
   const isViewed = status === 'viewed'
   const shareUrl = estimate?.share_token ? `${window.location.origin}/e/${estimate.share_token}` : null
   const mrShift  = panelOpen ? 430 : 0
@@ -1255,6 +1311,14 @@ function EstimateWorkbenchInner() {
     <div style={{ minHeight:'100vh',background:'var(--bg)',color:'var(--ink)',fontFamily:'var(--sans)',fontSize:13 }} onClick={() => ctxMenu && setCtxMenu(null)}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
+      {/* Locked banner */}
+      {isLocked && (
+        <div style={{ background:'rgba(200,150,62,0.12)',borderBottom:'1px solid rgba(200,150,62,0.3)',padding:'8px 20px',fontSize:12,color:'var(--gold)',fontFamily:'var(--mono)',display:'flex',alignItems:'center',gap:8 }}>
+          <span>🔒</span>
+          <span>Estimate marked final by {estimate.locked_by?.split('@')[0] || 'admin'} — editing is disabled.</span>
+        </div>
+      )}
+
       {/* Command bar */}
       <header className="cmd">
         <div className="l">
@@ -1263,19 +1327,28 @@ function EstimateWorkbenchInner() {
             <div className="ttl">
               PID {pid}
               {inspection?.house_type && <span className="sub"> · {inspection.house_type}</span>}
-              <span className="sub"> · v{versionCount}</span>
+              <span className="sub"> · v{estimate?.current_version || versionCount}</span>
               {isViewed && <span className="pill viewed" style={{ marginLeft:8 }}>VIEWED</span>}
+              {hasUnsent && !isLocked && <span className="pill" style={{ marginLeft:8,background:'rgba(248,113,113,0.15)',color:'#f87171',border:'1px solid rgba(248,113,113,0.3)' }}>● unsent changes</span>}
+              {isLocked && <span className="pill" style={{ marginLeft:8,background:'rgba(200,150,62,0.15)',color:'var(--gold)',border:'1px solid rgba(200,150,62,0.3)' }}>FINAL</span>}
             </div>
           </div>
         </div>
         <div className="acts">
-          <button className="btn ghost" onClick={handleRegenerate} disabled={generating}>{generating ? 'Regen…' : 'Regen'}</button>
+          {!isLocked && <button className="btn ghost" onClick={handleRegenerate} disabled={generating}>{generating ? 'Regen…' : 'Regen'}</button>}
           <button className="btn ghost" onClick={() => setNotesEditing(p => !p)}>Notes</button>
           {shareUrl && <button className="btn" onClick={() => window.open(shareUrl,'_blank')}>Preview</button>}
-          <button className="btn" onClick={() => handleCopy(false)}>{copied ? 'Copied!' : 'Copy link'}</button>
-          <button className="btn primary" onClick={() => handleCopy(true)}>
-            {status === 'draft' ? 'Send →' : 'Resend →'}
-          </button>
+          <button className="btn" onClick={copyLink}>{copied ? 'Copied!' : 'Copy link'}</button>
+          {!isLocked && (
+            <button className="btn primary" onClick={handleSend}>
+              {status === 'draft' ? 'Send →' : 'Resend →'}
+            </button>
+          )}
+          {!isLocked && status !== 'draft' && (
+            <button className="btn ghost" onClick={handleLock} disabled={locking} style={{ color:'var(--gold)',borderColor:'rgba(200,150,62,0.4)' }}>
+              {locking ? 'Locking…' : 'Mark final'}
+            </button>
+          )}
         </div>
       </header>
 
@@ -1434,14 +1507,15 @@ function EstimateWorkbenchInner() {
             itemIndex={drawerIdx}
             onClose={() => setPinnedId(null)}
             onNavigate={navigateDrawer}
-            onUpdate={updateItem}
-            onAddMedia={files => handleAddMedia(drawerItem.line_item_id, files)}
-            onDeleteMedia={handleDeleteMedia}
-            onReplaceMedia={handleReplaceMedia}
-            onSetPrimary={m => handleSetPrimary(drawerItem.line_item_id, m)}
+            onUpdate={isLocked ? () => {} : updateItem}
+            onAddMedia={isLocked ? () => {} : files => handleAddMedia(drawerItem.line_item_id, files)}
+            onDeleteMedia={isLocked ? () => {} : handleDeleteMedia}
+            onReplaceMedia={isLocked ? () => {} : handleReplaceMedia}
+            onSetPrimary={isLocked ? () => {} : m => handleSetPrimary(drawerItem.line_item_id, m)}
             onOpenLightbox={idx => setLightbox({ urls:(mediaMap[drawerItem.line_item_id]||[]).map(m=>m.url), idx })}
             userEmail={userEmail}
             estimateId={id}
+            readOnly={isLocked}
           />
         )}
       </aside>

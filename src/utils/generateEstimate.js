@@ -29,11 +29,12 @@ export async function resolveInspectionWithData(pid) {
     .order('created_at', { ascending: false })
   if (!inspections?.length) return null
   for (const insp of inspections) {
-    const { count } = await supabase
+    const { data: probe } = await supabase
       .from('inspection_line_items')
-      .select('id', { count: 'exact', head: true })
+      .select('id')
       .eq('inspection_id', insp.id)
-    if (count > 0) return insp.id
+      .limit(1)
+    if (probe?.length > 0) return insp.id
   }
   return inspections[0].id
 }
@@ -84,6 +85,7 @@ export async function generateEstimate(inspectionId, pid, userEmail) {
       issue_description:    item.issue_description || '',
       material_description: item.material_description || '',
       material_cost:        item.material_cost || 0,
+      action:               item.action || '',
       labour_description:   item.action || '',
       labour_cost:          item.labour_cost || 0,
       qty:                  item.qty || 1,
