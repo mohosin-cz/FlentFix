@@ -358,6 +358,56 @@ const CSS = `
     border: 1.5px solid rgba(58,102,66,0.3);
   }
 
+  /* ask panel — three-step question / dispute flow */
+  .le-ask-panel {
+    margin-top: 14px;
+    border: 1.5px solid var(--le-hairline-strong);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--le-paper);
+  }
+  .le-ask-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--le-hairline);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .le-ask-header-label {
+    font-family: var(--le-mono); font-size: 8.5px; font-weight: 500;
+    color: var(--le-ink-soft); text-transform: uppercase; letter-spacing: 0.12em;
+  }
+  .le-ask-back {
+    background: none; border: none; padding: 0; cursor: pointer;
+    font-family: var(--le-mono); font-size: 8.5px; color: var(--le-ink-soft);
+    letter-spacing: 0.08em; text-transform: uppercase; line-height: 1; min-height: 0;
+  }
+  .le-ask-back:hover { color: var(--le-ink); }
+  .le-ask-option {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 14px 16px;
+    background: none; border: none; border-bottom: 1px solid var(--le-hairline);
+    text-align: left; cursor: pointer; transition: background 0.12s;
+  }
+  .le-ask-option:last-child { border-bottom: none; }
+  .le-ask-option:hover { background: rgba(222,214,196,0.22); }
+  .le-ask-option-text {
+    font-family: var(--le-sans); font-size: 13px; color: var(--le-ink); line-height: 1.35;
+  }
+  .le-ask-option-arr {
+    font-size: 11px; color: var(--le-ink-soft); flex-shrink: 0; line-height: 1;
+  }
+  .le-ask-option--dispute { border-top: 1px solid var(--le-hairline); }
+  .le-ask-option--dispute .le-ask-option-text { color: var(--le-clay); }
+  .le-ask-option--dispute .le-ask-option-arr  { color: var(--le-clay); opacity: 0.7; }
+  .le-ask-note-body {
+    padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .le-ask-selected-label {
+    font-family: var(--le-display); font-size: 14px; font-style: italic;
+    color: var(--le-ink); line-height: 1.4;
+  }
+  .le-ask-note-body .le-dispute-textarea { margin-bottom: 0; }
+
   /* name modal */
   .le-name-overlay {
     position: fixed; inset: 0; background: rgba(33,28,68,0.55); z-index: 200;
@@ -471,12 +521,25 @@ function itemTotal(item) {
   return ((parseFloat(item.material_cost) || 0) + (parseFloat(item.labour_cost) || 0)) * (item.qty || 1)
 }
 
-const REASON_TAGS = [
-  { key: 'not_needed',     label: 'Not needed' },
-  { key: 'price_too_high', label: 'Price too high' },
-  { key: 'already_fixed',  label: 'Already fixed' },
-  { key: 'question',       label: 'Question' },
+// Quick questions — do NOT change item status; they open a conversation thread
+const QUERY_OPTIONS = [
+  { key: 'why_needed',     label: 'What is this repair for?'  },
+  { key: 'more_photos',    label: 'Can I see more photos?'    },
+  { key: 'cost_breakdown', label: 'Can you explain the cost?' },
+  { key: 'self_arrange',   label: 'I can arrange this myself' },
 ]
+
+// Dispute sub-form reason tags (item → 'disputed' status)
+const REASON_TAGS = [
+  { key: 'not_needed',     label: 'Not needed'    },
+  { key: 'price_too_high', label: 'Too expensive' },
+  { key: 'already_fixed',  label: 'Already done'  },
+]
+
+// Combined label lookup for thread display
+const ALL_TAG_LABELS = Object.fromEntries(
+  [...QUERY_OPTIONS, ...REASON_TAGS].map(t => [t.key, t.label])
+)
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function LandlordEstimate() {
@@ -500,6 +563,8 @@ export default function LandlordEstimate() {
   const [disputeOpen, setDisputeOpen]     = useState({})
   const [disputeReason, setDisputeReason] = useState({})
   const [disputeMsg, setDisputeMsg]       = useState({})
+  const [askStep, setAskStep]             = useState({}) // 'options' | 'note' | 'dispute'
+  const [askSelected, setAskSelected]     = useState({}) // selected QUERY_OPTIONS key
   const [submitting, setSubmitting]       = useState({})
   const [approving, setApproving]         = useState(false)
 
@@ -656,6 +721,30 @@ export default function LandlordEstimate() {
     setDisputeMsg(s => ({ ...s, [itemId]: '' }))
     const { data: freshD } = await supabase.from('estimate_disputes').select('*').eq('estimate_id', estimate.id)
     if (freshD) setDisputes(freshD)
+    setSubmitting(s => ({ ...s, [itemId]: false }))
+  }
+
+  async function sendQuery(itemId) {
+    const opt = QUERY_OPTIONS.find(o => o.key === askSelected[itemId])
+    if (!opt) return
+    setSubmitting(s => ({ ...s, [itemId]: true }))
+    const note = disputeMsg[itemId]?.trim()
+    const message = note ? `${opt.label}\n\n${note}` : opt.label
+    await supabase.from('estimate_disputes').insert({
+      estimate_item_id: itemId, estimate_id: estimate.id,
+      author_type: 'landlord', author_name: landlordName || 'Landlord',
+      reason_tag: opt.key, message,
+    })
+    await supabase.from('estimate_events').insert({
+      estimate_id: estimate.id, event_type: 'queried', actor: 'landlord',
+      meta: { item_id: itemId, query: opt.key, name: landlordName },
+    })
+    const { data: freshD } = await supabase.from('estimate_disputes').select('*').eq('estimate_id', estimate.id)
+    if (freshD) setDisputes(freshD)
+    setDisputeOpen(s => ({ ...s, [itemId]: false }))
+    setAskStep(s => ({ ...s, [itemId]: 'options' }))
+    setAskSelected(s => ({ ...s, [itemId]: '' }))
+    setDisputeMsg(s => ({ ...s, [itemId]: '' }))
     setSubmitting(s => ({ ...s, [itemId]: false }))
   }
 
@@ -972,7 +1061,17 @@ export default function LandlordEstimate() {
                               <button
                                 className="le-btn-ask"
                                 disabled={!!submitting[item.id]}
-                                onClick={() => requireName(() => setDisputeOpen(s => ({ ...s, [item.id]: !s[item.id] })))}
+                                onClick={() => requireName(() => {
+                                  if (isOpen) {
+                                    setDisputeOpen(s => ({ ...s, [item.id]: false }))
+                                  } else {
+                                    setDisputeOpen(s => ({ ...s, [item.id]: true }))
+                                    setAskStep(s => ({ ...s, [item.id]: 'options' }))
+                                    setAskSelected(s => ({ ...s, [item.id]: '' }))
+                                    setDisputeMsg(s => ({ ...s, [item.id]: '' }))
+                                    setDisputeReason(s => ({ ...s, [item.id]: '' }))
+                                  }
+                                })}
                               >
                                 {isOpen ? 'Cancel' : 'Ask about this'}
                               </button>
@@ -981,39 +1080,113 @@ export default function LandlordEstimate() {
                         </div>
                         )}
 
-                        {/* dispute form */}
-                        {isOpen && (
-                          <div className="le-dispute-form">
-                            <div className="le-dispute-title">Raise a concern</div>
-                            <div className="le-reason-tags">
-                              {REASON_TAGS.map(r => (
-                                <button
-                                  key={r.key}
-                                  className={`le-reason-tag${disputeReason[item.id] === r.key ? ' selected' : ''}`}
-                                  onClick={() => setDisputeReason(s => ({ ...s, [item.id]: r.key }))}
-                                >{r.label}</button>
-                              ))}
+                        {/* ask panel — three-step: options → note → dispute */}
+                        {isOpen && (() => {
+                          const step     = askStep[item.id] || 'options'
+                          const selKey   = askSelected[item.id] || ''
+                          const selOpt   = QUERY_OPTIONS.find(o => o.key === selKey)
+                          function closePanel() { setDisputeOpen(s => ({ ...s, [item.id]: false })) }
+                          function backToOptions() {
+                            setAskStep(s => ({ ...s, [item.id]: 'options' }))
+                            setAskSelected(s => ({ ...s, [item.id]: '' }))
+                            setDisputeMsg(s => ({ ...s, [item.id]: '' }))
+                            setDisputeReason(s => ({ ...s, [item.id]: '' }))
+                          }
+                          return (
+                            <div className="le-ask-panel">
+                              {step === 'options' && (
+                                <>
+                                  <div className="le-ask-header">
+                                    <span className="le-ask-header-label">Ask about this item</span>
+                                  </div>
+                                  {QUERY_OPTIONS.map(opt => (
+                                    <button
+                                      key={opt.key}
+                                      className="le-ask-option"
+                                      onClick={() => {
+                                        setAskSelected(s => ({ ...s, [item.id]: opt.key }))
+                                        setAskStep(s => ({ ...s, [item.id]: 'note' }))
+                                      }}
+                                    >
+                                      <span className="le-ask-option-text">{opt.label}</span>
+                                      <span className="le-ask-option-arr">→</span>
+                                    </button>
+                                  ))}
+                                  <button
+                                    className="le-ask-option le-ask-option--dispute"
+                                    onClick={() => setAskStep(s => ({ ...s, [item.id]: 'dispute' }))}
+                                  >
+                                    <span className="le-ask-option-text">I want to dispute this item</span>
+                                    <span className="le-ask-option-arr">↗</span>
+                                  </button>
+                                </>
+                              )}
+
+                              {step === 'note' && (
+                                <>
+                                  <div className="le-ask-header">
+                                    <button className="le-ask-back" onClick={backToOptions}>← Back</button>
+                                  </div>
+                                  <div className="le-ask-note-body">
+                                    <div className="le-ask-selected-label">"{selOpt?.label}"</div>
+                                    <textarea
+                                      className="le-dispute-textarea"
+                                      placeholder="Add a note (optional)"
+                                      value={disputeMsg[item.id] || ''}
+                                      onChange={e => setDisputeMsg(s => ({ ...s, [item.id]: e.target.value }))}
+                                    />
+                                    <div className="le-dispute-actions">
+                                      <button
+                                        className="le-btn-submit"
+                                        disabled={!!submitting[item.id]}
+                                        onClick={() => sendQuery(item.id)}
+                                      >
+                                        {submitting[item.id] ? 'Sending…' : 'Send question'}
+                                      </button>
+                                      <button className="le-btn-cancel" onClick={closePanel}>Cancel</button>
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+
+                              {step === 'dispute' && (
+                                <>
+                                  <div className="le-ask-header">
+                                    <button className="le-ask-back" onClick={backToOptions}>← Back</button>
+                                    <span className="le-ask-header-label">Raise a concern</span>
+                                  </div>
+                                  <div className="le-ask-note-body">
+                                    <div className="le-reason-tags">
+                                      {REASON_TAGS.map(r => (
+                                        <button
+                                          key={r.key}
+                                          className={`le-reason-tag${disputeReason[item.id] === r.key ? ' selected' : ''}`}
+                                          onClick={() => setDisputeReason(s => ({ ...s, [item.id]: r.key }))}
+                                        >{r.label}</button>
+                                      ))}
+                                    </div>
+                                    <textarea
+                                      className="le-dispute-textarea"
+                                      placeholder="Add more context (optional)"
+                                      value={disputeMsg[item.id] || ''}
+                                      onChange={e => setDisputeMsg(s => ({ ...s, [item.id]: e.target.value }))}
+                                    />
+                                    <div className="le-dispute-actions">
+                                      <button
+                                        className="le-btn-submit"
+                                        disabled={!!submitting[item.id] || !disputeReason[item.id]}
+                                        onClick={() => submitDispute(item.id)}
+                                      >
+                                        {submitting[item.id] ? 'Submitting…' : 'Submit concern'}
+                                      </button>
+                                      <button className="le-btn-cancel" onClick={closePanel}>Cancel</button>
+                                    </div>
+                                  </div>
+                                </>
+                              )}
                             </div>
-                            <textarea
-                              className="le-dispute-textarea"
-                              placeholder="Add a comment (optional)"
-                              value={disputeMsg[item.id] || ''}
-                              onChange={e => setDisputeMsg(s => ({ ...s, [item.id]: e.target.value }))}
-                            />
-                            <div className="le-dispute-actions">
-                              <button
-                                className="le-btn-submit"
-                                disabled={!!submitting[item.id] || !disputeReason[item.id]}
-                                onClick={() => submitDispute(item.id)}
-                              >
-                                {submitting[item.id] ? 'Submitting…' : 'Submit concern'}
-                              </button>
-                              <button className="le-btn-cancel" onClick={() => setDisputeOpen(s => ({ ...s, [item.id]: false }))}>
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        )}
+                          )
+                        })()}
 
                         {/* dispute thread */}
                         {itemDisps.length > 0 && (
@@ -1022,10 +1195,10 @@ export default function LandlordEstimate() {
                               <div key={di} className="le-thread-msg">
                                 <div className="le-thread-meta">
                                   {d.author_name || d.author_type} · {new Date(d.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                                  {d.reason_tag ? ` · ${REASON_TAGS.find(r => r.key === d.reason_tag)?.label || d.reason_tag}` : ''}
+                                  {d.reason_tag ? ` · ${ALL_TAG_LABELS[d.reason_tag] || d.reason_tag}` : ''}
                                 </div>
                                 <div className={`le-thread-bubble ${d.author_type === 'landlord' ? 'le-bubble-landlord' : 'le-bubble-flent'}`}>
-                                  {d.message || `[${REASON_TAGS.find(r => r.key === d.reason_tag)?.label || d.reason_tag}]`}
+                                  {d.message || `[${ALL_TAG_LABELS[d.reason_tag] || d.reason_tag}]`}
                                 </div>
                               </div>
                             ))}
