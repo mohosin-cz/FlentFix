@@ -147,67 +147,63 @@ const CSS = `
   }
 
   /* plate */
-  .le-plate { padding-top: 22px; border-top: 1px solid var(--le-hairline); margin-top: 22px; }
+  .le-plate { padding-top: 24px; border-top: 1px solid var(--le-hairline); margin-top: 24px; }
   .le-plate-index {
     font-family: var(--le-mono); font-size: 9px; font-weight: 500;
     color: var(--le-ink-soft); letter-spacing: 0.12em; text-transform: uppercase;
-    display: block; margin-bottom: 6px;
+    display: block; margin-bottom: 14px;
   }
 
-  /* plate body: image-left / details-right grid when media present; block when no media */
-  .le-plate-body {
-    display: grid; grid-template-columns: 200px 1fr; gap: 18px; align-items: start;
-  }
-  .le-plate-body.le-plate-no-media { display: block; }
-  @media (max-width: 640px) {
-    .le-plate-body { grid-template-columns: 128px 1fr; gap: 12px; }
-  }
+  /* plate body: vertical stack — image above, text below */
+  .le-plate-body { display: flex; flex-direction: column; gap: 16px; }
 
-  /* media column (left) */
-  .le-plate-media { display: flex; flex-direction: column; gap: 5px; }
+  /* media block */
+  .le-plate-media { display: flex; flex-direction: column; gap: 8px; }
 
-  /* main image — 4:3 aspect ratio */
-  .le-plate-main-img {
-    width: 100%; aspect-ratio: 4/3; border-radius: 8px; overflow: hidden;
-    background: var(--le-hairline); position: relative; cursor: pointer; display: block;
-  }
-  .le-plate-main-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-  /* secondary thumbs strip */
-  .le-plate-sec-row { display: flex; gap: 4px; }
-  .le-plate-sec-thumb {
-    flex: 1; aspect-ratio: 1; border-radius: 4px; overflow: hidden;
+  /* hero — full-width featured photo, tall enough to read detail */
+  .le-plate-hero {
+    width: 100%; height: 224px; border-radius: 10px; overflow: hidden;
     background: var(--le-hairline); position: relative; cursor: pointer;
   }
+  @media (min-width: 641px) { .le-plate-hero { height: 292px; } }
+  .le-plate-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* secondary thumbs — small squares below the hero */
+  .le-plate-sec-row { display: flex; gap: 6px; }
+  .le-plate-sec-thumb {
+    width: 76px; height: 76px; border-radius: 7px; overflow: hidden; flex-shrink: 0;
+    background: var(--le-hairline); position: relative; cursor: pointer;
+  }
+  @media (min-width: 641px) { .le-plate-sec-thumb { width: 88px; height: 88px; } }
   .le-plate-sec-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .le-plate-overflow-pill {
-    position: absolute; inset: 0; background: rgba(33,28,68,0.60);
+    position: absolute; inset: 0; background: rgba(33,28,68,0.55);
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--le-mono); font-size: 10px; font-weight: 600;
+    font-family: var(--le-mono); font-size: 12px; font-weight: 600;
     color: var(--le-paper); letter-spacing: 0.04em;
   }
 
   /* video play chip */
   .le-media-chip {
-    position: absolute; bottom: 4px; right: 4px;
+    position: absolute; bottom: 6px; right: 6px;
     font-family: var(--le-mono); font-size: 8px; font-weight: 500;
     color: var(--le-paper); background: rgba(33,28,68,0.72);
     padding: 2px 5px; border-radius: 2px; letter-spacing: 0.04em; line-height: 1.4;
   }
 
-  /* plate content (details right column) */
-  .le-plate-content { display: flex; flex-direction: column; gap: 5px; }
-  .le-plate-cost-line {
-    display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 2px;
+  /* plate content */
+  .le-plate-content { display: flex; flex-direction: column; gap: 7px; }
+  .le-plate-title-row {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
   }
   .le-plate-title {
-    font-family: var(--le-display); font-size: 15px; font-weight: 600;
+    font-family: var(--le-display); font-size: 16px; font-weight: 400; font-style: italic;
     color: var(--le-ink); line-height: 1.35;
   }
   .le-plate-cost {
-    font-family: var(--le-mono); font-size: 15px; font-weight: 600;
+    font-family: var(--le-mono); font-size: 14px; font-weight: 600;
     color: var(--le-ink); white-space: nowrap; flex-shrink: 0;
-    font-variant-numeric: tabular-nums;
+    font-variant-numeric: tabular-nums; padding-top: 3px;
   }
   .le-plate-actuals {
     font-family: var(--le-mono); font-size: 9px; font-weight: 500;
@@ -835,18 +831,20 @@ export default function LandlordEstimate() {
 
                 return (
                   <div key={item.id} className="le-plate">
-                    <div className={`le-plate-body${allUrls.length === 0 ? ' le-plate-no-media' : ''}`}>
+                    <span className="le-plate-index">{plateIdx}</span>
+
+                    <div className="le-plate-body">
                       {allUrls.length > 0 && (() => {
-                        const mainUrl  = allUrls[0]
-                        const mainIsVid = /\.(mp4|mov|webm|m4v)$/i.test(mainUrl)
-                        const mainSrc  = mainUrl.replace(/(\.[^.]+)$/, '_thumb.webp')
-                        const secUrls  = allUrls.slice(1, 3)
-                        const overflow = allUrls.length > 3 ? allUrls.length - 3 : 0
+                        const mainUrl    = allUrls[0]
+                        const mainIsVid  = /\.(mp4|mov|webm|m4v)$/i.test(mainUrl)
+                        const mainSrc    = mainUrl.replace(/(\.[^.]+)$/, '_thumb.webp')
+                        const secVisible = allUrls.slice(1, 4)
+                        const overflow   = allUrls.length > 4 ? allUrls.length - 4 : 0
                         return (
                           <div className="le-plate-media">
-                            {/* Main image — 4:3, opens lightbox */}
+                            {/* Hero — large full-width photo */}
                             <div
-                              className="le-plate-main-img"
+                              className="le-plate-hero"
                               tabIndex={0}
                               role="button"
                               onClick={() => setLightbox({ urls: allUrls, idx: 0 })}
@@ -864,10 +862,10 @@ export default function LandlordEstimate() {
                               />
                               {mainIsVid && <span className="le-media-chip">▶</span>}
                             </div>
-                            {/* Secondary thumbs row — up to 2 + overflow pill */}
-                            {(secUrls.length > 0 || overflow > 0) && (
+                            {/* Secondary thumbs strip */}
+                            {(secVisible.length > 0 || overflow > 0) && (
                               <div className="le-plate-sec-row">
-                                {secUrls.map((mUrl, si) => {
+                                {secVisible.map((mUrl, si) => {
                                   const isVid = /\.(mp4|mov|webm|m4v)$/i.test(mUrl)
                                   const src = mUrl.replace(/(\.[^.]+)$/, '_thumb.webp')
                                   return (
@@ -898,8 +896,8 @@ export default function LandlordEstimate() {
                                     className="le-plate-sec-thumb"
                                     tabIndex={0}
                                     role="button"
-                                    onClick={() => setLightbox({ urls: allUrls, idx: 3 })}
-                                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setLightbox({ urls: allUrls, idx: 3 }) }}
+                                    onClick={() => setLightbox({ urls: allUrls, idx: 4 })}
+                                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setLightbox({ urls: allUrls, idx: 4 }) }}
                                   >
                                     <div className="le-plate-overflow-pill">+{overflow}</div>
                                   </div>
@@ -910,11 +908,17 @@ export default function LandlordEstimate() {
                         )
                       })()}
 
-                      {/* content (right column or full-width when no media) */}
+                      {/* content */}
                       <div className="le-plate-content">
-                        <span className="le-plate-index">{plateIdx}</span>
-                        {/* item name */}
-                        <span className="le-plate-title">{item.item_name || '—'}</span>
+                        {/* title + total — item name italic serif left, price mono right */}
+                        <div className="le-plate-title-row">
+                          <span className="le-plate-title">{item.item_name || '—'}</span>
+                          {total != null && total > 0 ? (
+                            <span className="le-plate-cost">₹{fmt(total)}</span>
+                          ) : item.cost_type === 'actuals' ? (
+                            <span className="le-plate-actuals">Actuals</span>
+                          ) : null}
+                        </div>
 
                         {/* action mark: action_type · warranty */}
                         {(item.action_type || item.warranty_months) && (
@@ -939,22 +943,15 @@ export default function LandlordEstimate() {
                           <div className="le-plate-remedy">{item.action}</div>
                         )}
 
-                        {/* cost line: Material · Labour on left, total right */}
-                        {item.cost_type !== 'actuals' && item.cost_type !== 'nil' ? (
-                          <div className="le-plate-cost-line">
-                            {((item.material_cost || 0) > 0 || (item.labour_cost || 0) > 0) && (
-                              <span className="le-plate-costs">
-                                {[
-                                  (item.material_cost || 0) > 0 && `Material ₹${fmt(item.material_cost)}`,
-                                  (item.labour_cost || 0) > 0 && `Labour ₹${fmt(item.labour_cost)}`,
-                                ].filter(Boolean).join('  ·  ')}
-                              </span>
-                            )}
-                            {total != null && total > 0 && <span className="le-plate-cost">₹{fmt(total)}</span>}
+                        {/* material / labour breakdown */}
+                        {item.cost_type !== 'actuals' && item.cost_type !== 'nil' &&
+                          ((item.material_cost || 0) > 0 || (item.labour_cost || 0) > 0) && (
+                          <div className="le-plate-costs">
+                            {(item.material_cost || 0) > 0 && `Material ₹${fmt(item.material_cost)}`}
+                            {(item.material_cost || 0) > 0 && (item.labour_cost || 0) > 0 && '  ·  '}
+                            {(item.labour_cost || 0) > 0 && `Labour ₹${fmt(item.labour_cost)}`}
                           </div>
-                        ) : item.cost_type === 'actuals' ? (
-                          <div className="le-plate-actuals">Billed on actuals</div>
-                        ) : null}
+                        )}
 
                         {/* approve / ask — hidden when estimate is locked */}
                         {!isLocked && (
