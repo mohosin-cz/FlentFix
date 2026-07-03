@@ -103,6 +103,7 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
     grille: 'Grille / Railing', counter: 'Counter Surface',
     wmPoint: 'Washing Machine Point', wmInlet: 'Washing Machine Inlet',
   }
+  const TRADE_SEC_IDS = new Set(['electrical', 'woodwork', 'misc', 'plumbing'])
   const rows = []
   const data        = draft.data || {}
   const customItems = draft.customItems || {}
@@ -132,14 +133,14 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
     }
     const tabLabel = toTitle(tabKey)
     Object.entries(tabData || {}).forEach(([secId, secData]) => {
-      const secLabel = toTitle(secId)
-      const trade    = secId === 'woodwork' ? 'woodwork' : secId === 'misc' ? 'misc' : secId === 'plumbing' ? 'plumbing' : 'electrical'
+      const area  = TRADE_SEC_IDS.has(secId) ? tabLabel : toTitle(secId)
+      const trade = secId === 'woodwork' ? 'woodwork' : secId === 'misc' ? 'misc' : secId === 'plumbing' ? 'plumbing' : 'electrical'
       Object.entries(secData || {}).forEach(([itemKey, cards]) => {
         if (!Array.isArray(cards)) return
         cards.forEach((card, ci) => {
           const sel    = card.selectedIssues || []
           const suffix = cards.length > 1 ? ` (${ci + 1})` : ''
-          const base   = { inspection_id: inspectionId, section_name: tabLabel, area: secLabel, item_name: (KEY_LABELS[itemKey] || toTitle(itemKey)) + suffix, trade }
+          const base   = { inspection_id: inspectionId, section_name: tabLabel, area, item_name: (KEY_LABELS[itemKey] || toTitle(itemKey)) + suffix, trade }
           if (!card.notAvailable && sel.length === 0) return
           if (card.notAvailable) {
             rows.push({ ...base, issue_description: card.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available', _media: card.media || [] })

@@ -434,11 +434,19 @@ function ItemDrawer({
 
   function costSection() {
     if (excl) return <div className="fld" style={{ color:'var(--muted)' }}>Excluded from this estimate.</div>
-    if (type === 'actual') return <div className="fld" style={{ color:'var(--teal)',fontStyle:'italic' }}>Charged on actuals — final cost added at invoicing.</div>
-    if (type === 'none')   return <><div className="matpick"><span className="nm">Not charged</span><span className="pr" style={{ color:'var(--faint)' }}>₹0</span></div><div className="tot2"><span className="ey">Total</span><span className="v" style={{ color:'var(--faint)' }}>₹0</span></div></>
-    if (np) return <div className="fld" style={{ color:'var(--amber)' }}>⚠ No price yet — get a vendor quote, then set a price.</div>
+    if (type === 'none') return <><div className="matpick"><span className="nm">Not charged</span><span className="pr" style={{ color:'var(--faint)' }}>₹0</span></div><div className="tot2"><span className="ey">Total</span><span className="v" style={{ color:'var(--faint)' }}>₹0</span></div></>
+    // Both 'priced' and 'actual' show editable inputs.
+    // For 'actual', inputs are optional ballpark; row stays out of firm total.
     return (
       <>
+        {type === 'actual' && (
+          <div className="fld" style={{ color:'var(--teal)', fontStyle:'italic', marginBottom:4 }}>
+            On actuals — ballpark only, not counted in firm total.
+          </div>
+        )}
+        {np && type !== 'actual' && (
+          <div className="fld" style={{ color:'var(--amber)' }}>⚠ No price yet — get a vendor quote, then set a price.</div>
+        )}
         <DrawerMatPicker
           description={item.material_description || ''}
           fxin={item.material_fxin || ''}
@@ -458,7 +466,7 @@ function ItemDrawer({
             <input className="inp" type="number" value={dv('qty')} onChange={e => sd('qty', e.target.value)} onBlur={() => commit('qty')} style={{ width:60 }} />
           </div>
         </div>
-        <div className="tot2"><span className="ey">Total</span><span className="v">₹{fmt(tot)}</span></div>
+        {type === 'priced' && <div className="tot2"><span className="ey">Total</span><span className="v">₹{fmt(tot)}</span></div>}
       </>
     )
   }
@@ -847,7 +855,7 @@ function EstimateWorkbenchInner() {
     setLoading(true)
     const [{ data: { user } }, { data: est }] = await Promise.all([
       supabase.auth.getUser(),
-      supabase.from('estimates').select('id,pid,inspection_id,status,notes,share_token,created_at,created_by').eq('id', id).maybeSingle(),
+      supabase.from('estimates').select('id,pid,inspection_id,status,notes,share_token,created_at,created_by,total').eq('id', id).maybeSingle(),
     ])
     setUserEmail(user?.email || null)
     if (!est) { setError('Estimate not found'); setLoading(false); return }
@@ -878,6 +886,15 @@ function EstimateWorkbenchInner() {
     setVersionCount(count || 1)
     setLoading(false)
     loadMedia(fetched)
+
+    // Auto-backfill stored total if null (first open after migration or after regenerate)
+    if (est.total == null) {
+      const firmTotal = fetched
+        .filter(i => !['removed', 'excluded'].includes(i.status) && i.cost_type === 'priced')
+        .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
+      supabase.from('estimates').update({ total: firmTotal }).eq('id', id)
+        .then(() => setEstimate(prev => prev ? { ...prev, total: firmTotal } : prev))
+    }
   }
 
   async function loadMedia(itemsList) {
@@ -954,9 +971,19 @@ function EstimateWorkbenchInner() {
     }
     if (!Object.keys(safe).length) return
     const prev = items.find(i => i.id === itemId)
-    setItems(p => p.map(i => i.id === itemId ? { ...i, ...safe } : i))
+    const newItems = items.map(i => i.id === itemId ? { ...i, ...safe } : i)
+    setItems(() => newItems)
     const { error: err } = await supabase.from('estimate_items').update(safe).eq('id', itemId)
-    if (err) { console.error('[updateItem]', err.message); setItems(p => p.map(i => i.id===itemId ? prev : i)) }
+    if (err) {
+      console.error('[updateItem]', err.message)
+      setItems(p => p.map(i => i.id === itemId ? prev : i))
+    } else {
+      // Recompute and persist stored total (fire-and-forget)
+      const firmTotal = newItems
+        .filter(i => !['removed', 'excluded'].includes(i.status) && i.cost_type === 'priced')
+        .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
+      supabase.from('estimates').update({ total: firmTotal }).eq('id', id)
+    }
   }
 
   // ── Reorder / move-across-trade ───────────────────────────────────────────────

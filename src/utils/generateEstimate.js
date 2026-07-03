@@ -1,5 +1,26 @@
 import { supabase } from '../lib/supabase'
 
+// Recompute and persist estimates.total from current estimate_items.
+// Formula: sum((material_cost + labour_cost) * qty) for priced, non-removed/excluded rows.
+// Requires: ALTER TABLE estimates ADD COLUMN IF NOT EXISTS total numeric;
+export async function recomputeEstimateTotal(estimateId) {
+  const { data: rows } = await supabase
+    .from('estimate_items')
+    .select('material_cost, labour_cost, qty, cost_type, status')
+    .eq('estimate_id', estimateId)
+  const total = (rows || [])
+    .filter(r => !['removed', 'excluded'].includes(r.status) && r.cost_type === 'priced')
+    .reduce((s, r) => s + ((parseFloat(r.material_cost) || 0) + (parseFloat(r.labour_cost) || 0)) * (r.qty || 1), 0)
+  await supabase.from('estimates').update({ total }).eq('id', estimateId)
+  return total
+}
+
+// One-time backfill: run once after deploying to populate total for all existing estimates.
+export async function backfillEstimateTotals() {
+  const { data: ests } = await supabase.from('estimates').select('id')
+  for (const est of (ests || [])) await recomputeEstimateTotal(est.id)
+}
+
 export async function resolveInspectionWithData(pid) {
   const { data: inspections } = await supabase
     .from('inspections')
@@ -17,17 +38,7 @@ export async function resolveInspectionWithData(pid) {
   return inspections[0].id
 }
 
-const belongsInEstimate = (item) => {
-  if (item.cost_type === 'nil') return false
-  if (item.excluded_from_estimate) return false
-  if (item.section_name?.toLowerCase() === 'appliances') return false
-  if (item.availability_status === 'not_available' || item.availability_status === 'no_provision') return false
-  const desc = (item.issue_description || '').toLowerCase().trim()
-  if (desc === 'not available' || desc === 'n/a' || desc === 'na' || desc.startsWith('not available')) return false
-  if (desc.includes('no provision')) return false
-  if (desc.includes('functional') || desc.includes('no issues') || desc.includes('no issue')) return false
-  return true
-}
+const belongsInEstimate = (item) => item.excluded_from_estimate !== true
 
 export async function generateEstimate(inspectionId, pid, userEmail) {
   // Check for existing estimate
@@ -66,7 +77,7 @@ export async function generateEstimate(inspectionId, pid, userEmail) {
     const rows = validItems.map((item, i) => ({
       estimate_id:          estimateId,
       line_item_id:         item.id,
-      sort_order:           i,
+      sort_order:           i * 10,
       area:                 item.area || '',
       item_name:            item.item_name || '',
       trade:                item.trade || '',
@@ -83,5 +94,6 @@ export async function generateEstimate(inspectionId, pid, userEmail) {
     if (insertErr) console.error('[generateEstimate] items insert failed:', insertErr.message)
   }
 
+  await recomputeEstimateTotal(estimateId)
   return estimateId
 }

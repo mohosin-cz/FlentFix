@@ -458,7 +458,7 @@ function fmt(n) { return (n || 0).toLocaleString('en-IN') }
 function titleCase(str) { return (str || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }
 function itemTotal(item) {
   if (item.cost_type === 'actuals' || item.cost_type === 'nil') return null
-  return (parseFloat(item.material_cost) || 0) + (parseFloat(item.labour_cost) || 0)
+  return ((parseFloat(item.material_cost) || 0) + (parseFloat(item.labour_cost) || 0)) * (item.qty || 1)
 }
 
 const REASON_TAGS = [
@@ -507,16 +507,43 @@ export default function LandlordEstimate() {
   }, [lightbox])
 
   const load = useCallback(async () => {
+    // 1. Resolve share_token → estimate (no embedded joins — avoids RLS silent-empty issues)
     const { data: est } = await supabase
       .from('estimates')
-      .select('*, estimate_items(*), estimate_disputes(*)')
+      .select('*')
       .eq('share_token', token)
-      .single()
+      .maybeSingle()
 
     if (!est) { setNotFound(true); setLoading(false); return }
 
-    const lineItemIds = (est.estimate_items || []).map(i => i.line_item_id).filter(Boolean)
-    let mediaMap = {}
+    // 2. Fetch estimate_items explicitly, ordered by sort_order.
+    //    Join inspection_line_items for section_name (room) as area-eyebrow fallback.
+    const { data: estItems } = await supabase
+      .from('estimate_items')
+      .select('*, inspection_line_items(section_name, score, notes, availability)')
+      .eq('estimate_id', est.id)
+      .order('sort_order')
+
+    // 3. Fetch disputes
+    const { data: estDisputes } = await supabase
+      .from('estimate_disputes')
+      .select('*')
+      .eq('estimate_id', est.id)
+
+    // 4. Fetch inspection metadata (date, address — display only)
+    let insp = null
+    if (est.inspection_id) {
+      const { data } = await supabase
+        .from('inspections')
+        .select('id, pid, house_type, inspection_date, config, owner_email')
+        .eq('id', est.inspection_id)
+        .maybeSingle()
+      insp = data
+    }
+
+    // 5. Fetch media keyed on line_item_id
+    const lineItemIds = (estItems || []).map(i => i.line_item_id).filter(Boolean)
+    const mediaMap = {}
     if (lineItemIds.length > 0) {
       const { data: media } = await supabase
         .from('line_item_media').select('line_item_id, url').in('line_item_id', lineItemIds)
@@ -526,16 +553,10 @@ export default function LandlordEstimate() {
       })
     }
 
-    if (est.inspection_id) {
-      const { data: insp } = await supabase
-        .from('inspections').select('id, pid, house_type, inspection_date, config, owner_email')
-        .eq('id', est.inspection_id).maybeSingle()
-      setInspection(insp)
-    }
-
     setEstimate(est)
-    setItems((est.estimate_items || []).map(item => ({ ...item, _photos: mediaMap[item.line_item_id] || [] })))
-    setDisputes(est.estimate_disputes || [])
+    setItems((estItems || []).map(item => ({ ...item, _photos: mediaMap[item.line_item_id] || [] })))
+    setDisputes(estDisputes || [])
+    setInspection(insp)
 
     if (!est.first_viewed_at && !isPreview) {
       await supabase.from('estimates').update({ first_viewed_at: new Date().toISOString(), status: 'viewed' }).eq('id', est.id)
@@ -549,7 +570,11 @@ export default function LandlordEstimate() {
   useEffect(() => {
     if (!estimate?.id) return
     const refresh = async () => {
-      const { data: fresh } = await supabase.from('estimate_items').select('*').eq('estimate_id', estimate.id).order('sort_order')
+      const { data: fresh } = await supabase
+        .from('estimate_items')
+        .select('*, inspection_line_items(section_name, score, notes, availability)')
+        .eq('estimate_id', estimate.id)
+        .order('sort_order')
       if (fresh) setItems(prev => fresh.map(item => ({ ...item, _photos: prev.find(p => p.id === item.id)?._photos || [] })))
       const { data: freshD } = await supabase.from('estimate_disputes').select('*').eq('estimate_id', estimate.id)
       if (freshD) setDisputes(freshD)
@@ -621,9 +646,13 @@ export default function LandlordEstimate() {
   }
 
   // ── Computed ──────────────────────────────────────────────────────────────
-  const visibleItems   = items.filter(i => i.status !== 'removed' && i.status !== 'excluded')
+  // Hide removed, excluded, and nil-cost items from the landlord view
+  const visibleItems   = items.filter(i => i.status !== 'removed' && i.status !== 'excluded' && i.cost_type !== 'nil')
   const pendingCount   = visibleItems.filter(i => !i.status || i.status === 'pending').length
-  const grandTotal     = visibleItems.reduce((s, i) => s + (itemTotal(i) || 0), 0)
+  // Use stored total (updated by workbench after every write); fall back to client-side compute
+  const grandTotal     = estimate?.total != null
+    ? estimate.total
+    : visibleItems.reduce((s, i) => s + (itemTotal(i) || 0), 0)
   const attentionCount = visibleItems.filter(i => { const t = itemTotal(i); return (t != null && t > 0) || i.cost_type === 'actuals' }).length
 
   const groups = []
@@ -737,6 +766,11 @@ export default function LandlordEstimate() {
               {tradeItems.map(item => {
                 const plateIdx  = String(plateOrder.get(item.id)).padStart(2, '0')
                 const total     = itemTotal(item)
+                // Guard: if area was incorrectly stored as the trade name, fall back to
+                // inspection_line_items.section_name which is always the room/tab label.
+                const areaEyebrow = item.area && item.area.toLowerCase() !== (item.trade || '').toLowerCase()
+                  ? item.area
+                  : (item.inspection_line_items?.section_name || null)
                 const itemDisps = disputes.filter(d => d.estimate_item_id === item.id)
                 const status    = item.status || 'pending'
                 const isOpen    = !!disputeOpen[item.id]
@@ -796,8 +830,8 @@ export default function LandlordEstimate() {
                           </div>
                         )}
 
-                        {/* area */}
-                        {item.area && <div className="le-plate-area">{item.area}</div>}
+                        {/* area eyebrow — shows room, not trade */}
+                        {areaEyebrow && <div className="le-plate-area">{areaEyebrow}</div>}
 
                         {/* issue line */}
                         {item.issue_description && (

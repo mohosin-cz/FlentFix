@@ -188,6 +188,9 @@ const GENERAL_ITEMS = [
   { key: 'carpentry',     label: 'Carpentry Touch-up', trade: 'woodwork', freeText: true },
 ]
 
+// Section IDs that represent a trade grouping (not a room) — area should be the tab (room) label
+const TRADE_SEC_IDS = new Set(['electrical', 'woodwork', 'misc', 'plumbing'])
+
 // ── Tab builder ───────────────────────────────────────────────────────────────
 function parseBHK(layout) {
   const n = parseInt((layout || '').replace(/BHK/i, '').trim())
@@ -1373,7 +1376,8 @@ export default function InspectionIndoor() {
             const selIssues  = card.selectedIssues || []
             const suffix     = cards.length > 1 ? ` (${ci + 1})` : ''
             const mediaFiles = Array.isArray(card.media) ? card.media.filter(f => typeof f === 'string' && f.startsWith('http')) : []
-            const base       = { inspection_id: inspectionId, section_name: tab.label, area: sec.label, item_name: itemConfig.label + suffix, trade: itemConfig.trade }
+            const area       = TRADE_SEC_IDS.has(sec.id) ? tab.label : sec.label
+            const base       = { inspection_id: inspectionId, section_name: tab.label, area, item_name: itemConfig.label + suffix, trade: itemConfig.trade }
 
             if (itemConfig.key === 'acPoint' && (card.acProvision || 'present') === 'not_present') {
               lineItemRows.push({ ...base, issue_description: 'No provision', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'no_provision' })
