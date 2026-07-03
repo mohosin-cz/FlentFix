@@ -104,6 +104,20 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
     wmPoint: 'Washing Machine Point', wmInlet: 'Washing Machine Inlet',
   }
   const TRADE_SEC_IDS = new Set(['electrical', 'woodwork', 'misc', 'plumbing'])
+  const FIXTURE_TRADE = {
+    cbSw: 'electrical', cbGey: 'electrical', cbExh: 'electrical', cbMl: 'electrical',
+    bSwitchboard: 'electrical', geyser: 'electrical', exhaustFan: 'electrical',
+    mirrorLight: 'electrical', wmPoint: 'electrical', utilityLight: 'electrical',
+    balconyLight: 'electrical',
+    cbTap: 'plumbing', cbSh: 'plumbing', cbFl: 'plumbing', cbJs: 'plumbing',
+    cbHc: 'plumbing', tap: 'plumbing', shower: 'plumbing', flush: 'plumbing',
+    jetSpray: 'plumbing', hotCold: 'plumbing', wmInlet: 'plumbing', drain: 'plumbing',
+    ro: 'plumbing', waterproofing: 'plumbing', sinkTap: 'plumbing',
+    cbDr: 'woodwork', bDoor: 'woodwork', grille: 'woodwork',
+    cbFt: 'misc', cbWt: 'misc', cbMi: 'misc', cbTr: 'misc', cbSd: 'misc',
+    floorTiles: 'misc', wallTiles: 'misc', mirror: 'misc', towelRod: 'misc',
+    soapDish: 'misc', ceiling: 'misc', flooring: 'misc', counter: 'misc',
+  }
   const rows = []
   const data        = draft.data || {}
   const customItems = draft.customItems || {}
@@ -133,14 +147,15 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
     }
     const tabLabel = toTitle(tabKey)
     Object.entries(tabData || {}).forEach(([secId, secData]) => {
-      const area  = TRADE_SEC_IDS.has(secId) ? tabLabel : toTitle(secId)
-      const trade = secId === 'woodwork' ? 'woodwork' : secId === 'misc' ? 'misc' : secId === 'plumbing' ? 'plumbing' : 'electrical'
+      const area     = TRADE_SEC_IDS.has(secId) ? tabLabel : toTitle(secId)
+      const secTrade = TRADE_SEC_IDS.has(secId) ? secId : null
       Object.entries(secData || {}).forEach(([itemKey, cards]) => {
         if (!Array.isArray(cards)) return
         cards.forEach((card, ci) => {
-          const sel    = card.selectedIssues || []
-          const suffix = cards.length > 1 ? ` (${ci + 1})` : ''
-          const base   = { inspection_id: inspectionId, section_name: tabLabel, area, item_name: (KEY_LABELS[itemKey] || toTitle(itemKey)) + suffix, trade }
+          const sel       = card.selectedIssues || []
+          const suffix    = cards.length > 1 ? ` (${ci + 1})` : ''
+          const itemTrade = secTrade || FIXTURE_TRADE[itemKey] || 'misc'
+          const base      = { inspection_id: inspectionId, section_name: tabLabel, area, item_name: (KEY_LABELS[itemKey] || toTitle(itemKey)) + suffix, trade: itemTrade }
           if (!card.notAvailable && sel.length === 0) return
           if (card.notAvailable) {
             rows.push({ ...base, issue_description: card.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available', _media: card.media || [] })

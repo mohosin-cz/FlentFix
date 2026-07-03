@@ -520,7 +520,7 @@ export default function LandlordEstimate() {
     //    Join inspection_line_items for section_name (room) as area-eyebrow fallback.
     const { data: estItems } = await supabase
       .from('estimate_items')
-      .select('*, inspection_line_items(section_name, score, notes, availability)')
+      .select('*, inspection_line_items(section_name, item_score, notes, availability_status)')
       .eq('estimate_id', est.id)
       .order('sort_order')
 
@@ -572,7 +572,7 @@ export default function LandlordEstimate() {
     const refresh = async () => {
       const { data: fresh } = await supabase
         .from('estimate_items')
-        .select('*, inspection_line_items(section_name, score, notes, availability)')
+        .select('*, inspection_line_items(section_name, item_score, notes, availability_status)')
         .eq('estimate_id', estimate.id)
         .order('sort_order')
       if (fresh) setItems(prev => fresh.map(item => ({ ...item, _photos: prev.find(p => p.id === item.id)?._photos || [] })))

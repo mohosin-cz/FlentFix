@@ -38,9 +38,10 @@ function itemTot(it) {
   return ((it.material_cost||0)+(it.labour_cost||0))*(it.qty||1)
 }
 
-function getScore(it)  { return it.inspection_line_items?.score ?? it.score ?? null }
-function getNotes(it)  { return it.inspection_line_items?.notes ?? it.inspector_notes ?? '' }
-function getAvail(it)  { return it.inspection_line_items?.availability ?? it.availability ?? '' }
+function getScore(it)  { return it.inspection_line_items?.item_score ?? null }
+function getNotes(it)  { return it.inspection_line_items?.notes ?? '' }
+function getAvail(it)  { return it.inspection_line_items?.availability_status ?? '' }
+function getAction(it) { return it.inspection_line_items?.action ?? '' }
 
 function needsPricing(it) {
   return it.cost_type === 'priced'
@@ -866,7 +867,7 @@ function EstimateWorkbenchInner() {
     let itemsData = null
     const { data: d1, error: e1 } = await supabase
       .from('estimate_items')
-      .select('*, inspection_line_items(score, notes, availability)')
+      .select('*, inspection_line_items(item_score, notes, availability_status, action)')
       .eq('estimate_id', id)
       .order('sort_order')
     if (e1) {
@@ -876,14 +877,14 @@ function EstimateWorkbenchInner() {
       itemsData = d1
     }
 
-    const [inspRes, { count }] = await Promise.all([
+    const [inspRes, estCountRes] = await Promise.all([
       supabase.from('inspections').select('id,pid,house_type,inspection_date').eq('id', est.inspection_id).maybeSingle(),
-      supabase.from('estimates').select('id', { count:'exact', head:true }).eq('pid', est.pid),
+      supabase.from('estimates').select('id').eq('pid', est.pid),
     ])
     const fetched = itemsData || []
     setItems(fetched)
     setInspection(inspRes.data || null)
-    setVersionCount(count || 1)
+    setVersionCount(estCountRes.data?.length || 1)
     setLoading(false)
     loadMedia(fetched)
 
