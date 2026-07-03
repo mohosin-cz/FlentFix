@@ -7,6 +7,7 @@ import {
   HealthSlider, AccordionCard, StickyFooter, BtnPrimary,
 } from '../components/ui'
 import QuickNotes from '../components/QuickNotes'
+import { uploadMedia } from '../utils/mediaUtils'
 
 // ── Issue presets ─────────────────────────────────────────────────────────────
 const I = {
@@ -296,7 +297,10 @@ function Thumb({ file }) {
   }, [file])
   if (!url) return null
   const isVideo = typeof file === 'string' ? /\.(mp4|mov|webm)$/i.test(url) : file.type?.startsWith('video')
-  if (isVideo) return <video src={url} muted playsInline style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} />
+  if (isVideo) {
+    const poster = typeof file === 'string' ? url.replace(/(\.[^.]+)$/, '_thumb.webp') : undefined
+    return <video src={url} muted playsInline preload={typeof file === 'string' ? 'none' : 'metadata'} poster={poster} style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} />
+  }
   return <img src={url} alt="" style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} onError={e => { e.target.style.display = 'none' }} />
 }
 
@@ -315,13 +319,12 @@ function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photo
     setUploading(true)
     const newUrls = []
     for (const file of selected) {
-      const ext = file.name.split('.').pop()
       const safe = (itemKey || 'item').replace(/[^a-zA-Z0-9]/g, '_')
-      const path = `${pid}/${safe}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
-      const { data: up, error } = await supabase.storage.from('inspection-media').upload(path, file, { upsert: true })
-      if (error) { console.error('Media upload error:', error); continue }
-      const { data: { publicUrl } } = supabase.storage.from('inspection-media').getPublicUrl(up.path)
-      newUrls.push(publicUrl)
+      const baseName = `${pid}/${safe}_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      try {
+        const publicUrl = await uploadMedia(supabase, file, baseName)
+        if (publicUrl) newUrls.push(publicUrl)
+      } catch (e) { console.error('[MediaUpload]', e.message) }
     }
     setUploading(false)
     if (newUrls.length) onChange([...files, ...newUrls])

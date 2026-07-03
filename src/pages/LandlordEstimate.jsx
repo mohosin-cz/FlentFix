@@ -154,20 +154,22 @@ const CSS = `
     display: block; margin-bottom: 12px;
   }
 
-  /* marginalia grid: thumb in left gutter */
+  /* plate body: column — thumb strip above content */
   .le-plate-body {
-    display: grid; grid-template-columns: 72px 1fr; gap: 14px; align-items: start;
+    display: flex; flex-direction: column; gap: 14px;
   }
-  @media (min-width: 641px) {
-    .le-plate-body { grid-template-columns: 110px 1fr; gap: 20px; }
+
+  /* thumbnail strip — wrapping row of equal squares */
+  .le-plate-thumbs {
+    display: flex; flex-wrap: wrap; gap: 6px;
   }
 
   /* thumb */
   .le-plate-thumb {
-    width: 72px; aspect-ratio: 1; border-radius: 6px; overflow: hidden;
+    width: 104px; height: 104px; border-radius: 6px; overflow: hidden; flex-shrink: 0;
     background: var(--le-hairline); position: relative; cursor: pointer;
   }
-  @media (min-width: 641px) { .le-plate-thumb { width: 100%; } }
+  @media (min-width: 641px) { .le-plate-thumb { width: 128px; height: 128px; } }
   .le-plate-thumb.empty { cursor: default; }
   .le-plate-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .le-plate-thumb-ph {
@@ -817,39 +819,54 @@ export default function LandlordEstimate() {
                 const itemDisps = disputes.filter(d => d.estimate_item_id === item.id)
                 const status    = item.status || 'pending'
                 const isOpen    = !!disputeOpen[item.id]
-                const allUrls   = item._photos || []
-                const photos    = allUrls.filter(u => !/\.(mp4|mov|webm|m4v)$/i.test(u))
-                const videos    = allUrls.filter(u => /\.(mp4|mov|webm|m4v)$/i.test(u))
-                const thumb     = photos[0] || videos[0] || null
-                const mediaTxt  = [photos.length > 0 && `▤ ${photos.length}`, videos.length > 0 && '▶'].filter(Boolean).join(' ')
+                const allUrls = item._photos || []
 
                 return (
                   <div key={item.id} className="le-plate">
                     <span className="le-plate-index">{plateIdx}</span>
 
                     <div className="le-plate-body">
-                      {/* thumbnail — left gutter */}
-                      <div>
-                        <div
-                          className={`le-plate-thumb${!thumb ? ' empty' : ''}`}
-                          tabIndex={thumb ? 0 : undefined}
-                          onClick={thumb ? () => setLightbox({ urls: allUrls.length ? allUrls : [thumb], idx: 0 }) : undefined}
-                          onKeyDown={e => { if (thumb && (e.key === 'Enter' || e.key === ' ')) setLightbox({ urls: allUrls.length ? allUrls : [thumb], idx: 0 }) }}
-                        >
-                          {thumb ? (
-                            <img src={thumb} alt="" />
-                          ) : (
-                            <div className="le-plate-thumb-ph">
-                              <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                                <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.5"/>
-                                <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
-                                <path d="M3 15l5-5 4 4 3-3 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            </div>
-                          )}
-                          {mediaTxt && <span className="le-media-chip">{mediaTxt}</span>}
+                      {/* thumbnail strip — all media, wrapping row */}
+                      {allUrls.length > 0 ? (
+                        <div className="le-plate-thumbs">
+                          {allUrls.map((mUrl, ui) => {
+                            const isVid = /\.(mp4|mov|webm|m4v)$/i.test(mUrl)
+                            const src = mUrl.replace(/(\.[^.]+)$/, '_thumb.webp')
+                            return (
+                              <div
+                                key={ui}
+                                className="le-plate-thumb"
+                                tabIndex={0}
+                                role="button"
+                                onClick={() => setLightbox({ urls: allUrls, idx: ui })}
+                                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setLightbox({ urls: allUrls, idx: ui }) }}
+                              >
+                                <img
+                                  src={src}
+                                  alt=""
+                                  loading="lazy"
+                                  decoding="async"
+                                  onError={e => {
+                                    if (!isVid) { e.currentTarget.src = mUrl; e.currentTarget.onerror = null }
+                                    else e.currentTarget.style.display = 'none'
+                                  }}
+                                />
+                                {isVid && <span className="le-media-chip">▶</span>}
+                              </div>
+                            )
+                          })}
                         </div>
-                      </div>
+                      ) : (
+                        <div className="le-plate-thumb empty">
+                          <div className="le-plate-thumb-ph">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                              <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.5"/>
+                              <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
+                              <path d="M3 15l5-5 4 4 3-3 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                        </div>
+                      )}
 
                       {/* content */}
                       <div className="le-plate-content">
@@ -1042,7 +1059,8 @@ export default function LandlordEstimate() {
         <div className="le-lightbox" onClick={() => setLightbox(null)}>
           <img
             src={lightbox.urls[lightbox.idx]} alt=""
-            className="le-lightbox-img" onClick={e => e.stopPropagation()}
+            className="le-lightbox-img" loading="lazy" decoding="async"
+            onClick={e => e.stopPropagation()}
           />
           {lightbox.urls.length > 1 && (
             <>

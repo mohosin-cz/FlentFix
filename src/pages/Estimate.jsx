@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, Component } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
+import { uploadMedia } from '../utils/mediaUtils'
 import DisputeThread from '../components/DisputeThread'
 import LogoSpinner from '../components/LogoSpinner'
 
@@ -238,7 +239,7 @@ function MediaLightbox({ urls, idx, onClose }) {
       <button onClick={onClose} style={{ position:'fixed',top:14,right:14,width:34,height:34,borderRadius:'50%',background:'rgba(255,255,255,.15)',border:'none',cursor:'pointer',color:'#fff',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center',zIndex:9901 }}>×</button>
       <div onClick={e => e.stopPropagation()} style={{ display:'flex',flexDirection:'column',alignItems:'center',gap:12,maxWidth:'92vw' }}>
         {isVid
-          ? <video src={url} controls autoPlay style={{ maxWidth:'90vw',maxHeight:'80vh',borderRadius:6 }} />
+          ? <video src={url} controls autoPlay preload="none" style={{ maxWidth:'90vw',maxHeight:'80vh',borderRadius:6 }} />
           : <img src={url} alt="" style={{ maxWidth:'90vw',maxHeight:'80vh',objectFit:'contain',borderRadius:6 }} />}
         {urls.length > 1 && (
           <div style={{ display:'flex',alignItems:'center',gap:10 }}>
@@ -918,11 +919,10 @@ function EstimateWorkbenchInner() {
 
   async function handleAddMedia(lineItemId, files) {
     for (const file of files) {
-      const ext = file.name.split('.').pop()
-      const path = `workbench/${lineItemId}/${Date.now()}.${ext}`
-      const { data: up, error: err } = await supabase.storage.from('inspection-media').upload(path, file, { upsert: true })
-      if (err) continue
-      const { data: { publicUrl } } = supabase.storage.from('inspection-media').getPublicUrl(up.path)
+      const baseName = `workbench/${lineItemId}/${Date.now()}`
+      let publicUrl
+      try { publicUrl = await uploadMedia(supabase, file, baseName); if (!publicUrl) continue }
+      catch (e) { console.error('[addMedia]', e.message); continue }
       const type = file.type.startsWith('video') ? 'video' : 'image'
       const { data: row } = await supabase.from('line_item_media').insert({ line_item_id: lineItemId, url: publicUrl, type }).select().single()
       if (row) updateMediaList(lineItemId, prev => [...prev, row])
@@ -938,11 +938,10 @@ function EstimateWorkbenchInner() {
   }
 
   async function handleReplaceMedia(m, file) {
-    const ext = file.name.split('.').pop()
-    const path = `workbench/${m.line_item_id}/${Date.now()}.${ext}`
-    const { data: up, error: err } = await supabase.storage.from('inspection-media').upload(path, file, { upsert: true })
-    if (err) return
-    const { data: { publicUrl } } = supabase.storage.from('inspection-media').getPublicUrl(up.path)
+    const baseName = `workbench/${m.line_item_id}/${Date.now()}`
+    let publicUrl
+    try { publicUrl = await uploadMedia(supabase, file, baseName); if (!publicUrl) return }
+    catch (e) { console.error('[replaceMedia]', e.message); return }
     const type = file.type.startsWith('video') ? 'video' : 'image'
     await supabase.from('line_item_media').update({ url: publicUrl, type }).eq('id', m.id)
     const sp = m.url.split('/object/public/inspection-media/')[1]
