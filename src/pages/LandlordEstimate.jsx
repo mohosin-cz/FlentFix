@@ -151,31 +151,43 @@ const CSS = `
   .le-plate-index {
     font-family: var(--le-mono); font-size: 9px; font-weight: 500;
     color: var(--le-ink-soft); letter-spacing: 0.12em; text-transform: uppercase;
-    display: block; margin-bottom: 12px;
+    display: block; margin-bottom: 6px;
   }
 
-  /* plate body: column — thumb strip above content */
+  /* plate body: image-left / details-right grid when media present; block when no media */
   .le-plate-body {
-    display: flex; flex-direction: column; gap: 14px;
+    display: grid; grid-template-columns: 200px 1fr; gap: 18px; align-items: start;
+  }
+  .le-plate-body.le-plate-no-media { display: block; }
+  @media (max-width: 640px) {
+    .le-plate-body { grid-template-columns: 128px 1fr; gap: 12px; }
   }
 
-  /* thumbnail strip — wrapping row of equal squares */
-  .le-plate-thumbs {
-    display: flex; flex-wrap: wrap; gap: 6px;
-  }
+  /* media column (left) */
+  .le-plate-media { display: flex; flex-direction: column; gap: 5px; }
 
-  /* thumb */
-  .le-plate-thumb {
-    width: 104px; height: 104px; border-radius: 6px; overflow: hidden; flex-shrink: 0;
+  /* main image — 4:3 aspect ratio */
+  .le-plate-main-img {
+    width: 100%; aspect-ratio: 4/3; border-radius: 8px; overflow: hidden;
+    background: var(--le-hairline); position: relative; cursor: pointer; display: block;
+  }
+  .le-plate-main-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* secondary thumbs strip */
+  .le-plate-sec-row { display: flex; gap: 4px; }
+  .le-plate-sec-thumb {
+    flex: 1; aspect-ratio: 1; border-radius: 4px; overflow: hidden;
     background: var(--le-hairline); position: relative; cursor: pointer;
   }
-  @media (min-width: 641px) { .le-plate-thumb { width: 128px; height: 128px; } }
-  .le-plate-thumb.empty { cursor: default; }
-  .le-plate-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .le-plate-thumb-ph {
-    width: 100%; height: 100%; display: flex; align-items: center;
-    justify-content: center; opacity: 0.2;
+  .le-plate-sec-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .le-plate-overflow-pill {
+    position: absolute; inset: 0; background: rgba(33,28,68,0.60);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--le-mono); font-size: 10px; font-weight: 600;
+    color: var(--le-paper); letter-spacing: 0.04em;
   }
+
+  /* video play chip */
   .le-media-chip {
     position: absolute; bottom: 4px; right: 4px;
     font-family: var(--le-mono); font-size: 8px; font-weight: 500;
@@ -183,17 +195,17 @@ const CSS = `
     padding: 2px 5px; border-radius: 2px; letter-spacing: 0.04em; line-height: 1.4;
   }
 
-  /* plate content */
+  /* plate content (details right column) */
   .le-plate-content { display: flex; flex-direction: column; gap: 5px; }
-  .le-plate-title-row {
-    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  .le-plate-cost-line {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 2px;
   }
   .le-plate-title {
-    font-family: var(--le-display); font-size: 15px; font-weight: 400;
+    font-family: var(--le-display); font-size: 15px; font-weight: 600;
     color: var(--le-ink); line-height: 1.35;
   }
   .le-plate-cost {
-    font-family: var(--le-mono); font-size: 14px; font-weight: 500;
+    font-family: var(--le-mono); font-size: 15px; font-weight: 600;
     color: var(--le-ink); white-space: nowrap; flex-shrink: 0;
     font-variant-numeric: tabular-nums;
   }
@@ -823,62 +835,86 @@ export default function LandlordEstimate() {
 
                 return (
                   <div key={item.id} className="le-plate">
-                    <span className="le-plate-index">{plateIdx}</span>
-
-                    <div className="le-plate-body">
-                      {/* thumbnail strip — all media, wrapping row */}
-                      {allUrls.length > 0 ? (
-                        <div className="le-plate-thumbs">
-                          {allUrls.map((mUrl, ui) => {
-                            const isVid = /\.(mp4|mov|webm|m4v)$/i.test(mUrl)
-                            const src = mUrl.replace(/(\.[^.]+)$/, '_thumb.webp')
-                            return (
-                              <div
-                                key={ui}
-                                className="le-plate-thumb"
-                                tabIndex={0}
-                                role="button"
-                                onClick={() => setLightbox({ urls: allUrls, idx: ui })}
-                                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setLightbox({ urls: allUrls, idx: ui }) }}
-                              >
-                                <img
-                                  src={src}
-                                  alt=""
-                                  loading="lazy"
-                                  decoding="async"
-                                  onError={e => {
-                                    if (!isVid) { e.currentTarget.src = mUrl; e.currentTarget.onerror = null }
-                                    else e.currentTarget.style.display = 'none'
-                                  }}
-                                />
-                                {isVid && <span className="le-media-chip">▶</span>}
+                    <div className={`le-plate-body${allUrls.length === 0 ? ' le-plate-no-media' : ''}`}>
+                      {allUrls.length > 0 && (() => {
+                        const mainUrl  = allUrls[0]
+                        const mainIsVid = /\.(mp4|mov|webm|m4v)$/i.test(mainUrl)
+                        const mainSrc  = mainUrl.replace(/(\.[^.]+)$/, '_thumb.webp')
+                        const secUrls  = allUrls.slice(1, 3)
+                        const overflow = allUrls.length > 3 ? allUrls.length - 3 : 0
+                        return (
+                          <div className="le-plate-media">
+                            {/* Main image — 4:3, opens lightbox */}
+                            <div
+                              className="le-plate-main-img"
+                              tabIndex={0}
+                              role="button"
+                              onClick={() => setLightbox({ urls: allUrls, idx: 0 })}
+                              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setLightbox({ urls: allUrls, idx: 0 }) }}
+                            >
+                              <img
+                                src={mainSrc}
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
+                                onError={e => {
+                                  if (!mainIsVid) { e.currentTarget.src = mainUrl; e.currentTarget.onerror = null }
+                                  else e.currentTarget.style.display = 'none'
+                                }}
+                              />
+                              {mainIsVid && <span className="le-media-chip">▶</span>}
+                            </div>
+                            {/* Secondary thumbs row — up to 2 + overflow pill */}
+                            {(secUrls.length > 0 || overflow > 0) && (
+                              <div className="le-plate-sec-row">
+                                {secUrls.map((mUrl, si) => {
+                                  const isVid = /\.(mp4|mov|webm|m4v)$/i.test(mUrl)
+                                  const src = mUrl.replace(/(\.[^.]+)$/, '_thumb.webp')
+                                  return (
+                                    <div
+                                      key={si}
+                                      className="le-plate-sec-thumb"
+                                      tabIndex={0}
+                                      role="button"
+                                      onClick={() => setLightbox({ urls: allUrls, idx: si + 1 })}
+                                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setLightbox({ urls: allUrls, idx: si + 1 }) }}
+                                    >
+                                      <img
+                                        src={src}
+                                        alt=""
+                                        loading="lazy"
+                                        decoding="async"
+                                        onError={e => {
+                                          if (!isVid) { e.currentTarget.src = mUrl; e.currentTarget.onerror = null }
+                                          else e.currentTarget.style.display = 'none'
+                                        }}
+                                      />
+                                      {isVid && <span className="le-media-chip">▶</span>}
+                                    </div>
+                                  )
+                                })}
+                                {overflow > 0 && (
+                                  <div
+                                    className="le-plate-sec-thumb"
+                                    tabIndex={0}
+                                    role="button"
+                                    onClick={() => setLightbox({ urls: allUrls, idx: 3 })}
+                                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setLightbox({ urls: allUrls, idx: 3 }) }}
+                                  >
+                                    <div className="le-plate-overflow-pill">+{overflow}</div>
+                                  </div>
+                                )}
                               </div>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <div className="le-plate-thumb empty">
-                          <div className="le-plate-thumb-ph">
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                              <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.5"/>
-                              <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
-                              <path d="M3 15l5-5 4 4 3-3 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
+                            )}
                           </div>
-                        </div>
-                      )}
+                        )
+                      })()}
 
-                      {/* content */}
+                      {/* content (right column or full-width when no media) */}
                       <div className="le-plate-content">
-                        {/* title + cost */}
-                        <div className="le-plate-title-row">
-                          <span className="le-plate-title">{item.item_name || '—'}</span>
-                          {total != null && total > 0 ? (
-                            <span className="le-plate-cost">₹{fmt(total)}</span>
-                          ) : item.cost_type === 'actuals' ? (
-                            <span className="le-plate-actuals">Actuals</span>
-                          ) : null}
-                        </div>
+                        <span className="le-plate-index">{plateIdx}</span>
+                        {/* item name */}
+                        <span className="le-plate-title">{item.item_name || '—'}</span>
 
                         {/* action mark: action_type · warranty */}
                         {(item.action_type || item.warranty_months) && (
@@ -903,15 +939,22 @@ export default function LandlordEstimate() {
                           <div className="le-plate-remedy">{item.action}</div>
                         )}
 
-                        {/* material / labour costs */}
-                        {item.cost_type !== 'actuals' && item.cost_type !== 'nil' &&
-                          ((item.material_cost || 0) > 0 || (item.labour_cost || 0) > 0) && (
-                          <div className="le-plate-costs">
-                            {(item.material_cost || 0) > 0 && `Material ₹${fmt(item.material_cost)}`}
-                            {(item.material_cost || 0) > 0 && (item.labour_cost || 0) > 0 && '  ·  '}
-                            {(item.labour_cost || 0) > 0 && `Labour ₹${fmt(item.labour_cost)}`}
+                        {/* cost line: Material · Labour on left, total right */}
+                        {item.cost_type !== 'actuals' && item.cost_type !== 'nil' ? (
+                          <div className="le-plate-cost-line">
+                            {((item.material_cost || 0) > 0 || (item.labour_cost || 0) > 0) && (
+                              <span className="le-plate-costs">
+                                {[
+                                  (item.material_cost || 0) > 0 && `Material ₹${fmt(item.material_cost)}`,
+                                  (item.labour_cost || 0) > 0 && `Labour ₹${fmt(item.labour_cost)}`,
+                                ].filter(Boolean).join('  ·  ')}
+                              </span>
+                            )}
+                            {total != null && total > 0 && <span className="le-plate-cost">₹{fmt(total)}</span>}
                           </div>
-                        )}
+                        ) : item.cost_type === 'actuals' ? (
+                          <div className="le-plate-actuals">Billed on actuals</div>
+                        ) : null}
 
                         {/* approve / ask — hidden when estimate is locked */}
                         {!isLocked && (

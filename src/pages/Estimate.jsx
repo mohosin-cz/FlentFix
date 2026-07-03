@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
 import { uploadMedia } from '../utils/mediaUtils'
+import { logActivity } from '../utils/activityUtils'
 import DisputeThread from '../components/DisputeThread'
 import LogoSpinner from '../components/LogoSpinner'
 
@@ -848,7 +849,9 @@ function EstimateWorkbenchInner() {
   const [locking, setLocking]             = useState(false)
   const [lightbox, setLightbox]           = useState(null)
 
-  const dragRef         = useRef(null)   // { itemId, trade }
+  const dragRef          = useRef(null)   // { itemId, trade }
+  const activityTimers   = useRef(new Map())
+  const activityFirstOld = useRef(new Map())
   const [dragOverId,    setDragOverId]    = useState(null)
   const [dragOverTrade, setDragOverTrade] = useState(null)
 
@@ -967,6 +970,22 @@ function EstimateWorkbenchInner() {
 
   // ── Item ops ──────────────────────────────────────────────────────────────────
 
+  function scheduleLog(itemId, itemName, field, oldVal, newVal) {
+    const key = `${itemId}:${field}`
+    if (!activityFirstOld.current.has(key)) {
+      activityFirstOld.current.set(key, String(oldVal ?? ''))
+    }
+    clearTimeout(activityTimers.current.get(key))
+    activityTimers.current.set(key, setTimeout(() => {
+      const firstOld = activityFirstOld.current.get(key) ?? ''
+      activityFirstOld.current.delete(key)
+      activityTimers.current.delete(key)
+      const nv = String(newVal ?? '')
+      if (firstOld === nv) return
+      logActivity(supabase, id, { action: 'edit', field, old_value: firstOld, new_value: nv, item_id: itemId, item_name: itemName, changed_by: userEmail })
+    }, 2000))
+  }
+
   async function updateItem(itemId, updates) {
     const safe = {}
     for (const [k, v] of Object.entries(updates)) {
@@ -987,6 +1006,9 @@ function EstimateWorkbenchInner() {
         .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
       supabase.from('estimates').update({ total: firmTotal }).eq('id', id)
       if (estimate?.status !== 'draft') setHasUnsent(true)
+      for (const [field, newVal] of Object.entries(safe)) {
+        scheduleLog(itemId, prev?.item_name, field, prev?.[field], newVal)
+      }
     }
   }
 
@@ -1038,6 +1060,7 @@ function EstimateWorkbenchInner() {
   async function moveAcrossTrade(itemId, newTrade) {
     const srcItem = items.find(i => i.id === itemId)
     if (!srcItem) return
+    const oldTrade = srcItem.trade || ''
     const destItems = items
       .filter(i => (i.trade || '') === newTrade && i.status !== 'removed' && i.id !== itemId)
       .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
@@ -1052,6 +1075,9 @@ function EstimateWorkbenchInner() {
       return { ...it, sort_order: c.sort_order, ...(it.id === itemId ? { trade: newTrade } : {}) }
     }))
     await saveSortBatch(changes)
+    if (oldTrade !== newTrade) {
+      logActivity(supabase, id, { action: 'reorder', field: 'trade', old_value: oldTrade, new_value: newTrade, item_id: itemId, item_name: srcItem.item_name, changed_by: userEmail })
+    }
   }
 
   async function duplicateItem(itemId) {
@@ -1059,20 +1085,26 @@ function EstimateWorkbenchInner() {
     if (!orig) return
     const { id: _, created_at: __, inspection_line_items: ___, ...rest } = orig
     const { data: newItem } = await supabase.from('estimate_items').insert({ ...rest, sort_order: maxSort(items)+1, status: 'pending' }).select().single()
-    if (newItem) setItems(p => [...p, newItem])
+    if (newItem) {
+      setItems(p => [...p, newItem])
+      logActivity(supabase, id, { action: 'add', item_name: orig.item_name, changed_by: userEmail })
+    }
   }
 
   async function removeItem(itemId) {
-    const prev = items.find(i => i.id === itemId)?.status
+    const prevItem = items.find(i => i.id === itemId)
     setItems(p => p.map(i => i.id===itemId ? { ...i, status:'removed' } : i))
     const { error: err } = await supabase.from('estimate_items').update({ status:'removed' }).eq('id', itemId)
-    if (err) setItems(p => p.map(i => i.id===itemId ? { ...i, status:prev } : i))
+    if (err) setItems(p => p.map(i => i.id===itemId ? { ...i, status: prevItem?.status } : i))
+    else logActivity(supabase, id, { action: 'remove', item_id: itemId, item_name: prevItem?.item_name, changed_by: userEmail })
   }
 
   async function restoreItem(itemId) {
+    const prevItem = items.find(i => i.id === itemId)
     setItems(p => p.map(i => i.id===itemId ? { ...i, status:'pending' } : i))
     const { error: err } = await supabase.from('estimate_items').update({ status:'pending' }).eq('id', itemId)
     if (err) setItems(p => p.map(i => i.id===itemId ? { ...i, status:'removed' } : i))
+    else logActivity(supabase, id, { action: 'restore', item_id: itemId, item_name: prevItem?.item_name, changed_by: userEmail })
   }
 
   async function handleSelectMaterial(r) {
@@ -1175,6 +1207,7 @@ function EstimateWorkbenchInner() {
     await supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'sent', actor: userEmail })
     setEstimate(p => ({ ...p, current_version: nextVersion, status: 'sent', sent_at: now }))
     setHasUnsent(false)
+    logActivity(supabase, id, { action: 'send', old_value: String(snapTotal), new_value: String(nextVersion), changed_by: userEmail })
     copyLink()
   }
 
@@ -1185,6 +1218,7 @@ function EstimateWorkbenchInner() {
     await supabase.from('estimates').update({ locked: true, locked_at: now, locked_by: userEmail }).eq('id', id)
     setEstimate(p => ({ ...p, locked: true, locked_at: now, locked_by: userEmail }))
     setLocking(false)
+    logActivity(supabase, id, { action: 'lock', changed_by: userEmail })
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────────

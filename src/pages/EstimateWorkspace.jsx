@@ -66,7 +66,10 @@ export default function EstimateWorkspace() {
   const [invoiceId, setInvoiceId]         = useState(null)
   const [userEmail, setUserEmail]         = useState(null)
   const [copied, setCopied]               = useState(false)
-  const [activeTab, setActiveTab]         = useState('overview') // 'overview' | 'disputes'
+  const [activeTab, setActiveTab]         = useState('overview') // 'overview' | 'disputes' | 'history'
+  const [versions, setVersions]           = useState([])
+  const [activity, setActivity]           = useState([])
+  const [activityLoading, setActivityLoading] = useState(false)
   const isMobile = useIsMobile()
 
   const fetchAll = useCallback(async () => {
@@ -84,22 +87,34 @@ export default function EstimateWorkspace() {
     setEstimates(ests || [])
     setProperty(prop)
 
-    // Check for existing invoice on the latest estimate
+    // Fetch invoice + versions for the latest estimate
     if (ests?.length) {
-      const { data: inv } = await supabase
-        .from('tax_invoices')
-        .select('id')
-        .eq('estimate_id', ests[0].id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      const [{ data: inv }, { data: vers }] = await Promise.all([
+        supabase.from('tax_invoices').select('id').eq('estimate_id', ests[0].id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('estimate_versions').select('id, version_number, total, status, created_by, created_at').eq('estimate_id', ests[0].id).order('version_number', { ascending: false }),
+      ])
       setInvoiceId(inv?.id || null)
+      setVersions(vers || [])
+    } else {
+      setVersions([])
     }
 
     setLoading(false)
   }, [pid])
 
   useEffect(() => { fetchAll() }, [fetchAll])
+
+  useEffect(() => {
+    if (activeTab !== 'history' || !estimates[0]?.id) return
+    setActivityLoading(true)
+    supabase
+      .from('estimate_activity')
+      .select('*')
+      .eq('estimate_id', estimates[0].id)
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => { setActivity(data || []); setActivityLoading(false) })
+  }, [activeTab, estimates[0]?.id])
 
   // Realtime: refresh when items or disputes change for current estimate
   useEffect(() => {
@@ -158,13 +173,15 @@ export default function EstimateWorkspace() {
   }
 
   // Stats from current estimate — headline total always from estimates.total (canonical stored value).
+  // count = non-removed items only; approved/disputed/pending share that base.
   function getStats(est) {
     const items = est?.estimate_items || []
-    const actualsCount = items.filter(i => i.cost_type === 'actuals' && !['removed', 'excluded'].includes(i.status)).length
-    const approved  = items.filter(i => i.status === 'approved').length
-    const disputed  = items.filter(i => i.status === 'disputed').length
-    const pending   = items.filter(i => !i.status || i.status === 'pending').length
-    return { count: items.length, total: est?.total ?? 0, actualsCount, approved, disputed, pending }
+    const nonRemoved   = items.filter(i => i.status !== 'removed')
+    const actualsCount = nonRemoved.filter(i => i.cost_type === 'actuals' && i.status !== 'excluded').length
+    const approved  = nonRemoved.filter(i => i.status === 'approved').length
+    const disputed  = nonRemoved.filter(i => i.status === 'disputed').length
+    const pending   = nonRemoved.filter(i => !i.status || i.status === 'pending').length
+    return { count: nonRemoved.length, total: est?.total ?? 0, actualsCount, approved, disputed, pending }
   }
 
   // All events across all estimates, newest first
@@ -366,7 +383,92 @@ export default function EstimateWorkspace() {
                     <button style={tabStyle('disputes')} onClick={() => setActiveTab('disputes')}>
                       Disputes{disputeCount > 0 ? ` (${disputeCount})` : ''}
                     </button>
+                    <button style={tabStyle('history')} onClick={() => setActiveTab('history')}>History</button>
                   </div>
+
+                  {activeTab === 'history' && (() => {
+                    const FIELD_LABELS = {
+                      material_cost: 'Material', labour_cost: 'Labour', qty: 'Qty',
+                      cost_type: 'Type', status: 'Status', warranty: 'Warranty',
+                      item_name: 'Name', issue_description: 'Finding', action: 'Remedy',
+                      trade: 'Trade', area: 'Area', sort_order: 'Order',
+                    }
+                    const TYPE_LABELS = { priced: 'Priced', actuals: 'Actual', nil: 'None' }
+                    const STATUS_LABELS = { pending: 'Pending', excluded: 'Excluded', removed: 'Removed', approved: 'Approved', disputed: 'Disputed' }
+                    function describeChange(e) {
+                      if (e.action === 'remove')  return 'Removed'
+                      if (e.action === 'restore') return 'Restored'
+                      if (e.action === 'lock')    return 'Marked final'
+                      if (e.action === 'send')    return `Sent v${e.new_value}`
+                      if (e.action === 'edit') {
+                        const label = FIELD_LABELS[e.field] || e.field
+                        if (['material_cost', 'labour_cost'].includes(e.field)) {
+                          const fmtV = v => v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'
+                          return `${label} ${fmtV(e.old_value)} → ${fmtV(e.new_value)}`
+                        }
+                        if (e.field === 'cost_type') return `Type ${TYPE_LABELS[e.old_value] || e.old_value} → ${TYPE_LABELS[e.new_value] || e.new_value}`
+                        if (e.field === 'status')    return `${STATUS_LABELS[e.old_value] || e.old_value} → ${STATUS_LABELS[e.new_value] || e.new_value}`
+                        if (e.field === 'qty') return `Qty ${e.old_value} → ${e.new_value}`
+                        const old = e.old_value ? `"${e.old_value.slice(0, 40)}"` : 'empty'
+                        const nv  = e.new_value ? `"${e.new_value.slice(0, 40)}"` : 'empty'
+                        return `${label}: ${old} → ${nv}`
+                      }
+                      return e.action
+                    }
+                    return (
+                      <div style={{ marginBottom: 20 }}>
+                        {activityLoading ? (
+                          <div style={{ padding: '20px 0', textAlign: 'center', fontSize: 13, color: 'var(--text-muted, #6b6d82)' }}>Loading…</div>
+                        ) : activity.length === 0 ? (
+                          <div style={{ padding: '28px 0', textAlign: 'center', fontSize: 13, color: 'var(--text-muted, #6b6d82)' }}>No history yet — edits will appear here</div>
+                        ) : (
+                          <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, overflow: 'hidden' }}>
+                            {activity.map((e, i) => {
+                              const isSend = e.action === 'send'
+                              const isLast = i === activity.length - 1
+                              const ts = new Date(e.created_at)
+                              const timeStr = ts.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+                              const dateStr = ts.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                              const actor = (e.changed_by || '').split('@')[0]
+                              return (
+                                <div
+                                  key={e.id || i}
+                                  style={{
+                                    padding: isSend ? '8px 16px' : '7px 16px',
+                                    borderBottom: isLast ? 'none' : '1px solid var(--border, #2e3040)',
+                                    background: isSend ? 'rgba(200,150,62,0.06)' : 'none',
+                                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                                  }}
+                                >
+                                  {isSend ? (
+                                    <div style={{ flex: 1 }}>
+                                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>
+                                        v{e.new_value} · sent by {actor} · ₹{Number(e.old_value || 0).toLocaleString('en-IN')} · {timeStr}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', marginTop: 1, flexShrink: 0 }}>
+                                        {dateStr} {timeStr}
+                                      </span>
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        {actor && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{actor} · </span>}
+                                        {e.item_name && <span style={{ fontSize: 11, color: 'var(--text, #e8e8f0)', fontWeight: 500 }}>{e.item_name} · </span>}
+                                        <span style={{ fontSize: 11, color: 'var(--text-muted, #9394a8)' }}>{describeChange(e)}</span>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              )
+                            })}
+                            <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border, #2e3040)', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                              History begins from when activity logging was deployed
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {activeTab === 'disputes' && (
                     <div style={{ marginBottom: 20 }}>
@@ -441,46 +543,78 @@ export default function EstimateWorkspace() {
                 </div>
               </div>
 
-              {/* Version history */}
-              <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border, #2e3040)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Version History · {estimates.length}</div>
-                </div>
-                <div style={{ overflowY: 'auto', maxHeight: 380 }}>
-                  {estimates.map((est, i) => {
-                    const version = estimates.length - i
-                    const s = getStats(est)
-                    const isCurrent = i === 0
-                    return (
-                      <div
-                        key={est.id}
-                        style={{ padding: '12px 16px', borderBottom: i < estimates.length - 1 ? '1px solid var(--border, #2e3040)' : 'none', background: isCurrent ? 'rgba(200,150,62,0.04)' : 'none' }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>v{version}</span>
-                            {isCurrent && <span style={{ fontSize: 9, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.06em' }}>CURRENT</span>}
-                            <StatusBadge status={est.status} />
-                          </div>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtShort(est.created_at)}</span>
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginBottom: 8 }}>
-                          {s.count} items{s.total > 0 ? ` · ₹${s.total.toLocaleString('en-IN')}` : ''}
-                          {est.created_by ? ` · ${est.created_by.split('@')[0]}` : ''}
-                        </div>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            onClick={() => navigate(`/estimate/${est.id}`)}
-                            style={{ padding: '4px 10px', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
-                          >
-                            Open →
-                          </button>
-                        </div>
+              {/* Version history — real rows from estimate_versions; legacy fallback for pre-lifecycle sends */}
+              {(() => {
+                const vCount = versions.length > 0 ? versions.length : (current?.sent_at ? 1 : 0)
+                return (
+                  <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, overflow: 'hidden' }}>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border, #2e3040)' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                        Version History{vCount > 0 ? ` · ${vCount}` : ''}
                       </div>
-                    )
-                  })}
-                </div>
-              </div>
+                    </div>
+                    <div style={{ overflowY: 'auto', maxHeight: 380 }}>
+                      {versions.length === 0 && !current?.sent_at ? (
+                        <div style={{ padding: '20px 16px', fontSize: 12, color: 'var(--text-muted, #6b6d82)' }}>
+                          No versions yet — send to create v1
+                        </div>
+                      ) : versions.length === 0 ? (
+                        /* Legacy: sent before estimate_versions table existed */
+                        <div style={{ padding: '12px 16px', background: 'rgba(200,150,62,0.04)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>v1</span>
+                              <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.06em' }}>LEGACY</span>
+                              <StatusBadge status={current.status} />
+                            </div>
+                            <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtShort(current.sent_at)}</span>
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginBottom: 8 }}>
+                            {stats?.count != null ? `${stats.count} items` : ''}{(current.total || 0) > 0 ? `${stats?.count != null ? ' · ' : ''}₹${current.total.toLocaleString('en-IN')}` : ''}
+                          </div>
+                          {current.share_token && (
+                            <button
+                              onClick={() => window.open(`/e/${current.share_token}`, '_blank', 'noopener,noreferrer')}
+                              style={{ padding: '4px 10px', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
+                            >
+                              Open →
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        versions.map((ver, i) => {
+                          const isLatest = i === 0
+                          return (
+                            <div
+                              key={ver.id}
+                              style={{ padding: '12px 16px', borderBottom: i < versions.length - 1 ? '1px solid var(--border, #2e3040)' : 'none', background: isLatest ? 'rgba(200,150,62,0.04)' : 'none' }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>v{ver.version_number}</span>
+                                  {isLatest && <span style={{ fontSize: 9, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.06em' }}>LATEST</span>}
+                                  <StatusBadge status={ver.status} />
+                                </div>
+                                <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtShort(ver.created_at)}</span>
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginBottom: 8 }}>
+                                {(ver.total || 0) > 0 ? `₹${ver.total.toLocaleString('en-IN')}` : '—'}
+                                {ver.created_by ? ` · ${ver.created_by.split('@')[0]}` : ''}
+                              </div>
+                              <button
+                                onClick={() => navigate(`/estimate/${current.id}`)}
+                                style={{ padding: '4px 10px', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
+                              >
+                                Open →
+                              </button>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
 
             </div>}
           </>
