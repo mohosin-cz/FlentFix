@@ -825,7 +825,7 @@ export default function LandlordEstimate() {
 
                 return (
                   <div key={item.id} className="le-plate">
-                    <span className="le-plate-index">Plate {plateIdx}</span>
+                    <span className="le-plate-index">{plateIdx}</span>
 
                     <div className="le-plate-body">
                       {/* thumbnail — left gutter */}
