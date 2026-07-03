@@ -680,15 +680,32 @@ export default function LandlordEstimate() {
     : visibleItems.reduce((s, i) => s + (itemTotal(i) || 0), 0)
   const attentionCount = visibleItems.filter(i => { const t = itemTotal(i); return (t != null && t > 0) || i.cost_type === 'actuals' }).length
 
-  const groups = []
-  const seen   = {}
-  visibleItems.forEach(item => {
-    const trade = item.trade || 'General'
-    if (!seen[trade]) { seen[trade] = []; groups.push({ trade, items: seen[trade] }) }
-    seen[trade].push(item)
-  })
+  // Group by section_name (room the inspector captured items in).
+  // Items without section_name → "Whole Home" bucket appended last.
+  // Section order = minimum sort_order across each section's items (mirrors inspector walk).
+  function groupBySection(srcItems) {
+    const map = new Map()
+    const minSort = new Map()
+    for (const item of srcItems) {
+      const key = item.section_name || '__whole_home__'
+      if (!map.has(key)) { map.set(key, []); minSort.set(key, item.sort_order ?? 9999) }
+      map.get(key).push(item)
+      if ((item.sort_order ?? 9999) < minSort.get(key)) minSort.set(key, item.sort_order ?? 9999)
+    }
+    const sections = []
+    for (const [key, gi] of map.entries()) {
+      if (key === '__whole_home__') continue
+      sections.push({ key, label: key, items: gi, minSort: minSort.get(key) })
+    }
+    sections.sort((a, b) => a.minSort - b.minSort)
+    if (map.has('__whole_home__')) {
+      sections.push({ key: '__whole_home__', label: 'Whole Home', items: map.get('__whole_home__'), minSort: Infinity })
+    }
+    return sections
+  }
+  const groups = groupBySection(visibleItems)
 
-  // Sequential plate counter in render order (across all trade groups, top to bottom)
+  // Sequential plate counter in render order (across all sections, top to bottom)
   const plateOrder = new Map()
   let _plate = 0
   groups.forEach(({ items: gi }) => gi.forEach(item => plateOrder.set(item.id, ++_plate)))
@@ -777,26 +794,26 @@ export default function LandlordEstimate() {
           </div>
         )}
 
-        {/* trade groups → plates */}
-        {groups.map(({ trade, items: tradeItems }) => {
-          const tradeTotal = tradeItems.reduce((s, i) => s + (itemTotal(i) || 0), 0)
+        {/* section groups → plates (grouped by inspection room/section) */}
+        {groups.map(({ key, label, items: secItems }) => {
+          const secTotal = secItems.reduce((s, i) => s + (itemTotal(i) || 0), 0)
           return (
-            <div key={trade} className="le-trade-group">
+            <div key={key} className="le-trade-group">
               <div className="le-trade-head">
-                <span className="le-trade-name">{titleCase(trade)}</span>
+                <span className="le-trade-name">{label}</span>
                 <span className="le-trade-meta">
-                  {tradeItems.length} item{tradeItems.length !== 1 ? 's' : ''}{tradeTotal > 0 ? ` · ₹${fmt(tradeTotal)}` : ''}
+                  {secItems.length} item{secItems.length !== 1 ? 's' : ''}{secTotal > 0 ? ` · ₹${fmt(secTotal)}` : ''}
                 </span>
               </div>
 
-              {tradeItems.map(item => {
+              {secItems.map(item => {
                 const plateIdx  = String(plateOrder.get(item.id)).padStart(2, '0')
                 const total     = itemTotal(item)
-                // Guard: if area was incorrectly stored as the trade name, fall back to
-                // inspection_line_items.section_name which is always the room/tab label.
-                const areaEyebrow = item.area && item.area.toLowerCase() !== (item.trade || '').toLowerCase()
+                // Show area when it differs from the section label (e.g. BATHROOM under Bedroom 2).
+                // Otherwise fall back to trade name so each plate has a useful eyebrow.
+                const areaEyebrow = (item.area && item.area.toLowerCase() !== label.toLowerCase())
                   ? item.area
-                  : (item.inspection_line_items?.section_name || null)
+                  : (item.trade ? titleCase(item.trade) : null)
                 const itemDisps = disputes.filter(d => d.estimate_item_id === item.id)
                 const status    = item.status || 'pending'
                 const isOpen    = !!disputeOpen[item.id]

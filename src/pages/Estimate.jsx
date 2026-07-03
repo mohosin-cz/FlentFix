@@ -1154,6 +1154,7 @@ function EstimateWorkbenchInner() {
         area:                 item.area,
         item_name:            item.item_name,
         trade:                item.trade,
+        section_name:         item.section_name || '',
         issue_description:    item.issue_description,
         material_description: item.material_description,
         material_cost:        item.material_cost,
