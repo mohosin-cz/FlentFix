@@ -259,24 +259,6 @@ const CSS = `
   }
   .le-btn-ask:hover { color: var(--le-ink); }
 
-  /* dispute form */
-  .le-dispute-form {
-    margin-top: 12px; padding: 14px 16px;
-    background: var(--le-desk); border: 1px solid var(--le-hairline-strong); border-radius: 4px;
-  }
-  .le-dispute-title {
-    font-family: var(--le-mono); font-size: 9px; font-weight: 500;
-    color: var(--le-ink); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 10px;
-  }
-  .le-reason-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
-  .le-reason-tag {
-    padding: 8px 14px; border-radius: 2px;
-    border: 1.5px solid var(--le-hairline-strong); background: var(--le-paper);
-    font-family: var(--le-sans); font-size: 11px; color: var(--le-ink-soft);
-    cursor: pointer; transition: all 0.15s; min-height: 40px;
-    display: inline-flex; align-items: center;
-  }
-  .le-reason-tag.selected { background: var(--le-ink); color: var(--le-paper); border-color: var(--le-ink); }
   .le-dispute-textarea {
     width: 100%; resize: vertical;
     border: 1.5px solid var(--le-hairline-strong); border-radius: 4px;
@@ -358,7 +340,7 @@ const CSS = `
     border: 1.5px solid rgba(58,102,66,0.3);
   }
 
-  /* ask panel — three-step question / dispute flow */
+  /* ask panel — question flow */
   .le-ask-panel {
     margin-top: 14px;
     border: 1.5px solid var(--le-hairline-strong);
@@ -529,17 +511,8 @@ const QUERY_OPTIONS = [
   { key: 'self_arrange',   label: 'I can arrange this myself' },
 ]
 
-// Dispute sub-form reason tags (item → 'disputed' status)
-const REASON_TAGS = [
-  { key: 'not_needed',     label: 'Not needed'    },
-  { key: 'price_too_high', label: 'Too expensive' },
-  { key: 'already_fixed',  label: 'Already done'  },
-]
-
-// Combined label lookup for thread display
-const ALL_TAG_LABELS = Object.fromEntries(
-  [...QUERY_OPTIONS, ...REASON_TAGS].map(t => [t.key, t.label])
-)
+// Label lookup for thread display
+const ALL_TAG_LABELS = Object.fromEntries(QUERY_OPTIONS.map(t => [t.key, t.label]))
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function LandlordEstimate() {
@@ -561,7 +534,6 @@ export default function LandlordEstimate() {
   const pendingAction = useRef(null)
 
   const [disputeOpen, setDisputeOpen]     = useState({})
-  const [disputeReason, setDisputeReason] = useState({})
   const [disputeMsg, setDisputeMsg]       = useState({})
   const [askStep, setAskStep]             = useState({}) // 'options' | 'note' | 'dispute'
   const [askSelected, setAskSelected]     = useState({}) // selected QUERY_OPTIONS key
@@ -701,26 +673,6 @@ export default function LandlordEstimate() {
     await supabase.from('estimate_items').update({ status: 'approved' }).eq('id', itemId)
     await supabase.from('estimate_events').insert({ estimate_id: estimate.id, event_type: 'item_approved', actor: 'landlord', meta: { item_id: itemId, name: landlordName } })
     setItems(prev => prev.map(i => i.id === itemId ? { ...i, status: 'approved' } : i))
-    setSubmitting(s => ({ ...s, [itemId]: false }))
-  }
-
-  async function submitDispute(itemId) {
-    const reasonTag = disputeReason[itemId]
-    if (!reasonTag) { alert('Please select a reason.'); return }
-    setSubmitting(s => ({ ...s, [itemId]: true }))
-    await supabase.from('estimate_items').update({ status: 'disputed' }).eq('id', itemId)
-    await supabase.from('estimate_disputes').insert({
-      estimate_item_id: itemId, estimate_id: estimate.id,
-      author_type: 'landlord', author_name: landlordName || 'Landlord',
-      reason_tag: reasonTag, message: disputeMsg[itemId] || '',
-    })
-    await supabase.from('estimate_events').insert({ estimate_id: estimate.id, event_type: 'disputed', actor: 'landlord', meta: { item_id: itemId, reason: reasonTag, name: landlordName } })
-    setItems(prev => prev.map(i => i.id === itemId ? { ...i, status: 'disputed' } : i))
-    setDisputeOpen(s => ({ ...s, [itemId]: false }))
-    setDisputeReason(s => ({ ...s, [itemId]: '' }))
-    setDisputeMsg(s => ({ ...s, [itemId]: '' }))
-    const { data: freshD } = await supabase.from('estimate_disputes').select('*').eq('estimate_id', estimate.id)
-    if (freshD) setDisputes(freshD)
     setSubmitting(s => ({ ...s, [itemId]: false }))
   }
 
@@ -1069,7 +1021,6 @@ export default function LandlordEstimate() {
                                     setAskStep(s => ({ ...s, [item.id]: 'options' }))
                                     setAskSelected(s => ({ ...s, [item.id]: '' }))
                                     setDisputeMsg(s => ({ ...s, [item.id]: '' }))
-                                    setDisputeReason(s => ({ ...s, [item.id]: '' }))
                                   }
                                 })}
                               >
@@ -1112,13 +1063,6 @@ export default function LandlordEstimate() {
                                       <span className="le-ask-option-arr">→</span>
                                     </button>
                                   ))}
-                                  <button
-                                    className="le-ask-option le-ask-option--dispute"
-                                    onClick={() => setAskStep(s => ({ ...s, [item.id]: 'dispute' }))}
-                                  >
-                                    <span className="le-ask-option-text">I want to dispute this item</span>
-                                    <span className="le-ask-option-arr">↗</span>
-                                  </button>
                                 </>
                               )}
 
@@ -1149,41 +1093,6 @@ export default function LandlordEstimate() {
                                 </>
                               )}
 
-                              {step === 'dispute' && (
-                                <>
-                                  <div className="le-ask-header">
-                                    <button className="le-ask-back" onClick={backToOptions}>← Back</button>
-                                    <span className="le-ask-header-label">Raise a concern</span>
-                                  </div>
-                                  <div className="le-ask-note-body">
-                                    <div className="le-reason-tags">
-                                      {REASON_TAGS.map(r => (
-                                        <button
-                                          key={r.key}
-                                          className={`le-reason-tag${disputeReason[item.id] === r.key ? ' selected' : ''}`}
-                                          onClick={() => setDisputeReason(s => ({ ...s, [item.id]: r.key }))}
-                                        >{r.label}</button>
-                                      ))}
-                                    </div>
-                                    <textarea
-                                      className="le-dispute-textarea"
-                                      placeholder="Add more context (optional)"
-                                      value={disputeMsg[item.id] || ''}
-                                      onChange={e => setDisputeMsg(s => ({ ...s, [item.id]: e.target.value }))}
-                                    />
-                                    <div className="le-dispute-actions">
-                                      <button
-                                        className="le-btn-submit"
-                                        disabled={!!submitting[item.id] || !disputeReason[item.id]}
-                                        onClick={() => submitDispute(item.id)}
-                                      >
-                                        {submitting[item.id] ? 'Submitting…' : 'Submit concern'}
-                                      </button>
-                                      <button className="le-btn-cancel" onClick={closePanel}>Cancel</button>
-                                    </div>
-                                  </div>
-                                </>
-                              )}
                             </div>
                           )
                         })()}
