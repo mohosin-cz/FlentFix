@@ -474,12 +474,13 @@ export default function LandlordEstimate() {
   const [searchParams] = useSearchParams()
   const isPreview = searchParams.get('preview') === '1' || searchParams.get('preview') === 'true'
 
-  const [estimate, setEstimate]     = useState(null)
-  const [items, setItems]           = useState([])
-  const [disputes, setDisputes]     = useState([])
-  const [inspection, setInspection] = useState(null)
-  const [notFound, setNotFound]     = useState(false)
-  const [loading, setLoading]       = useState(true)
+  const [estimate, setEstimate]         = useState(null)
+  const [items, setItems]               = useState([])
+  const [disputes, setDisputes]         = useState([])
+  const [inspection, setInspection]     = useState(null)
+  const [notFound, setNotFound]         = useState(false)
+  const [loading, setLoading]           = useState(true)
+  const [snapshotTotal, setSnapshotTotal] = useState(null)
 
   const [landlordName, setLandlordName] = useState(() => localStorage.getItem('le_landlord_name') || '')
   const [showNameModal, setShowNameModal] = useState(false)
@@ -516,13 +517,36 @@ export default function LandlordEstimate() {
 
     if (!est) { setNotFound(true); setLoading(false); return }
 
-    // 2. Fetch estimate_items explicitly, ordered by sort_order.
-    //    Join inspection_line_items for section_name (room) as area-eyebrow fallback.
-    const { data: estItems } = await supabase
-      .from('estimate_items')
-      .select('*, inspection_line_items(section_name, item_score, notes, availability_status)')
-      .eq('estimate_id', est.id)
-      .order('sort_order')
+    // 2. Fetch items: if a version has been sent, load the snapshot; otherwise load live items.
+    let estItems = null
+    let versionTotal = null
+    if (est.current_version) {
+      // Load the current sent version
+      const { data: ver } = await supabase
+        .from('estimate_versions')
+        .select('id, total')
+        .eq('estimate_id', est.id)
+        .eq('version_number', est.current_version)
+        .maybeSingle()
+      if (ver) {
+        versionTotal = ver.total
+        const { data: verItems } = await supabase
+          .from('estimate_version_items')
+          .select('*')
+          .eq('version_id', ver.id)
+          .order('sort_order')
+        estItems = verItems
+      }
+    }
+    // Fallback: live estimate_items (draft not yet sent)
+    if (!estItems) {
+      const { data: liveItems } = await supabase
+        .from('estimate_items')
+        .select('*, inspection_line_items(section_name, item_score, notes, availability_status)')
+        .eq('estimate_id', est.id)
+        .order('sort_order')
+      estItems = liveItems
+    }
 
     // 3. Fetch disputes
     const { data: estDisputes } = await supabase
@@ -554,6 +578,7 @@ export default function LandlordEstimate() {
     }
 
     setEstimate(est)
+    setSnapshotTotal(versionTotal)
     setItems((estItems || []).map(item => ({ ...item, _photos: mediaMap[item.line_item_id] || [] })))
     setDisputes(estDisputes || [])
     setInspection(insp)
@@ -649,8 +674,8 @@ export default function LandlordEstimate() {
   // Hide removed, excluded, and nil-cost items from the landlord view
   const visibleItems   = items.filter(i => i.status !== 'removed' && i.status !== 'excluded' && i.cost_type !== 'nil')
   const pendingCount   = visibleItems.filter(i => !i.status || i.status === 'pending').length
-  // Use stored total (updated by workbench after every write); fall back to client-side compute
-  const grandTotal     = estimate?.total != null
+  // Use snapshot total (version), then stored estimate total, then client-side compute
+  const grandTotal     = snapshotTotal != null ? snapshotTotal : estimate?.total != null
     ? estimate.total
     : visibleItems.reduce((s, i) => s + (itemTotal(i) || 0), 0)
   const attentionCount = visibleItems.filter(i => { const t = itemTotal(i); return (t != null && t > 0) || i.cost_type === 'actuals' }).length
@@ -685,6 +710,7 @@ export default function LandlordEstimate() {
   )
 
   const alreadyApproved = estimate?.status === 'approved' || estimate?.status === 'partially_approved'
+  const isLocked = !!estimate?.locked
 
   return (
     <div className="le-wrap">
@@ -853,7 +879,8 @@ export default function LandlordEstimate() {
                           </div>
                         )}
 
-                        {/* approve / ask */}
+                        {/* approve / ask — hidden when estimate is locked */}
+                        {!isLocked && (
                         <div className="le-plate-actions">
                           {status === 'approved' ? (
                             <span className="le-plate-state le-plate-state--approved">Approved</span>
@@ -878,6 +905,7 @@ export default function LandlordEstimate() {
                             </>
                           )}
                         </div>
+                        )}
 
                         {/* dispute form */}
                         {isOpen && (
@@ -949,7 +977,14 @@ export default function LandlordEstimate() {
       </div>
 
       {/* sticky bottom bar */}
-      {!alreadyApproved && (
+      {isLocked ? (
+        <div className="le-bottom-bar">
+          <div>
+            <div className="le-bottom-total-num">₹{fmt(grandTotal)}</div>
+            <div className="le-bottom-total-lbl">Total Estimate · Final</div>
+          </div>
+        </div>
+      ) : !alreadyApproved && (
         <div className="le-bottom-bar">
           <div>
             <div className="le-bottom-total-num">₹{fmt(grandTotal)}</div>
