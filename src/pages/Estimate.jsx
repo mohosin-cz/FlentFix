@@ -41,7 +41,6 @@ function itemTot(it) {
 function getScore(it)  { return it.inspection_line_items?.item_score ?? null }
 function getNotes(it)  { return it.inspection_line_items?.notes ?? '' }
 function getAvail(it)  { return it.inspection_line_items?.availability_status ?? '' }
-function getAction(it) { return it.inspection_line_items?.action ?? '' }
 
 function needsPricing(it) {
   return it.cost_type === 'priced'
@@ -574,12 +573,11 @@ function ItemDrawer({
 
         {/* Exclude toggle */}
         {!readOnly && (
-        <div className="sec tg">
-          <span className="ey">Exclude · <span style={{ color:'var(--faint)' }}>E</span></span>
-          <div className={`sw ${excl ? 'on' : ''}`} onClick={() => onUpdate(item.id, { status: excl ? 'pending' : 'excluded' })} />
-        </div>
+          <div className="sec tg">
+            <span className="ey">Exclude · <span style={{ color:'var(--faint)' }}>E</span></span>
+            <div className={`sw ${excl ? 'on' : ''}`} onClick={() => onUpdate(item.id, { status: excl ? 'pending' : 'excluded' })} />
+          </div>
         )}
-        </div>
 
         {/* History */}
         {hist && (
@@ -1130,7 +1128,7 @@ function EstimateWorkbenchInner() {
     try {
       if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(url)
       else { const ta = document.createElement('textarea'); ta.value = url; ta.style.cssText='position:fixed;opacity:0'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta) }
-    } catch (_) {}
+    } catch { /* ignore clipboard */ }
     setCopied(true); setTimeout(() => setCopied(false), 2200)
   }
 
