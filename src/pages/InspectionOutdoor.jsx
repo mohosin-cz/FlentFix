@@ -8,6 +8,7 @@ import {
 import { supabase } from '../lib/supabase'
 import { uploadMedia } from '../utils/mediaUtils'
 import { HIGH_VALUE_VIDEO_THRESHOLD, validateProofVideo } from '../utils/proofVideo'
+import { classifyItemKind } from '../utils/itemKind'
 
 // ─── Upload helper ────────────────────────────────────────────────────────────
 export async function uploadMediaFiles(inspectionId, lineItemId, files) {
@@ -111,7 +112,7 @@ export const ISSUE_PRESETS = {
 // ─── State helpers ────────────────────────────────────────────────────────────
 const blankCostRow  = () => ({ action: '', labourRateId: '', labourCost: '', materialCost: '', materialRateId: '', qty: 1 })
 const blankIssueRow = () => ({ id: `ir_${Date.now()}_${Math.random().toString(36).slice(2)}`, issueDescription: '', action: '', labourRateId: '', labourCost: '', materialCost: '' })
-const blankCard     = () => ({ health: null, notes: '', media: [], proofMedia: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {} })
+const blankCard     = () => ({ health: null, notes: '', media: [], proofMedia: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {}, kindOverride: null })
 
 function isDone(item) {
   if (!item) return false
@@ -577,7 +578,8 @@ function OutdoorItemCard({ config, item, isOpen, onToggle, onUpdate, labourRates
     const qty = Math.max(1, parseFloat(cr.qty) || 1)
     return sum + ((parseFloat(cr.materialCost) || 0) + (parseFloat(cr.labourCost) || 0)) * qty
   }, 0)
-  const needsProofVideo = nonFunctional.length > 0 && itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD
+  const effectiveKind   = item.kindOverride ?? classifyItemKind(title, nonFunctional.join(' '), '', badge || '', trade || '')
+  const needsProofVideo = nonFunctional.length > 0 && itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD && effectiveKind === 'fixture'
   const hasProof        = (item.proofMedia || []).length > 0
 
   function toggleIssue(nextIssues) {
@@ -607,6 +609,9 @@ function OutdoorItemCard({ config, item, isOpen, onToggle, onUpdate, labourRates
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {needsProofVideo && !hasProof && (
           <span title="Proof video required" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent, #c8963e)', flexShrink: 0, display: 'inline-block' }} />
+        )}
+        {nonFunctional.length > 0 && itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD && (
+          <button type="button" onClick={e => { e.stopPropagation(); onUpdate('kindOverride', effectiveKind === 'fixture' ? 'service' : 'fixture') }} title={`${item.kindOverride ? 'Manually' : 'Auto'}-classified as ${effectiveKind} — tap to flip`} style={{ padding: '2px 7px', fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', borderRadius: 4, border: `1px solid ${effectiveKind === 'fixture' ? 'rgba(200,150,62,0.4)' : 'rgba(107,109,130,0.4)'}`, background: effectiveKind === 'fixture' ? 'rgba(200,150,62,0.1)' : 'rgba(107,109,130,0.08)', color: effectiveKind === 'fixture' ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', letterSpacing: '0.08em', whiteSpace: 'nowrap', textTransform: 'uppercase', lineHeight: 1.3 }}>{effectiveKind}</button>
         )}
         {naToggle}
       </div>
@@ -909,7 +914,7 @@ export default function InspectionOutdoor() {
     const missingProof = []
     sectionKeys.forEach((sectionKey, tabIdx) => {
       const sectionName = TABS[tabIdx]
-      SECTIONS[sectionKey].forEach(({ key, title }) => {
+      SECTIONS[sectionKey].forEach(({ key, title, trade }) => {
         const item = data[sectionKey][key]
         if (!item || item.notAvailable) return
         const nonFn = (item.selectedIssues || []).filter(i => i !== 'Functional')
@@ -917,7 +922,8 @@ export default function InspectionOutdoor() {
           const cr = (item.costRows || {})[issue] || {}
           return sum + ((parseFloat(cr.materialCost) || 0) + (parseFloat(cr.labourCost) || 0)) * Math.max(1, parseFloat(cr.qty) || 1)
         }, 0)
-        if (total >= HIGH_VALUE_VIDEO_THRESHOLD && !(item.proofMedia?.length)) {
+        const effKind = item.kindOverride ?? classifyItemKind(title, nonFn.join(' '), '', '', trade || '')
+        if (total >= HIGH_VALUE_VIDEO_THRESHOLD && effKind === 'fixture' && !(item.proofMedia?.length)) {
           missingProof.push(`${title} · ${sectionName}`)
         }
       })

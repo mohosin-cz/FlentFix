@@ -9,6 +9,7 @@ import {
 import QuickNotes from '../components/QuickNotes'
 import { uploadMedia } from '../utils/mediaUtils'
 import { HIGH_VALUE_VIDEO_THRESHOLD, validateProofVideo } from '../utils/proofVideo'
+import { classifyItemKind } from '../utils/itemKind'
 
 // ── Issue presets ─────────────────────────────────────────────────────────────
 const I = {
@@ -218,7 +219,7 @@ function buildTabs(houseType, bhk) {
 // ── State helpers ─────────────────────────────────────────────────────────────
 const blankCostRow  = () => ({ action: '', labourRateId: '', labourCost: '', materialCost: '', materialRateId: '', qty: 1 })
 const blankIssueRow = () => ({ id: `ir_${Date.now()}_${Math.random().toString(36).slice(2)}`, issueDescription: '', action: '', labourRateId: '', labourCost: '', materialCost: '' })
-const blankCard = () => ({ health: null, notes: '', media: [], proofMedia: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {}, action: '', materialItemId: null, materialRateId: null, materialDescription: null, materialCost: '' })
+const blankCard = () => ({ health: null, notes: '', media: [], proofMedia: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {}, action: '', materialItemId: null, materialRateId: null, materialDescription: null, materialCost: '', kindOverride: null })
 const blankGeneral = () => ({ enabled: false, areas: [], partialRooms: '', labourCost: '', rateId: '', notes: '', media: [], description: '', fullHome: true, specificAreas: [] })
 const BLANK_SPEC_AREA = () => ({ id: `sa_${Date.now()}_${Math.random().toString(36).slice(2)}`, area: '', type: '', notes: '', rateId: '', cost: '' })
 
@@ -832,7 +833,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
 }
 
 // ── Item card ─────────────────────────────────────────────────────────────────
-function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onUpdate, onDuplicate, onRemove, labourRates, pid }) {
+function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onUpdate, onDuplicate, onRemove, labourRates, pid, sectionLabel }) {
   const { label, trade, issues: presets } = itemConfig
   const isAcPoint      = itemConfig.key === 'acPoint'
   const acProvision    = card.acProvision || 'present'
@@ -848,7 +849,8 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
     const qty = Math.max(1, parseFloat(cr.qty) || 1)
     return sum + ((parseFloat(cr.materialCost) || 0) + (parseFloat(cr.labourCost) || 0)) * qty
   }, 0)
-  const needsProofVideo = nonFunctional.length > 0 && itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD
+  const effectiveKind   = card.kindOverride ?? classifyItemKind(label, nonFunctional.join(' '), card.action || '', sectionLabel || '', trade || '')
+  const needsProofVideo = nonFunctional.length > 0 && itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD && effectiveKind === 'fixture'
   const hasProof        = (card.proofMedia || []).length > 0
 
   function toggleIssue(nextIssues) {
@@ -877,6 +879,9 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
     <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
       {needsProofVideo && !hasProof && (
         <span title="Proof video required" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent, #c8963e)', flexShrink: 0, display: 'inline-block' }} />
+      )}
+      {nonFunctional.length > 0 && itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD && (
+        <button type="button" onClick={e => { e.stopPropagation(); onUpdate('kindOverride', effectiveKind === 'fixture' ? 'service' : 'fixture') }} title={`${card.kindOverride ? 'Manually' : 'Auto'}-classified as ${effectiveKind} — tap to flip`} style={{ padding: '2px 7px', fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', borderRadius: 4, border: `1px solid ${effectiveKind === 'fixture' ? 'rgba(200,150,62,0.4)' : 'rgba(107,109,130,0.4)'}`, background: effectiveKind === 'fixture' ? 'rgba(200,150,62,0.1)' : 'rgba(107,109,130,0.08)', color: effectiveKind === 'fixture' ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', letterSpacing: '0.08em', whiteSpace: 'nowrap', textTransform: 'uppercase', lineHeight: 1.3 }}>{effectiveKind}</button>
       )}
       {!isAcPoint && naToggle}
       <button type="button" onClick={e => { e.stopPropagation(); onDuplicate() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(200,150,62,0.4)', background: 'rgba(200,150,62,0.08)', color: 'var(--accent, #c8963e)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>⊕</button>
@@ -1402,7 +1407,8 @@ export default function InspectionIndoor() {
               const cr = (card.costRows || {})[issue] || {}
               return sum + ((parseFloat(cr.materialCost) || 0) + (parseFloat(cr.labourCost) || 0)) * Math.max(1, parseFloat(cr.qty) || 1)
             }, 0)
-            if (total >= HIGH_VALUE_VIDEO_THRESHOLD && !(card.proofMedia?.length)) {
+            const effKind = card.kindOverride ?? classifyItemKind(itemConfig.label, nonFn.join(' '), card.action || '', sec.label, itemConfig.trade || '')
+            if (total >= HIGH_VALUE_VIDEO_THRESHOLD && effKind === 'fixture' && !(card.proofMedia?.length)) {
               const suffix = cards.length > 1 ? ` (${ci + 1})` : ''
               missingProof.push(`${itemConfig.label}${suffix} · ${tab.label}`)
             }
@@ -1632,6 +1638,7 @@ export default function InspectionIndoor() {
                       onRemove={() => removeCard(currentTab.id, sec.id, itemConfig.key, cardIdx)}
                       labourRates={labourRates}
                       pid={pid}
+                      sectionLabel={sec.label}
                     />
                   )
                 })
