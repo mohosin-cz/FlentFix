@@ -1018,13 +1018,19 @@ export default function LandlordEstimate() {
 
                         {/* material / labour breakdown */}
                         {item.cost_type !== 'actuals' && item.cost_type !== 'nil' &&
-                          ((item.material_cost || 0) > 0 || (item.labour_cost || 0) > 0) && (
-                          <div className="le-plate-costs">
-                            {(item.material_cost || 0) > 0 && `Material ₹${fmt(item.material_cost)}`}
-                            {(item.material_cost || 0) > 0 && (item.labour_cost || 0) > 0 && '  ·  '}
-                            {(item.labour_cost || 0) > 0 && `Labour ₹${fmt(item.labour_cost)}`}
-                          </div>
-                        )}
+                          ((item.material_cost || 0) > 0 || (item.labour_cost || 0) > 0) && (() => {
+                            const qty = item.qty || 1
+                            const parts = []
+                            if ((item.material_cost || 0) > 0) parts.push(`Material ₹${fmt(item.material_cost)}`)
+                            if ((item.labour_cost || 0) > 0) parts.push(`Labour ₹${fmt(item.labour_cost)}`)
+                            return (
+                              <div className="le-plate-costs">
+                                {parts.join('  ·  ')}
+                                {qty > 1 && <span style={{ marginLeft: 6, fontWeight: 600, color: 'var(--le-ink)' }}>× {qty}</span>}
+                              </div>
+                            )
+                          })()
+                        }
 
                         {/* approve / ask — hidden when estimate is locked */}
                         {!isLocked && (
