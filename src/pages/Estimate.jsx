@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, Component } from 'react'
+import { HIGH_VALUE_VIDEO_THRESHOLD, validateProofVideo } from '../utils/proofVideo'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
@@ -67,7 +68,7 @@ const CSS = `
 .ey{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .cmd{position:sticky;top:0;z-index:6;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 22px;background:rgba(12,13,17,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
 .cmd .l{display:flex;align-items:center;gap:12px}
-.back{width:30px;height:30px;border:1px solid var(--line2);border-radius:5px;display:grid;place-items:center;color:var(--ink2);background:none;cursor:pointer;flex-shrink:0}
+.back{width:44px;height:44px;border:1px solid var(--line2);border-radius:5px;display:grid;place-items:center;color:var(--ink2);background:none;cursor:pointer;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .back:hover{background:rgba(255,255,255,.06)}
 .ttl{font-family:var(--mono);font-weight:600;font-size:15px;color:var(--ink)}
 .sub{color:var(--muted);font-size:12px;font-family:var(--mono)}
@@ -75,7 +76,7 @@ const CSS = `
 .pill.viewed{color:var(--gold);border-color:rgba(227,170,90,.4)}
 .pill.status{text-transform:uppercase;letter-spacing:.08em}
 .acts{display:flex;align-items:center;gap:8px}
-.btn{font-size:12.5px;font-weight:500;padding:8px 13px;border-radius:5px;border:1px solid var(--line2);background:transparent;color:var(--ink2);cursor:pointer;font-family:var(--sans)}
+.btn{font-size:13px;font-weight:500;padding:10px 14px;min-height:44px;border-radius:5px;border:1px solid var(--line2);background:transparent;color:var(--ink2);cursor:pointer;font-family:var(--sans);touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .btn:hover{background:rgba(255,255,255,.04)}
 .btn.ghost{border-color:transparent;color:var(--muted);padding:8px 9px}
 .btn.ghost:hover{color:var(--ink2);background:rgba(255,255,255,.04)}
@@ -101,7 +102,7 @@ const CSS = `
 .flagrow .clay{color:var(--clay)}
 .board{padding:16px 22px 80px;transition:margin-right .16s}
 .grp{margin-bottom:16px;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--panel)}
-.ghead{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;border-bottom:1px solid var(--line);cursor:pointer;border-left:3px solid var(--muted)}
+.ghead{display:flex;align-items:center;justify-content:space-between;padding:13px 13px;min-height:48px;border-bottom:1px solid var(--line);cursor:pointer;border-left:3px solid var(--muted);touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .ghead:hover{background:rgba(255,255,255,.02)}
 .ghead .gt{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);font-weight:600}
 .ghead .gr{font-family:var(--mono);font-size:11px;color:var(--muted)}
@@ -137,7 +138,7 @@ const CSS = `
 .none-cell{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
 .np-cell{font-family:var(--mono);font-size:12px;color:var(--amber)}
 .seg{display:inline-flex;border:1px solid var(--line2);border-radius:5px;overflow:hidden}
-.seg b{font-family:var(--mono);font-size:9.5px;padding:3px 7px;color:var(--muted);font-weight:500;cursor:pointer;user-select:none;border:none;background:none;display:block}
+.seg b{font-family:var(--mono);font-size:11px;padding:8px 10px;min-height:36px;color:var(--muted);font-weight:500;cursor:pointer;user-select:none;border:none;background:none;display:flex;align-items:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .seg b:hover{background:rgba(255,255,255,.05);color:var(--ink2)}
 .seg b.on{color:#231a0a;background:var(--gold);font-weight:600}
 .seg b.on.t{background:var(--teal);color:#0a1f1b}
@@ -147,16 +148,16 @@ const CSS = `
 .add-med{font-family:var(--mono);font-size:9.5px;color:var(--faint);border:1px dashed var(--line2);border-radius:4px;padding:4px 6px;cursor:pointer}
 .add-med:hover{border-color:var(--muted);color:var(--muted)}
 .kb{color:var(--faint);text-align:center;font-size:12px}
-.addrow{padding:10px 13px;font-family:var(--mono);font-size:11px;color:var(--muted);border-top:1px solid var(--line);cursor:pointer}
+.addrow{padding:12px 13px;min-height:44px;font-family:var(--mono);font-size:12px;color:var(--muted);border-top:1px solid var(--line);cursor:pointer;display:flex;align-items:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .addrow:hover{color:var(--ink2);background:rgba(255,255,255,.02)}
-.dwr{position:fixed;top:0;right:0;height:100%;width:412px;background:var(--panel);border-left:1px solid var(--line2);z-index:9;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .16s}
+.dwr{position:fixed;top:0;right:0;height:100%;width:min(412px,100vw);background:var(--panel);border-left:1px solid var(--line2);z-index:9;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .16s}
 .dwr.show{transform:none;box-shadow:-24px 0 60px rgba(0,0,0,.45)}
 .dh{display:flex;align-items:flex-start;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line);flex-shrink:0}
 .dh .ey-area{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .dh .it{font-weight:600;font-size:16px;margin-top:3px;color:var(--ink)}
 .dh .cnt{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:5px}
 .dnav{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.ic{width:26px;height:26px;border:1px solid var(--line2);border-radius:5px;display:grid;place-items:center;color:var(--ink2);cursor:pointer;font-size:13px;background:none}
+.ic{width:44px;height:44px;border:1px solid var(--line2);border-radius:5px;display:grid;place-items:center;color:var(--ink2);cursor:pointer;font-size:15px;background:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .ic:hover{background:rgba(255,255,255,.06);color:var(--ink)}
 .ic:disabled{opacity:.3;cursor:default}
 .db{padding:15px 18px;overflow-y:auto;flex:1}
@@ -167,14 +168,14 @@ const CSS = `
 .gal .g img{width:100%;height:100%;object-fit:cover;display:block}
 .gadd{width:60px;height:60px;border:1px dashed var(--line2);border-radius:5px;display:grid;place-items:center;color:var(--faint);font-family:var(--mono);font-size:10px;cursor:pointer;flex-shrink:0}
 .gadd:hover{border-color:var(--muted);color:var(--muted)}
-.fld{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:9px 11px;color:var(--ink2);font-size:12.5px;line-height:1.5}
-.fld-ta{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:9px 11px;color:var(--ink2);font-size:12.5px;line-height:1.5;width:100%;resize:vertical;outline:none;font-family:var(--sans);min-height:60px;transition:border-color .15s}
+.fld{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:10px 12px;color:var(--ink2);font-size:16px;line-height:1.5;min-height:44px}
+.fld-ta{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:10px 12px;color:var(--ink2);font-size:16px;line-height:1.5;width:100%;resize:vertical;outline:none;font-family:var(--sans);min-height:60px;transition:border-color .15s}
 .fld-ta:focus{border-color:var(--gold)}
 .crow{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line)}
 .crow:last-child{border-bottom:none}
 .crow .lbl{color:var(--muted);font-size:12px}
 .crow .val{font-family:var(--mono);font-size:12.5px;color:var(--ink2)}
-.crow .inp{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:5px 8px;color:var(--ink);font-family:var(--mono);font-size:12.5px;width:100px;text-align:right;outline:none;transition:border-color .15s}
+.crow .inp{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:10px 10px;color:var(--ink);font-family:var(--mono);font-size:16px;width:110px;text-align:right;outline:none;transition:border-color .15s;min-height:44px}
 .crow .inp:focus{border-color:var(--gold)}
 .matpick{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;padding:8px 10px;cursor:pointer;transition:border-color .15s}
 .matpick:hover{border-color:var(--gold)}
@@ -395,12 +396,38 @@ function DrawerMatPicker({ description, fxin, onApply }) {
   )
 }
 
+// ─── Proof video upload button (used inside dossier) ─────────────────────────
+function ProofVideoInput({ onAddProofVideo }) {
+  const inputRef = useRef(null)
+  const [state, setState] = useState('idle') // 'idle' | 'uploading' | 'error'
+  const [errMsg, setErrMsg] = useState('')
+  async function handleChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setState('uploading'); setErrMsg('')
+    try { await onAddProofVideo(file); setState('idle') }
+    catch (err) { setErrMsg(err.message); setState('error') }
+  }
+  return (
+    <div style={{ display:'flex',flexDirection:'column',gap:4,marginTop:4 }}>
+      {errMsg && <div style={{ fontSize:11,color:'var(--clay)',fontFamily:'var(--mono)' }}>✗ {errMsg}</div>}
+      <input ref={inputRef} type="file" accept="video/*" capture="environment" style={{ display:'none' }} onChange={handleChange} />
+      <button type="button" disabled={state === 'uploading'}
+        onClick={() => { setErrMsg(''); inputRef.current?.click() }}
+        style={{ display:'flex',alignItems:'center',gap:6,padding:'7px 12px',border:'1px solid rgba(225,169,63,.4)',borderRadius:5,background:'rgba(225,169,63,.08)',color:'var(--amber)',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'var(--mono)',letterSpacing:'.04em',width:'fit-content' }}>
+        <span>●</span>{state === 'uploading' ? 'Uploading…' : 'Add / replace proof video'}
+      </button>
+    </div>
+  )
+}
+
 // ─── ItemDrawer (dossier) ─────────────────────────────────────────────────────
 
 function ItemDrawer({
   item, media, allItems, itemIndex,
   onClose, onNavigate, onUpdate,
-  onAddMedia, onDeleteMedia, onReplaceMedia, onSetPrimary,
+  onAddMedia, onAddProofVideo, onDeleteMedia, onReplaceMedia, onSetPrimary,
   onOpenLightbox, userEmail, estimateId, readOnly,
 }) {
   const [drafts, setDrafts] = useState({})
@@ -457,15 +484,15 @@ function ItemDrawer({
         <div style={{ marginTop:6 }}>
           <div className="crow">
             <span className="lbl">Material</span>
-            <input className="inp" type="number" value={dv('material_cost')} onChange={e => sd('material_cost', e.target.value)} onBlur={() => commit('material_cost')} disabled={readOnly} />
+            <input className="inp" type="number" inputMode="decimal" value={dv('material_cost')} onChange={e => sd('material_cost', e.target.value)} onBlur={() => commit('material_cost')} disabled={readOnly} />
           </div>
           <div className="crow">
             <span className="lbl">Labour</span>
-            <input className="inp" type="number" value={dv('labour_cost')} onChange={e => sd('labour_cost', e.target.value)} onBlur={() => commit('labour_cost')} disabled={readOnly} />
+            <input className="inp" type="number" inputMode="decimal" value={dv('labour_cost')} onChange={e => sd('labour_cost', e.target.value)} onBlur={() => commit('labour_cost')} disabled={readOnly} />
           </div>
           <div className="crow">
             <span className="lbl">Qty</span>
-            <input className="inp" type="number" value={dv('qty')} onChange={e => sd('qty', e.target.value)} onBlur={() => commit('qty')} style={{ width:60 }} disabled={readOnly} />
+            <input className="inp" type="number" inputMode="numeric" value={dv('qty')} onChange={e => sd('qty', e.target.value)} onBlur={() => commit('qty')} style={{ width:60 }} disabled={readOnly} />
           </div>
         </div>
         {type === 'priced' && <div className="tot2"><span className="ey">Total</span><span className="v">₹{fmt(tot)}</span></div>}
@@ -501,6 +528,33 @@ function ItemDrawer({
             onOpenLightbox={onOpenLightbox}
           />
         </div>
+
+        {/* Proof video — shown only for high-value items */}
+        {(() => {
+          const itTot = ((parseFloat(item.material_cost)||0) + (parseFloat(item.labour_cost)||0)) * (item.qty||1)
+          if (itTot < HIGH_VALUE_VIDEO_THRESHOLD || item.status === 'excluded' || item.status === 'removed') return null
+          const proofVid = media.find(m => m.is_proof_video)
+          const proofInputRef = { current: null }
+          return (
+            <div className="sec">
+              <span className="ey">Proof Video</span>
+              {proofVid ? (
+                <div style={{ display:'flex',alignItems:'center',gap:10 }}>
+                  <video src={proofVid.url} poster={proofVid.url.replace(/(\.[^.]+)$/, '_thumb.webp')} preload="none" muted style={{ width:80,height:60,objectFit:'cover',borderRadius:6 }} />
+                  <span style={{ fontSize:11,color:'var(--good)',fontFamily:'var(--mono)',fontWeight:600 }}>✓ Proof video on file</span>
+                </div>
+              ) : (
+                <div style={{ padding:'10px 12px',borderRadius:6,border:'1px solid rgba(225,169,63,.4)',background:'rgba(225,169,63,.06)',display:'flex',flexDirection:'column',gap:6 }}>
+                  <div style={{ fontSize:11,color:'var(--amber)',fontFamily:'var(--mono)',fontWeight:700 }}>⬤ No proof video — required for ₹{Math.round(itTot).toLocaleString('en-IN')} item</div>
+                  <div style={{ fontSize:11,color:'var(--muted)' }}>10 s minimum · portrait (vertical) orientation</div>
+                </div>
+              )}
+              {!readOnly && (
+                <ProofVideoInput onAddProofVideo={onAddProofVideo} />
+              )}
+            </div>
+          )
+        })()}
 
         {/* Condition */}
         {score != null && (
@@ -708,14 +762,19 @@ function RateDrawer({ open, onClose, onSelectMaterial, onSelectLabour }) {
 
 function Dashboard({ items, mediaMap }) {
   const g = useMemo(() => {
-    let firm=0, mat=0, lab=0, p=0, a=0, n=0, nd=0, rep=0, rpr=0, ok=0, dp=0, ng=0, ss=0, scoredCount=0
+    let firm=0, mat=0, lab=0, p=0, a=0, n=0, nd=0, rep=0, rpr=0, ok=0, dp=0, ng=0, np=0, ss=0, scoredCount=0
     items.forEach(it => {
       const score = getScore(it)
       if (score != null) { ss += score; scoredCount++ }
       if (score != null && score <= 3) rep++; else if (score != null && score <= 6) rpr++; else if (score != null) ok++
       if (it.status === 'disputed') dp++
-      const photos = (mediaMap[it.line_item_id]||[]).filter(m => m.type !== 'video' && !/\.(mp4|mov|webm)$/i.test(m.url)).length
+      const itMedia = mediaMap[it.line_item_id] || []
+      const photos = itMedia.filter(m => m.type !== 'video' && !/\.(mp4|mov|webm)$/i.test(m.url)).length
       if (!photos && it.status !== 'excluded' && it.status !== 'removed') ng++
+      if (it.status !== 'excluded' && it.status !== 'removed') {
+        const itTot = ((parseFloat(it.material_cost)||0) + (parseFloat(it.labour_cost)||0)) * (it.qty||1)
+        if (itTot >= HIGH_VALUE_VIDEO_THRESHOLD && !itMedia.some(m => m.is_proof_video)) np++
+      }
       if (it.status === 'excluded' || it.status === 'removed') return
       if (it.cost_type === 'actuals') { a++ }
       else if (it.cost_type === 'nil') { n++ }
@@ -733,7 +792,7 @@ function Dashboard({ items, mediaMap }) {
     const matPct  = mat+lab ? Math.round(mat/(mat+lab)*100) : 0
     const ready   = p+a+n
     const rpct    = total > 0 ? Math.round(ready/total*100) : 0
-    return { firm, mat, lab, p, a, n, nd, rep, rpr, ok, dp, ng, cond, total, matPct, ready, rpct }
+    return { firm, mat, lab, p, a, n, nd, rep, rpr, ok, dp, ng, np, cond, total, matPct, ready, rpct }
   }, [items, mediaMap])
 
   const stack = (c, col) => c && g.total
@@ -795,6 +854,7 @@ function Dashboard({ items, mediaMap }) {
         <div className="flagrow">
           <span className="clay">● Disputed {g.dp}</span>
           <span>▤ No photo {g.ng}</span>
+          {g.np > 0 && <span style={{ color:'var(--amber)' }}>⬤ No proof {g.np}</span>}
         </div>
       </div>
     </div>
@@ -847,6 +907,8 @@ function EstimateWorkbenchInner() {
   const [copied, setCopied]               = useState(false)
   const [hasUnsent, setHasUnsent]         = useState(false)
   const [locking, setLocking]             = useState(false)
+  const [sending, setSending]             = useState(false)
+  const [sendError, setSendError]         = useState(null)
   const [lightbox, setLightbox]           = useState(null)
 
   const dragRef          = useRef(null)   // { itemId, trade }
@@ -908,7 +970,7 @@ function EstimateWorkbenchInner() {
   async function loadMedia(itemsList) {
     const ids = (itemsList || items).map(i => i.line_item_id).filter(Boolean)
     if (!ids.length) { setMediaMap({}); return }
-    const { data } = await supabase.from('line_item_media').select('id,line_item_id,url,type').in('line_item_id', ids).order('id', { ascending: true })
+    const { data } = await supabase.from('line_item_media').select('id,line_item_id,url,type,is_proof_video').in('line_item_id', ids).order('id', { ascending: true })
     if (data) {
       const map = {}
       data.forEach(m => { if (!map[m.line_item_id]) map[m.line_item_id]=[]; map[m.line_item_id].push(m) })
@@ -968,6 +1030,20 @@ function EstimateWorkbenchInner() {
     }))
   }
 
+  async function handleAddProofVideo(lineItemId, file) {
+    try {
+      await validateProofVideo(file)
+    } catch (err) {
+      alert(err.message); return
+    }
+    const baseName = `workbench/${lineItemId}/${Date.now()}_proof`
+    let publicUrl
+    try { publicUrl = await uploadMedia(supabase, file, baseName); if (!publicUrl) return }
+    catch (e) { console.error('[addProofVideo]', e.message); return }
+    const { data: row } = await supabase.from('line_item_media').insert({ line_item_id: lineItemId, url: publicUrl, type: 'video', is_proof_video: true }).select().single()
+    if (row) updateMediaList(lineItemId, prev => [...prev, row])
+  }
+
   // ── Item ops ──────────────────────────────────────────────────────────────────
 
   function scheduleLog(itemId, itemName, field, oldVal, newVal) {
@@ -1000,11 +1076,7 @@ function EstimateWorkbenchInner() {
       console.error('[updateItem]', err.message)
       setItems(p => p.map(i => i.id === itemId ? prev : i))
     } else {
-      // Recompute and persist stored total (fire-and-forget)
-      const firmTotal = newItems
-        .filter(i => !['removed', 'excluded'].includes(i.status) && i.cost_type === 'priced')
-        .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
-      supabase.from('estimates').update({ total: firmTotal }).eq('id', id)
+      // estimates.total is maintained by a DB trigger — no client write needed
       if (estimate?.status !== 'draft') setHasUnsent(true)
       for (const [field, newVal] of Object.entries(safe)) {
         scheduleLog(itemId, prev?.item_name, field, prev?.[field], newVal)
@@ -1164,51 +1236,102 @@ function EstimateWorkbenchInner() {
   }
 
   async function handleSend() {
+    if (sending) return
+    setSending(true)
+    setSendError(null)
+
     const liveItems = items.filter(i => i.status !== 'removed')
     const snapTotal = liveItems
       .filter(i => i.status !== 'excluded' && i.cost_type === 'priced')
       .reduce((s, i) => s + ((parseFloat(i.material_cost)||0) + (parseFloat(i.labour_cost)||0)) * (i.qty||1), 0)
     const nextVersion = (estimate?.current_version || 0) + 1
 
+    function abort(stage, msg) {
+      const full = `Send failed [${stage}]: ${msg}`
+      console.error('[handleSend]', full, { estimate_id: id, nextVersion, userEmail })
+      setSendError(full)
+      logActivity(supabase, id, { action: 'send_failed', new_value: full, changed_by: userEmail })
+      setSending(false)
+    }
+
+    // ── Step 1: create version row ──────────────────────────────────────────────
     const { data: ver, error: vErr } = await supabase
       .from('estimate_versions')
       .insert({ estimate_id: id, version_number: nextVersion, total: snapTotal, status: 'active', created_by: userEmail })
       .select('id').single()
-    if (vErr) { console.error('[handleSend] version create:', vErr.message) }
 
-    if (ver) {
-      const snapRows = liveItems.map(item => ({
-        version_id:           ver.id,
-        estimate_item_id:     item.id,
-        line_item_id:         item.line_item_id,
-        sort_order:           item.sort_order,
-        area:                 item.area,
-        item_name:            item.item_name,
-        trade:                item.trade,
-        section_name:         item.section_name || '',
-        issue_description:    item.issue_description,
-        material_description: item.material_description,
-        material_cost:        item.material_cost,
-        action:               item.action,
-        labour_description:   item.labour_description,
-        labour_cost:          item.labour_cost,
-        qty:                  item.qty,
-        cost_type:            item.cost_type,
-        status:               item.status,
-        warranty:             item.warranty,
-      }))
-      const { error: snapErr } = await supabase.from('estimate_version_items').insert(snapRows)
-      if (snapErr) console.error('[handleSend] snapshot items:', snapErr.message)
-      await supabase.from('estimate_versions').update({ status: 'superseded' }).eq('estimate_id', id).neq('id', ver.id)
+    if (vErr || !ver?.id) {
+      abort('version_create', vErr?.message || 'no row returned')
+      return
     }
 
+    // ── Step 2: snapshot items ──────────────────────────────────────────────────
+    const snapRows = liveItems.map(item => ({
+      version_id:           ver.id,
+      estimate_item_id:     item.id,
+      line_item_id:         item.line_item_id,
+      sort_order:           item.sort_order,
+      area:                 item.area,
+      item_name:            item.item_name,
+      trade:                item.trade,
+      section_name:         item.section_name || '',
+      issue_description:    item.issue_description,
+      material_description: item.material_description,
+      material_cost:        item.material_cost,
+      action:               item.action,
+      labour_description:   item.labour_description,
+      labour_cost:          item.labour_cost,
+      qty:                  item.qty,
+      cost_type:            item.cost_type,
+      status:               item.status,
+      warranty:             item.warranty,
+    }))
+
+    const { error: snapErr } = await supabase.from('estimate_version_items').insert(snapRows)
+    if (snapErr) {
+      await supabase.from('estimate_versions').delete().eq('id', ver.id)
+      abort('version_items', snapErr.message)
+      return
+    }
+
+    // ── Step 3: verify count ────────────────────────────────────────────────────
+    const { count: insertedCount, error: countErr } = await supabase
+      .from('estimate_version_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('version_id', ver.id)
+
+    if (countErr || insertedCount !== snapRows.length) {
+      await supabase.from('estimate_version_items').delete().eq('version_id', ver.id)
+      await supabase.from('estimate_versions').delete().eq('id', ver.id)
+      abort('verify', countErr?.message || `expected ${snapRows.length} items, got ${insertedCount}`)
+      return
+    }
+
+    // ── Step 4: mark prior versions superseded ──────────────────────────────────
+    await supabase.from('estimate_versions').update({ status: 'superseded' }).eq('estimate_id', id).neq('id', ver.id)
+
+    // ── Step 5: update estimate — ONLY after both inserts verified ──────────────
     const now = new Date().toISOString()
-    await supabase.from('estimates').update({ current_version: nextVersion, status: 'sent', sent_at: now }).eq('id', id)
+    const { error: estErr } = await supabase
+      .from('estimates')
+      .update({ current_version: nextVersion, status: 'sent', sent_at: now })
+      .eq('id', id)
+
+    if (estErr) {
+      // Version committed but estimate row not updated — rollback the version
+      await supabase.from('estimate_version_items').delete().eq('version_id', ver.id)
+      await supabase.from('estimate_versions').delete().eq('id', ver.id)
+      abort('estimate_update', estErr.message)
+      return
+    }
+
+    // ── Step 6: success ─────────────────────────────────────────────────────────
     await supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'sent', actor: userEmail })
     setEstimate(p => ({ ...p, current_version: nextVersion, status: 'sent', sent_at: now }))
     setHasUnsent(false)
     logActivity(supabase, id, { action: 'send', old_value: String(snapTotal), new_value: String(nextVersion), changed_by: userEmail })
     copyLink()
+    setSending(false)
   }
 
   async function handleLock() {
@@ -1373,9 +1496,14 @@ function EstimateWorkbenchInner() {
           <button className="btn ghost" onClick={() => setNotesEditing(p => !p)}>Notes</button>
           {shareUrl && <button className="btn" onClick={() => window.open(shareUrl,'_blank')}>Preview</button>}
           <button className="btn" onClick={copyLink}>{copied ? 'Copied!' : 'Copy link'}</button>
+          {sendError && (
+            <span style={{ fontSize:11,color:'#f87171',fontFamily:'var(--mono)',maxWidth:260,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }} title={sendError}>
+              ⚠ {sendError}
+            </span>
+          )}
           {!isLocked && (
-            <button className="btn primary" onClick={handleSend}>
-              {status === 'draft' ? 'Send →' : 'Resend →'}
+            <button className="btn primary" onClick={handleSend} disabled={sending}>
+              {sending ? 'Sending…' : status === 'draft' ? 'Send →' : 'Resend →'}
             </button>
           )}
           {!isLocked && status !== 'draft' && (
@@ -1543,6 +1671,7 @@ function EstimateWorkbenchInner() {
             onNavigate={navigateDrawer}
             onUpdate={isLocked ? () => {} : updateItem}
             onAddMedia={isLocked ? () => {} : files => handleAddMedia(drawerItem.line_item_id, files)}
+            onAddProofVideo={isLocked ? () => {} : file => handleAddProofVideo(drawerItem.line_item_id, file)}
             onDeleteMedia={isLocked ? () => {} : handleDeleteMedia}
             onReplaceMedia={isLocked ? () => {} : handleReplaceMedia}
             onSetPrimary={isLocked ? () => {} : m => handleSetPrimary(drawerItem.line_item_id, m)}

@@ -30,7 +30,7 @@ export function NavBar({ title, subtitle, onBack, right }) {
       <button
         onClick={onBack}
         style={{
-          width: 36, height: 36, borderRadius: 8,
+          width: 44, height: 44, borderRadius: 8,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'var(--bg-input, #252731)',
           border: '1px solid var(--border, #2e3040)',
@@ -38,6 +38,8 @@ export function NavBar({ title, subtitle, onBack, right }) {
           cursor: 'pointer',
           flexShrink: 0,
           transition: 'border-color 0.15s',
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'manipulation',
         }}
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -163,16 +165,19 @@ export function Input({ value, onChange, placeholder, type = 'text', error, ...r
       value={value}
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
+      inputMode={type === 'number' ? 'decimal' : undefined}
       style={{
         width: '100%', padding: '10px 14px',
-        fontSize: 13,
+        fontSize: 16,
         color: 'var(--text, #e8e8f0)',
         background: 'var(--bg-input, #252731)',
         border: `1px solid ${error ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}`,
         borderRadius: 6, outline: 'none',
+        minHeight: 44,
         transition: 'border-color 0.15s',
         boxShadow: error ? '0 0 0 2px rgba(224,92,106,0.15)' : 'none',
         fontFamily: 'inherit',
+        WebkitTapHighlightColor: 'transparent',
       }}
       {...rest}
     />
@@ -189,7 +194,7 @@ export function Textarea({ value, onChange, placeholder, rows = 3 }) {
       placeholder={placeholder}
       style={{
         width: '100%', padding: '10px 14px',
-        fontSize: 13,
+        fontSize: 16,
         color: 'var(--text, #e8e8f0)',
         lineHeight: 1.6,
         background: 'var(--bg-input, #252731)',
@@ -197,6 +202,7 @@ export function Textarea({ value, onChange, placeholder, rows = 3 }) {
         borderRadius: 6, outline: 'none',
         resize: 'vertical', transition: 'border-color 0.15s',
         fontFamily: 'inherit',
+        WebkitTapHighlightColor: 'transparent',
       }}
     />
   )
@@ -223,13 +229,14 @@ export function PillGroup({ options, value, onChange, multi = false }) {
             key={v}
             onClick={() => toggle(v)}
             style={{
-              padding: '7px 14px', fontSize: 12, fontWeight: active ? 600 : 400,
-              borderRadius: 4,
+              padding: '10px 14px', fontSize: 13, fontWeight: active ? 600 : 400,
+              borderRadius: 4, minHeight: 44,
               border: `1px solid ${active ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`,
               background: active ? 'rgba(200,150,62,0.12)' : 'var(--bg-input, #252731)',
               color: active ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)',
               transition: 'all 0.15s', cursor: 'pointer',
               WebkitTapHighlightColor: 'transparent',
+              touchAction: 'manipulation',
               fontFamily: 'inherit',
             }}
           >{label}</button>
@@ -411,9 +418,10 @@ export function AccordionCard({ title, badge, status, isOpen, onToggle, children
       <button
         onClick={onToggle}
         style={{
-          width: '100%', padding: '16px 18px',
+          width: '100%', padding: '14px 18px', minHeight: 52,
           display: 'flex', alignItems: 'center', gap: 12,
           cursor: 'pointer', background: 'none', border: 'none', textAlign: 'left',
+          WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
         }}
       >
         {/* status dot */}
@@ -488,17 +496,18 @@ export function BtnPrimary({ children, onClick, disabled }) {
       onClick={onClick}
       disabled={disabled}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 8,
-        padding: '11px 20px',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        padding: '11px 20px', minHeight: 44,
         background: disabled ? 'var(--bg-input, #252731)' : 'var(--accent, #c8963e)',
         color: disabled ? 'var(--text-muted, #6b6d82)' : '#fff',
-        fontSize: 13, fontWeight: 700,
+        fontSize: 14, fontWeight: 700,
         border: `1px solid ${disabled ? 'var(--border, #2e3040)' : 'transparent'}`,
         borderRadius: 6,
         cursor: disabled ? 'not-allowed' : 'pointer',
         transition: 'background 0.15s, opacity 0.15s',
         whiteSpace: 'nowrap',
         WebkitTapHighlightColor: 'transparent',
+        touchAction: 'manipulation',
         fontFamily: 'var(--font-mono, monospace)',
         letterSpacing: '0.02em',
       }}
@@ -514,8 +523,8 @@ export function BtnSecondary({ children, onClick }) {
     <button
       onClick={onClick}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 8,
-        padding: '10px 18px',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        padding: '10px 18px', minHeight: 44,
         background: 'transparent',
         color: 'var(--text, #e8e8f0)',
         fontSize: 13, fontWeight: 600,
@@ -523,6 +532,8 @@ export function BtnSecondary({ children, onClick }) {
         borderRadius: 6,
         cursor: 'pointer', whiteSpace: 'nowrap',
         transition: 'border-color 0.15s',
+        WebkitTapHighlightColor: 'transparent',
+        touchAction: 'manipulation',
         fontFamily: 'inherit',
       }}
     >{children}</button>
@@ -555,12 +566,13 @@ export function TabBar({ tabs, active, onChange, counts }) {
           key={tab}
           onClick={() => onChange(i)}
           style={{
-            flex: 1, minWidth: 80, padding: '11px 8px',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+            flex: 1, minWidth: 72, padding: '11px 8px', minHeight: 44,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
             background: 'none', border: 'none',
             borderBottom: `2px solid ${active === i ? 'var(--accent, #c8963e)' : 'transparent'}`,
             cursor: 'pointer', transition: 'all 0.15s',
             color: active === i ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)',
+            WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
           }}
         >
           <span style={{

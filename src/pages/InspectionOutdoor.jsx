@@ -7,6 +7,8 @@ import {
 } from '../components/ui'
 import { supabase } from '../lib/supabase'
 import { uploadMedia } from '../utils/mediaUtils'
+import { HIGH_VALUE_VIDEO_THRESHOLD, validateProofVideo } from '../utils/proofVideo'
+import { classifyItemKind } from '../utils/itemKind'
 
 // ─── Upload helper ────────────────────────────────────────────────────────────
 export async function uploadMediaFiles(inspectionId, lineItemId, files) {
@@ -110,7 +112,7 @@ export const ISSUE_PRESETS = {
 // ─── State helpers ────────────────────────────────────────────────────────────
 const blankCostRow  = () => ({ action: '', labourRateId: '', labourCost: '', materialCost: '', materialRateId: '', qty: 1 })
 const blankIssueRow = () => ({ id: `ir_${Date.now()}_${Math.random().toString(36).slice(2)}`, issueDescription: '', action: '', labourRateId: '', labourCost: '', materialCost: '' })
-const blankCard     = () => ({ health: null, notes: '', media: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {} })
+const blankCard     = () => ({ health: null, notes: '', media: [], proofMedia: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {}, kindOverride: null })
 
 function isDone(item) {
   if (!item) return false
@@ -216,6 +218,44 @@ function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photo
 }
 
 // ─── Issue checkbox grid ──────────────────────────────────────────────────────
+function ProofVideoCapture({ itemTotal, proofMedia, onChange, pid, itemKey }) {
+  const inputRef = useRef(null)
+  const [error, setError]       = useState('')
+  const [uploading, setUploading] = useState(false)
+  if (itemTotal < HIGH_VALUE_VIDEO_THRESHOLD) return null
+  const hasProof = (proofMedia || []).length > 0
+  async function handleFile(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setError(''); setUploading(true)
+    try {
+      await validateProofVideo(file)
+      const safe = (itemKey || 'item').replace(/[^a-zA-Z0-9]/g, '_')
+      const baseName = `${pid}/${safe}_proof_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      const url = await uploadMedia(supabase, file, baseName)
+      if (url) onChange([url])
+    } catch (err) { setError(err.message) }
+    setUploading(false)
+  }
+  return (
+    <div style={{ borderRadius: 8, border: `1.5px solid ${hasProof ? 'rgba(61,186,122,0.45)' : 'rgba(200,150,62,0.6)'}`, background: hasProof ? 'rgba(61,186,122,0.06)' : 'rgba(200,150,62,0.08)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: hasProof ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+        {hasProof ? '✓ Proof video added' : `● High-value item (₹${itemTotal.toLocaleString('en-IN')}) — proof video required`}
+      </div>
+      {!hasProof && <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>Record at least 10 s · hold phone vertically</div>}
+      {hasProof && <Thumb file={proofMedia[0]} />}
+      {error && <div style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontWeight: 600 }}>✗ {error}</div>}
+      <input ref={inputRef} type="file" accept="video/*" capture="environment" style={{ display: 'none' }} onChange={handleFile} />
+      <button type="button" disabled={uploading} onClick={() => { setError(''); inputRef.current?.click() }}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 6, background: 'rgba(200,150,62,0.1)', color: 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 700, cursor: uploading ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em', minHeight: 40 }}>
+        <span style={{ fontSize: 14 }}>●</span>
+        {uploading ? 'Uploading…' : hasProof ? 'Replace video' : 'Record video'}
+      </button>
+    </div>
+  )
+}
+
 function IssueCheckboxGrid({ presets, selectedIssues, otherIssue, onSetIssues, onOtherChange }) {
   const regularPresets = (presets || []).filter(p => p !== 'Functional' && p !== 'Other')
   const hasOtherPreset = (presets || []).includes('Other')
@@ -401,7 +441,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
     setMatOpen(true)
   }
 
-  const INP = { width: '100%', padding: '8px 10px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text, #e8e8f0)', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }
+  const INP = { width: '100%', padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text, #e8e8f0)', fontSize: 16, boxSizing: 'border-box', fontFamily: 'inherit', minHeight: 44 }
   const LBL = { fontSize: 10, color: 'var(--text-muted, #6b6d82)', letterSpacing: '0.08em', marginBottom: 6, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', display: 'block' }
 
   return (
@@ -429,7 +469,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
           </div>
           <div style={{ width: 72 }}>
             <span style={LBL}>Qty</span>
-            <input type="number" min="1" value={costRow.qty ?? 1} onChange={e => onUpdate('qty', Math.max(1, parseInt(e.target.value) || 1))} style={{ ...INP, textAlign: 'center' }} />
+            <input type="number" inputMode="numeric" min="1" value={costRow.qty ?? 1} onChange={e => onUpdate('qty', Math.max(1, parseInt(e.target.value) || 1))} style={{ ...INP, textAlign: 'center' }} />
           </div>
         </div>
 
@@ -488,7 +528,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
               )}
             </div>
             <span style={{ ...LBL, marginTop: 8 }}>Material ₹</span>
-            <input type="number" value={costRow.materialCost || ''} onChange={e => onUpdate('materialCost', e.target.value)} placeholder="0" style={INP} />
+            <input type="number" inputMode="decimal" value={costRow.materialCost || ''} onChange={e => onUpdate('materialCost', e.target.value)} placeholder="0" style={INP} />
           </div>
 
           {/* Labour column */}
@@ -499,7 +539,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
               <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 3, fontFamily: 'var(--font-mono, monospace)' }}>{costRow.labourDescription}</div>
             )}
             <span style={{ ...LBL, marginTop: 8 }}>Labour ₹</span>
-            <input type="number" value={costRow.labourCost || ''} onChange={e => onUpdate('labourCost', e.target.value)} placeholder="0" style={INP} />
+            <input type="number" inputMode="decimal" value={costRow.labourCost || ''} onChange={e => onUpdate('labourCost', e.target.value)} placeholder="0" style={INP} />
           </div>
         </div>}
 
@@ -538,6 +578,9 @@ function OutdoorItemCard({ config, item, isOpen, onToggle, onUpdate, labourRates
     const qty = Math.max(1, parseFloat(cr.qty) || 1)
     return sum + ((parseFloat(cr.materialCost) || 0) + (parseFloat(cr.labourCost) || 0)) * qty
   }, 0)
+  const effectiveKind   = item.kindOverride ?? classifyItemKind(title, nonFunctional.join(' '), '', badge || '', trade || '')
+  const needsProofVideo = nonFunctional.length > 0 && itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD && effectiveKind === 'fixture'
+  const hasProof        = (item.proofMedia || []).length > 0
 
   function toggleIssue(nextIssues) {
     const newCostRows = { ...costRows }
@@ -562,7 +605,17 @@ function OutdoorItemCard({ config, item, isOpen, onToggle, onUpdate, labourRates
   )
 
   return (
-    <AccordionCard title={title} badge={badge} status={done ? 'done' : isOpen ? 'partial' : null} isOpen={isOpen} onToggle={onToggle} headerAction={naToggle}>
+    <AccordionCard title={title} badge={badge} status={done ? 'done' : isOpen ? 'partial' : null} isOpen={isOpen} onToggle={onToggle} headerAction={
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {needsProofVideo && !hasProof && (
+          <span title="Proof video required" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent, #c8963e)', flexShrink: 0, display: 'inline-block' }} />
+        )}
+        {nonFunctional.length > 0 && itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD && (
+          <button type="button" onClick={e => { e.stopPropagation(); onUpdate('kindOverride', effectiveKind === 'fixture' ? 'service' : 'fixture') }} title={`${item.kindOverride ? 'Manually' : 'Auto'}-classified as ${effectiveKind} — tap to flip`} style={{ padding: '2px 7px', fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', borderRadius: 4, border: `1px solid ${effectiveKind === 'fixture' ? 'rgba(200,150,62,0.4)' : 'rgba(107,109,130,0.4)'}`, background: effectiveKind === 'fixture' ? 'rgba(200,150,62,0.1)' : 'rgba(107,109,130,0.08)', color: effectiveKind === 'fixture' ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', letterSpacing: '0.08em', whiteSpace: 'nowrap', textTransform: 'uppercase', lineHeight: 1.3 }}>{effectiveKind}</button>
+        )}
+        {naToggle}
+      </div>
+    }>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {item.notAvailable ? (
           <NotAvailableNote value={item.notAvailableNote} onChange={v => onUpdate('notAvailableNote', v)} />
@@ -586,6 +639,14 @@ function OutdoorItemCard({ config, item, isOpen, onToggle, onUpdate, labourRates
 
             {/* 3. Media */}
             <MediaUpload files={item.media} onChange={v => onUpdate('media', v)} pid={pid} itemKey={config.key} />
+
+            <ProofVideoCapture
+              itemTotal={itemTotal}
+              proofMedia={item.proofMedia || []}
+              onChange={v => onUpdate('proofMedia', v)}
+              pid={pid}
+              itemKey={`${config.key}_proof`}
+            />
 
             {/* 4. Notes */}
             <Field label="Notes" optional>
@@ -848,6 +909,30 @@ export default function InspectionOutdoor() {
 
   async function handleCreateEstimate() {
     setIsEstimating(true); setEstimateError('')
+
+    // Block if any high-value item is missing a proof video
+    const missingProof = []
+    sectionKeys.forEach((sectionKey, tabIdx) => {
+      const sectionName = TABS[tabIdx]
+      SECTIONS[sectionKey].forEach(({ key, title, trade }) => {
+        const item = data[sectionKey][key]
+        if (!item || item.notAvailable) return
+        const nonFn = (item.selectedIssues || []).filter(i => i !== 'Functional')
+        const total = nonFn.reduce((sum, issue) => {
+          const cr = (item.costRows || {})[issue] || {}
+          return sum + ((parseFloat(cr.materialCost) || 0) + (parseFloat(cr.labourCost) || 0)) * Math.max(1, parseFloat(cr.qty) || 1)
+        }, 0)
+        const effKind = item.kindOverride ?? classifyItemKind(title, nonFn.join(' '), '', '', trade || '')
+        if (total >= HIGH_VALUE_VIDEO_THRESHOLD && effKind === 'fixture' && !(item.proofMedia?.length)) {
+          missingProof.push(`${title} · ${sectionName}`)
+        }
+      })
+    })
+    if (missingProof.length > 0) {
+      setEstimateError(`${missingProof.length} item${missingProof.length > 1 ? 's' : ''} need proof videos: ${missingProof.join(', ')}`)
+      setIsEstimating(false); return
+    }
+
     const today = new Date().toISOString().split('T')[0]
     const { data: { user } } = await supabase.auth.getUser()
     const { data: ins, error: insErr } = await supabase
@@ -857,8 +942,10 @@ export default function InspectionOutdoor() {
     if (insErr) { setEstimateError(insErr.message); setIsEstimating(false); return }
 
     const inspectionId = ins.id
-    const lineItemRows = []
-    const mediaArrays  = []
+    const lineItemRows     = []
+    const mediaArrays      = []
+    const proofMediaArrays = []
+    const cleanProofUrls   = arr => Array.isArray(arr) ? arr.filter(f => typeof f === 'string' && f.startsWith('http')) : []
 
     sectionKeys.forEach((sectionKey, tabIdx) => {
       const sectionName = TABS[tabIdx]
@@ -868,17 +955,18 @@ export default function InspectionOutdoor() {
         const selIssues = item.selectedIssues || []
         if (!item.notAvailable && selIssues.length === 0) return
         const mediaFiles = Array.isArray(item.media) ? item.media.filter(f => typeof f === 'string' && f.startsWith('http')) : []
+        const itemProof  = cleanProofUrls(item.proofMedia)
         const base = { inspection_id: inspectionId, section_name: sectionName, area: title, item_name: title, trade }
 
         if (item.notAvailable) {
           lineItemRows.push({ ...base, issue_description: item.notAvailableNote || 'Not available in property', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available' })
-          mediaArrays.push(mediaFiles)
+          mediaArrays.push(mediaFiles); proofMediaArrays.push([])
           return
         }
 
         if (selIssues.includes('Functional')) {
           lineItemRows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: item.health ?? 10, availability_status: null })
-          mediaArrays.push(mediaFiles)
+          mediaArrays.push(mediaFiles); proofMediaArrays.push(itemProof)
         } else {
           selIssues.forEach((issue, ri) => {
             const cr         = (item.costRows || {})[issue] || {}
@@ -886,6 +974,7 @@ export default function InspectionOutdoor() {
             const issueLabel = issue === 'Other' ? (item.otherIssue || 'Other') : issue
             lineItemRows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: cr.action || '', material_item_id: cr.materialItemId || null, material_fxin: cr.materialRateId || null, material_description: cr.materialDescription || null, material_cost: (parseFloat(cr.materialCost) || 0) * qty, labour_cost: (parseFloat(cr.labourCost) || 0) * qty, item_score: item.health ?? null, availability_status: null })
             mediaArrays.push(ri === 0 ? mediaFiles : [])
+            proofMediaArrays.push(ri === 0 ? itemProof : [])
           })
         }
       })
@@ -896,11 +985,11 @@ export default function InspectionOutdoor() {
         const ciIssues = ci.issues || []
         if (ciIssues.length === 0) {
           lineItemRows.push({ inspection_id: inspectionId, section_name: sectionName, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null })
-          mediaArrays.push(ciMedia)
+          mediaArrays.push(ciMedia); proofMediaArrays.push([])
         } else {
           ciIssues.forEach((row, ri) => {
             lineItemRows.push({ inspection_id: inspectionId, section_name: sectionName, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: row.issueDescription || '', action: row.action || '', material_cost: parseFloat(row.materialCost) || 0, labour_cost: parseFloat(row.labourCost) || 0, item_score: ci.health ?? null })
-            mediaArrays.push(ri === 0 ? ciMedia : [])
+            mediaArrays.push(ri === 0 ? ciMedia : []); proofMediaArrays.push([])
           })
         }
       })
@@ -914,7 +1003,10 @@ export default function InspectionOutdoor() {
       const mediaInserts = []
       for (let i = 0; i < inserted.length; i++) {
         for (const url of (mediaArrays[i] || [])) {
-          mediaInserts.push({ line_item_id: inserted[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image' })
+          mediaInserts.push({ line_item_id: inserted[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image', is_proof_video: false })
+        }
+        for (const url of (proofMediaArrays[i] || [])) {
+          mediaInserts.push({ line_item_id: inserted[i].id, url, type: 'video', is_proof_video: true })
         }
       }
       if (mediaInserts.length) await supabase.from('line_item_media').insert(mediaInserts)

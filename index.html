@@ -21,6 +21,12 @@
     <title>Pulse</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
+      /* Remove 300ms tap delay on all interactive elements */
+      a, button, [role="button"], input, select, textarea, label { touch-action: manipulation; }
+      /* Prevent iOS input zoom — baseline 16px on form elements */
+      input, textarea, select { font-size: 16px; }
+      /* Smooth momentum scroll on all overflow containers */
+      [style*="overflow-y: auto"], [style*="overflow-y:auto"], [style*="overflowY"] { -webkit-overflow-scrolling: touch; }
       #root {
         padding-top: env(safe-area-inset-top);
         padding-bottom: env(safe-area-inset-bottom);

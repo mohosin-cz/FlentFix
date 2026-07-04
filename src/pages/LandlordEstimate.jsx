@@ -526,7 +526,9 @@ export default function LandlordEstimate() {
   const [inspection, setInspection]     = useState(null)
   const [notFound, setNotFound]         = useState(false)
   const [loading, setLoading]           = useState(true)
-  const [snapshotTotal, setSnapshotTotal] = useState(null)
+  const [snapshotTotal, setSnapshotTotal]           = useState(null)
+  const [versionSnapshotMissing, setVersionSnapshotMissing] = useState(false)
+  const [isFlentSession, setIsFlentSession]         = useState(false)
 
   const [landlordName, setLandlordName] = useState(() => localStorage.getItem('le_landlord_name') || '')
   const [showNameModal, setShowNameModal] = useState(false)
@@ -555,6 +557,11 @@ export default function LandlordEstimate() {
   }, [lightbox])
 
   const load = useCallback(async () => {
+    // 0. Check if this is a flent.in internal session (for admin banners)
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const flentSession = authUser?.email?.endsWith('@flent.in') ?? false
+    setIsFlentSession(flentSession)
+
     // 1. Resolve share_token → estimate (no embedded joins — avoids RLS silent-empty issues)
     const { data: est } = await supabase
       .from('estimates')
@@ -582,10 +589,22 @@ export default function LandlordEstimate() {
           .select('*')
           .eq('version_id', ver.id)
           .order('sort_order')
-        estItems = verItems
+        if (verItems && verItems.length > 0) {
+          estItems = verItems
+        } else {
+          // Version row exists but has no items — snapshot is corrupt; fall back to live
+          console.warn('[LandlordEstimate] version snapshot empty, falling back to live items',
+            { estimate_id: est.id, version_number: est.current_version, version_id: ver.id })
+          setVersionSnapshotMissing(true)
+        }
+      } else {
+        // current_version set but no matching version row — same corruption pattern
+        console.warn('[LandlordEstimate] current_version set but no version row found',
+          { estimate_id: est.id, current_version: est.current_version })
+        setVersionSnapshotMissing(true)
       }
     }
-    // Fallback: live estimate_items (draft not yet sent)
+    // Fallback: live estimate_items (draft not yet sent, or snapshot was missing)
     if (!estItems) {
       const { data: liveItems } = await supabase
         .from('estimate_items')
@@ -833,6 +852,19 @@ export default function LandlordEstimate() {
           )}
         </div>
 
+        {/* version snapshot missing — internal only */}
+        {versionSnapshotMissing && isFlentSession && (
+          <div style={{
+            margin: '12px 0', padding: '10px 16px',
+            background: 'rgba(208,112,80,0.12)', border: '1px solid rgba(208,112,80,0.4)',
+            borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10,
+            fontFamily: 'var(--le-mono, monospace)', fontSize: 12, color: '#d07050',
+          }}>
+            <span style={{ fontSize: 16 }}>⚠</span>
+            <span><strong>Version snapshot missing</strong> — Resend required. Showing live items as fallback. (Visible to flent.in sessions only.)</span>
+          </div>
+        )}
+
         {/* approved banner */}
         {alreadyApproved && (
           <div className="le-approved-banner">
@@ -986,13 +1018,19 @@ export default function LandlordEstimate() {
 
                         {/* material / labour breakdown */}
                         {item.cost_type !== 'actuals' && item.cost_type !== 'nil' &&
-                          ((item.material_cost || 0) > 0 || (item.labour_cost || 0) > 0) && (
-                          <div className="le-plate-costs">
-                            {(item.material_cost || 0) > 0 && `Material ₹${fmt(item.material_cost)}`}
-                            {(item.material_cost || 0) > 0 && (item.labour_cost || 0) > 0 && '  ·  '}
-                            {(item.labour_cost || 0) > 0 && `Labour ₹${fmt(item.labour_cost)}`}
-                          </div>
-                        )}
+                          ((item.material_cost || 0) > 0 || (item.labour_cost || 0) > 0) && (() => {
+                            const qty = item.qty || 1
+                            const parts = []
+                            if ((item.material_cost || 0) > 0) parts.push(`Material ₹${fmt(item.material_cost)}`)
+                            if ((item.labour_cost || 0) > 0) parts.push(`Labour ₹${fmt(item.labour_cost)}`)
+                            return (
+                              <div className="le-plate-costs">
+                                {parts.join('  ·  ')}
+                                {qty > 1 && <span style={{ marginLeft: 6, fontWeight: 600, color: 'var(--le-ink)' }}>× {qty}</span>}
+                              </div>
+                            )
+                          })()
+                        }
 
                         {/* approve / ask — hidden when estimate is locked */}
                         {!isLocked && (
