@@ -402,9 +402,11 @@ export function Banner({ type = 'info', children }) {
 export function AccordionCard({ title, badge, status, isOpen, onToggle, children, headerAction }) {
   const borderColor = status === 'done'
     ? 'var(--green, #3dba7a)'
-    : isOpen
-      ? 'var(--accent, #c8963e)'
-      : 'var(--border, #2e3040)'
+    : status === 'na'
+      ? 'rgba(107,109,130,0.45)'
+      : isOpen
+        ? 'var(--accent, #c8963e)'
+        : 'var(--border, #2e3040)'
 
   return (
     <div style={{
@@ -429,9 +431,11 @@ export function AccordionCard({ title, badge, status, isOpen, onToggle, children
           width: 8, height: 8, borderRadius: 2, flexShrink: 0,
           background: status === 'done'
             ? 'var(--green, #3dba7a)'
-            : status === 'partial'
-              ? 'var(--amber, #c8963e)'
-              : 'var(--border-dash, #3a3d52)',
+            : status === 'na'
+              ? 'var(--text-muted, #6b6d82)'
+              : status === 'partial'
+                ? 'var(--amber, #c8963e)'
+                : 'var(--border-dash, #3a3d52)',
           transition: 'background 0.2s',
         }} />
         <div style={{ flex: 1 }}>
@@ -443,6 +447,11 @@ export function AccordionCard({ title, badge, status, isOpen, onToggle, children
             <rect width="16" height="16" rx="4" fill="var(--green, #3dba7a)"/>
             <path d="M4.5 8l3 3 4-4.5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
+        )}
+        {status === 'na' && (
+          <div style={{ width: 16, height: 16, borderRadius: 4, background: 'rgba(107,109,130,0.2)', border: '1px solid rgba(107,109,130,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ fontSize: 8, fontWeight: 800, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>NA</span>
+          </div>
         )}
         {headerAction && (
           <span onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>

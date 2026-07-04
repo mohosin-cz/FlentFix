@@ -219,7 +219,7 @@ function buildTabs(houseType, bhk) {
 // ── State helpers ─────────────────────────────────────────────────────────────
 const blankCostRow  = () => ({ action: '', labourRateId: '', labourCost: '', materialCost: '', materialRateId: '', qty: 1 })
 const blankIssueRow = () => ({ id: `ir_${Date.now()}_${Math.random().toString(36).slice(2)}`, issueDescription: '', action: '', labourRateId: '', labourCost: '', materialCost: '' })
-const blankCard = () => ({ health: null, notes: '', media: [], proofMedia: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {}, action: '', materialItemId: null, materialRateId: null, materialDescription: null, materialCost: '', kindOverride: null })
+const blankCard = () => ({ health: null, notes: '', media: [], proofMedia: [], fixtureStatus: null, notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {}, action: '', materialItemId: null, materialRateId: null, materialDescription: null, materialCost: '', kindOverride: null })
 const blankGeneral = () => ({ enabled: false, areas: [], partialRooms: '', labourCost: '', rateId: '', notes: '', media: [], description: '', fullHome: true, specificAreas: [] })
 const BLANK_SPEC_AREA = () => ({ id: `sa_${Date.now()}_${Math.random().toString(36).slice(2)}`, area: '', type: '', notes: '', rateId: '', cost: '' })
 
@@ -280,7 +280,8 @@ function countItems(tabs, data) {
         const cards = data[tab.id]?.[sec.id]?.[item.key] || []
         cards.forEach(card => {
           total++
-          if (card.notAvailable || (card.selectedIssues || []).length > 0 || card.acProvision === 'not_present') done++
+          const _cfs = card.fixtureStatus ?? (card.notAvailable ? 'not_available' : null)
+          if (_cfs !== null || (card.selectedIssues || []).length > 0 || card.acProvision === 'not_present') done++
         })
       })
     })
@@ -842,8 +843,10 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
   const cardLabel      = totalCards > 1 ? `${baseLabel} (${cardIdx + 1})` : baseLabel
   const selectedIssues = card.selectedIssues || []
   const costRows       = card.costRows || {}
-  const done           = card.notAvailable || selectedIssues.length > 0 || (isAcPoint && acProvision === 'not_present')
+  const effFS          = card.fixtureStatus ?? (card.notAvailable ? 'not_available' : null)
+  const done           = effFS !== null || selectedIssues.length > 0 || (isAcPoint && acProvision === 'not_present')
   const nonFunctional  = selectedIssues.filter(i => i !== 'Functional')
+  const [confirmSheet, setConfirmSheet] = useState(null)
   const itemTotal      = nonFunctional.reduce((sum, issue) => {
     const cr  = costRows[issue] || {}
     const qty = Math.max(1, parseFloat(cr.qty) || 1)
@@ -853,7 +856,28 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
   const needsProofVideo = nonFunctional.length > 0 && itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD && effectiveKind === 'fixture'
   const hasProof        = (card.proofMedia || []).length > 0
 
+  function applyFS(next) {
+    onUpdate('fixtureStatus', next)
+    onUpdate('notAvailable', false)
+    if (next === 'functional') {
+      onUpdate('health', 10)
+      onUpdate('selectedIssues', [])
+      onUpdate('costRows', {})
+    }
+    if (next === 'not_available') {
+      onUpdate('selectedIssues', [])
+      onUpdate('costRows', {})
+    }
+  }
+
+  function tapFS(next) {
+    if (effFS === next) { onUpdate('fixtureStatus', null); return }
+    if (selectedIssues.length > 0) { setConfirmSheet(next); return }
+    applyFS(next)
+  }
+
   function toggleIssue(nextIssues) {
+    if (nextIssues.length > 0 && effFS !== null) onUpdate('fixtureStatus', null)
     const newCostRows = { ...costRows }
     nextIssues.forEach(issue => {
       if (issue !== 'Functional' && !newCostRows[issue]) newCostRows[issue] = blankCostRow()
@@ -866,24 +890,39 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
     onUpdate('costRows', { ...costRows, [issue]: { ...(costRows[issue] || {}), ...partial } })
   }
 
-  const naToggle = (
-    <div onClick={e => { e.stopPropagation(); onUpdate('notAvailable', !card.notAvailable) }} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '3px 8px', borderRadius: 4, background: card.notAvailable ? 'rgba(224,92,106,0.1)' : 'var(--bg-input, #252731)', border: `1px solid ${card.notAvailable ? 'rgba(224,92,106,0.3)' : 'var(--border, #2e3040)'}`, transition: 'background 0.15s', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}>
-      <div style={{ width: 12, height: 12, minWidth: 12, borderRadius: 2, border: `1.5px solid ${card.notAvailable ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}`, background: card.notAvailable ? 'var(--red, #e05c6a)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
-        {card.notAvailable && <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-      </div>
-      <span style={{ fontSize: 10, fontWeight: 600, color: card.notAvailable ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}>{card.notAvailable ? 'n/a' : 'not avail'}</span>
+  const chipStyle = (active, activeColor, activeBg, activeBorder) => ({
+    padding: '4px 9px', minWidth: 44, minHeight: 28,
+    fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)',
+    borderRadius: 5, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    border: `1px solid ${active ? activeBorder : 'var(--border, #2e3040)'}`,
+    background: active ? activeBg : 'var(--bg-input, #252731)',
+    color: active ? activeColor : 'var(--text-muted, #6b6d82)',
+    transition: 'background 0.15s, border-color 0.15s, color 0.15s',
+    WebkitTapHighlightColor: 'transparent', userSelect: 'none', whiteSpace: 'nowrap',
+  })
+
+  const fixtureChips = (
+    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+      <button type="button" onClick={e => { e.stopPropagation(); tapFS('functional') }}
+        style={chipStyle(effFS === 'functional', 'var(--green, #3dba7a)', 'rgba(61,186,122,0.15)', 'rgba(61,186,122,0.5)')}>
+        {effFS === 'functional' ? '✓' : '✓ OK'}
+      </button>
+      <button type="button" onClick={e => { e.stopPropagation(); tapFS('not_available') }}
+        style={chipStyle(effFS === 'not_available', 'var(--text-dim, #9394a8)', 'rgba(107,109,130,0.18)', 'rgba(107,109,130,0.55)')}>
+        NA
+      </button>
     </div>
   )
 
   const headerActions = (
-    <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
       {needsProofVideo && !hasProof && (
         <span title="Proof video required" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent, #c8963e)', flexShrink: 0, display: 'inline-block' }} />
       )}
       {nonFunctional.length > 0 && itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD && (
         <button type="button" onClick={e => { e.stopPropagation(); onUpdate('kindOverride', effectiveKind === 'fixture' ? 'service' : 'fixture') }} title={`${card.kindOverride ? 'Manually' : 'Auto'}-classified as ${effectiveKind} — tap to flip`} style={{ padding: '2px 7px', fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', borderRadius: 4, border: `1px solid ${effectiveKind === 'fixture' ? 'rgba(200,150,62,0.4)' : 'rgba(107,109,130,0.4)'}`, background: effectiveKind === 'fixture' ? 'rgba(200,150,62,0.1)' : 'rgba(107,109,130,0.08)', color: effectiveKind === 'fixture' ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', letterSpacing: '0.08em', whiteSpace: 'nowrap', textTransform: 'uppercase', lineHeight: 1.3 }}>{effectiveKind}</button>
       )}
-      {!isAcPoint && naToggle}
+      {!isAcPoint && fixtureChips}
       <button type="button" onClick={e => { e.stopPropagation(); onDuplicate() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(200,150,62,0.4)', background: 'rgba(200,150,62,0.08)', color: 'var(--accent, #c8963e)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>⊕</button>
       {totalCards > 1 && (
         <button type="button" onClick={e => { e.stopPropagation(); onRemove() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(224,92,106,0.35)', background: 'rgba(224,92,106,0.08)', color: 'var(--red, #e05c6a)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>×</button>
@@ -891,8 +930,12 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
     </div>
   )
 
+  const cardStatus = effFS === 'functional' ? 'done' : effFS === 'not_available' ? 'na' : done ? 'done' : isOpen ? 'partial' : null
+
   return (
-    <AccordionCard title={cardLabel} status={done ? 'done' : isOpen ? 'partial' : null} isOpen={isOpen} onToggle={onToggle} headerAction={headerActions}>
+    <>
+    <div style={{ opacity: effFS !== null ? 0.72 : 1, transition: 'opacity 0.15s' }}>
+    <AccordionCard title={cardLabel} status={cardStatus} isOpen={isOpen} onToggle={onToggle} headerAction={headerActions}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* AC Point — provision toggle at the top */}
@@ -917,8 +960,15 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
           <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(224,92,106,0.3)' }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Saved as no provision</div>
           </div>
-        ) : card.notAvailable ? (
+        ) : effFS === 'not_available' ? (
           <NotAvailableNote value={card.notAvailableNote} onChange={v => onUpdate('notAvailableNote', v)} />
+        ) : effFS === 'functional' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ padding: '10px 14px', background: 'rgba(61,186,122,0.08)', border: '1px solid rgba(61,186,122,0.25)', borderRadius: 8, fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>
+              ✓ Functional — score 10 / 10
+            </div>
+            <MediaUpload files={card.media} onChange={v => onUpdate('media', v)} pid={pid} itemKey={`${itemConfig.key}_${cardIdx}`} />
+          </div>
         ) : (
           <>
             <Field label="Issues">
@@ -990,6 +1040,28 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
         )}
       </div>
     </AccordionCard>
+    </div>
+    {confirmSheet && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.52)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }} onClick={() => setConfirmSheet(null)}>
+        <div style={{ width: '100%', background: 'var(--bg-panel, #1e2028)', borderRadius: '12px 12px 0 0', padding: '16px 20px 40px' }} onClick={e => e.stopPropagation()}>
+          <div style={{ width: 36, height: 3, borderRadius: 2, background: 'var(--border-dash, #3a3d52)', margin: '4px auto 18px' }} />
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', marginBottom: 8 }}>Clear documented issues?</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', marginBottom: 22, lineHeight: 1.5 }}>
+            This item has {selectedIssues.length} documented issue{selectedIssues.length !== 1 ? 's' : ''}.{' '}
+            {confirmSheet === 'functional' ? 'Marking as functional will remove them.' : 'Marking as N/A will remove them.'}
+          </div>
+          <button type="button" onClick={() => { applyFS(confirmSheet); setConfirmSheet(null) }}
+            style={{ width: '100%', padding: '12px 16px', background: confirmSheet === 'functional' ? 'rgba(61,186,122,0.12)' : 'rgba(107,109,130,0.12)', border: `1px solid ${confirmSheet === 'functional' ? 'rgba(61,186,122,0.4)' : 'rgba(107,109,130,0.4)'}`, borderRadius: 8, color: confirmSheet === 'functional' ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 10, fontFamily: 'inherit' }}>
+            {confirmSheet === 'functional' ? 'Clear & mark functional' : 'Clear & mark N/A'}
+          </button>
+          <button type="button" onClick={() => setConfirmSheet(null)}
+            style={{ width: '100%', padding: '12px 16px', background: 'transparent', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-muted, #6b6d82)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
@@ -1360,7 +1432,8 @@ export default function InspectionIndoor() {
       sec.items.forEach(item => {
         const cards = data[currentTab.id]?.[sec.id]?.[item.key] || []
         cards.forEach((card, ci) => {
-          const done = card.notAvailable || (card.selectedIssues || []).length > 0 || card.acProvision === 'not_present'
+          const _efs = card.fixtureStatus ?? (card.notAvailable ? 'not_available' : null)
+          const done = _efs !== null || (card.selectedIssues || []).length > 0 || card.acProvision === 'not_present'
           if (!done) missing.push(cards.length > 1 ? `${item.label} (${ci + 1})` : item.label)
         })
       })
@@ -1478,10 +1551,17 @@ export default function InspectionIndoor() {
               return
             }
 
-            if (!card.notAvailable && selIssues.length === 0) return
+            const cardFS = card.fixtureStatus ?? (card.notAvailable ? 'not_available' : null)
+            if (!cardFS && selIssues.length === 0) return
 
-            if (card.notAvailable) {
-              lineItemRows.push({ ...base, issue_description: card.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available' })
+            if (cardFS === 'not_available') {
+              lineItemRows.push({ ...base, issue_description: card.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available', fixture_status: 'not_available', excluded_from_estimate: true })
+              mediaArrays.push(mediaFiles); proofMediaArrays.push([])
+              return
+            }
+
+            if (cardFS === 'functional') {
+              lineItemRows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: 10, fixture_status: 'functional', excluded_from_estimate: true })
               mediaArrays.push(mediaFiles); proofMediaArrays.push([])
               return
             }
@@ -1519,7 +1599,7 @@ export default function InspectionIndoor() {
     })
 
     if (lineItemRows.length) {
-      const VALID_COLS = new Set(['inspection_id','section_name','area','item_name','item_score','issue_description','trade','action','material_cost','labour_cost','notes','excluded_from_estimate','availability_status','qty','material_item_id','material_fxin','material_description','cost_type'])
+      const VALID_COLS = new Set(['inspection_id','section_name','area','item_name','item_score','issue_description','trade','action','material_cost','labour_cost','notes','excluded_from_estimate','availability_status','fixture_status','qty','material_item_id','material_fxin','material_description','cost_type'])
       const sanitized = lineItemRows.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => VALID_COLS.has(k))))
       const { data: inserted, error: liErr } = await supabase.from('inspection_line_items').insert(sanitized).select('id')
       if (liErr) { setEstimateError(liErr.message); setIsEstimating(false); return }
