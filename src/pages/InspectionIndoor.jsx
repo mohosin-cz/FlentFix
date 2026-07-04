@@ -8,6 +8,7 @@ import {
 } from '../components/ui'
 import QuickNotes from '../components/QuickNotes'
 import { uploadMedia } from '../utils/mediaUtils'
+import { HIGH_VALUE_VIDEO_THRESHOLD, validateProofVideo } from '../utils/proofVideo'
 
 // ── Issue presets ─────────────────────────────────────────────────────────────
 const I = {
@@ -217,7 +218,7 @@ function buildTabs(houseType, bhk) {
 // ── State helpers ─────────────────────────────────────────────────────────────
 const blankCostRow  = () => ({ action: '', labourRateId: '', labourCost: '', materialCost: '', materialRateId: '', qty: 1 })
 const blankIssueRow = () => ({ id: `ir_${Date.now()}_${Math.random().toString(36).slice(2)}`, issueDescription: '', action: '', labourRateId: '', labourCost: '', materialCost: '' })
-const blankCard = () => ({ health: null, notes: '', media: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {}, action: '', materialItemId: null, materialRateId: null, materialDescription: null, materialCost: '' })
+const blankCard = () => ({ health: null, notes: '', media: [], proofMedia: [], notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {}, action: '', materialItemId: null, materialRateId: null, materialDescription: null, materialCost: '' })
 const blankGeneral = () => ({ enabled: false, areas: [], partialRooms: '', labourCost: '', rateId: '', notes: '', media: [], description: '', fullHome: true, specificAreas: [] })
 const BLANK_SPEC_AREA = () => ({ id: `sa_${Date.now()}_${Math.random().toString(36).slice(2)}`, area: '', type: '', notes: '', rateId: '', cost: '' })
 
@@ -367,6 +368,45 @@ function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photo
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Proof video capture ───────────────────────────────────────────────────────
+function ProofVideoCapture({ itemTotal, proofMedia, onChange, pid, itemKey }) {
+  const inputRef = useRef(null)
+  const [error, setError]       = useState('')
+  const [uploading, setUploading] = useState(false)
+  if (itemTotal < HIGH_VALUE_VIDEO_THRESHOLD) return null
+  const hasProof = (proofMedia || []).length > 0
+  async function handleFile(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setError(''); setUploading(true)
+    try {
+      await validateProofVideo(file)
+      const safe = (itemKey || 'item').replace(/[^a-zA-Z0-9]/g, '_')
+      const baseName = `${pid}/${safe}_proof_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      const url = await uploadMedia(supabase, file, baseName)
+      if (url) onChange([url])
+    } catch (err) { setError(err.message) }
+    setUploading(false)
+  }
+  return (
+    <div style={{ borderRadius: 8, border: `1.5px solid ${hasProof ? 'rgba(61,186,122,0.45)' : 'rgba(200,150,62,0.6)'}`, background: hasProof ? 'rgba(61,186,122,0.06)' : 'rgba(200,150,62,0.08)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: hasProof ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+        {hasProof ? '✓ Proof video added' : `● High-value item (₹${itemTotal.toLocaleString('en-IN')}) — proof video required`}
+      </div>
+      {!hasProof && <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>Record at least 10 s · hold phone vertically</div>}
+      {hasProof && <Thumb file={proofMedia[0]} />}
+      {error && <div style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontWeight: 600 }}>✗ {error}</div>}
+      <input ref={inputRef} type="file" accept="video/*" capture="environment" style={{ display: 'none' }} onChange={handleFile} />
+      <button type="button" disabled={uploading} onClick={() => { setError(''); inputRef.current?.click() }}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 6, background: 'rgba(200,150,62,0.1)', color: 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 700, cursor: uploading ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em', minHeight: 40 }}>
+        <span style={{ fontSize: 14 }}>●</span>
+        {uploading ? 'Uploading…' : hasProof ? 'Replace video' : 'Record video'}
+      </button>
     </div>
   )
 }
@@ -808,6 +848,8 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
     const qty = Math.max(1, parseFloat(cr.qty) || 1)
     return sum + ((parseFloat(cr.materialCost) || 0) + (parseFloat(cr.labourCost) || 0)) * qty
   }, 0)
+  const needsProofVideo = nonFunctional.length > 0 && itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD
+  const hasProof        = (card.proofMedia || []).length > 0
 
   function toggleIssue(nextIssues) {
     const newCostRows = { ...costRows }
@@ -833,6 +875,9 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
 
   const headerActions = (
     <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+      {needsProofVideo && !hasProof && (
+        <span title="Proof video required" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent, #c8963e)', flexShrink: 0, display: 'inline-block' }} />
+      )}
       {!isAcPoint && naToggle}
       <button type="button" onClick={e => { e.stopPropagation(); onDuplicate() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(200,150,62,0.4)', background: 'rgba(200,150,62,0.08)', color: 'var(--accent, #c8963e)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>⊕</button>
       {totalCards > 1 && (
@@ -886,6 +931,14 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
             </Field>
 
             <MediaUpload files={card.media} onChange={v => onUpdate('media', v)} pid={pid} itemKey={`${itemConfig.key}_${cardIdx}`} />
+
+            <ProofVideoCapture
+              itemTotal={itemTotal}
+              proofMedia={card.proofMedia || []}
+              onChange={v => onUpdate('proofMedia', v)}
+              pid={pid}
+              itemKey={`${itemConfig.key}_${cardIdx}_proof`}
+            />
 
             <Field label="Notes" optional>
               <Textarea value={card.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any observations…" />
@@ -1335,6 +1388,33 @@ export default function InspectionIndoor() {
   // ── Create estimate ──
   async function handleCreateEstimate() {
     setIsEstimating(true); setEstimateError('')
+
+    // Block if any non-excluded high-value item is missing a proof video
+    const missingProof = []
+    tabs.forEach(tab => {
+      if (tab.id === 'basics') return
+      tab.sections?.forEach(sec => {
+        sec.items.forEach(itemConfig => {
+          const cards = data[tab.id]?.[sec.id]?.[itemConfig.key] || []
+          cards.forEach((card, ci) => {
+            const nonFn = (card.selectedIssues || []).filter(i => i !== 'Functional')
+            const total = nonFn.reduce((sum, issue) => {
+              const cr = (card.costRows || {})[issue] || {}
+              return sum + ((parseFloat(cr.materialCost) || 0) + (parseFloat(cr.labourCost) || 0)) * Math.max(1, parseFloat(cr.qty) || 1)
+            }, 0)
+            if (total >= HIGH_VALUE_VIDEO_THRESHOLD && !(card.proofMedia?.length)) {
+              const suffix = cards.length > 1 ? ` (${ci + 1})` : ''
+              missingProof.push(`${itemConfig.label}${suffix} · ${tab.label}`)
+            }
+          })
+        })
+      })
+    })
+    if (missingProof.length > 0) {
+      setEstimateError(`${missingProof.length} item${missingProof.length > 1 ? 's' : ''} need proof videos: ${missingProof.join(', ')}`)
+      setIsEstimating(false); return
+    }
+
     const today = new Date().toISOString().split('T')[0]
     const { data: { user } } = await supabase.auth.getUser()
     const { data: ins, error: insErr } = await supabase
@@ -1344,8 +1424,11 @@ export default function InspectionIndoor() {
     if (insErr) { setEstimateError(insErr.message); setIsEstimating(false); return }
 
     const inspectionId = ins.id
-    const lineItemRows = []
-    const mediaArrays  = []
+    const lineItemRows   = []
+    const mediaArrays    = []
+    const proofMediaArrays = []
+
+    const cleanProofUrls = arr => Array.isArray(arr) ? arr.filter(f => typeof f === 'string' && f.startsWith('http')) : []
 
     tabs.forEach(tab => {
       if (tab.id === 'basics') {
@@ -1357,17 +1440,17 @@ export default function InspectionIndoor() {
           if (gItem.key === 'deepCleaning') {
             if (d.fullHome !== false) {
               lineItemRows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: 'Deep Cleaning - Full Home', trade: 'cleaning', issue_description: 'Full Home', material_cost: 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: null })
-              mediaArrays.push(mediaFiles)
+              mediaArrays.push(mediaFiles); proofMediaArrays.push([])
             }
             ;(d.specificAreas || []).forEach(sa => {
               if (!sa.area) return
               lineItemRows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: `Deep Cleaning - ${sa.area}`, trade: 'cleaning', issue_description: sa.type || '', material_cost: 0, labour_cost: parseFloat(sa.cost) || 0, item_score: null })
-              mediaArrays.push([])
+              mediaArrays.push([]); proofMediaArrays.push([])
             })
           } else {
             const desc = gItem.freeText ? d.description : d.areas.join(', ')
             lineItemRows.push({ inspection_id: inspectionId, section_name: 'Basics', area: gItem.trade, item_name: gItem.label, trade: gItem.trade, issue_description: desc, material_cost: 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: null })
-            mediaArrays.push(mediaFiles)
+            mediaArrays.push(mediaFiles); proofMediaArrays.push([])
           }
         })
         return
@@ -1379,12 +1462,13 @@ export default function InspectionIndoor() {
             const selIssues  = card.selectedIssues || []
             const suffix     = cards.length > 1 ? ` (${ci + 1})` : ''
             const mediaFiles = Array.isArray(card.media) ? card.media.filter(f => typeof f === 'string' && f.startsWith('http')) : []
+            const cardProof  = cleanProofUrls(card.proofMedia)
             const area       = TRADE_SEC_IDS.has(sec.id) ? tab.label : sec.label
             const base       = { inspection_id: inspectionId, section_name: tab.label, area, item_name: itemConfig.label + suffix, trade: itemConfig.trade }
 
             if (itemConfig.key === 'acPoint' && (card.acProvision || 'present') === 'not_present') {
               lineItemRows.push({ ...base, issue_description: 'No provision', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'no_provision' })
-              mediaArrays.push(mediaFiles)
+              mediaArrays.push(mediaFiles); proofMediaArrays.push([])
               return
             }
 
@@ -1392,13 +1476,13 @@ export default function InspectionIndoor() {
 
             if (card.notAvailable) {
               lineItemRows.push({ ...base, issue_description: card.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available' })
-              mediaArrays.push(mediaFiles)
+              mediaArrays.push(mediaFiles); proofMediaArrays.push([])
               return
             }
 
             if (selIssues.includes('Functional')) {
               lineItemRows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: card.health ?? 10, availability_status: null })
-              mediaArrays.push(mediaFiles)
+              mediaArrays.push(mediaFiles); proofMediaArrays.push(cardProof)
             } else {
               selIssues.forEach((issue, ri) => {
                 const cr         = (card.costRows || {})[issue] || {}
@@ -1406,6 +1490,7 @@ export default function InspectionIndoor() {
                 const issueLabel = issue === 'Other' ? (card.otherIssue || 'Other') : issue
                 lineItemRows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: card.action || cr.action || '', material_item_id: card.materialItemId || cr.materialItemId || null, material_fxin: card.materialRateId || cr.materialRateId || null, material_description: card.materialDescription || cr.materialDescription || null, material_cost: card.materialCost ? (parseFloat(card.materialCost) || 0) : (parseFloat(cr.materialCost) || 0) * qty, labour_cost: (parseFloat(cr.labourCost) || 0) * qty, item_score: card.health ?? null, availability_status: null })
                 mediaArrays.push(ri === 0 ? mediaFiles : [])
+                proofMediaArrays.push(ri === 0 ? cardProof : [])
               })
             }
           })
@@ -1417,11 +1502,11 @@ export default function InspectionIndoor() {
         const ciIssues = ci.issues || []
         if (ciIssues.length === 0) {
           lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null })
-          mediaArrays.push(ciMedia)
+          mediaArrays.push(ciMedia); proofMediaArrays.push([])
         } else {
           ciIssues.forEach((row, ri) => {
             lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: row.issueDescription || '', action: row.action || '', material_cost: parseFloat(row.materialCost) || 0, labour_cost: parseFloat(row.labourCost) || 0, item_score: ci.health ?? null })
-            mediaArrays.push(ri === 0 ? ciMedia : [])
+            mediaArrays.push(ri === 0 ? ciMedia : []); proofMediaArrays.push([])
           })
         }
       })
@@ -1435,7 +1520,10 @@ export default function InspectionIndoor() {
       const mediaInserts = []
       for (let i = 0; i < inserted.length; i++) {
         for (const url of (mediaArrays[i] || [])) {
-          mediaInserts.push({ line_item_id: inserted[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image' })
+          mediaInserts.push({ line_item_id: inserted[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image', is_proof_video: false })
+        }
+        for (const url of (proofMediaArrays[i] || [])) {
+          mediaInserts.push({ line_item_id: inserted[i].id, url, type: 'video', is_proof_video: true })
         }
       }
       if (mediaInserts.length) await supabase.from('line_item_media').insert(mediaInserts)

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, Component } from 'react'
+import { HIGH_VALUE_VIDEO_THRESHOLD, validateProofVideo } from '../utils/proofVideo'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
@@ -395,12 +396,38 @@ function DrawerMatPicker({ description, fxin, onApply }) {
   )
 }
 
+// ─── Proof video upload button (used inside dossier) ─────────────────────────
+function ProofVideoInput({ onAddProofVideo }) {
+  const inputRef = useRef(null)
+  const [state, setState] = useState('idle') // 'idle' | 'uploading' | 'error'
+  const [errMsg, setErrMsg] = useState('')
+  async function handleChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setState('uploading'); setErrMsg('')
+    try { await onAddProofVideo(file); setState('idle') }
+    catch (err) { setErrMsg(err.message); setState('error') }
+  }
+  return (
+    <div style={{ display:'flex',flexDirection:'column',gap:4,marginTop:4 }}>
+      {errMsg && <div style={{ fontSize:11,color:'var(--clay)',fontFamily:'var(--mono)' }}>✗ {errMsg}</div>}
+      <input ref={inputRef} type="file" accept="video/*" capture="environment" style={{ display:'none' }} onChange={handleChange} />
+      <button type="button" disabled={state === 'uploading'}
+        onClick={() => { setErrMsg(''); inputRef.current?.click() }}
+        style={{ display:'flex',alignItems:'center',gap:6,padding:'7px 12px',border:'1px solid rgba(225,169,63,.4)',borderRadius:5,background:'rgba(225,169,63,.08)',color:'var(--amber)',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'var(--mono)',letterSpacing:'.04em',width:'fit-content' }}>
+        <span>●</span>{state === 'uploading' ? 'Uploading…' : 'Add / replace proof video'}
+      </button>
+    </div>
+  )
+}
+
 // ─── ItemDrawer (dossier) ─────────────────────────────────────────────────────
 
 function ItemDrawer({
   item, media, allItems, itemIndex,
   onClose, onNavigate, onUpdate,
-  onAddMedia, onDeleteMedia, onReplaceMedia, onSetPrimary,
+  onAddMedia, onAddProofVideo, onDeleteMedia, onReplaceMedia, onSetPrimary,
   onOpenLightbox, userEmail, estimateId, readOnly,
 }) {
   const [drafts, setDrafts] = useState({})
@@ -501,6 +528,33 @@ function ItemDrawer({
             onOpenLightbox={onOpenLightbox}
           />
         </div>
+
+        {/* Proof video — shown only for high-value items */}
+        {(() => {
+          const itTot = ((parseFloat(item.material_cost)||0) + (parseFloat(item.labour_cost)||0)) * (item.qty||1)
+          if (itTot < HIGH_VALUE_VIDEO_THRESHOLD || item.status === 'excluded' || item.status === 'removed') return null
+          const proofVid = media.find(m => m.is_proof_video)
+          const proofInputRef = { current: null }
+          return (
+            <div className="sec">
+              <span className="ey">Proof Video</span>
+              {proofVid ? (
+                <div style={{ display:'flex',alignItems:'center',gap:10 }}>
+                  <video src={proofVid.url} poster={proofVid.url.replace(/(\.[^.]+)$/, '_thumb.webp')} preload="none" muted style={{ width:80,height:60,objectFit:'cover',borderRadius:6 }} />
+                  <span style={{ fontSize:11,color:'var(--good)',fontFamily:'var(--mono)',fontWeight:600 }}>✓ Proof video on file</span>
+                </div>
+              ) : (
+                <div style={{ padding:'10px 12px',borderRadius:6,border:'1px solid rgba(225,169,63,.4)',background:'rgba(225,169,63,.06)',display:'flex',flexDirection:'column',gap:6 }}>
+                  <div style={{ fontSize:11,color:'var(--amber)',fontFamily:'var(--mono)',fontWeight:700 }}>⬤ No proof video — required for ₹{Math.round(itTot).toLocaleString('en-IN')} item</div>
+                  <div style={{ fontSize:11,color:'var(--muted)' }}>10 s minimum · portrait (vertical) orientation</div>
+                </div>
+              )}
+              {!readOnly && (
+                <ProofVideoInput onAddProofVideo={onAddProofVideo} />
+              )}
+            </div>
+          )
+        })()}
 
         {/* Condition */}
         {score != null && (
@@ -708,14 +762,19 @@ function RateDrawer({ open, onClose, onSelectMaterial, onSelectLabour }) {
 
 function Dashboard({ items, mediaMap }) {
   const g = useMemo(() => {
-    let firm=0, mat=0, lab=0, p=0, a=0, n=0, nd=0, rep=0, rpr=0, ok=0, dp=0, ng=0, ss=0, scoredCount=0
+    let firm=0, mat=0, lab=0, p=0, a=0, n=0, nd=0, rep=0, rpr=0, ok=0, dp=0, ng=0, np=0, ss=0, scoredCount=0
     items.forEach(it => {
       const score = getScore(it)
       if (score != null) { ss += score; scoredCount++ }
       if (score != null && score <= 3) rep++; else if (score != null && score <= 6) rpr++; else if (score != null) ok++
       if (it.status === 'disputed') dp++
-      const photos = (mediaMap[it.line_item_id]||[]).filter(m => m.type !== 'video' && !/\.(mp4|mov|webm)$/i.test(m.url)).length
+      const itMedia = mediaMap[it.line_item_id] || []
+      const photos = itMedia.filter(m => m.type !== 'video' && !/\.(mp4|mov|webm)$/i.test(m.url)).length
       if (!photos && it.status !== 'excluded' && it.status !== 'removed') ng++
+      if (it.status !== 'excluded' && it.status !== 'removed') {
+        const itTot = ((parseFloat(it.material_cost)||0) + (parseFloat(it.labour_cost)||0)) * (it.qty||1)
+        if (itTot >= HIGH_VALUE_VIDEO_THRESHOLD && !itMedia.some(m => m.is_proof_video)) np++
+      }
       if (it.status === 'excluded' || it.status === 'removed') return
       if (it.cost_type === 'actuals') { a++ }
       else if (it.cost_type === 'nil') { n++ }
@@ -733,7 +792,7 @@ function Dashboard({ items, mediaMap }) {
     const matPct  = mat+lab ? Math.round(mat/(mat+lab)*100) : 0
     const ready   = p+a+n
     const rpct    = total > 0 ? Math.round(ready/total*100) : 0
-    return { firm, mat, lab, p, a, n, nd, rep, rpr, ok, dp, ng, cond, total, matPct, ready, rpct }
+    return { firm, mat, lab, p, a, n, nd, rep, rpr, ok, dp, ng, np, cond, total, matPct, ready, rpct }
   }, [items, mediaMap])
 
   const stack = (c, col) => c && g.total
@@ -795,6 +854,7 @@ function Dashboard({ items, mediaMap }) {
         <div className="flagrow">
           <span className="clay">● Disputed {g.dp}</span>
           <span>▤ No photo {g.ng}</span>
+          {g.np > 0 && <span style={{ color:'var(--amber)' }}>⬤ No proof {g.np}</span>}
         </div>
       </div>
     </div>
@@ -908,7 +968,7 @@ function EstimateWorkbenchInner() {
   async function loadMedia(itemsList) {
     const ids = (itemsList || items).map(i => i.line_item_id).filter(Boolean)
     if (!ids.length) { setMediaMap({}); return }
-    const { data } = await supabase.from('line_item_media').select('id,line_item_id,url,type').in('line_item_id', ids).order('id', { ascending: true })
+    const { data } = await supabase.from('line_item_media').select('id,line_item_id,url,type,is_proof_video').in('line_item_id', ids).order('id', { ascending: true })
     if (data) {
       const map = {}
       data.forEach(m => { if (!map[m.line_item_id]) map[m.line_item_id]=[]; map[m.line_item_id].push(m) })
@@ -966,6 +1026,20 @@ function EstimateWorkbenchInner() {
       if (x.id === target.id)  return { ...x, url:primary.url, type:primary.type }
       return x
     }))
+  }
+
+  async function handleAddProofVideo(lineItemId, file) {
+    try {
+      await validateProofVideo(file)
+    } catch (err) {
+      alert(err.message); return
+    }
+    const baseName = `workbench/${lineItemId}/${Date.now()}_proof`
+    let publicUrl
+    try { publicUrl = await uploadMedia(supabase, file, baseName); if (!publicUrl) return }
+    catch (e) { console.error('[addProofVideo]', e.message); return }
+    const { data: row } = await supabase.from('line_item_media').insert({ line_item_id: lineItemId, url: publicUrl, type: 'video', is_proof_video: true }).select().single()
+    if (row) updateMediaList(lineItemId, prev => [...prev, row])
   }
 
   // ── Item ops ──────────────────────────────────────────────────────────────────
@@ -1543,6 +1617,7 @@ function EstimateWorkbenchInner() {
             onNavigate={navigateDrawer}
             onUpdate={isLocked ? () => {} : updateItem}
             onAddMedia={isLocked ? () => {} : files => handleAddMedia(drawerItem.line_item_id, files)}
+            onAddProofVideo={isLocked ? () => {} : file => handleAddProofVideo(drawerItem.line_item_id, file)}
             onDeleteMedia={isLocked ? () => {} : handleDeleteMedia}
             onReplaceMedia={isLocked ? () => {} : handleReplaceMedia}
             onSetPrimary={isLocked ? () => {} : m => handleSetPrimary(drawerItem.line_item_id, m)}
