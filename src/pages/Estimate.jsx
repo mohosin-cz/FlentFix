@@ -907,6 +907,8 @@ function EstimateWorkbenchInner() {
   const [copied, setCopied]               = useState(false)
   const [hasUnsent, setHasUnsent]         = useState(false)
   const [locking, setLocking]             = useState(false)
+  const [sending, setSending]             = useState(false)
+  const [sendError, setSendError]         = useState(null)
   const [lightbox, setLightbox]           = useState(null)
 
   const dragRef          = useRef(null)   // { itemId, trade }
@@ -1074,11 +1076,7 @@ function EstimateWorkbenchInner() {
       console.error('[updateItem]', err.message)
       setItems(p => p.map(i => i.id === itemId ? prev : i))
     } else {
-      // Recompute and persist stored total (fire-and-forget)
-      const firmTotal = newItems
-        .filter(i => !['removed', 'excluded'].includes(i.status) && i.cost_type === 'priced')
-        .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
-      supabase.from('estimates').update({ total: firmTotal }).eq('id', id)
+      // estimates.total is maintained by a DB trigger — no client write needed
       if (estimate?.status !== 'draft') setHasUnsent(true)
       for (const [field, newVal] of Object.entries(safe)) {
         scheduleLog(itemId, prev?.item_name, field, prev?.[field], newVal)
@@ -1238,51 +1236,102 @@ function EstimateWorkbenchInner() {
   }
 
   async function handleSend() {
+    if (sending) return
+    setSending(true)
+    setSendError(null)
+
     const liveItems = items.filter(i => i.status !== 'removed')
     const snapTotal = liveItems
       .filter(i => i.status !== 'excluded' && i.cost_type === 'priced')
       .reduce((s, i) => s + ((parseFloat(i.material_cost)||0) + (parseFloat(i.labour_cost)||0)) * (i.qty||1), 0)
     const nextVersion = (estimate?.current_version || 0) + 1
 
+    function abort(stage, msg) {
+      const full = `Send failed [${stage}]: ${msg}`
+      console.error('[handleSend]', full, { estimate_id: id, nextVersion, userEmail })
+      setSendError(full)
+      logActivity(supabase, id, { action: 'send_failed', new_value: full, changed_by: userEmail })
+      setSending(false)
+    }
+
+    // ── Step 1: create version row ──────────────────────────────────────────────
     const { data: ver, error: vErr } = await supabase
       .from('estimate_versions')
       .insert({ estimate_id: id, version_number: nextVersion, total: snapTotal, status: 'active', created_by: userEmail })
       .select('id').single()
-    if (vErr) { console.error('[handleSend] version create:', vErr.message) }
 
-    if (ver) {
-      const snapRows = liveItems.map(item => ({
-        version_id:           ver.id,
-        estimate_item_id:     item.id,
-        line_item_id:         item.line_item_id,
-        sort_order:           item.sort_order,
-        area:                 item.area,
-        item_name:            item.item_name,
-        trade:                item.trade,
-        section_name:         item.section_name || '',
-        issue_description:    item.issue_description,
-        material_description: item.material_description,
-        material_cost:        item.material_cost,
-        action:               item.action,
-        labour_description:   item.labour_description,
-        labour_cost:          item.labour_cost,
-        qty:                  item.qty,
-        cost_type:            item.cost_type,
-        status:               item.status,
-        warranty:             item.warranty,
-      }))
-      const { error: snapErr } = await supabase.from('estimate_version_items').insert(snapRows)
-      if (snapErr) console.error('[handleSend] snapshot items:', snapErr.message)
-      await supabase.from('estimate_versions').update({ status: 'superseded' }).eq('estimate_id', id).neq('id', ver.id)
+    if (vErr || !ver?.id) {
+      abort('version_create', vErr?.message || 'no row returned')
+      return
     }
 
+    // ── Step 2: snapshot items ──────────────────────────────────────────────────
+    const snapRows = liveItems.map(item => ({
+      version_id:           ver.id,
+      estimate_item_id:     item.id,
+      line_item_id:         item.line_item_id,
+      sort_order:           item.sort_order,
+      area:                 item.area,
+      item_name:            item.item_name,
+      trade:                item.trade,
+      section_name:         item.section_name || '',
+      issue_description:    item.issue_description,
+      material_description: item.material_description,
+      material_cost:        item.material_cost,
+      action:               item.action,
+      labour_description:   item.labour_description,
+      labour_cost:          item.labour_cost,
+      qty:                  item.qty,
+      cost_type:            item.cost_type,
+      status:               item.status,
+      warranty:             item.warranty,
+    }))
+
+    const { error: snapErr } = await supabase.from('estimate_version_items').insert(snapRows)
+    if (snapErr) {
+      await supabase.from('estimate_versions').delete().eq('id', ver.id)
+      abort('version_items', snapErr.message)
+      return
+    }
+
+    // ── Step 3: verify count ────────────────────────────────────────────────────
+    const { count: insertedCount, error: countErr } = await supabase
+      .from('estimate_version_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('version_id', ver.id)
+
+    if (countErr || insertedCount !== snapRows.length) {
+      await supabase.from('estimate_version_items').delete().eq('version_id', ver.id)
+      await supabase.from('estimate_versions').delete().eq('id', ver.id)
+      abort('verify', countErr?.message || `expected ${snapRows.length} items, got ${insertedCount}`)
+      return
+    }
+
+    // ── Step 4: mark prior versions superseded ──────────────────────────────────
+    await supabase.from('estimate_versions').update({ status: 'superseded' }).eq('estimate_id', id).neq('id', ver.id)
+
+    // ── Step 5: update estimate — ONLY after both inserts verified ──────────────
     const now = new Date().toISOString()
-    await supabase.from('estimates').update({ current_version: nextVersion, status: 'sent', sent_at: now }).eq('id', id)
+    const { error: estErr } = await supabase
+      .from('estimates')
+      .update({ current_version: nextVersion, status: 'sent', sent_at: now })
+      .eq('id', id)
+
+    if (estErr) {
+      // Version committed but estimate row not updated — rollback the version
+      await supabase.from('estimate_version_items').delete().eq('version_id', ver.id)
+      await supabase.from('estimate_versions').delete().eq('id', ver.id)
+      abort('estimate_update', estErr.message)
+      return
+    }
+
+    // ── Step 6: success ─────────────────────────────────────────────────────────
     await supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'sent', actor: userEmail })
     setEstimate(p => ({ ...p, current_version: nextVersion, status: 'sent', sent_at: now }))
     setHasUnsent(false)
     logActivity(supabase, id, { action: 'send', old_value: String(snapTotal), new_value: String(nextVersion), changed_by: userEmail })
     copyLink()
+    setSending(false)
   }
 
   async function handleLock() {
@@ -1447,9 +1496,14 @@ function EstimateWorkbenchInner() {
           <button className="btn ghost" onClick={() => setNotesEditing(p => !p)}>Notes</button>
           {shareUrl && <button className="btn" onClick={() => window.open(shareUrl,'_blank')}>Preview</button>}
           <button className="btn" onClick={copyLink}>{copied ? 'Copied!' : 'Copy link'}</button>
+          {sendError && (
+            <span style={{ fontSize:11,color:'#f87171',fontFamily:'var(--mono)',maxWidth:260,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }} title={sendError}>
+              ⚠ {sendError}
+            </span>
+          )}
           {!isLocked && (
-            <button className="btn primary" onClick={handleSend}>
-              {status === 'draft' ? 'Send →' : 'Resend →'}
+            <button className="btn primary" onClick={handleSend} disabled={sending}>
+              {sending ? 'Sending…' : status === 'draft' ? 'Send →' : 'Resend →'}
             </button>
           )}
           {!isLocked && status !== 'draft' && (
