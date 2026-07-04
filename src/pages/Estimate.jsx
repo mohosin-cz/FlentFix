@@ -68,7 +68,7 @@ const CSS = `
 .ey{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .cmd{position:sticky;top:0;z-index:6;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 22px;background:rgba(12,13,17,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
 .cmd .l{display:flex;align-items:center;gap:12px}
-.back{width:30px;height:30px;border:1px solid var(--line2);border-radius:5px;display:grid;place-items:center;color:var(--ink2);background:none;cursor:pointer;flex-shrink:0}
+.back{width:44px;height:44px;border:1px solid var(--line2);border-radius:5px;display:grid;place-items:center;color:var(--ink2);background:none;cursor:pointer;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .back:hover{background:rgba(255,255,255,.06)}
 .ttl{font-family:var(--mono);font-weight:600;font-size:15px;color:var(--ink)}
 .sub{color:var(--muted);font-size:12px;font-family:var(--mono)}
@@ -76,7 +76,7 @@ const CSS = `
 .pill.viewed{color:var(--gold);border-color:rgba(227,170,90,.4)}
 .pill.status{text-transform:uppercase;letter-spacing:.08em}
 .acts{display:flex;align-items:center;gap:8px}
-.btn{font-size:12.5px;font-weight:500;padding:8px 13px;border-radius:5px;border:1px solid var(--line2);background:transparent;color:var(--ink2);cursor:pointer;font-family:var(--sans)}
+.btn{font-size:13px;font-weight:500;padding:10px 14px;min-height:44px;border-radius:5px;border:1px solid var(--line2);background:transparent;color:var(--ink2);cursor:pointer;font-family:var(--sans);touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .btn:hover{background:rgba(255,255,255,.04)}
 .btn.ghost{border-color:transparent;color:var(--muted);padding:8px 9px}
 .btn.ghost:hover{color:var(--ink2);background:rgba(255,255,255,.04)}
@@ -102,7 +102,7 @@ const CSS = `
 .flagrow .clay{color:var(--clay)}
 .board{padding:16px 22px 80px;transition:margin-right .16s}
 .grp{margin-bottom:16px;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--panel)}
-.ghead{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;border-bottom:1px solid var(--line);cursor:pointer;border-left:3px solid var(--muted)}
+.ghead{display:flex;align-items:center;justify-content:space-between;padding:13px 13px;min-height:48px;border-bottom:1px solid var(--line);cursor:pointer;border-left:3px solid var(--muted);touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .ghead:hover{background:rgba(255,255,255,.02)}
 .ghead .gt{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);font-weight:600}
 .ghead .gr{font-family:var(--mono);font-size:11px;color:var(--muted)}
@@ -138,7 +138,7 @@ const CSS = `
 .none-cell{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
 .np-cell{font-family:var(--mono);font-size:12px;color:var(--amber)}
 .seg{display:inline-flex;border:1px solid var(--line2);border-radius:5px;overflow:hidden}
-.seg b{font-family:var(--mono);font-size:9.5px;padding:3px 7px;color:var(--muted);font-weight:500;cursor:pointer;user-select:none;border:none;background:none;display:block}
+.seg b{font-family:var(--mono);font-size:11px;padding:8px 10px;min-height:36px;color:var(--muted);font-weight:500;cursor:pointer;user-select:none;border:none;background:none;display:flex;align-items:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .seg b:hover{background:rgba(255,255,255,.05);color:var(--ink2)}
 .seg b.on{color:#231a0a;background:var(--gold);font-weight:600}
 .seg b.on.t{background:var(--teal);color:#0a1f1b}
@@ -148,16 +148,16 @@ const CSS = `
 .add-med{font-family:var(--mono);font-size:9.5px;color:var(--faint);border:1px dashed var(--line2);border-radius:4px;padding:4px 6px;cursor:pointer}
 .add-med:hover{border-color:var(--muted);color:var(--muted)}
 .kb{color:var(--faint);text-align:center;font-size:12px}
-.addrow{padding:10px 13px;font-family:var(--mono);font-size:11px;color:var(--muted);border-top:1px solid var(--line);cursor:pointer}
+.addrow{padding:12px 13px;min-height:44px;font-family:var(--mono);font-size:12px;color:var(--muted);border-top:1px solid var(--line);cursor:pointer;display:flex;align-items:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .addrow:hover{color:var(--ink2);background:rgba(255,255,255,.02)}
-.dwr{position:fixed;top:0;right:0;height:100%;width:412px;background:var(--panel);border-left:1px solid var(--line2);z-index:9;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .16s}
+.dwr{position:fixed;top:0;right:0;height:100%;width:min(412px,100vw);background:var(--panel);border-left:1px solid var(--line2);z-index:9;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .16s}
 .dwr.show{transform:none;box-shadow:-24px 0 60px rgba(0,0,0,.45)}
 .dh{display:flex;align-items:flex-start;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line);flex-shrink:0}
 .dh .ey-area{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .dh .it{font-weight:600;font-size:16px;margin-top:3px;color:var(--ink)}
 .dh .cnt{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:5px}
 .dnav{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.ic{width:26px;height:26px;border:1px solid var(--line2);border-radius:5px;display:grid;place-items:center;color:var(--ink2);cursor:pointer;font-size:13px;background:none}
+.ic{width:44px;height:44px;border:1px solid var(--line2);border-radius:5px;display:grid;place-items:center;color:var(--ink2);cursor:pointer;font-size:15px;background:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .ic:hover{background:rgba(255,255,255,.06);color:var(--ink)}
 .ic:disabled{opacity:.3;cursor:default}
 .db{padding:15px 18px;overflow-y:auto;flex:1}
@@ -168,14 +168,14 @@ const CSS = `
 .gal .g img{width:100%;height:100%;object-fit:cover;display:block}
 .gadd{width:60px;height:60px;border:1px dashed var(--line2);border-radius:5px;display:grid;place-items:center;color:var(--faint);font-family:var(--mono);font-size:10px;cursor:pointer;flex-shrink:0}
 .gadd:hover{border-color:var(--muted);color:var(--muted)}
-.fld{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:9px 11px;color:var(--ink2);font-size:12.5px;line-height:1.5}
-.fld-ta{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:9px 11px;color:var(--ink2);font-size:12.5px;line-height:1.5;width:100%;resize:vertical;outline:none;font-family:var(--sans);min-height:60px;transition:border-color .15s}
+.fld{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:10px 12px;color:var(--ink2);font-size:16px;line-height:1.5;min-height:44px}
+.fld-ta{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:10px 12px;color:var(--ink2);font-size:16px;line-height:1.5;width:100%;resize:vertical;outline:none;font-family:var(--sans);min-height:60px;transition:border-color .15s}
 .fld-ta:focus{border-color:var(--gold)}
 .crow{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line)}
 .crow:last-child{border-bottom:none}
 .crow .lbl{color:var(--muted);font-size:12px}
 .crow .val{font-family:var(--mono);font-size:12.5px;color:var(--ink2)}
-.crow .inp{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:5px 8px;color:var(--ink);font-family:var(--mono);font-size:12.5px;width:100px;text-align:right;outline:none;transition:border-color .15s}
+.crow .inp{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:10px 10px;color:var(--ink);font-family:var(--mono);font-size:16px;width:110px;text-align:right;outline:none;transition:border-color .15s;min-height:44px}
 .crow .inp:focus{border-color:var(--gold)}
 .matpick{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;padding:8px 10px;cursor:pointer;transition:border-color .15s}
 .matpick:hover{border-color:var(--gold)}
@@ -484,15 +484,15 @@ function ItemDrawer({
         <div style={{ marginTop:6 }}>
           <div className="crow">
             <span className="lbl">Material</span>
-            <input className="inp" type="number" value={dv('material_cost')} onChange={e => sd('material_cost', e.target.value)} onBlur={() => commit('material_cost')} disabled={readOnly} />
+            <input className="inp" type="number" inputMode="decimal" value={dv('material_cost')} onChange={e => sd('material_cost', e.target.value)} onBlur={() => commit('material_cost')} disabled={readOnly} />
           </div>
           <div className="crow">
             <span className="lbl">Labour</span>
-            <input className="inp" type="number" value={dv('labour_cost')} onChange={e => sd('labour_cost', e.target.value)} onBlur={() => commit('labour_cost')} disabled={readOnly} />
+            <input className="inp" type="number" inputMode="decimal" value={dv('labour_cost')} onChange={e => sd('labour_cost', e.target.value)} onBlur={() => commit('labour_cost')} disabled={readOnly} />
           </div>
           <div className="crow">
             <span className="lbl">Qty</span>
-            <input className="inp" type="number" value={dv('qty')} onChange={e => sd('qty', e.target.value)} onBlur={() => commit('qty')} style={{ width:60 }} disabled={readOnly} />
+            <input className="inp" type="number" inputMode="numeric" value={dv('qty')} onChange={e => sd('qty', e.target.value)} onBlur={() => commit('qty')} style={{ width:60 }} disabled={readOnly} />
           </div>
         </div>
         {type === 'priced' && <div className="tot2"><span className="ey">Total</span><span className="v">₹{fmt(tot)}</span></div>}

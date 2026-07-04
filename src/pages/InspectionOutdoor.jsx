@@ -441,7 +441,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
     setMatOpen(true)
   }
 
-  const INP = { width: '100%', padding: '8px 10px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text, #e8e8f0)', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }
+  const INP = { width: '100%', padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text, #e8e8f0)', fontSize: 16, boxSizing: 'border-box', fontFamily: 'inherit', minHeight: 44 }
   const LBL = { fontSize: 10, color: 'var(--text-muted, #6b6d82)', letterSpacing: '0.08em', marginBottom: 6, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', display: 'block' }
 
   return (
@@ -469,7 +469,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
           </div>
           <div style={{ width: 72 }}>
             <span style={LBL}>Qty</span>
-            <input type="number" min="1" value={costRow.qty ?? 1} onChange={e => onUpdate('qty', Math.max(1, parseInt(e.target.value) || 1))} style={{ ...INP, textAlign: 'center' }} />
+            <input type="number" inputMode="numeric" min="1" value={costRow.qty ?? 1} onChange={e => onUpdate('qty', Math.max(1, parseInt(e.target.value) || 1))} style={{ ...INP, textAlign: 'center' }} />
           </div>
         </div>
 
@@ -528,7 +528,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
               )}
             </div>
             <span style={{ ...LBL, marginTop: 8 }}>Material ₹</span>
-            <input type="number" value={costRow.materialCost || ''} onChange={e => onUpdate('materialCost', e.target.value)} placeholder="0" style={INP} />
+            <input type="number" inputMode="decimal" value={costRow.materialCost || ''} onChange={e => onUpdate('materialCost', e.target.value)} placeholder="0" style={INP} />
           </div>
 
           {/* Labour column */}
@@ -539,7 +539,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
               <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 3, fontFamily: 'var(--font-mono, monospace)' }}>{costRow.labourDescription}</div>
             )}
             <span style={{ ...LBL, marginTop: 8 }}>Labour ₹</span>
-            <input type="number" value={costRow.labourCost || ''} onChange={e => onUpdate('labourCost', e.target.value)} placeholder="0" style={INP} />
+            <input type="number" inputMode="decimal" value={costRow.labourCost || ''} onChange={e => onUpdate('labourCost', e.target.value)} placeholder="0" style={INP} />
           </div>
         </div>}
 
