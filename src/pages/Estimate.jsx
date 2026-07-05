@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, Component } from 'react'
 import { HIGH_VALUE_VIDEO_THRESHOLD, validateProofVideo } from '../utils/proofVideo'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
+import { generateEstimate, reconcileEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
 import { uploadMedia } from '../utils/mediaUtils'
 import { logActivity } from '../utils/activityUtils'
 import DisputeThread from '../components/DisputeThread'
@@ -1215,11 +1215,16 @@ function EstimateWorkbenchInner() {
   }
 
   async function handleRegenerate() {
-    if (!window.confirm('Regenerate will replace all items from the inspection. Continue?')) return
+    if (!window.confirm('Regen: inserts missing items and marks removed ones. Your edits are preserved. Continue?')) return
     setGenerating(true)
     const inspId = estimate?.inspection_id || await resolveInspectionWithData(estimate?.pid)
     if (!inspId) { setGenerating(false); return }
-    await generateEstimate(inspId, estimate?.pid, userEmail)
+    const result = await reconcileEstimate(inspId, id)
+    if (result.error) {
+      setSendError(`Regen failed: ${result.error}`)
+      setGenerating(false)
+      return
+    }
     await loadData()
     setGenerating(false)
   }
@@ -1241,6 +1246,11 @@ function EstimateWorkbenchInner() {
     setSendError(null)
 
     const liveItems = items.filter(i => i.status !== 'removed')
+    if (liveItems.length === 0) {
+      setSendError('Nothing to send — estimate has no items.')
+      setSending(false)
+      return
+    }
     const snapTotal = liveItems
       .filter(i => i.status !== 'excluded' && i.cost_type === 'priced')
       .reduce((s, i) => s + ((parseFloat(i.material_cost)||0) + (parseFloat(i.labour_cost)||0)) * (i.qty||1), 0)
@@ -1501,11 +1511,16 @@ function EstimateWorkbenchInner() {
               ⚠ {sendError}
             </span>
           )}
-          {!isLocked && (
-            <button className="btn primary" onClick={handleSend} disabled={sending}>
-              {sending ? 'Sending…' : status === 'draft' ? 'Send →' : 'Resend →'}
-            </button>
-          )}
+          {!isLocked && (() => {
+            const liveCount = items.filter(i => i.status !== 'removed').length
+            const isEmpty = liveCount === 0
+            return (
+              <button className="btn primary" onClick={handleSend} disabled={sending || isEmpty}
+                title={isEmpty ? 'Nothing to send — estimate has no items' : undefined}>
+                {sending ? 'Sending…' : isEmpty ? 'No items' : status === 'draft' ? 'Send →' : 'Resend →'}
+              </button>
+            )
+          })()}
           {!isLocked && status !== 'draft' && (
             <button className="btn ghost" onClick={handleLock} disabled={locking} style={{ color:'var(--gold)',borderColor:'rgba(200,150,62,0.4)' }}>
               {locking ? 'Locking…' : 'Mark final'}

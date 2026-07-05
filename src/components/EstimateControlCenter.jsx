@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
+import { generateEstimate, reconcileEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
 import LogoSpinner from './LogoSpinner'
 
 const STATUS_COLOR = {
@@ -30,6 +30,7 @@ export default function EstimateControlCenter({ pid, userEmail, onClose }) {
   const [estimates, setEstimates]   = useState([])
   const [loading, setLoading]       = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [genError, setGenError]     = useState(null)
 
   async function fetchEstimates() {
     setLoading(true)
@@ -45,20 +46,23 @@ export default function EstimateControlCenter({ pid, userEmail, onClose }) {
   useEffect(() => { fetchEstimates() }, [pid])
 
   async function handleGenerate() {
-    setGenerating(true)
+    setGenerating(true); setGenError(null)
     const inspId = await resolveInspectionWithData(pid)
-    if (!inspId) { setGenerating(false); alert('No inspection with data found for this PID.'); return }
-    const estId = await generateEstimate(inspId, pid, userEmail)
+    if (!inspId) { setGenerating(false); setGenError('No inspection with data found for this PID.'); return }
+    const result = await generateEstimate(inspId, pid, userEmail)
     setGenerating(false)
-    if (estId) { await fetchEstimates(); navigate(`/estimate/${estId}`) }
+    if (result.error) { setGenError(result.error); return }
+    await fetchEstimates()
+    navigate(`/estimate/${result.id}`)
   }
 
   async function handleRegenerate(est) {
-    setGenerating(true)
+    setGenerating(true); setGenError(null)
     const inspId = await resolveInspectionWithData(pid)
-    if (!inspId) { setGenerating(false); return }
-    await generateEstimate(inspId, pid, userEmail)
+    if (!inspId) { setGenerating(false); setGenError('No inspection with data found.'); return }
+    const result = await reconcileEstimate(inspId, est.id)
     setGenerating(false)
+    if (result.error) { setGenError(result.error); return }
     await fetchEstimates()
   }
 
@@ -81,7 +85,13 @@ export default function EstimateControlCenter({ pid, userEmail, onClose }) {
         </div>
 
         {/* Actions */}
-        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border, #2e3040)', display: 'flex', gap: 10, flexShrink: 0 }}>
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border, #2e3040)', flexShrink: 0 }}>
+        {genError && (
+          <div style={{ marginBottom: 10, padding: '9px 12px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.35)', borderRadius: 8, fontSize: 12, color: '#f87171', lineHeight: 1.4 }}>
+            ⚠ {genError}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 10 }}>
           <button
             onClick={handleGenerate}
             disabled={generating}
@@ -98,6 +108,7 @@ export default function EstimateControlCenter({ pid, userEmail, onClose }) {
               ↻ Regenerate Latest
             </button>
           )}
+        </div>
         </div>
 
         {/* Estimate list */}
