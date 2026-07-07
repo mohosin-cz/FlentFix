@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
+import { generateEstimate, reconcileEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
 import { generateInvoice } from '../utils/generateInvoice'
 import DisputeThread from '../components/DisputeThread'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -62,6 +62,7 @@ export default function EstimateWorkspace() {
   const [property, setProperty]           = useState(null)
   const [loading, setLoading]             = useState(true)
   const [generating, setGenerating]       = useState(false)
+  const [genError, setGenError]           = useState(null)
   const [creatingInvoice, setCreating]    = useState(false)
   const [invoiceId, setInvoiceId]         = useState(null)
   const [userEmail, setUserEmail]         = useState(null)
@@ -128,20 +129,23 @@ export default function EstimateWorkspace() {
   }, [estimates[0]?.id])
 
   async function handleNewVersion() {
-    setGenerating(true)
+    setGenerating(true); setGenError(null)
     const inspId = await resolveInspectionWithData(pid)
-    if (!inspId) { setGenerating(false); alert('No inspection with data found.'); return }
-    const estId = await generateEstimate(inspId, pid, userEmail)
+    if (!inspId) { setGenerating(false); setGenError('No inspection with data found.'); return }
+    const result = await generateEstimate(inspId, pid, userEmail)
     setGenerating(false)
-    if (estId) { await fetchAll(); navigate(`/estimate/${estId}`) }
+    if (result.error) { setGenError(result.error); return }
+    await fetchAll()
+    navigate(`/estimate/${result.id}`)
   }
 
   async function handleRegenerate(est) {
-    setGenerating(true)
+    setGenerating(true); setGenError(null)
     const inspId = await resolveInspectionWithData(pid)
-    if (!inspId) { setGenerating(false); return }
-    await generateEstimate(inspId, pid, userEmail)
+    if (!inspId) { setGenerating(false); setGenError('No inspection with data found.'); return }
+    const result = await reconcileEstimate(inspId, est.id)
     setGenerating(false)
+    if (result.error) { setGenError(result.error); return }
     await fetchAll()
   }
 
@@ -235,6 +239,12 @@ export default function EstimateWorkspace() {
       </header>
 
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px 80px' }}>
+
+        {genError && (
+          <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.35)', borderRadius: 8, fontSize: 12, color: '#f87171', lineHeight: 1.4 }}>
+            ⚠ {genError}
+          </div>
+        )}
 
         {loading ? (
           <LogoSpinner />

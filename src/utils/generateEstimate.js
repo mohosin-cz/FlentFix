@@ -1,24 +1,39 @@
 import { supabase } from '../lib/supabase'
 
-// Recompute and persist estimates.total from current estimate_items.
-// Formula: sum((material_cost + labour_cost) * qty) for priced, non-removed/excluded rows.
-// Requires: ALTER TABLE estimates ADD COLUMN IF NOT EXISTS total numeric;
-export async function recomputeEstimateTotal(estimateId) {
-  const { data: rows } = await supabase
-    .from('estimate_items')
-    .select('material_cost, labour_cost, qty, cost_type, status')
-    .eq('estimate_id', estimateId)
-  const total = (rows || [])
-    .filter(r => !['removed', 'excluded'].includes(r.status) && r.cost_type === 'priced')
-    .reduce((s, r) => s + ((parseFloat(r.material_cost) || 0) + (parseFloat(r.labour_cost) || 0)) * (r.qty || 1), 0)
-  await supabase.from('estimates').update({ total }).eq('id', estimateId)
-  return total
+// Pure observation phrases — items with only these and zero cost are excluded.
+// "Not available" WITH a cost (install price) IS work and passes through.
+const OBSERVATION_RE = /^(functional|ok|working|fine|good|checked|n\/a|not\s+avail(able)?|no\s+issue|no\s+defect|no\s+problem|okay|no\s+defects?)$/i
+
+function belongsInEstimate(item) {
+  if (item.excluded_from_estimate === true) return false
+  const hasCost = (parseFloat(item.material_cost) || 0) + (parseFloat(item.labour_cost) || 0) > 0
+  if (hasCost) return true // "not available" WITH install cost IS work — include
+  const desc = (item.issue_description || '').trim()
+  if (!desc) return false // no description, no cost → skip
+  if (OBSERVATION_RE.test(desc)) return false // pure observation
+  return true // real issue, zero cost so far (e.g. action-only pending price) — include
 }
 
-// One-time backfill: run once after deploying to populate total for all existing estimates.
-export async function backfillEstimateTotals() {
-  const { data: ests } = await supabase.from('estimates').select('id')
-  for (const est of (ests || [])) await recomputeEstimateTotal(est.id)
+function toEstimateRow(item, estimateId, sortOrder) {
+  return {
+    estimate_id:          estimateId,
+    line_item_id:         item.id,
+    sort_order:           sortOrder,
+    area:                 item.area || '',
+    item_name:            item.item_name || '',
+    trade:                item.trade || '',
+    section_name:         item.section_name || '',
+    item_kind:            item.item_kind || null,
+    issue_description:    item.issue_description || '',
+    material_description: item.material_description || '',
+    material_cost:        item.material_cost || 0,
+    action:               item.action || '',
+    labour_description:   item.action || '',
+    labour_cost:          item.labour_cost || 0,
+    qty:                  item.qty || 1,
+    cost_type:            item.cost_type || 'priced',
+    status:               'pending',
+  }
 }
 
 export async function resolveInspectionWithData(pid) {
@@ -39,64 +54,141 @@ export async function resolveInspectionWithData(pid) {
   return inspections[0].id
 }
 
-const belongsInEstimate = (item) => item.excluded_from_estimate !== true
-
+// Create-or-repair — never deletes.
+// Returns { id, error, inserted, repaired }
+// If estimate already exists for this inspection: inserts only items not yet
+//   present (matched by line_item_id). Preserves share_token and all edits.
+// If no estimate: creates row + copies all valid items, verifies count > 0.
+//   Zero valid items → no estimate row created → returns { id: null, error }.
 export async function generateEstimate(inspectionId, pid, userEmail) {
-  // Check for existing estimate
-  const { data: existing } = await supabase
-    .from('estimates')
-    .select('id')
-    .eq('inspection_id', inspectionId)
-    .maybeSingle()
-
-  // Fetch inspection + line items
   const { data: inspection, error: fetchErr } = await supabase
     .from('inspections')
     .select('*, inspection_line_items(*)')
     .eq('id', inspectionId)
     .single()
-  if (fetchErr) { console.error('[generateEstimate] fetch failed:', fetchErr.message); return null }
+  if (fetchErr || !inspection) {
+    return { id: null, error: `Inspection fetch failed: ${fetchErr?.message || 'no data'}` }
+  }
+
+  const allItems = inspection.inspection_line_items || []
+  const valid    = allItems.filter(belongsInEstimate)
+  const nExcluded    = allItems.filter(i => i.excluded_from_estimate === true).length
+  const nZeroCostObs = allItems.length - nExcluded - valid.length
+
+  // Check for existing estimate (by inspection_id)
+  const { data: existing, error: existErr } = await supabase
+    .from('estimates')
+    .select('id, share_token')
+    .eq('inspection_id', inspectionId)
+    .maybeSingle()
+  if (existErr) return { id: null, error: `Estimate lookup failed: ${existErr.message}` }
 
   const inspector = inspection?.owner_email?.split('@')[0] || userEmail?.split('@')[0] || 'Flent'
-  let estimateId = existing?.id
 
-  if (!estimateId) {
-    const { data: est, error: createErr } = await supabase
-      .from('estimates')
-      .insert({ pid, inspection_id: inspectionId, inspector_name: inspector, status: 'draft', created_by: userEmail })
-      .select('id')
-      .single()
-    if (createErr) { console.error('[generateEstimate] create failed:', createErr.message); return null }
-    estimateId = est.id
-  } else {
-    // Regenerate: clear old items
-    await supabase.from('estimate_items').delete().eq('estimate_id', estimateId)
+  if (existing?.id) {
+    // ── REPAIR IN PLACE ──────────────────────────────────────────────────────
+    // Insert only line items not already present; preserve everything else.
+    const { data: existingItems } = await supabase
+      .from('estimate_items')
+      .select('line_item_id, sort_order')
+      .eq('estimate_id', existing.id)
+    const presentIds = new Set((existingItems || []).map(r => r.line_item_id))
+    const maxSort    = (existingItems || []).reduce((m, r) => Math.max(m, r.sort_order || 0), 0)
+    const newItems   = valid.filter(item => !presentIds.has(item.id))
+
+    if (newItems.length > 0) {
+      const rows = newItems.map((item, i) => toEstimateRow(item, existing.id, maxSort + (i + 1) * 10))
+      const { error: insertErr } = await supabase.from('estimate_items').insert(rows)
+      if (insertErr) return { id: null, error: `Repair insert failed: ${insertErr.message}` }
+    }
+
+    return { id: existing.id, inserted: newItems.length, repaired: true }
   }
 
-  const validItems = (inspection?.inspection_line_items || []).filter(belongsInEstimate)
-  if (validItems.length > 0) {
-    const rows = validItems.map((item, i) => ({
-      estimate_id:          estimateId,
-      line_item_id:         item.id,
-      sort_order:           i * 10,
-      area:                 item.area || '',
-      item_name:            item.item_name || '',
-      trade:                item.trade || '',
-      section_name:         item.section_name || '',
-      issue_description:    item.issue_description || '',
-      material_description: item.material_description || '',
-      material_cost:        item.material_cost || 0,
-      action:               item.action || '',
-      labour_description:   item.action || '',
-      labour_cost:          item.labour_cost || 0,
-      qty:                  item.qty || 1,
-      cost_type:            item.cost_type || 'priced',
-      status:               'pending',
-    }))
-    const { error: insertErr } = await supabase.from('estimate_items').insert(rows)
-    if (insertErr) console.error('[generateEstimate] items insert failed:', insertErr.message)
+  // ── NEW ESTIMATE ─────────────────────────────────────────────────────────
+  if (valid.length === 0) {
+    const parts = []
+    if (nExcluded > 0)    parts.push(`${nExcluded} excluded`)
+    if (nZeroCostObs > 0) parts.push(`${nZeroCostObs} with no cost or issue`)
+    return {
+      id: null,
+      error: `No billable items found — ${parts.join(', ') || 'all items filtered'}. Price some issues in the inspection first.`,
+    }
   }
 
-  await recomputeEstimateTotal(estimateId)
-  return estimateId
+  const { data: est, error: createErr } = await supabase
+    .from('estimates')
+    .insert({ pid, inspection_id: inspectionId, inspector_name: inspector, status: 'draft', created_by: userEmail })
+    .select('id').single()
+  if (createErr || !est?.id) {
+    return { id: null, error: `Estimate create failed: ${createErr?.message || 'no row returned'}` }
+  }
+
+  const rows = valid.map((item, i) => toEstimateRow(item, est.id, i * 10))
+  const { data: inserted, error: insertErr } = await supabase
+    .from('estimate_items').insert(rows).select('id')
+  if (insertErr || !inserted?.length) {
+    // Roll back the shell estimate row
+    await supabase.from('estimates').delete().eq('id', est.id)
+    return { id: null, error: `Item copy failed${insertErr ? ': ' + insertErr.message : ' — 0 items inserted'}` }
+  }
+
+  return { id: est.id, inserted: inserted.length, repaired: false }
 }
+
+// Reconcile (Regen) — never deletes. Builds the full valid item set in memory,
+// verifies it is non-empty, then inserts new items and marks vanished ones
+// status='removed'. Updates no estimates row. Preserves all manual WB edits.
+// Returns { error, inserted, removed } — caller handles error display.
+export async function reconcileEstimate(inspectionId, estimateId) {
+  const { data: inspection, error: fetchErr } = await supabase
+    .from('inspections')
+    .select('*, inspection_line_items(*)')
+    .eq('id', inspectionId)
+    .single()
+  if (fetchErr || !inspection) {
+    return { error: `Inspection fetch failed: ${fetchErr?.message || 'no data'}` }
+  }
+
+  const allItems = inspection.inspection_line_items || []
+  const valid    = allItems.filter(belongsInEstimate)
+  const nExcluded    = allItems.filter(i => i.excluded_from_estimate === true).length
+  const nZeroCostObs = allItems.length - nExcluded - valid.length
+
+  if (valid.length === 0) {
+    const parts = []
+    if (nExcluded > 0)    parts.push(`${nExcluded} excluded`)
+    if (nZeroCostObs > 0) parts.push(`${nZeroCostObs} with no cost or issue`)
+    return { error: `No billable items — ${parts.join(', ') || 'all filtered'}` }
+  }
+
+  const { data: currentItems } = await supabase
+    .from('estimate_items')
+    .select('id, line_item_id, sort_order, status')
+    .eq('estimate_id', estimateId)
+  const presentMap = new Map((currentItems || []).map(r => [r.line_item_id, r]))
+  const maxSort    = (currentItems || []).reduce((m, r) => Math.max(m, r.sort_order || 0), 0)
+
+  // Insert items present in inspection but missing from estimate
+  const toInsert = valid.filter(item => !presentMap.has(item.id))
+  if (toInsert.length > 0) {
+    const rows = toInsert.map((item, i) => toEstimateRow(item, estimateId, maxSort + (i + 1) * 10))
+    const { error: insertErr } = await supabase.from('estimate_items').insert(rows)
+    if (insertErr) return { error: `Regen insert failed: ${insertErr.message}` }
+  }
+
+  // Mark items no longer in inspection as removed
+  const validIds  = new Set(valid.map(i => i.id))
+  const toRemove  = (currentItems || [])
+    .filter(r => r.status !== 'removed' && !validIds.has(r.line_item_id))
+    .map(r => r.id)
+  for (const itemId of toRemove) {
+    await supabase.from('estimate_items').update({ status: 'removed' }).eq('id', itemId)
+  }
+
+  return { inserted: toInsert.length, removed: toRemove.length }
+}
+
+// No-op: DB trigger trg_recompute_total owns estimates.total now.
+export async function recomputeEstimateTotal(_estimateId) { return }
+export async function backfillEstimateTotals() { return }

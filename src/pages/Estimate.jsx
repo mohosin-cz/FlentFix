@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, Component } from 'react'
 import { HIGH_VALUE_VIDEO_THRESHOLD, validateProofVideo } from '../utils/proofVideo'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
+import { generateEstimate, reconcileEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
 import { uploadMedia } from '../utils/mediaUtils'
 import { logActivity } from '../utils/activityUtils'
 import DisputeThread from '../components/DisputeThread'
@@ -219,30 +219,64 @@ const CSS = `
   .drw-scrim{display:block}
   .board,.dash{margin-right:0!important}
 }
+@keyframes lb-spin{to{transform:rotate(360deg)}}
 `
 
 // ─── MediaLightbox ────────────────────────────────────────────────────────────
 
 function MediaLightbox({ urls, idx, onClose }) {
-  const [cur, setCur] = useState(idx)
+  const [cur, setCur]         = useState(idx)
+  const [vidLoading, setVidLoading] = useState(false)
+  const videoRef              = useRef(null)
+
+  const handleClose = () => { videoRef.current?.pause(); onClose() }
+
   useEffect(() => {
     const h = e => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape')     { videoRef.current?.pause(); onClose() }
       if (e.key === 'ArrowRight') setCur(i => Math.min(i+1, urls.length-1))
       if (e.key === 'ArrowLeft')  setCur(i => Math.max(i-1, 0))
     }
     document.addEventListener('keydown', h)
     return () => document.removeEventListener('keydown', h)
   }, [urls.length, onClose])
-  const url = urls[cur]
-  const isVid = /\.(mp4|mov|webm)$/i.test(url)
+
+  const url    = urls[cur]
+  const isVid  = /\.(mp4|mov|webm|m4v)$/i.test(url)
+  const poster = isVid ? url.replace(/(\.[^.]+)$/, '_thumb.webp') : undefined
+
+  // Reset spinner state whenever the displayed URL changes to a video
+  useEffect(() => {
+    if (isVid) setVidLoading(true)
+  }, [url]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
-    <div onClick={onClose} style={{ position:'fixed',inset:0,background:'rgba(0,0,0,.92)',zIndex:9900,display:'flex',alignItems:'center',justifyContent:'center' }}>
-      <button onClick={onClose} style={{ position:'fixed',top:14,right:14,width:34,height:34,borderRadius:'50%',background:'rgba(255,255,255,.15)',border:'none',cursor:'pointer',color:'#fff',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center',zIndex:9901 }}>×</button>
+    <div onClick={handleClose} style={{ position:'fixed',inset:0,background:'rgba(0,0,0,.92)',zIndex:9900,display:'flex',alignItems:'center',justifyContent:'center' }}>
+      <button onClick={handleClose} style={{ position:'fixed',top:14,right:14,width:34,height:34,borderRadius:'50%',background:'rgba(255,255,255,.15)',border:'none',cursor:'pointer',color:'#fff',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center',zIndex:9901 }}>×</button>
       <div onClick={e => e.stopPropagation()} style={{ display:'flex',flexDirection:'column',alignItems:'center',gap:12,maxWidth:'92vw' }}>
-        {isVid
-          ? <video src={url} controls autoPlay preload="none" style={{ maxWidth:'90vw',maxHeight:'80vh',borderRadius:6 }} />
-          : <img src={url} alt="" style={{ maxWidth:'90vw',maxHeight:'80vh',objectFit:'contain',borderRadius:6 }} />}
+        {isVid ? (
+          <div style={{ position:'relative',display:'flex',alignItems:'center',justifyContent:'center' }}>
+            {vidLoading && (
+              <div style={{ position:'absolute',top:'50%',left:'50%',marginTop:-18,marginLeft:-18,
+                width:36,height:36,borderRadius:'50%',border:'3px solid rgba(255,255,255,.2)',
+                borderTopColor:'#fff',animation:'lb-spin 0.65s linear infinite',zIndex:1,pointerEvents:'none' }} />
+            )}
+            <video
+              ref={videoRef}
+              key={url}
+              src={url}
+              poster={poster}
+              controls
+              playsInline
+              autoPlay
+              preload="metadata"
+              onCanPlay={() => setVidLoading(false)}
+              style={{ maxWidth:'90vw',maxHeight:'80vh',borderRadius:6,display:'block' }}
+            />
+          </div>
+        ) : (
+          <img src={url} alt="" style={{ maxWidth:'90vw',maxHeight:'80vh',objectFit:'contain',borderRadius:6 }} />
+        )}
         {urls.length > 1 && (
           <div style={{ display:'flex',alignItems:'center',gap:10 }}>
             <button onClick={e => { e.stopPropagation(); setCur(i => Math.max(i-1,0)) }} disabled={cur===0} style={{ width:34,height:34,borderRadius:'50%',background:'rgba(255,255,255,.15)',border:'none',cursor:cur===0?'default':'pointer',color:'#fff',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',opacity:cur===0?.3:1 }}>‹</button>
@@ -314,9 +348,14 @@ function DrawerGallery({ item, media, onAddMedia, onDeleteMedia, onReplaceMedia,
         {media.map((m, i) => (
           <div key={m.id} style={{ position:'relative' }} title={i===0?'Primary':''}>
             <div className="g" onClick={() => onOpenLightbox(i)}>
-              {isVid(m)
-                ? <span>▶</span>
-                : <img src={m.url} alt="" onError={e => e.target.style.display='none'} />}
+              {isVid(m) ? (
+                <div style={{ position:'relative',width:'100%',height:'100%',background:'#000',borderRadius:4,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center' }}>
+                  <img src={m.url.replace(/(\.[^.]+)$/, '_thumb.webp')} alt="" style={{ position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover' }} onError={e => e.target.style.display='none'} />
+                  <span style={{ position:'relative',zIndex:1,fontSize:18,color:'#fff',textShadow:'0 1px 6px rgba(0,0,0,.8)',lineHeight:1 }}>▶</span>
+                </div>
+              ) : (
+                <img src={m.url} alt="" onError={e => e.target.style.display='none'} />
+              )}
             </div>
             {i === 0 && <div style={{ position:'absolute',top:2,left:2,fontSize:7,padding:'1px 4px',borderRadius:2,background:'var(--gold)',color:'#231a0a',fontFamily:'var(--mono)',fontWeight:700 }}>★</div>}
             <div style={{ display:'flex',gap:3,marginTop:3 }}>
@@ -1215,11 +1254,16 @@ function EstimateWorkbenchInner() {
   }
 
   async function handleRegenerate() {
-    if (!window.confirm('Regenerate will replace all items from the inspection. Continue?')) return
+    if (!window.confirm('Regen: inserts missing items and marks removed ones. Your edits are preserved. Continue?')) return
     setGenerating(true)
     const inspId = estimate?.inspection_id || await resolveInspectionWithData(estimate?.pid)
     if (!inspId) { setGenerating(false); return }
-    await generateEstimate(inspId, estimate?.pid, userEmail)
+    const result = await reconcileEstimate(inspId, id)
+    if (result.error) {
+      setSendError(`Regen failed: ${result.error}`)
+      setGenerating(false)
+      return
+    }
     await loadData()
     setGenerating(false)
   }
@@ -1241,6 +1285,11 @@ function EstimateWorkbenchInner() {
     setSendError(null)
 
     const liveItems = items.filter(i => i.status !== 'removed')
+    if (liveItems.length === 0) {
+      setSendError('Nothing to send — estimate has no items.')
+      setSending(false)
+      return
+    }
     const snapTotal = liveItems
       .filter(i => i.status !== 'excluded' && i.cost_type === 'priced')
       .reduce((s, i) => s + ((parseFloat(i.material_cost)||0) + (parseFloat(i.labour_cost)||0)) * (i.qty||1), 0)
@@ -1501,11 +1550,16 @@ function EstimateWorkbenchInner() {
               ⚠ {sendError}
             </span>
           )}
-          {!isLocked && (
-            <button className="btn primary" onClick={handleSend} disabled={sending}>
-              {sending ? 'Sending…' : status === 'draft' ? 'Send →' : 'Resend →'}
-            </button>
-          )}
+          {!isLocked && (() => {
+            const liveCount = items.filter(i => i.status !== 'removed').length
+            const isEmpty = liveCount === 0
+            return (
+              <button className="btn primary" onClick={handleSend} disabled={sending || isEmpty}
+                title={isEmpty ? 'Nothing to send — estimate has no items' : undefined}>
+                {sending ? 'Sending…' : isEmpty ? 'No items' : status === 'draft' ? 'Send →' : 'Resend →'}
+              </button>
+            )
+          })()}
           {!isLocked && status !== 'draft' && (
             <button className="btn ghost" onClick={handleLock} disabled={locking} style={{ color:'var(--gold)',borderColor:'rgba(200,150,62,0.4)' }}>
               {locking ? 'Locking…' : 'Mark final'}

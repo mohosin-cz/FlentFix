@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# One-time scripts — env files next to scripts must never be committed
+scripts/.env
+scripts/*.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
