@@ -451,6 +451,17 @@ const CSS = `
     font-family: var(--le-mono); font-size: 11px;
     color: rgba(255,255,255,0.5); letter-spacing: 0.1em;
   }
+  .le-lightbox-video {
+    max-width: calc(100% - 80px); max-height: 90vh; border-radius: 4px; display: block;
+  }
+  .le-lb-spinner {
+    width: 36px; height: 36px;
+    border: 3px solid rgba(255,255,255,0.2); border-top-color: #fff;
+    border-radius: 50%; position: absolute; top: 50%; left: 50%;
+    margin: -18px 0 0 -18px; z-index: 2; pointer-events: none;
+    animation: le-spin 0.65s linear infinite;
+  }
+  @keyframes le-spin { to { transform: rotate(360deg); } }
 
   /* focus rings */
   .le-btn-approve:focus-visible,
@@ -544,11 +555,19 @@ export default function LandlordEstimate() {
 
   // lightbox: { urls: string[], idx: number } | null
   const [lightbox, setLightbox] = useState(null)
+  const [vidLoading, setVidLoading] = useState(false)
+  const lbVideoRef = useRef(null)
+
+  // Reset spinner whenever the lightbox navigates to a video URL
+  const lbUrl = lightbox?.urls[lightbox.idx]
+  useEffect(() => {
+    if (lbUrl && /\.(mp4|mov|webm|m4v)$/i.test(lbUrl)) setVidLoading(true)
+  }, [lbUrl])
 
   useEffect(() => {
     if (!lightbox) return
     const h = e => {
-      if (e.key === 'Escape') setLightbox(null)
+      if (e.key === 'Escape') { lbVideoRef.current?.pause(); setLightbox(null) }
       if (e.key === 'ArrowRight') setLightbox(lb => lb ? { ...lb, idx: Math.min(lb.idx + 1, lb.urls.length - 1) } : null)
       if (e.key === 'ArrowLeft')  setLightbox(lb => lb ? { ...lb, idx: Math.max(lb.idx - 1, 0) } : null)
     }
@@ -1215,25 +1234,45 @@ export default function LandlordEstimate() {
       )}
 
       {/* lightbox with prev/next */}
-      {lightbox && (
-        <div className="le-lightbox" onClick={() => setLightbox(null)}>
-          <img
-            src={lightbox.urls[lightbox.idx]} alt=""
-            className="le-lightbox-img" loading="lazy" decoding="async"
-            onClick={e => e.stopPropagation()}
-          />
-          {lightbox.urls.length > 1 && (
-            <>
-              <button className="le-lightbox-nav le-lightbox-prev" aria-label="Previous"
-                onClick={e => { e.stopPropagation(); setLightbox(lb => ({ ...lb, idx: Math.max(lb.idx - 1, 0) })) }}>‹</button>
-              <button className="le-lightbox-nav le-lightbox-next" aria-label="Next"
-                onClick={e => { e.stopPropagation(); setLightbox(lb => ({ ...lb, idx: Math.min(lb.idx + 1, lb.urls.length - 1) })) }}>›</button>
-              <span className="le-lightbox-counter">{lightbox.idx + 1} / {lightbox.urls.length}</span>
-            </>
-          )}
-          <button className="le-lightbox-close" aria-label="Close" onClick={() => setLightbox(null)}>✕</button>
-        </div>
-      )}
+      {lightbox && (() => {
+        const curUrl   = lightbox.urls[lightbox.idx]
+        const curIsVid = /\.(mp4|mov|webm|m4v)$/i.test(curUrl)
+        const curPost  = curIsVid ? curUrl.replace(/(\.[^.]+)$/, '_thumb.webp') : undefined
+        const closeLb  = () => { lbVideoRef.current?.pause(); setLightbox(null) }
+        return (
+          <div className="le-lightbox" onClick={closeLb}>
+            {curIsVid ? (
+              <div style={{ position:'relative',display:'inline-flex',alignItems:'center',justifyContent:'center' }} onClick={e => e.stopPropagation()}>
+                {vidLoading && <div className="le-lb-spinner" />}
+                <video
+                  ref={lbVideoRef}
+                  key={curUrl}
+                  src={curUrl}
+                  poster={curPost}
+                  controls
+                  playsInline
+                  autoPlay
+                  preload="metadata"
+                  onCanPlay={() => setVidLoading(false)}
+                  className="le-lightbox-video"
+                />
+              </div>
+            ) : (
+              <img src={curUrl} alt="" className="le-lightbox-img" loading="lazy" decoding="async" onClick={e => e.stopPropagation()} />
+            )}
+            {lightbox.urls.length > 1 && (
+              <>
+                <button className="le-lightbox-nav le-lightbox-prev" aria-label="Previous"
+                  onClick={e => { e.stopPropagation(); lbVideoRef.current?.pause(); setLightbox(lb => ({ ...lb, idx: Math.max(lb.idx - 1, 0) })) }}>‹</button>
+                <button className="le-lightbox-nav le-lightbox-next" aria-label="Next"
+                  onClick={e => { e.stopPropagation(); lbVideoRef.current?.pause(); setLightbox(lb => ({ ...lb, idx: Math.min(lb.idx + 1, lb.urls.length - 1) })) }}>›</button>
+                <span className="le-lightbox-counter">{lightbox.idx + 1} / {lightbox.urls.length}</span>
+              </>
+            )}
+            <button className="le-lightbox-close" aria-label="Close" onClick={closeLb}>✕</button>
+          </div>
+        )
+      })()}
     </div>
   )
 }

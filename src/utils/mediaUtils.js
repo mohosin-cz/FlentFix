@@ -78,9 +78,9 @@ export async function videoFirstFrame(file) {
 export async function uploadMedia(supabase, file, baseName) {
   const isVid = VIDEO_RE.test(file.name)
 
-  if (isVid && file.size > 40 * 1024 * 1024) {
+  if (isVid && file.size > 20 * 1024 * 1024) {
     const mb = (file.size / 1024 / 1024).toFixed(0)
-    const ok = window.confirm(`This video is ${mb} MB — large files can slow the estimate. Upload anyway?`)
+    const ok = window.confirm(`This video is ${mb} MB — large videos may load slowly for landlords. Upload anyway?`)
     if (!ok) return null
   }
 
