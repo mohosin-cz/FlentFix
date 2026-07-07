@@ -6,6 +6,7 @@ import { generateEstimate, reconcileEstimate, resolveInspectionWithData } from '
 import { uploadMedia } from '../utils/mediaUtils'
 import { logActivity } from '../utils/activityUtils'
 import DisputeThread from '../components/DisputeThread'
+import QueryThread from '../components/QueryThread'
 import LogoSpinner from '../components/LogoSpinner'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -220,6 +221,13 @@ const CSS = `
   .board,.dash{margin-right:0!important}
 }
 @keyframes lb-spin{to{transform:rotate(360deg)}}
+.qchip{border:none;cursor:pointer;padding:0 6px;border-radius:4px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.04em;margin-left:5px;height:17px;display:inline-flex;align-items:center;vertical-align:middle;line-height:1}
+.qchip-open{background:rgba(240,160,80,.18);color:#f0a050}
+.qchip-done{background:rgba(95,174,110,.13);color:#5fae6e}
+.dwr-tabs{display:flex;border-bottom:1px solid var(--line);flex-shrink:0;background:var(--panel)}
+.dwr-tab{padding:9px 14px;background:none;border:none;border-bottom:2px solid transparent;font-size:11px;font-family:var(--mono);cursor:pointer;color:var(--muted);transition:color .12s;display:flex;align-items:center;gap:5px;min-height:40px}
+.dwr-tab.on{color:var(--gold);border-bottom-color:var(--gold)}
+.dwr-tab-dot{width:6px;height:6px;border-radius:50%;background:#f0a050;display:inline-block}
 `
 
 // ─── MediaLightbox ────────────────────────────────────────────────────────────
@@ -468,9 +476,15 @@ function ItemDrawer({
   onClose, onNavigate, onUpdate,
   onAddMedia, onAddProofVideo, onDeleteMedia, onReplaceMedia, onSetPrimary,
   onOpenLightbox, userEmail, estimateId, readOnly,
+  initTab = 'details', disputes = [],
 }) {
   const [drafts, setDrafts] = useState({})
+  const [drawerTab, setDrawerTab] = useState(initTab)
   useEffect(() => setDrafts({}), [item.id])
+
+  const hasThread = disputes?.length > 0 || item.status === 'disputed'
+  const lastMsg   = disputes?.length > 0 ? disputes[disputes.length - 1] : null
+  const threadUnread = lastMsg?.author_type === 'landlord'
 
   function dv(f) { return f in drafts ? drafts[f] : (item[f] ?? '') }
   function sd(f, v) { setDrafts(p => ({ ...p, [f]: v })) }
@@ -555,8 +569,19 @@ function ItemDrawer({
         </div>
       </div>
 
-      {/* Scrollable body */}
-      <div className="db">
+      {/* Tab bar — only when there's a thread */}
+      {hasThread && (
+        <div className="dwr-tabs">
+          <button className={`dwr-tab ${drawerTab === 'details' ? 'on' : ''}`} onClick={() => setDrawerTab('details')}>Details</button>
+          <button className={`dwr-tab ${drawerTab === 'thread' ? 'on' : ''}`} onClick={() => setDrawerTab('thread')}>
+            Thread
+            {threadUnread && <span className="dwr-tab-dot" />}
+          </button>
+        </div>
+      )}
+
+      {/* Scrollable body — Details tab */}
+      {drawerTab === 'details' && <div className="db">
 
         {/* Media */}
         <div className="sec">
@@ -692,7 +717,21 @@ function ItemDrawer({
             </div>
           </div>
         )}
-      </div>
+      </div>}
+
+      {/* Thread tab */}
+      {drawerTab === 'thread' && (
+        <div className="db">
+          <div className="sec">
+            <QueryThread
+              itemId={item.id}
+              estimateId={estimateId}
+              item={item}
+              userEmail={userEmail}
+            />
+          </div>
+        </div>
+      )}
     </>
   )
 }
@@ -949,6 +988,8 @@ function EstimateWorkbenchInner() {
   const [sending, setSending]             = useState(false)
   const [sendError, setSendError]         = useState(null)
   const [lightbox, setLightbox]           = useState(null)
+  const [disputeMap, setDisputeMap]       = useState({})
+  const [drawerInitTab, setDrawerInitTab] = useState('details')
 
   const dragRef          = useRef(null)   // { itemId, trade }
   const activityTimers   = useRef(new Map())
@@ -995,6 +1036,7 @@ function EstimateWorkbenchInner() {
     setVersionCount(estCountRes.data?.length || 1)
     setLoading(false)
     loadMedia(fetched)
+    loadDisputes(id)
 
     // Auto-backfill stored total if null (first open after migration or after regenerate)
     if (est.total == null) {
@@ -1004,6 +1046,14 @@ function EstimateWorkbenchInner() {
       supabase.from('estimates').update({ total: firmTotal }).eq('id', id)
         .then(() => setEstimate(prev => prev ? { ...prev, total: firmTotal } : prev))
     }
+  }
+
+  async function loadDisputes(estId) {
+    const { data } = await supabase.from('estimate_disputes').select('*').eq('estimate_id', estId).order('created_at', { ascending: true })
+    if (!data) return
+    const m = {}
+    for (const d of data) { if (!m[d.estimate_item_id]) m[d.estimate_item_id] = []; m[d.estimate_item_id].push(d) }
+    setDisputeMap(m)
   }
 
   async function loadMedia(itemsList) {
@@ -1643,7 +1693,7 @@ function EstimateWorkbenchInner() {
 
                         return (
                           <div key={item.id} id={`row-${item.id}`} className={rowCls}
-                            onClick={() => setPinnedId(p => p===item.id ? null : item.id)}
+                            onClick={() => { setDrawerInitTab('details'); setPinnedId(p => p===item.id ? null : item.id) }}
                             onDragEnter={e => { if (dragRef.current && dragRef.current.itemId !== item.id) { e.preventDefault(); setDragOverId(item.id) } }}
                             onDragOver={e => { if (dragRef.current) e.preventDefault() }}
                             onDrop={e => {
@@ -1663,7 +1713,23 @@ function EstimateWorkbenchInner() {
                               <div className="ar">{item.area || '—'}</div>
                               <div className="it">
                                 {item.item_name || '—'}
-                                {item.status === 'disputed' && <span className="ddot">●</span>}
+                                {(() => {
+                                  const ds = disputeMap[item.id]
+                                  if (ds?.length) {
+                                    const last = ds[ds.length - 1]
+                                    const needsReply = last.author_type === 'landlord'
+                                    return (
+                                      <button
+                                        className={needsReply ? 'qchip qchip-open' : 'qchip qchip-done'}
+                                        onClick={e => { e.stopPropagation(); setDrawerInitTab('thread'); setPinnedId(item.id) }}
+                                      >
+                                        {needsReply ? '● Q' : '✓'}
+                                      </button>
+                                    )
+                                  }
+                                  if (item.status === 'disputed') return <span className="ddot">●</span>
+                                  return null
+                                })()}
                               </div>
                             </div>
                             <div className="fnd">
@@ -1733,6 +1799,8 @@ function EstimateWorkbenchInner() {
             userEmail={userEmail}
             estimateId={id}
             readOnly={isLocked}
+            initTab={drawerInitTab}
+            disputes={disputeMap[drawerItem.id] || []}
           />
         )}
       </aside>

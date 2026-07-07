@@ -284,14 +284,16 @@ const CSS = `
 
   /* dispute thread */
   .le-thread { margin-top: 12px; border-top: 1px solid var(--le-hairline); padding-top: 12px; }
-  .le-thread-msg { margin-bottom: 10px; }
+  .le-thread-msg { margin-bottom: 10px; display: flex; flex-direction: column; }
+  .le-thread-msg.le-msg-landlord { align-items: flex-start; }
+  .le-thread-msg.le-msg-flent    { align-items: flex-end; }
   .le-thread-meta { font-family: var(--le-mono); font-size: 9px; color: var(--le-ink-soft); margin-bottom: 3px; letter-spacing: 0.04em; }
   .le-thread-bubble {
     display: inline-block; padding: 8px 12px; border-radius: 4px;
-    font-size: 12px; line-height: 1.6; max-width: 90%; font-family: var(--le-sans);
+    font-size: 12px; line-height: 1.6; max-width: 85%; font-family: var(--le-sans);
   }
-  .le-bubble-landlord { background: rgba(222,214,196,0.45); color: var(--le-ink); }
-  .le-bubble-flent    { background: var(--le-ink); color: var(--le-paper); }
+  .le-bubble-landlord { background: rgba(222,214,196,0.45); color: var(--le-ink); border-radius: 4px 10px 10px 4px; }
+  .le-bubble-flent    { background: var(--le-ink); color: var(--le-paper); border-radius: 10px 4px 4px 10px; }
 
   /* notes */
   .le-notes-card {
@@ -1052,41 +1054,49 @@ export default function LandlordEstimate() {
                         }
 
                         {/* approve / ask — hidden when estimate is locked */}
-                        {!isLocked && (
-                        <div className="le-plate-actions">
-                          {status === 'approved' ? (
-                            <span className="le-plate-state le-plate-state--approved">Approved</span>
-                          ) : status === 'disputed' ? (
-                            <span className="le-plate-state le-plate-state--disputed">In Review</span>
-                          ) : (
-                            <>
-                              <button
-                                className="le-btn-approve"
-                                disabled={!!submitting[item.id]}
-                                onClick={() => requireName(() => approveItem(item.id))}
-                              >
-                                Approve
-                              </button>
-                              <button
-                                className="le-btn-ask"
-                                disabled={!!submitting[item.id]}
-                                onClick={() => requireName(() => {
-                                  if (isOpen) {
-                                    setDisputeOpen(s => ({ ...s, [item.id]: false }))
-                                  } else {
-                                    setDisputeOpen(s => ({ ...s, [item.id]: true }))
-                                    setAskStep(s => ({ ...s, [item.id]: 'options' }))
-                                    setAskSelected(s => ({ ...s, [item.id]: '' }))
-                                    setDisputeMsg(s => ({ ...s, [item.id]: '' }))
-                                  }
-                                })}
-                              >
-                                {isOpen ? 'Cancel' : 'Ask about this'}
-                              </button>
-                            </>
-                          )}
-                        </div>
-                        )}
+                        {!isLocked && (() => {
+                          const sortedDisps = [...itemDisps].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+                          const lastDisp = sortedDisps[sortedDisps.length - 1]
+                          // Approve reappears when flent has replied (last msg is from flent, even if status='disputed')
+                          const hasActiveQuery = sortedDisps.length > 0 && lastDisp?.author_type === 'landlord'
+                          const flentReplied = sortedDisps.length > 0 && lastDisp?.author_type === 'flent'
+
+                          return (
+                            <div className="le-plate-actions">
+                              {status === 'approved' ? (
+                                <span className="le-plate-state le-plate-state--approved">Approved</span>
+                              ) : hasActiveQuery ? (
+                                <span className="le-plate-state le-plate-state--disputed">Awaiting reply</span>
+                              ) : (
+                                <>
+                                  <button
+                                    className="le-btn-approve"
+                                    disabled={!!submitting[item.id]}
+                                    onClick={() => requireName(() => approveItem(item.id))}
+                                  >
+                                    {flentReplied ? 'Approve' : 'Approve'}
+                                  </button>
+                                  <button
+                                    className="le-btn-ask"
+                                    disabled={!!submitting[item.id]}
+                                    onClick={() => requireName(() => {
+                                      if (isOpen) {
+                                        setDisputeOpen(s => ({ ...s, [item.id]: false }))
+                                      } else {
+                                        setDisputeOpen(s => ({ ...s, [item.id]: true }))
+                                        setAskStep(s => ({ ...s, [item.id]: 'options' }))
+                                        setAskSelected(s => ({ ...s, [item.id]: '' }))
+                                        setDisputeMsg(s => ({ ...s, [item.id]: '' }))
+                                      }
+                                    })}
+                                  >
+                                    {isOpen ? 'Cancel' : 'Ask about this'}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )
+                        })()}
 
                         {/* ask panel — three-step: options → note → dispute */}
                         {isOpen && (() => {
@@ -1158,7 +1168,7 @@ export default function LandlordEstimate() {
                         {itemDisps.length > 0 && (
                           <div className="le-thread">
                             {[...itemDisps].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((d, di) => (
-                              <div key={di} className="le-thread-msg">
+                              <div key={di} className={`le-thread-msg ${d.author_type === 'landlord' ? 'le-msg-landlord' : 'le-msg-flent'}`}>
                                 <div className="le-thread-meta">
                                   {d.author_name || d.author_type} · {new Date(d.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                                   {d.reason_tag ? ` · ${ALL_TAG_LABELS[d.reason_tag] || d.reason_tag}` : ''}
