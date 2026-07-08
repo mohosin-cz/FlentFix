@@ -74,6 +74,8 @@ export default function EstimateWorkspace() {
   const [queryThreadItemId, setQueryThreadItemId] = useState(null)
   const [activity, setActivity]           = useState([])
   const [activityLoading, setActivityLoading] = useState(false)
+  const [activityHasMore, setActivityHasMore] = useState(false)
+  const [activityLoadingMore, setActivityLoadingMore] = useState(false)
   const isMobile = useIsMobile()
 
   const fetchAll = useCallback(async () => {
@@ -119,9 +121,30 @@ export default function EstimateWorkspace() {
       .select('*')
       .eq('estimate_id', estimates[0].id)
       .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data }) => { setActivity(data || []); setActivityLoading(false) })
+      .limit(51)
+      .then(({ data }) => {
+        const rows = data || []
+        setActivityHasMore(rows.length === 51)
+        setActivity(rows.slice(0, 50))
+        setActivityLoading(false)
+      })
   }, [activeTab, estimates[0]?.id])
+
+  async function loadMoreActivity() {
+    if (!estimates[0]?.id || activityLoadingMore) return
+    setActivityLoadingMore(true)
+    const { data } = await supabase
+      .from('estimate_activity')
+      .select('*')
+      .eq('estimate_id', estimates[0].id)
+      .order('created_at', { ascending: false })
+      .range(activity.length, activity.length + 50)
+    if (data) {
+      setActivityHasMore(data.length === 51)
+      setActivity(prev => [...prev, ...data.slice(0, 50)])
+    }
+    setActivityLoadingMore(false)
+  }
 
   // Realtime: refresh when items or disputes change for current estimate
   useEffect(() => {
@@ -202,6 +225,11 @@ export default function EstimateWorkspace() {
 
   const banner    = getAttentionBanner()
   const stats     = current ? getStats(current) : null
+  // Queried = items with any dispute thread (not just status='disputed')
+  const queriedItemIds = new Set(disputes.map(d => d.estimate_item_id))
+  const queriedCount = (current?.estimate_items || []).filter(
+    i => i.status !== 'removed' && queriedItemIds.has(i.id)
+  ).length
   const houseType = property?.house_type || ''
   const address   = property?.config?.address || ''
 
@@ -313,7 +341,7 @@ export default function EstimateWorkspace() {
                   {[
                     { label: 'Items',    value: stats.count,    color: undefined },
                     { label: 'Approved', value: stats.approved, color: stats.approved > 0 ? '#4dd9c0' : undefined },
-                    { label: 'Disputed', value: stats.disputed, color: stats.disputed > 0 ? '#f0a050' : undefined },
+                    { label: 'Queried',  value: queriedCount,   color: queriedCount > 0 ? '#f0a050' : undefined },
                     { label: 'Pending',  value: stats.pending,  color: stats.pending > 0  ? 'var(--text, #e8e8f0)' : undefined },
                   ].map((s, i) => (
                     <div key={s.label} style={{
@@ -458,37 +486,52 @@ export default function EstimateWorkspace() {
                               const timeStr = ts.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
                               const dateStr = ts.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
                               const actor = (e.changed_by || '').split('@')[0]
+                              if (isSend) {
+                                return (
+                                  <div key={e.id || i} style={{ padding: '10px 16px', borderBottom: isLast ? 'none' : '1px solid var(--border, #2e3040)', background: 'rgba(200,150,62,0.08)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <div style={{ width: 3, height: 28, borderRadius: 2, background: 'var(--accent, #c8963e)', flexShrink: 0 }} />
+                                    <div>
+                                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>
+                                        Version {e.new_value} sent · ₹{Number(e.old_value || 0).toLocaleString('en-IN')}
+                                      </div>
+                                      <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 2 }}>
+                                        {actor} · {dateStr} {timeStr}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              }
                               return (
                                 <div
                                   key={e.id || i}
                                   style={{
-                                    padding: isSend ? '8px 16px' : '7px 16px',
+                                    padding: '7px 16px',
                                     borderBottom: isLast ? 'none' : '1px solid var(--border, #2e3040)',
-                                    background: isSend ? 'rgba(200,150,62,0.06)' : 'none',
                                     display: 'flex', alignItems: 'flex-start', gap: 10,
                                   }}
                                 >
-                                  {isSend ? (
-                                    <div style={{ flex: 1 }}>
-                                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>
-                                        v{e.new_value} · sent by {actor} · ₹{Number(e.old_value || 0).toLocaleString('en-IN')} · {timeStr}
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <>
-                                      <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', marginTop: 1, flexShrink: 0 }}>
-                                        {dateStr} {timeStr}
-                                      </span>
-                                      <div style={{ flex: 1, minWidth: 0 }}>
-                                        {actor && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{actor} · </span>}
-                                        {e.item_name && <span style={{ fontSize: 11, color: 'var(--text, #e8e8f0)', fontWeight: 500 }}>{e.item_name} · </span>}
-                                        <span style={{ fontSize: 11, color: 'var(--text-muted, #9394a8)' }}>{describeChange(e)}</span>
-                                      </div>
-                                    </>
-                                  )}
+                                  <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', marginTop: 1, flexShrink: 0 }}>
+                                    {dateStr} {timeStr}
+                                  </span>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    {actor && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{actor} · </span>}
+                                    {e.item_name && <span style={{ fontSize: 11, color: 'var(--text, #e8e8f0)', fontWeight: 500 }}>{e.item_name} · </span>}
+                                    <span style={{ fontSize: 11, color: 'var(--text-muted, #9394a8)' }}>{describeChange(e)}</span>
+                                  </div>
                                 </div>
                               )
                             })}
+                            {activityHasMore && (
+                              <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border, #2e3040)' }}>
+                                <button
+                                  onClick={loadMoreActivity}
+                                  disabled={activityLoadingMore}
+                                  style={{ background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, padding: '6px 14px', fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: activityLoadingMore ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
+                                >
+                                  {activityLoadingMore ? 'Loading…' : 'Load more'}
+                                </button>
+                              </div>
+                            )}
                             <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border, #2e3040)', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
                               History begins from when activity logging was deployed
                             </div>

@@ -165,8 +165,9 @@ const CSS = `
 .sec{margin-bottom:15px}
 .sec>.ey{margin-bottom:7px;display:block}
 .gal{display:flex;gap:8px;flex-wrap:wrap}
-.gal .g{width:80px;height:60px;border-radius:5px;background:linear-gradient(135deg,#2a2f3a,#3c4350);border:1px solid var(--line2);overflow:hidden;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;color:rgba(255,255,255,.4)}
-.gal .g img{width:100%;height:100%;object-fit:cover;display:block}
+.gal .g{position:relative;width:80px;height:60px;border-radius:5px;background:#2a2f3a;border:1px solid var(--line2);overflow:hidden;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;color:rgba(255,255,255,.4)}
+.gal .g img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;z-index:1}
+.gal .g .bd{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;filter:blur(10px) brightness(0.45);transform:scale(1.1);z-index:0}
 .gadd{width:60px;height:60px;border:1px dashed var(--line2);border-radius:5px;display:grid;place-items:center;color:var(--faint);font-family:var(--mono);font-size:10px;cursor:pointer;flex-shrink:0}
 .gadd:hover{border-color:var(--muted);color:var(--muted)}
 .fld{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:10px 12px;color:var(--ink2);font-size:16px;line-height:1.5;min-height:44px}
@@ -357,12 +358,16 @@ function DrawerGallery({ item, media, onAddMedia, onDeleteMedia, onReplaceMedia,
           <div key={m.id} style={{ position:'relative' }} title={i===0?'Primary':''}>
             <div className="g" onClick={() => onOpenLightbox(i)}>
               {isVid(m) ? (
-                <div style={{ position:'relative',width:'100%',height:'100%',background:'#000',borderRadius:4,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center' }}>
-                  <img src={m.url.replace(/(\.[^.]+)$/, '_thumb.webp')} alt="" style={{ position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover' }} onError={e => e.target.style.display='none'} />
-                  <span style={{ position:'relative',zIndex:1,fontSize:18,color:'#fff',textShadow:'0 1px 6px rgba(0,0,0,.8)',lineHeight:1 }}>▶</span>
-                </div>
+                <>
+                  <img src={m.url.replace(/(\.[^.]+)$/, '_thumb.webp')} alt="" aria-hidden="true" className="bd" onError={e => e.target.style.display='none'} />
+                  <img src={m.url.replace(/(\.[^.]+)$/, '_thumb.webp')} alt="" style={{ position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',display:'block',zIndex:1 }} onError={e => e.target.style.display='none'} />
+                  <span style={{ position:'relative',zIndex:2,fontSize:18,color:'#fff',textShadow:'0 1px 6px rgba(0,0,0,.8)',lineHeight:1 }}>▶</span>
+                </>
               ) : (
-                <img src={m.url} alt="" onError={e => e.target.style.display='none'} />
+                <>
+                  <img src={m.url} alt="" aria-hidden="true" className="bd" onError={e => e.target.style.display='none'} />
+                  <img src={m.url} alt="" onError={e => e.target.style.display='none'} />
+                </>
               )}
             </div>
             {i === 0 && <div style={{ position:'absolute',top:2,left:2,fontSize:7,padding:'1px 4px',borderRadius:2,background:'var(--gold)',color:'#231a0a',fontFamily:'var(--mono)',fontWeight:700 }}>★</div>}

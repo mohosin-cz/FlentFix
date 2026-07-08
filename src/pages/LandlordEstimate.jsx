@@ -160,35 +160,55 @@ const CSS = `
   /* media block */
   .le-plate-media { display: flex; flex-direction: column; gap: 8px; }
 
-  /* hero — full-width featured photo, tall enough to read detail */
+  /* hero — full-width, 4:3 aspect, capped height so portrait still reads on tall phones */
   .le-plate-hero {
-    width: 100%; height: 224px; border-radius: 10px; overflow: hidden;
-    background: var(--le-hairline); position: relative; cursor: pointer;
+    width: 100%; aspect-ratio: 4/3; max-height: min(60vh, 440px);
+    border-radius: 10px; overflow: hidden;
+    background: #c8c0b0; position: relative; cursor: pointer;
   }
-  @media (min-width: 641px) { .le-plate-hero { height: 292px; } }
-  .le-plate-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* shared media primitives — backdrop blur + contain main */
+  .le-media-bd {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; display: block;
+    filter: blur(20px) brightness(0.4); transform: scale(1.15); z-index: 0;
+  }
+  .le-media-main {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; display: block; z-index: 1;
+  }
 
   /* secondary thumbs — small squares below the hero */
-  .le-plate-sec-row { display: flex; gap: 6px; }
+  .le-plate-sec-row { display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .le-plate-sec-row::-webkit-scrollbar { display: none; }
   .le-plate-sec-thumb {
     width: 76px; height: 76px; border-radius: 7px; overflow: hidden; flex-shrink: 0;
-    background: var(--le-hairline); position: relative; cursor: pointer;
+    background: #c8c0b0; position: relative; cursor: pointer;
   }
   @media (min-width: 641px) { .le-plate-sec-thumb { width: 88px; height: 88px; } }
-  .le-plate-sec-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .le-plate-overflow-pill {
     position: absolute; inset: 0; background: rgba(33,28,68,0.55);
     display: flex; align-items: center; justify-content: center;
     font-family: var(--le-mono); font-size: 12px; font-weight: 600;
-    color: var(--le-paper); letter-spacing: 0.04em;
+    color: var(--le-paper); letter-spacing: 0.04em; z-index: 2;
   }
 
   /* video play chip */
   .le-media-chip {
-    position: absolute; bottom: 6px; right: 6px;
+    position: absolute; bottom: 6px; right: 6px; z-index: 2;
     font-family: var(--le-mono); font-size: 8px; font-weight: 500;
     color: var(--le-paper); background: rgba(33,28,68,0.72);
     padding: 2px 5px; border-radius: 2px; letter-spacing: 0.04em; line-height: 1.4;
+  }
+
+  /* query error toast */
+  .le-query-toast {
+    position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%);
+    background: #c94040; color: #fff;
+    padding: 10px 20px; border-radius: 6px;
+    font-size: 13px; font-family: var(--le-sans);
+    z-index: 400; white-space: nowrap;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3); pointer-events: none;
   }
 
   /* plate content */
@@ -554,6 +574,13 @@ export default function LandlordEstimate() {
   const [askSelected, setAskSelected]     = useState({}) // selected QUERY_OPTIONS key
   const [submitting, setSubmitting]       = useState({})
   const [approving, setApproving]         = useState(false)
+  const [queryError, setQueryError]       = useState(null)
+
+  useEffect(() => {
+    if (!queryError) return
+    const t = setTimeout(() => setQueryError(null), 5000)
+    return () => clearTimeout(t)
+  }, [queryError])
 
   // lightbox: { urls: string[], idx: number } | null
   const [lightbox, setLightbox] = useState(null)
@@ -709,9 +736,11 @@ export default function LandlordEstimate() {
   }
 
   async function approveItem(itemId) {
+    // Version items carry estimate_item_id pointing to the live twin; live items don't have it.
+    const liveItemId = items.find(i => i.id === itemId)?.estimate_item_id ?? itemId
     setSubmitting(s => ({ ...s, [itemId]: true }))
-    await supabase.from('estimate_items').update({ status: 'approved' }).eq('id', itemId)
-    await supabase.from('estimate_events').insert({ estimate_id: estimate.id, event_type: 'item_approved', actor: 'landlord', meta: { item_id: itemId, name: landlordName } })
+    await supabase.from('estimate_items').update({ status: 'approved' }).eq('id', liveItemId)
+    await supabase.from('estimate_events').insert({ estimate_id: estimate.id, event_type: 'item_approved', actor: 'landlord', meta: { item_id: liveItemId, name: landlordName } })
     setItems(prev => prev.map(i => i.id === itemId ? { ...i, status: 'approved' } : i))
     setSubmitting(s => ({ ...s, [itemId]: false }))
   }
@@ -719,17 +748,26 @@ export default function LandlordEstimate() {
   async function sendQuery(itemId) {
     const opt = QUERY_OPTIONS.find(o => o.key === askSelected[itemId])
     if (!opt) return
+    setQueryError(null)
     setSubmitting(s => ({ ...s, [itemId]: true }))
     const note = disputeMsg[itemId]?.trim()
     const message = note ? `${opt.label}\n\n${note}` : opt.label
-    await supabase.from('estimate_disputes').insert({
-      estimate_item_id: itemId, estimate_id: estimate.id,
+    // Version items carry estimate_item_id (live twin); live items don't — FK requires live id
+    const liveItemId = items.find(i => i.id === itemId)?.estimate_item_id ?? itemId
+    const { error: insertErr } = await supabase.from('estimate_disputes').insert({
+      estimate_item_id: liveItemId, estimate_id: estimate.id,
       author_type: 'landlord', author_name: landlordName || 'Landlord',
       reason_tag: opt.key, message,
     })
+    if (insertErr) {
+      console.error('[sendQuery] dispute insert failed:', insertErr)
+      setQueryError('Your question could not be sent — please try again.')
+      setSubmitting(s => ({ ...s, [itemId]: false }))
+      return
+    }
     await supabase.from('estimate_events').insert({
       estimate_id: estimate.id, event_type: 'queried', actor: 'landlord',
-      meta: { item_id: itemId, query: opt.key, name: landlordName },
+      meta: { item_id: liveItemId, query: opt.key, name: landlordName },
     })
     const { data: freshD } = await supabase.from('estimate_disputes').select('*').eq('estimate_id', estimate.id)
     if (freshD) setDisputes(freshD)
@@ -918,7 +956,7 @@ export default function LandlordEstimate() {
                 const areaEyebrow = (item.area && item.area.toLowerCase() !== label.toLowerCase())
                   ? item.area
                   : (item.trade ? titleCase(item.trade) : null)
-                const itemDisps = disputes.filter(d => d.estimate_item_id === item.id)
+                const itemDisps = disputes.filter(d => d.estimate_item_id === (item.estimate_item_id ?? item.id))
                 const status    = item.status || 'pending'
                 const isOpen    = !!disputeOpen[item.id]
                 const allUrls = item._photos || []
@@ -936,7 +974,7 @@ export default function LandlordEstimate() {
                         const overflow   = allUrls.length > 4 ? allUrls.length - 4 : 0
                         return (
                           <div className="le-plate-media">
-                            {/* Hero — large full-width photo */}
+                            {/* Hero — full-width, contain over blurred backdrop */}
                             <div
                               className="le-plate-hero"
                               tabIndex={0}
@@ -944,11 +982,14 @@ export default function LandlordEstimate() {
                               onClick={() => setLightbox({ urls: allUrls, idx: 0 })}
                               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setLightbox({ urls: allUrls, idx: 0 }) }}
                             >
+                              <img src={mainSrc} alt="" aria-hidden="true" className="le-media-bd"
+                                onError={e => e.currentTarget.style.display = 'none'} />
                               <img
                                 src={mainSrc}
                                 alt=""
                                 loading="lazy"
                                 decoding="async"
+                                className="le-media-main"
                                 onError={e => {
                                   if (!mainIsVid) { e.currentTarget.src = mainUrl; e.currentTarget.onerror = null }
                                   else e.currentTarget.style.display = 'none'
@@ -971,11 +1012,14 @@ export default function LandlordEstimate() {
                                       onClick={() => setLightbox({ urls: allUrls, idx: si + 1 })}
                                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setLightbox({ urls: allUrls, idx: si + 1 }) }}
                                     >
+                                      <img src={src} alt="" aria-hidden="true" className="le-media-bd"
+                                        onError={e => e.currentTarget.style.display = 'none'} />
                                       <img
                                         src={src}
                                         alt=""
                                         loading="lazy"
                                         decoding="async"
+                                        className="le-media-main"
                                         onError={e => {
                                           if (!isVid) { e.currentTarget.src = mUrl; e.currentTarget.onerror = null }
                                           else e.currentTarget.style.display = 'none'
@@ -1242,6 +1286,9 @@ export default function LandlordEstimate() {
           </div>
         </div>
       )}
+
+      {/* query error toast */}
+      {queryError && <div className="le-query-toast">⚠ {queryError}</div>}
 
       {/* lightbox with prev/next */}
       {lightbox && (() => {
