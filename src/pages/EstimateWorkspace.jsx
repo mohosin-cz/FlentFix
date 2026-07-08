@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { generateEstimate, reconcileEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
 import { generateInvoice } from '../utils/generateInvoice'
 import DisputeThread from '../components/DisputeThread'
+import QueryThread from '../components/QueryThread'
 import { useIsMobile } from '../hooks/useIsMobile'
 import LogoSpinner from '../components/LogoSpinner'
 
@@ -67,10 +68,14 @@ export default function EstimateWorkspace() {
   const [invoiceId, setInvoiceId]         = useState(null)
   const [userEmail, setUserEmail]         = useState(null)
   const [copied, setCopied]               = useState(false)
-  const [activeTab, setActiveTab]         = useState('overview') // 'overview' | 'disputes' | 'history'
+  const [activeTab, setActiveTab]         = useState('overview') // 'overview' | 'queries' | 'history'
   const [versions, setVersions]           = useState([])
+  const [disputes, setDisputes]           = useState([])
+  const [queryThreadItemId, setQueryThreadItemId] = useState(null)
   const [activity, setActivity]           = useState([])
   const [activityLoading, setActivityLoading] = useState(false)
+  const [activityHasMore, setActivityHasMore] = useState(false)
+  const [activityLoadingMore, setActivityLoadingMore] = useState(false)
   const isMobile = useIsMobile()
 
   const fetchAll = useCallback(async () => {
@@ -88,16 +93,19 @@ export default function EstimateWorkspace() {
     setEstimates(ests || [])
     setProperty(prop)
 
-    // Fetch invoice + versions for the latest estimate
+    // Fetch invoice + versions + disputes for the latest estimate
     if (ests?.length) {
-      const [{ data: inv }, { data: vers }] = await Promise.all([
+      const [{ data: inv }, { data: vers }, { data: disps }] = await Promise.all([
         supabase.from('tax_invoices').select('id').eq('estimate_id', ests[0].id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('estimate_versions').select('id, version_number, total, status, created_by, created_at').eq('estimate_id', ests[0].id).order('version_number', { ascending: false }),
+        supabase.from('estimate_disputes').select('*').eq('estimate_id', ests[0].id).order('created_at', { ascending: true }),
       ])
       setInvoiceId(inv?.id || null)
       setVersions(vers || [])
+      setDisputes(disps || [])
     } else {
       setVersions([])
+      setDisputes([])
     }
 
     setLoading(false)
@@ -113,9 +121,30 @@ export default function EstimateWorkspace() {
       .select('*')
       .eq('estimate_id', estimates[0].id)
       .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data }) => { setActivity(data || []); setActivityLoading(false) })
+      .limit(51)
+      .then(({ data }) => {
+        const rows = data || []
+        setActivityHasMore(rows.length === 51)
+        setActivity(rows.slice(0, 50))
+        setActivityLoading(false)
+      })
   }, [activeTab, estimates[0]?.id])
+
+  async function loadMoreActivity() {
+    if (!estimates[0]?.id || activityLoadingMore) return
+    setActivityLoadingMore(true)
+    const { data } = await supabase
+      .from('estimate_activity')
+      .select('*')
+      .eq('estimate_id', estimates[0].id)
+      .order('created_at', { ascending: false })
+      .range(activity.length, activity.length + 50)
+    if (data) {
+      setActivityHasMore(data.length === 51)
+      setActivity(prev => [...prev, ...data.slice(0, 50)])
+    }
+    setActivityLoadingMore(false)
+  }
 
   // Realtime: refresh when items or disputes change for current estimate
   useEffect(() => {
@@ -164,8 +193,8 @@ export default function EstimateWorkspace() {
   // Attention banner logic
   function getAttentionBanner() {
     if (!current) return null
-    const disputes = current.estimate_disputes?.[0]?.count || 0
-    if (disputes > 0) return { text: `${disputes} item${disputes > 1 ? 's' : ''} disputed — review required`, color: '#f0a050', cta: null }
+    const disputeCount = current.estimate_disputes?.[0]?.count || 0
+    if (disputeCount > 0) return { text: `${disputeCount} item${disputeCount > 1 ? 's' : ''} queried — review required`, color: '#f0a050', cta: null }
     if (current.status === 'rejected') return { text: 'Estimate rejected — generate a new version or edit', color: '#f87171', cta: null }
     if (current.status === 'approved') {
       if (invoiceId) return { text: 'Invoice created', color: '#4dd9c0', cta: { label: 'View Invoice →', action: () => navigate(`/tax-invoice/${invoiceId}`) } }
@@ -196,6 +225,11 @@ export default function EstimateWorkspace() {
 
   const banner    = getAttentionBanner()
   const stats     = current ? getStats(current) : null
+  // Queried = items with any dispute thread (not just status='disputed')
+  const queriedItemIds = new Set(disputes.map(d => d.estimate_item_id))
+  const queriedCount = (current?.estimate_items || []).filter(
+    i => i.status !== 'removed' && queriedItemIds.has(i.id)
+  ).length
   const houseType = property?.house_type || ''
   const address   = property?.config?.address || ''
 
@@ -307,7 +341,7 @@ export default function EstimateWorkspace() {
                   {[
                     { label: 'Items',    value: stats.count,    color: undefined },
                     { label: 'Approved', value: stats.approved, color: stats.approved > 0 ? '#4dd9c0' : undefined },
-                    { label: 'Disputed', value: stats.disputed, color: stats.disputed > 0 ? '#f0a050' : undefined },
+                    { label: 'Queried',  value: queriedCount,   color: queriedCount > 0 ? '#f0a050' : undefined },
                     { label: 'Pending',  value: stats.pending,  color: stats.pending > 0  ? 'var(--text, #e8e8f0)' : undefined },
                   ].map((s, i) => (
                     <div key={s.label} style={{
@@ -357,10 +391,10 @@ export default function EstimateWorkspace() {
                   )}
                   {(current.estimate_disputes?.[0]?.count || 0) > 0 && (
                     <button
-                      onClick={() => { setActiveTab('disputes') }}
+                      onClick={() => { setActiveTab('queries') }}
                       style={{ padding: '8px 16px', minHeight: 44, background: 'none', border: '1px solid #f0a050', borderRadius: 6, fontSize: 12, color: '#f0a050', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
                     >
-                      Disputes ({current.estimate_disputes[0].count})
+                      Queries ({current.estimate_disputes[0].count})
                     </button>
                   )}
                   {invoiceId && (
@@ -377,8 +411,19 @@ export default function EstimateWorkspace() {
 
             {/* ── Tabs ── */}
             {(() => {
-              const disputedItems = (current?.estimate_items || []).filter(i => i.status === 'disputed')
-              const disputeCount  = disputedItems.length
+              // Build per-item dispute map for the Queries tab
+              const dispMap = {}
+              for (const d of disputes) {
+                if (!dispMap[d.estimate_item_id]) dispMap[d.estimate_item_id] = []
+                dispMap[d.estimate_item_id].push(d)
+              }
+              const itemsWithThreads = (current?.estimate_items || []).filter(
+                i => dispMap[i.id]?.length > 0
+              )
+              const needsReplyCount = itemsWithThreads.filter(item => {
+                const msgs = dispMap[item.id] || []
+                return msgs[msgs.length - 1]?.author_type === 'landlord'
+              }).length
               const tabStyle = (key) => ({
                 padding: '10px 16px', minHeight: 44, background: 'none', border: 'none', cursor: 'pointer',
                 fontSize: 13, fontFamily: 'var(--font-mono, monospace)',
@@ -390,8 +435,8 @@ export default function EstimateWorkspace() {
                 <>
                   <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border, #2e3040)', marginBottom: 16 }}>
                     <button style={tabStyle('overview')} onClick={() => setActiveTab('overview')}>Overview</button>
-                    <button style={tabStyle('disputes')} onClick={() => setActiveTab('disputes')}>
-                      Disputes{disputeCount > 0 ? ` (${disputeCount})` : ''}
+                    <button style={tabStyle('queries')} onClick={() => setActiveTab('queries')}>
+                      Queries{itemsWithThreads.length > 0 ? ` (${itemsWithThreads.length}${needsReplyCount > 0 ? ` · ${needsReplyCount} pending` : ''})` : ''}
                     </button>
                     <button style={tabStyle('history')} onClick={() => setActiveTab('history')}>History</button>
                   </div>
@@ -406,10 +451,11 @@ export default function EstimateWorkspace() {
                     const TYPE_LABELS = { priced: 'Priced', actuals: 'Actual', nil: 'None' }
                     const STATUS_LABELS = { pending: 'Pending', excluded: 'Excluded', removed: 'Removed', approved: 'Approved', disputed: 'Disputed' }
                     function describeChange(e) {
-                      if (e.action === 'remove')  return 'Removed'
-                      if (e.action === 'restore') return 'Restored'
-                      if (e.action === 'lock')    return 'Marked final'
-                      if (e.action === 'send')    return `Sent v${e.new_value}`
+                      if (e.action === 'remove')      return 'Removed'
+                      if (e.action === 'restore')     return 'Restored'
+                      if (e.action === 'lock')        return 'Marked final'
+                      if (e.action === 'send')        return `Sent v${e.new_value}`
+                      if (e.action === 'query_reply') return 'Query replied'
                       if (e.action === 'edit') {
                         const label = FIELD_LABELS[e.field] || e.field
                         if (['material_cost', 'labour_cost'].includes(e.field)) {
@@ -440,37 +486,52 @@ export default function EstimateWorkspace() {
                               const timeStr = ts.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
                               const dateStr = ts.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
                               const actor = (e.changed_by || '').split('@')[0]
+                              if (isSend) {
+                                return (
+                                  <div key={e.id || i} style={{ padding: '10px 16px', borderBottom: isLast ? 'none' : '1px solid var(--border, #2e3040)', background: 'rgba(200,150,62,0.08)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <div style={{ width: 3, height: 28, borderRadius: 2, background: 'var(--accent, #c8963e)', flexShrink: 0 }} />
+                                    <div>
+                                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>
+                                        Version {e.new_value} sent · ₹{Number(e.old_value || 0).toLocaleString('en-IN')}
+                                      </div>
+                                      <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 2 }}>
+                                        {actor} · {dateStr} {timeStr}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              }
                               return (
                                 <div
                                   key={e.id || i}
                                   style={{
-                                    padding: isSend ? '8px 16px' : '7px 16px',
+                                    padding: '7px 16px',
                                     borderBottom: isLast ? 'none' : '1px solid var(--border, #2e3040)',
-                                    background: isSend ? 'rgba(200,150,62,0.06)' : 'none',
                                     display: 'flex', alignItems: 'flex-start', gap: 10,
                                   }}
                                 >
-                                  {isSend ? (
-                                    <div style={{ flex: 1 }}>
-                                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>
-                                        v{e.new_value} · sent by {actor} · ₹{Number(e.old_value || 0).toLocaleString('en-IN')} · {timeStr}
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <>
-                                      <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', marginTop: 1, flexShrink: 0 }}>
-                                        {dateStr} {timeStr}
-                                      </span>
-                                      <div style={{ flex: 1, minWidth: 0 }}>
-                                        {actor && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{actor} · </span>}
-                                        {e.item_name && <span style={{ fontSize: 11, color: 'var(--text, #e8e8f0)', fontWeight: 500 }}>{e.item_name} · </span>}
-                                        <span style={{ fontSize: 11, color: 'var(--text-muted, #9394a8)' }}>{describeChange(e)}</span>
-                                      </div>
-                                    </>
-                                  )}
+                                  <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', marginTop: 1, flexShrink: 0 }}>
+                                    {dateStr} {timeStr}
+                                  </span>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    {actor && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{actor} · </span>}
+                                    {e.item_name && <span style={{ fontSize: 11, color: 'var(--text, #e8e8f0)', fontWeight: 500 }}>{e.item_name} · </span>}
+                                    <span style={{ fontSize: 11, color: 'var(--text-muted, #9394a8)' }}>{describeChange(e)}</span>
+                                  </div>
                                 </div>
                               )
                             })}
+                            {activityHasMore && (
+                              <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border, #2e3040)' }}>
+                                <button
+                                  onClick={loadMoreActivity}
+                                  disabled={activityLoadingMore}
+                                  style={{ background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, padding: '6px 14px', fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: activityLoadingMore ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
+                                >
+                                  {activityLoadingMore ? 'Loading…' : 'Load more'}
+                                </button>
+                              </div>
+                            )}
                             <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border, #2e3040)', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
                               History begins from when activity logging was deployed
                             </div>
@@ -480,40 +541,77 @@ export default function EstimateWorkspace() {
                     )
                   })()}
 
-                  {activeTab === 'disputes' && (
+                  {activeTab === 'queries' && (
                     <div style={{ marginBottom: 20 }}>
-                      {disputeCount === 0 ? (
+                      {itemsWithThreads.length === 0 ? (
                         <div style={{ padding: '28px 0', textAlign: 'center', fontSize: 13, color: 'var(--text-muted, #6b6d82)' }}>
-                          No disputed items
+                          No queries yet — landlord questions appear here
                         </div>
-                      ) : disputedItems.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)).map(item => (
-                        <div key={item.id} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(240,160,80,0.35)', borderRadius: 10, padding: 16, marginBottom: 12 }}>
-                          {/* Item header */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', marginBottom: 3 }}>{item.item_name || '—'}</div>
-                              {item.issue_description && <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', lineHeight: 1.5 }}>{item.issue_description}</div>}
-                              <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                                {item.area  && <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 3, background: 'var(--bg-input, #252731)', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{item.area}</span>}
-                                {item.trade && <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 3, background: 'var(--bg-input, #252731)', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{item.trade}</span>}
-                              </div>
+                      ) : [...itemsWithThreads].sort((a, b) => {
+                          // Needs-reply first, then by most recent message
+                          const aMsgs = dispMap[a.id] || []
+                          const bMsgs = dispMap[b.id] || []
+                          const aNR = aMsgs[aMsgs.length - 1]?.author_type === 'landlord' ? 1 : 0
+                          const bNR = bMsgs[bMsgs.length - 1]?.author_type === 'landlord' ? 1 : 0
+                          if (aNR !== bNR) return bNR - aNR
+                          const aT = aMsgs[aMsgs.length - 1]?.created_at || ''
+                          const bT = bMsgs[bMsgs.length - 1]?.created_at || ''
+                          return bT.localeCompare(aT)
+                        }).map(item => {
+                          const msgs = dispMap[item.id] || []
+                          const lastMsg = msgs[msgs.length - 1]
+                          const needsReply = lastMsg?.author_type === 'landlord'
+                          const isExpanded = queryThreadItemId === item.id
+                          return (
+                            <div key={item.id} style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${needsReply ? 'rgba(240,160,80,0.35)' : 'var(--border, #2e3040)'}`, borderRadius: 10, marginBottom: 10, overflow: 'hidden' }}>
+                              {/* Row header — click to expand/collapse thread */}
+                              <button
+                                onClick={() => setQueryThreadItemId(p => p === item.id ? null : item.id)}
+                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                              >
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{item.item_name || '—'}</span>
+                                    {needsReply && <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 100, background: 'rgba(240,160,80,0.15)', color: '#f0a050', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, letterSpacing: '0.04em' }}>● Reply needed</span>}
+                                    {!needsReply && <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 100, background: 'rgba(77,217,192,0.1)', color: '#4dd9c0', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, letterSpacing: '0.04em' }}>✓ Replied</span>}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 6, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+                                    {item.area  && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: 'var(--bg-input, #252731)', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{item.area}</span>}
+                                    {item.trade && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: 'var(--bg-input, #252731)', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{item.trade}</span>}
+                                    {lastMsg && (
+                                      <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
+                                        {lastMsg.message?.slice(0, 80)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                                  {((item.material_cost || 0) + (item.labour_cost || 0)) > 0 && (
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>
+                                      ₹{((item.material_cost || 0) + (item.labour_cost || 0)).toLocaleString('en-IN')}
+                                    </span>
+                                  )}
+                                  <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{msgs.length} msg{msgs.length !== 1 ? 's' : ''}</span>
+                                </div>
+                              </button>
+
+                              {/* Inline thread expansion */}
+                              {isExpanded && (
+                                <div style={{ padding: '0 16px 16px', borderTop: '1px solid var(--border, #2e3040)' }}>
+                                  <div style={{ paddingTop: 14 }}>
+                                    <QueryThread
+                                      itemId={item.id}
+                                      estimateId={current.id}
+                                      item={item}
+                                      userEmail={userEmail}
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                            <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-                              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>
-                                ₹{((item.material_cost || 0) + (item.labour_cost || 0)).toLocaleString('en-IN')}
-                              </div>
-                              <div style={{ fontSize: 10, color: '#f0a050', marginTop: 2 }}>⚑ disputed</div>
-                            </div>
-                          </div>
-                          <DisputeThread
-                            itemId={item.id}
-                            estimateId={current.id}
-                            item={item}
-                            userEmail={userEmail}
-                            onResolve={fetchAll}
-                          />
-                        </div>
-                      ))}
+                          )
+                        })
+                      }
                     </div>
                   )}
                 </>
