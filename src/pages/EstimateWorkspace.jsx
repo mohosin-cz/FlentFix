@@ -214,7 +214,10 @@ export default function EstimateWorkspace() {
     const approved  = nonRemoved.filter(i => i.status === 'approved').length
     const disputed  = nonRemoved.filter(i => i.status === 'disputed').length
     const pending   = nonRemoved.filter(i => !i.status || i.status === 'pending').length
-    return { count: nonRemoved.length, total: est?.total ?? 0, actualsCount, approved, disputed, pending }
+    const approvedTotal = nonRemoved
+      .filter(i => i.status === 'approved' && i.cost_type === 'priced')
+      .reduce((s, i) => s + ((i.material_cost || 0) + (i.labour_cost || 0)) * (i.qty || 1), 0)
+    return { count: nonRemoved.length, total: est?.total ?? 0, actualsCount, approved, disputed, pending, approvedTotal }
   }
 
   // All events across all estimates, newest first
@@ -353,6 +356,19 @@ export default function EstimateWorkspace() {
                   ))}
                 </div>
 
+                {/* Approved ₹X of ₹Y */}
+                {stats.approved > 0 && (
+                  <div style={{ padding: '8px 20px', borderBottom: '1px solid var(--border, #2e3040)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 10, color: '#4dd9c0', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700 }}>✓</span>
+                    <span style={{ fontSize: 11, color: '#4dd9c0', fontFamily: 'var(--font-mono, monospace)' }}>
+                      Approved ₹{stats.approvedTotal.toLocaleString('en-IN')} of ₹{(stats.total || 0).toLocaleString('en-IN')}
+                    </span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                      ({stats.approved}/{stats.count} items)
+                    </span>
+                  </div>
+                )}
+
                 {/* Action buttons */}
                 <div style={{ padding: '12px 20px', display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill, minmax(120px, auto))', gap: 8 }}>
                   <button
@@ -455,7 +471,18 @@ export default function EstimateWorkspace() {
                       if (e.action === 'restore')     return 'Restored'
                       if (e.action === 'lock')        return 'Marked final'
                       if (e.action === 'send')        return `Sent v${e.new_value}`
-                      if (e.action === 'query_reply') return 'Query replied'
+                      if (e.action === 'query') {
+                        const preview = (e.new_value || e.message || '').slice(0, 70)
+                        return preview ? `asked: ${preview}` : 'sent a query'
+                      }
+                      if (e.action === 'query_reply') {
+                        const preview = (e.new_value || e.message || '').slice(0, 70)
+                        return preview ? `replied: ${preview}` : 'replied to query'
+                      }
+                      if (e.action === 'status_change') {
+                        if (e.new_value === 'approved') return 'Approved by landlord'
+                        return `Status → ${e.new_value || '?'}`
+                      }
                       if (e.action === 'edit') {
                         const label = FIELD_LABELS[e.field] || e.field
                         if (['material_cost', 'labour_cost'].includes(e.field)) {
@@ -501,6 +528,10 @@ export default function EstimateWorkspace() {
                                   </div>
                                 )
                               }
+                              const dotColor = e.action === 'query' ? '#f0a050'
+                                : e.action === 'query_reply' ? '#818cf8'
+                                : (e.action === 'status_change' && e.new_value === 'approved') ? '#4dd9c0'
+                                : undefined
                               return (
                                 <div
                                   key={e.id || i}
@@ -510,13 +541,16 @@ export default function EstimateWorkspace() {
                                     display: 'flex', alignItems: 'flex-start', gap: 10,
                                   }}
                                 >
+                                  {dotColor && (
+                                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor, marginTop: 4, flexShrink: 0 }} />
+                                  )}
                                   <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', marginTop: 1, flexShrink: 0 }}>
                                     {dateStr} {timeStr}
                                   </span>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                                     {actor && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{actor} · </span>}
                                     {e.item_name && <span style={{ fontSize: 11, color: 'var(--text, #e8e8f0)', fontWeight: 500 }}>{e.item_name} · </span>}
-                                    <span style={{ fontSize: 11, color: 'var(--text-muted, #9394a8)' }}>{describeChange(e)}</span>
+                                    <span style={{ fontSize: 11, color: dotColor || 'var(--text-muted, #9394a8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: '100%', verticalAlign: 'bottom' }}>{describeChange(e)}</span>
                                   </div>
                                 </div>
                               )
@@ -562,8 +596,17 @@ export default function EstimateWorkspace() {
                           const lastMsg = msgs[msgs.length - 1]
                           const needsReply = lastMsg?.author_type === 'landlord'
                           const isExpanded = queryThreadItemId === item.id
+                          const isApproved = item.status === 'approved'
+                          const firstReason = msgs[0]?.reason_tag
+                          const REASON_SHORT_WS = { why_needed:'why?',more_photos:'photos',cost_breakdown:'cost?',self_arrange:'self',not_needed:'not needed',price_too_high:'price',already_fixed:'fixed',question:'query' }
+                          const shortTag = REASON_SHORT_WS[firstReason] || firstReason || 'query'
                           return (
-                            <div key={item.id} style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${needsReply ? 'rgba(240,160,80,0.35)' : 'var(--border, #2e3040)'}`, borderRadius: 10, marginBottom: 10, overflow: 'hidden' }}>
+                            <div key={item.id} style={{
+                              background: isApproved ? 'rgba(77,217,192,0.03)' : 'var(--bg-panel, #1e2028)',
+                              border: `1px solid ${isApproved ? 'rgba(77,217,192,0.25)' : needsReply ? 'rgba(240,160,80,0.35)' : 'var(--border, #2e3040)'}`,
+                              borderLeft: isApproved ? '3px solid #4dd9c0' : needsReply ? '3px solid #f0a050' : undefined,
+                              borderRadius: 10, marginBottom: 10, overflow: 'hidden',
+                            }}>
                               {/* Row header — click to expand/collapse thread */}
                               <button
                                 onClick={() => setQueryThreadItemId(p => p === item.id ? null : item.id)}
@@ -572,8 +615,9 @@ export default function EstimateWorkspace() {
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{item.item_name || '—'}</span>
-                                    {needsReply && <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 100, background: 'rgba(240,160,80,0.15)', color: '#f0a050', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, letterSpacing: '0.04em' }}>● Reply needed</span>}
-                                    {!needsReply && <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 100, background: 'rgba(77,217,192,0.1)', color: '#4dd9c0', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, letterSpacing: '0.04em' }}>✓ Replied</span>}
+                                    {isApproved && <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 100, background: 'rgba(77,217,192,0.15)', color: '#4dd9c0', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, letterSpacing: '0.04em' }}>✓ Approved</span>}
+                                    {!isApproved && needsReply && <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 100, background: 'rgba(240,160,80,0.15)', color: '#f0a050', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, letterSpacing: '0.04em' }}>● Query · {shortTag}</span>}
+                                    {!isApproved && !needsReply && <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 100, background: 'rgba(77,217,192,0.1)', color: '#4dd9c0', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, letterSpacing: '0.04em' }}>↩ replied</span>}
                                   </div>
                                   <div style={{ display: 'flex', gap: 6, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
                                     {item.area  && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: 'var(--bg-input, #252731)', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{item.area}</span>}

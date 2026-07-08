@@ -315,6 +315,24 @@ const CSS = `
   .le-bubble-landlord { background: rgba(222,214,196,0.45); color: var(--le-ink); border-radius: 4px 10px 10px 4px; }
   .le-bubble-flent    { background: var(--le-ink); color: var(--le-paper); border-radius: 10px 4px 4px 10px; }
 
+  /* persistent thread composer */
+  .le-thread-composer { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--le-hairline); }
+  .le-thread-composer-row { display: flex; gap: 8px; align-items: flex-end; }
+  .le-thread-reply-ta {
+    flex: 1; resize: none; box-sizing: border-box;
+    border: 1.5px solid var(--le-hairline-strong); border-radius: 4px;
+    padding: 9px 12px; font-size: 15px; color: var(--le-ink);
+    font-family: var(--le-sans); background: var(--le-paper); outline: none;
+    min-height: 44px; max-height: 100px; overflow-y: auto; line-height: 1.5;
+  }
+  .le-thread-reply-ta:focus { border-color: var(--le-ink); }
+  .le-thread-closed {
+    margin-top: 10px; padding: 8px 12px; border-radius: 4px;
+    background: rgba(58,102,66,0.07); border: 1px solid rgba(58,102,66,0.18);
+    font-family: var(--le-mono); font-size: 10px; color: var(--le-green);
+    letter-spacing: 0.06em; text-align: center;
+  }
+
   /* notes */
   .le-notes-card {
     border-top: 1px solid var(--le-hairline); padding-top: 24px; margin-top: 40px;
@@ -575,6 +593,8 @@ export default function LandlordEstimate() {
   const [submitting, setSubmitting]       = useState({})
   const [approving, setApproving]         = useState(false)
   const [queryError, setQueryError]       = useState(null)
+  const [replyMsg, setReplyMsg]           = useState({})
+  const [replySending, setReplySending]   = useState({})
 
   useEffect(() => {
     if (!queryError) return
@@ -778,6 +798,28 @@ export default function LandlordEstimate() {
     setSubmitting(s => ({ ...s, [itemId]: false }))
   }
 
+  async function sendThreadReply(itemId) {
+    const txt = replyMsg[itemId]?.trim()
+    if (!txt) return
+    setReplySending(s => ({ ...s, [itemId]: true }))
+    const liveItemId = items.find(i => i.id === itemId)?.estimate_item_id ?? itemId
+    const { error: insertErr } = await supabase.from('estimate_disputes').insert({
+      estimate_item_id: liveItemId, estimate_id: estimate.id,
+      author_type: 'landlord', author_name: landlordName || 'Landlord',
+      message: txt,
+    })
+    if (insertErr) {
+      console.error('[sendThreadReply] insert failed:', insertErr)
+      setQueryError('Your reply could not be sent — please try again.')
+      setReplySending(s => ({ ...s, [itemId]: false }))
+      return
+    }
+    const { data: freshD } = await supabase.from('estimate_disputes').select('*').eq('estimate_id', estimate.id)
+    if (freshD) setDisputes(freshD)
+    setReplyMsg(s => ({ ...s, [itemId]: '' }))
+    setReplySending(s => ({ ...s, [itemId]: false }))
+  }
+
   async function approveAll() {
     const disputed = items.filter(i => i.status === 'disputed').length
     if (disputed > 0) {
@@ -957,6 +999,11 @@ export default function LandlordEstimate() {
                   ? item.area
                   : (item.trade ? titleCase(item.trade) : null)
                 const itemDisps = disputes.filter(d => d.estimate_item_id === (item.estimate_item_id ?? item.id))
+                const sortedDisps = [...itemDisps].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+                const lastDisp = sortedDisps[sortedDisps.length - 1]
+                const hasThread = sortedDisps.length > 0
+                const hasActiveQuery = hasThread && lastDisp?.author_type === 'landlord'
+                const flentReplied = hasThread && lastDisp?.author_type === 'flent'
                 const status    = item.status || 'pending'
                 const isOpen    = !!disputeOpen[item.id]
                 const allUrls = item._photos || []
@@ -1098,28 +1145,24 @@ export default function LandlordEstimate() {
                         }
 
                         {/* approve / ask — hidden when estimate is locked */}
-                        {!isLocked && (() => {
-                          const sortedDisps = [...itemDisps].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-                          const lastDisp = sortedDisps[sortedDisps.length - 1]
-                          // Approve reappears when flent has replied (last msg is from flent, even if status='disputed')
-                          const hasActiveQuery = sortedDisps.length > 0 && lastDisp?.author_type === 'landlord'
-                          const flentReplied = sortedDisps.length > 0 && lastDisp?.author_type === 'flent'
-
-                          return (
-                            <div className="le-plate-actions">
-                              {status === 'approved' ? (
-                                <span className="le-plate-state le-plate-state--approved">Approved</span>
-                              ) : hasActiveQuery ? (
-                                <span className="le-plate-state le-plate-state--disputed">Awaiting reply</span>
-                              ) : (
-                                <>
+                        {!isLocked && (
+                          <div className="le-plate-actions">
+                            {status === 'approved' ? (
+                              <span className="le-plate-state le-plate-state--approved">Approved</span>
+                            ) : (
+                              <>
+                                {/* Approve when Flent replied last or no thread yet */}
+                                {(flentReplied || !hasThread) && (
                                   <button
                                     className="le-btn-approve"
                                     disabled={!!submitting[item.id]}
                                     onClick={() => requireName(() => approveItem(item.id))}
                                   >
-                                    {flentReplied ? 'Approve' : 'Approve'}
+                                    Approve
                                   </button>
+                                )}
+                                {/* Ask about this — only when no thread exists yet */}
+                                {!hasThread && (
                                   <button
                                     className="le-btn-ask"
                                     disabled={!!submitting[item.id]}
@@ -1136,11 +1179,15 @@ export default function LandlordEstimate() {
                                   >
                                     {isOpen ? 'Cancel' : 'Ask about this'}
                                   </button>
-                                </>
-                              )}
-                            </div>
-                          )
-                        })()}
+                                )}
+                                {/* Awaiting reply label when landlord spoke last */}
+                                {hasActiveQuery && (
+                                  <span className="le-plate-state le-plate-state--disputed">Awaiting reply</span>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
 
                         {/* ask panel — three-step: options → note → dispute */}
                         {isOpen && (() => {
@@ -1208,10 +1255,10 @@ export default function LandlordEstimate() {
                           )
                         })()}
 
-                        {/* dispute thread */}
-                        {itemDisps.length > 0 && (
+                        {/* dispute thread + persistent composer */}
+                        {hasThread && (
                           <div className="le-thread">
-                            {[...itemDisps].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((d, di) => (
+                            {sortedDisps.map((d, di) => (
                               <div key={di} className={`le-thread-msg ${d.author_type === 'landlord' ? 'le-msg-landlord' : 'le-msg-flent'}`}>
                                 <div className="le-thread-meta">
                                   {d.author_name || d.author_type} · {new Date(d.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
@@ -1222,6 +1269,39 @@ export default function LandlordEstimate() {
                                 </div>
                               </div>
                             ))}
+
+                            {/* Persistent reply composer */}
+                            {!isLocked && status !== 'approved' && (
+                              <div className="le-thread-composer">
+                                <div className="le-thread-composer-row">
+                                  <textarea
+                                    className="le-thread-reply-ta"
+                                    placeholder="Reply…"
+                                    rows={2}
+                                    value={replyMsg[item.id] || ''}
+                                    onChange={e => setReplyMsg(s => ({ ...s, [item.id]: e.target.value }))}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault()
+                                        requireName(() => sendThreadReply(item.id))
+                                      }
+                                    }}
+                                    disabled={!!replySending[item.id]}
+                                  />
+                                  <button
+                                    className="le-btn-submit"
+                                    style={{ minHeight: 44, alignSelf: 'flex-end', flexShrink: 0 }}
+                                    disabled={!replyMsg[item.id]?.trim() || !!replySending[item.id]}
+                                    onClick={() => requireName(() => sendThreadReply(item.id))}
+                                  >
+                                    {replySending[item.id] ? '…' : 'Send'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                            {status === 'approved' && (
+                              <div className="le-thread-closed">Conversation closed — approved</div>
+                            )}
                           </div>
                         )}
                       </div>
