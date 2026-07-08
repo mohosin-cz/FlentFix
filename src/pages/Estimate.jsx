@@ -25,6 +25,12 @@ function rrTxt(s) { return s <= 3 ? 'replace' : s <= 6 ? 'repair' : 'ok' }
 function scls(s)  { return s <= 3 ? 'lo' : s <= 6 ? 'mid' : 'hi' }
 function barCol(s){ return s <= 3 ? 'var(--clay)' : s <= 6 ? 'var(--amber)' : 'var(--good)' }
 
+const REASON_SHORT = {
+  why_needed: 'why?', more_photos: 'photos', cost_breakdown: 'cost?',
+  self_arrange: 'self', not_needed: 'not needed', price_too_high: 'price',
+  already_fixed: 'fixed', question: 'query',
+}
+
 const TRADE_COL = {
   woodwork:'var(--amber)',carpentry:'var(--amber)',
   electrical:'var(--blue)',plumbing:'var(--teal)',
@@ -222,9 +228,14 @@ const CSS = `
   .board,.dash{margin-right:0!important}
 }
 @keyframes lb-spin{to{transform:rotate(360deg)}}
-.qchip{border:none;cursor:pointer;padding:0 6px;border-radius:4px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.04em;margin-left:5px;height:17px;display:inline-flex;align-items:center;vertical-align:middle;line-height:1}
+.qchip{border:none;cursor:pointer;padding:0 6px;border-radius:4px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.04em;margin-left:5px;height:17px;display:inline-flex;align-items:center;vertical-align:middle;line-height:1;white-space:nowrap}
 .qchip-open{background:rgba(240,160,80,.18);color:#f0a050}
 .qchip-done{background:rgba(95,174,110,.13);color:#5fae6e}
+.qchip-approved{background:rgba(77,217,192,.13);color:#4dd9c0}
+.row.q-open:not(.active){box-shadow:inset 3px 0 0 var(--amber)}
+.row.q-approved:not(.active){box-shadow:inset 3px 0 0 var(--good);background:rgba(95,174,110,.03)}
+@keyframes q-pulse-once{0%,100%{box-shadow:inset 3px 0 0 var(--amber)}50%{box-shadow:inset 3px 0 0 rgba(225,169,63,.1);background:rgba(225,169,63,.06)}}
+.row.q-new:not(.active){animation:q-pulse-once .7s ease 2}
 .dwr-tabs{display:flex;border-bottom:1px solid var(--line);flex-shrink:0;background:var(--panel)}
 .dwr-tab{padding:9px 14px;background:none;border:none;border-bottom:2px solid transparent;font-size:11px;font-family:var(--mono);cursor:pointer;color:var(--muted);transition:color .12s;display:flex;align-items:center;gap:5px;min-height:40px}
 .dwr-tab.on{color:var(--gold);border-bottom-color:var(--gold)}
@@ -843,7 +854,7 @@ function RateDrawer({ open, onClose, onSelectMaterial, onSelectLabour }) {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-function Dashboard({ items, mediaMap }) {
+function Dashboard({ items, mediaMap, openQueryCount = 0 }) {
   const g = useMemo(() => {
     let firm=0, mat=0, lab=0, p=0, a=0, n=0, nd=0, rep=0, rpr=0, ok=0, dp=0, ng=0, np=0, ss=0, scoredCount=0
     items.forEach(it => {
@@ -929,14 +940,23 @@ function Dashboard({ items, mediaMap }) {
       {/* Send readiness */}
       <div className="card">
         <div className="ct">Send readiness</div>
-        <div className="condrow">
-          <span className="condnum" style={{ color:'var(--ink)',fontSize:18 }}>{g.rpct}%</span>
-          <span className="dist">{g.ready}/{g.total} priced</span>
-        </div>
-        <div className="meter"><i style={{ width:`${g.rpct}%`,background:'var(--good)' }} /></div>
+        {(() => {
+          const displayRpct = openQueryCount > 0 ? Math.min(g.rpct, 99) : g.rpct
+          return (
+            <>
+              <div className="condrow">
+                <span className="condnum" style={{ color: openQueryCount > 0 ? 'var(--amber)' : 'var(--ink)', fontSize:18 }}>{displayRpct}%</span>
+                <span className="dist">{g.ready}/{g.total} priced</span>
+              </div>
+              <div className="meter"><i style={{ width:`${displayRpct}%`, background: openQueryCount > 0 ? 'var(--amber)' : 'var(--good)' }} /></div>
+            </>
+          )
+        })()}
         <div className="flagrow">
           <span className="clay">● Disputed {g.dp}</span>
-          <span>▤ No photo {g.ng}</span>
+          {openQueryCount > 0
+            ? <span style={{ color:'var(--amber)' }}>↩ {openQueryCount} quer{openQueryCount > 1 ? 'ies' : 'y'}</span>
+            : <span>▤ No photo {g.ng}</span>}
           {g.np > 0 && <span style={{ color:'var(--amber)' }}>⬤ No proof {g.np}</span>}
         </div>
       </div>
@@ -995,6 +1015,9 @@ function EstimateWorkbenchInner() {
   const [lightbox, setLightbox]           = useState(null)
   const [disputeMap, setDisputeMap]       = useState({})
   const [drawerInitTab, setDrawerInitTab] = useState('details')
+  const [pulseIds, setPulseIds]           = useState(new Set())
+  const initialQueryIds                   = useRef(null)
+  const prevDisputeMapRef                 = useRef({})
 
   const dragRef          = useRef(null)   // { itemId, trade }
   const activityTimers   = useRef(new Map())
@@ -1529,6 +1552,29 @@ function EstimateWorkbenchInner() {
     return () => document.removeEventListener('keydown', handle)
   }, [pinnedId, navigable, items])
 
+  // ── Pulse new queries ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (Object.keys(disputeMap).length === 0) return
+    const openIds = new Set(
+      Object.entries(disputeMap)
+        .filter(([, ds]) => ds.length > 0 && ds[ds.length - 1].author_type === 'landlord')
+        .map(([itemId]) => itemId)
+    )
+    if (initialQueryIds.current === null) {
+      initialQueryIds.current = openIds
+      prevDisputeMapRef.current = disputeMap
+      return
+    }
+    const newIds = [...openIds].filter(id => !initialQueryIds.current.has(id) && !prevDisputeMapRef.current[id])
+    if (newIds.length > 0) {
+      const s = new Set(newIds)
+      setPulseIds(p => new Set([...p, ...s]))
+      setTimeout(() => setPulseIds(p => { const n = new Set(p); s.forEach(id => n.delete(id)); return n }), 1600)
+      newIds.forEach(id => initialQueryIds.current.add(id))
+    }
+    prevDisputeMapRef.current = disputeMap
+  }, [disputeMap])
+
   // ── Cell renderers ────────────────────────────────────────────────────────────
 
   function tcell(it) {
@@ -1627,7 +1673,10 @@ function EstimateWorkbenchInner() {
       <div style={{ marginRight: mrShift, transition:'margin-right .16s' }}>
 
         {/* Dashboard */}
-        <Dashboard items={items} mediaMap={mediaMap} />
+        {(() => {
+          const openQueryCount = Object.values(disputeMap).filter(ds => ds.length > 0 && ds[ds.length - 1].author_type === 'landlord').length
+          return <Dashboard items={items} mediaMap={mediaMap} openQueryCount={openQueryCount} />
+        })()}
 
         {/* Notes bar */}
         {notesEditing && (
@@ -1665,7 +1714,22 @@ function EstimateWorkbenchInner() {
                 <div className="ghead" style={{ borderLeftColor: color }}
                   onClick={() => setCollapsed(p => { const n=new Set(p); n.has(trade)?n.delete(trade):n.add(trade); return n })}>
                   <span className="gt">{isCollapsed ? '▸' : '▾'} {trade || 'Uncategorised'}</span>
-                  <span className="gr"><b>{visibleRows.length} items</b> · ₹{fmt(subtotal)}</span>
+                  <span className="gr">
+                    {(() => {
+                      const approvedInGroup = visibleRows.filter(r => r.status === 'approved').length
+                      const openQInGroup = visibleRows.filter(r => {
+                        const rds = disputeMap[r.id]
+                        return rds?.length > 0 && rds[rds.length - 1].author_type === 'landlord'
+                      }).length
+                      return (
+                        <>
+                          <b>{visibleRows.length} items</b> · ₹{fmt(subtotal)}
+                          {approvedInGroup > 0 && <span style={{ marginLeft:8,color:'var(--good)' }}>✓ {approvedInGroup}/{visibleRows.length}</span>}
+                          {openQInGroup > 0 && <span style={{ marginLeft:8,color:'var(--amber)' }}>↩ {openQInGroup} quer{openQInGroup > 1 ? 'ies' : 'y'}</span>}
+                        </>
+                      )
+                    })()}
+                  </span>
                 </div>
 
                 {!isCollapsed && (
@@ -1689,11 +1753,24 @@ function EstimateWorkbenchInner() {
                       {/* Rows */}
                       {rows.map(item => {
                         if (item.status === 'removed') return null
-                        const type     = uiType(item.cost_type)
-                        const isActive = item.id === pinnedId
-                        const isDim    = type === 'none' || item.status === 'excluded'
-                        const score    = getScore(item)
-                        const rowCls   = ['row', isActive?'active':'', isDim?'dim':'', dragOverId===item.id?'drag-over':''].filter(Boolean).join(' ')
+                        const type       = uiType(item.cost_type)
+                        const isActive   = item.id === pinnedId
+                        const isDim      = type === 'none' || item.status === 'excluded'
+                        const score      = getScore(item)
+                        const ds         = disputeMap[item.id]
+                        const hasDispute = ds?.length > 0
+                        const lastDs     = hasDispute ? ds[ds.length - 1] : null
+                        const qNeedsReply = hasDispute && lastDs?.author_type === 'landlord'
+                        const isApproved  = item.status === 'approved'
+                        const isQNew      = qNeedsReply && pulseIds.has(item.id)
+                        const rowCls   = ['row',
+                          isActive ? 'active' : '',
+                          isDim ? 'dim' : '',
+                          dragOverId === item.id ? 'drag-over' : '',
+                          isApproved && hasDispute ? 'q-approved' : '',
+                          qNeedsReply && !isApproved ? 'q-open' : '',
+                          isQNew ? 'q-new' : '',
+                        ].filter(Boolean).join(' ')
                         const media    = mediaMap[item.line_item_id] || []
 
                         return (
@@ -1719,16 +1796,23 @@ function EstimateWorkbenchInner() {
                               <div className="it">
                                 {item.item_name || '—'}
                                 {(() => {
-                                  const ds = disputeMap[item.id]
-                                  if (ds?.length) {
-                                    const last = ds[ds.length - 1]
-                                    const needsReply = last.author_type === 'landlord'
+                                  if (hasDispute) {
+                                    const firstReason = ds[0]?.reason_tag
+                                    const shortTag = REASON_SHORT[firstReason] || firstReason || 'query'
+                                    if (isApproved) {
+                                      return (
+                                        <button className="qchip qchip-approved"
+                                          onClick={e => { e.stopPropagation(); setDrawerInitTab('thread'); setPinnedId(item.id) }}>
+                                          ✓ Approved
+                                        </button>
+                                      )
+                                    }
                                     return (
                                       <button
-                                        className={needsReply ? 'qchip qchip-open' : 'qchip qchip-done'}
+                                        className={qNeedsReply ? 'qchip qchip-open' : 'qchip qchip-done'}
                                         onClick={e => { e.stopPropagation(); setDrawerInitTab('thread'); setPinnedId(item.id) }}
                                       >
-                                        {needsReply ? '● Q' : '✓'}
+                                        {qNeedsReply ? `● Query · ${shortTag}` : '↩ replied'}
                                       </button>
                                     )
                                   }
