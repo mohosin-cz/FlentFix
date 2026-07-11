@@ -120,7 +120,6 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
   const rows = []
   const data        = draft.data || {}
   const customItems = draft.customItems || {}
-  const FEAS_APPLIANCES = ['Washing Machine', 'Refrigerator', 'Air Conditioner', 'Geyser']
   Object.entries(data).forEach(([tabKey, tabData]) => {
     if (tabKey === 'basics') {
       Object.entries(tabData || {}).forEach(([key, d]) => {
@@ -154,8 +153,7 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
       // Appliance Feasibility — always save all rows (unanswered marked as 'unanswered') so EstimateWorkspace can gate on them
       const af = tabData?.applianceFeasibility
       if (af) {
-        FEAS_APPLIANCES.forEach(appliance => {
-          const f = af[appliance]
+        Object.entries(af).forEach(([appliance, f]) => {
           const status = f?.status || null
           rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Feasibility', item_name: `Feasibility: ${appliance}`, trade: 'misc', issue_description: status || 'unanswered', material_cost: 0, labour_cost: 0, item_score: status === 'feasible' ? 10 : status === 'not_feasible' ? 1 : null, excluded_from_estimate: true, notes: f?.notes || '', _media: f?.media || [] })
         })

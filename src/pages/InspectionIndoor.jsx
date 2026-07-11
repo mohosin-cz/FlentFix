@@ -196,6 +196,18 @@ const APPLIANCE_FEASIBILITY_LIST = ['Washing Machine', 'Refrigerator', 'Air Cond
 const TRADE_SEC_IDS = new Set(['electrical', 'woodwork', 'misc', 'plumbing'])
 
 // ── Tab builder ───────────────────────────────────────────────────────────────
+function buildExhaustInstances(tabs) {
+  const instances = []
+  tabs.forEach(tab => {
+    if (!tab.sections) return
+    tab.sections.forEach(sec => {
+      if (sec.id === 'bathroom') instances.push(`Exhaust Fan · ${tab.label} Bathroom`)
+      else if (sec.id === 'commonBath') instances.push('Exhaust Fan · Common Bathroom')
+    })
+  })
+  return instances
+}
+
 function parseBHK(layout) {
   const n = parseInt((layout || '').replace(/BHK/i, '').trim())
   return (n >= 1 && n <= 10) ? n : 1
@@ -234,7 +246,10 @@ function buildInitialState(tabs) {
       s.basics = {}
       GENERAL_ITEMS.forEach(g => { s.basics[g.key] = blankGeneral() })
       s.basics.wasteScrapping = { required: null, labourCost: '', notes: '', media: [] }
-      s.basics.applianceFeasibility = Object.fromEntries(APPLIANCE_FEASIBILITY_LIST.map(a => [a, { status: null, notes: '', media: [] }]))
+      const exhaustKeys = buildExhaustInstances(tabs)
+      s.basics.applianceFeasibility = Object.fromEntries(
+        [...APPLIANCE_FEASIBILITY_LIST, ...exhaustKeys].map(a => [a, { status: null, notes: '', media: [] }])
+      )
       return
     }
     s[tab.id] = {}
@@ -278,7 +293,7 @@ function countItems(tabs, data) {
       })
       total++
       if (data.basics?.wasteScrapping?.required !== null && data.basics?.wasteScrapping?.required !== undefined) done++
-      APPLIANCE_FEASIBILITY_LIST.forEach(a => {
+      ;[...APPLIANCE_FEASIBILITY_LIST, ...buildExhaustInstances(tabs)].forEach(a => {
         total++
         if (data.basics?.applianceFeasibility?.[a]?.status) done++
       })
@@ -1362,9 +1377,9 @@ function WasteScrappingCard({ data, onUpdate, pid }) {
 const FEAS_STATUS_COLORS = { feasible: '#4dd9c0', not_feasible: '#f87171', na: '#9394a8' }
 const FEAS_DOT_LABELS    = { feasible: '✓', not_feasible: '✗', na: '–', null: '○' }
 
-function ApplianceFeasibilityBlock({ data, onUpdate, pid, feasRefs }) {
-  const answeredCount = APPLIANCE_FEASIBILITY_LIST.filter(a => data[a]?.status).length
-  const allAnswered   = answeredCount === APPLIANCE_FEASIBILITY_LIST.length
+function ApplianceFeasibilityBlock({ data, allKeys, onUpdate, pid, feasRefs }) {
+  const answeredCount = allKeys.filter(a => data[a]?.status).length
+  const allAnswered   = answeredCount === allKeys.length
   const [expanded, setExpanded] = useState(false)
   const collapseTimer = useRef(null)
 
@@ -1394,7 +1409,7 @@ function ApplianceFeasibilityBlock({ data, onUpdate, pid, feasRefs }) {
 
         {/* Per-appliance status dots */}
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          {APPLIANCE_FEASIBILITY_LIST.map(a => {
+          {allKeys.map(a => {
             const st = data[a]?.status || null
             return (
               <span key={a} style={{ fontSize: 10, fontWeight: 700, color: st ? FEAS_STATUS_COLORS[st] : 'var(--border, #2e3040)', fontFamily: 'var(--font-mono, monospace)' }}>
@@ -1406,7 +1421,7 @@ function ApplianceFeasibilityBlock({ data, onUpdate, pid, feasRefs }) {
 
         {/* Count + status chip */}
         <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', background: allAnswered ? 'rgba(77,217,192,0.12)' : 'rgba(240,160,80,0.12)', color: allAnswered ? '#4dd9c0' : '#f0a050', whiteSpace: 'nowrap' }}>
-          {allAnswered ? `✓ ${answeredCount}/${APPLIANCE_FEASIBILITY_LIST.length}` : `${answeredCount}/${APPLIANCE_FEASIBILITY_LIST.length} pending`}
+          {allAnswered ? `✓ ${answeredCount}/${allKeys.length}` : `${answeredCount}/${allKeys.length} pending`}
         </span>
 
         {/* Chevron */}
@@ -1416,9 +1431,9 @@ function ApplianceFeasibilityBlock({ data, onUpdate, pid, feasRefs }) {
       </button>
 
       {/* Expandable body */}
-      <div style={{ overflow: 'hidden', maxHeight: expanded ? `${APPLIANCE_FEASIBILITY_LIST.length * 200}px` : '0px', opacity: expanded ? 1 : 0, transition: 'max-height 200ms ease, opacity 150ms ease' }}>
+      <div style={{ overflow: 'hidden', maxHeight: expanded ? `${allKeys.length * 200}px` : '0px', opacity: expanded ? 1 : 0, transition: 'max-height 200ms ease, opacity 150ms ease' }}>
         <div style={{ borderTop: '1px solid var(--border, #2e3040)', display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {APPLIANCE_FEASIBILITY_LIST.map((appliance, idx) => {
+          {allKeys.map((appliance, idx) => {
             const item = data[appliance] || { status: null, notes: '', media: [] }
             const isNotFeas = item.status === 'not_feasible'
             const borderTop = idx > 0 ? '1px solid var(--border, #2e3040)' : 'none'
@@ -1473,6 +1488,8 @@ export default function InspectionIndoor() {
   console.log('[InspectionIndoor] houseType:', houseType, '| bhk:', bhk)
 
   const tabs = buildTabs(houseType, bhk)
+  const exhaustInstances = buildExhaustInstances(tabs)
+  const allFeasKeys = [...APPLIANCE_FEASIBILITY_LIST, ...exhaustInstances]
   const tabLabels = tabs.map(t => t.label)
 
   const [searchParams, setSearchParams] = useSearchParams()
@@ -1593,7 +1610,7 @@ export default function InspectionIndoor() {
   function getIncompleteItems() {
     if (currentTab.id === 'basics') {
       const af = data.basics?.applianceFeasibility || {}
-      return APPLIANCE_FEASIBILITY_LIST.filter(a => !af[a]?.status)
+      return allFeasKeys.filter(a => !af[a]?.status)
     }
     const missing = []
     currentTab.sections?.forEach(sec => {
@@ -1871,6 +1888,7 @@ export default function InspectionIndoor() {
               />
               <ApplianceFeasibilityBlock
                 data={data.basics?.applianceFeasibility || {}}
+                allKeys={allFeasKeys}
                 onUpdate={updateFeasibility}
                 pid={pid}
                 feasRefs={feasRefs}
