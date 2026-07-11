@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import { advanceStage, STAGES, MAIN_SEQUENCE } from '../utils/propertyJourney'
+import { logActivity } from '../utils/activityUtils'
 import LogoSpinner from '../components/LogoSpinner'
 
 function fmtDate(str) {
@@ -129,6 +130,154 @@ const TILES = [
   },
 ]
 
+function ChangePidModal({ pid, userEmail, onClose, onSuccess }) {
+  const [screen, setScreen]           = useState('setup')
+  const [newPid, setNewPid]           = useState('')
+  const [pidInUse, setPidInUse]       = useState(false)
+  const [checking, setChecking]       = useState(false)
+  const [confirmInput, setConfirmInput] = useState('')
+  const [submitting, setSubmitting]   = useState(false)
+  const [error, setError]             = useState(null)
+  const timerRef = useRef(null)
+
+  function onNewPidChange(val) {
+    setNewPid(val)
+    setPidInUse(false)
+    const v = val.trim()
+    if (!v || v === pid) { setChecking(false); return }
+    setChecking(true)
+    clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(async () => {
+      const { data } = await supabase.from('properties').select('pid').eq('pid', v).maybeSingle()
+      setPidInUse(!!data)
+      setChecking(false)
+    }, 400)
+  }
+
+  const cleanNew = newPid.trim()
+  const sameAsCurrent = cleanNew === pid
+  const canContinue = cleanNew && !sameAsCurrent && !pidInUse && !checking
+
+  async function handleConfirm() {
+    if (submitting) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const { data: estimates } = await supabase.from('estimates').select('id').eq('pid', pid)
+      const { data: result, error: rpcErr } = await supabase.rpc('rename_pid', { old_pid: pid, new_pid: cleanNew })
+      if (rpcErr) { setError(rpcErr.message); setSubmitting(false); return }
+      if (estimates?.length) {
+        await Promise.all(estimates.map(est =>
+          logActivity(supabase, est.id, { action: 'pid_change', old_value: pid, new_value: cleanNew, changed_by: userEmail })
+        ))
+      }
+      let summary
+      if (result && typeof result === 'object' && !Array.isArray(result)) {
+        const parts = Object.entries(result).filter(([, n]) => n > 0).map(([t, n]) => `${t} ${n}`)
+        summary = parts.length ? `Renamed: ${parts.join(' · ')}` : `${pid} → ${cleanNew}`
+      } else {
+        summary = `${pid} → ${cleanNew}`
+      }
+      onSuccess(cleanNew, summary)
+    } catch (e) {
+      setError(e.message)
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{ width: '100%', maxWidth: 500, background: 'var(--bg-panel, #1e2028)', borderTop: '1px solid var(--border, #2e3040)', borderRadius: '16px 16px 0 0', padding: '24px 24px 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border, #2e3040)', margin: '-8px auto 8px' }} />
+
+        {screen === 'setup' ? (
+          <>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text, #e8e8f0)', marginBottom: 6 }}>Change PID for {pid}?</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', lineHeight: 1.7 }}>
+                PID links this property's inspections, estimates, notes and history. Changing it renames the property everywhere, immediately. Landlord links keep working.{' '}
+                <strong style={{ color: 'var(--text-dim, #9394a8)' }}>This cannot be undone from the app.</strong>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>New PID</label>
+              <input
+                type="text"
+                value={newPid}
+                onChange={e => onNewPidChange(e.target.value)}
+                placeholder={pid}
+                autoFocus
+                style={{ background: 'var(--bg-input, #252731)', border: `1px solid ${pidInUse ? '#f87171' : 'var(--border, #2e3040)'}`, borderRadius: 8, padding: '10px 12px', fontSize: 14, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', outline: 'none', width: '100%', boxSizing: 'border-box' }}
+                onFocus={e => { e.target.style.borderColor = pidInUse ? '#f87171' : 'var(--accent, #c8963e)' }}
+                onBlur={e  => { e.target.style.borderColor = pidInUse ? '#f87171' : 'var(--border, #2e3040)' }}
+              />
+              {checking && <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Checking…</span>}
+              {!checking && pidInUse && <span style={{ fontSize: 11, color: '#f87171', fontFamily: 'var(--font-mono, monospace)' }}>PID already in use</span>}
+              {!checking && !pidInUse && sameAsCurrent && cleanNew && <span style={{ fontSize: 11, color: '#f87171', fontFamily: 'var(--font-mono, monospace)' }}>Same as current PID</span>}
+            </div>
+
+            {error && <div style={{ fontSize: 12, color: '#f87171', fontFamily: 'var(--font-mono, monospace)', padding: '8px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: 6 }}>{error}</div>}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <button onClick={onClose} style={{ flex: 1, padding: '11px 0', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 8, fontSize: 13, color: 'var(--text-dim, #9394a8)', cursor: 'pointer' }}>Cancel</button>
+              <button
+                onClick={() => { setError(null); setScreen('confirm') }}
+                disabled={!canContinue}
+                style={{ flex: 2, padding: '11px 0', background: canContinue ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, color: canContinue ? '#000' : 'var(--text-muted, #6b6d82)', cursor: canContinue ? 'pointer' : 'default' }}
+              >
+                Continue →
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text, #e8e8f0)', marginBottom: 6 }}>Confirm rename</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', lineHeight: 1.7 }}>
+                Type <span style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--accent, #c8963e)', fontWeight: 600 }}>{cleanNew}</span> to confirm this change.
+              </div>
+            </div>
+
+            <input
+              type="text"
+              value={confirmInput}
+              onChange={e => setConfirmInput(e.target.value)}
+              placeholder={cleanNew}
+              autoFocus
+              style={{ background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', outline: 'none', width: '100%', boxSizing: 'border-box' }}
+              onFocus={e => { e.target.style.borderColor = 'var(--accent, #c8963e)' }}
+              onBlur={e  => { e.target.style.borderColor = 'var(--border, #2e3040)' }}
+            />
+
+            {error && <div style={{ fontSize: 12, color: '#f87171', fontFamily: 'var(--font-mono, monospace)', padding: '8px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: 6 }}>{error}</div>}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <button
+                onClick={() => { setConfirmInput(''); setScreen('setup') }}
+                disabled={submitting}
+                style={{ flex: 1, padding: '11px 0', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 8, fontSize: 13, color: 'var(--text-dim, #9394a8)', cursor: submitting ? 'default' : 'pointer' }}
+              >
+                ← Back
+              </button>
+              <button
+                onClick={handleConfirm}
+                disabled={confirmInput !== cleanNew || submitting}
+                style={{ flex: 2, padding: '11px 0', background: confirmInput === cleanNew && !submitting ? '#ef4444' : 'var(--bg-input, #252731)', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, color: confirmInput === cleanNew && !submitting ? '#fff' : 'var(--text-muted, #6b6d82)', cursor: confirmInput === cleanNew && !submitting ? 'pointer' : 'default' }}
+              >
+                {submitting ? 'Renaming…' : 'Change PID'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function PropertyDetail() {
   const navigate = useNavigate()
   const { pid }  = useParams()
@@ -141,6 +290,9 @@ export default function PropertyDetail() {
   const [currentStage, setCurrentStage] = useState('T-5')
   const [journey, setJourney]           = useState([])
   const [userEmail, setUserEmail]       = useState(null)
+  const [menuOpen, setMenuOpen]         = useState(false)
+  const [pidModal, setPidModal]         = useState(false)
+  const menuRef = useRef(null)
 
   const fetchData = useCallback(async () => {
     supabase.auth.getUser().then(({ data: { user } }) => setUserEmail(user?.email || null))
@@ -201,6 +353,15 @@ export default function PropertyDetail() {
   const { pullDistance, isRefreshing } = usePullToRefresh(fetchData)
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  useEffect(() => {
+    if (!menuOpen) return
+    function handler(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
 
   const latest    = inspections[0]
   const houseType = latest?.house_type || ''
@@ -273,7 +434,27 @@ export default function PropertyDetail() {
             {latest ? ` · ${fmtDate(latest.inspection_date)}` : ''}
           </span>
         </div>
-        <div style={{ width: 36 }} />
+        <div ref={menuRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => setMenuOpen(p => !p)}
+            aria-label="More options"
+            style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: menuOpen ? 'var(--bg-input, #252731)' : 'none', border: `1px solid ${menuOpen ? 'var(--border, #2e3040)' : 'transparent'}`, borderRadius: 8, color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontSize: 18, letterSpacing: '0.05em' }}
+          >
+            ⋯
+          </button>
+          {menuOpen && (
+            <div style={{ position: 'absolute', top: 42, right: 0, minWidth: 160, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, zIndex: 20, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+              <button
+                onClick={() => { setMenuOpen(false); setPidModal(true) }}
+                style={{ width: '100%', padding: '11px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-dim, #9394a8)', cursor: 'pointer', fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-input, #252731)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+              >
+                Change PID…
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       {/* ── Pipeline tracker ── */}
@@ -567,6 +748,19 @@ export default function PropertyDetail() {
           </>
         )}
       </main>
+
+      {pidModal && (
+        <ChangePidModal
+          pid={pid}
+          userEmail={userEmail}
+          onClose={() => setPidModal(false)}
+          onSuccess={(newPid, summary) => {
+            setPidModal(false)
+            setToast(summary)
+            navigate(`/properties/${newPid}`)
+          }}
+        />
+      )}
 
       {toast && <Toast msg={toast} onClose={() => setToast('')} />}
 
