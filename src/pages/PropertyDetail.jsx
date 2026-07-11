@@ -612,24 +612,55 @@ export default function PropertyDetail() {
             </div>
 
             {/* Appliance feasibility compact card */}
-            {feasibility.length > 0 && (
-              <div style={{ marginBottom: 20, padding: '10px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8 }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 7, letterSpacing: '0.08em' }}>APPLIANCES</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                  {feasibility.map(f => {
-                    const name = f.item_name.replace('Feasibility: ', '')
-                    const short = { 'Washing Machine': 'WM', 'Refrigerator': 'Fridge', 'Air Conditioner': 'AC', 'Geyser': 'Geyser', 'Dryer': 'Dryer' }[name] || name
-                    const icon  = f.issue_description === 'feasible' ? '✓' : f.issue_description === 'not_feasible' ? '✗' : f.issue_description === 'na' ? '—' : '?'
-                    const color = f.issue_description === 'feasible' ? '#4dd9c0' : f.issue_description === 'not_feasible' ? '#f87171' : '#6b6d82'
-                    return (
-                      <span key={name} style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color }}>
-                        {short} <span style={{ fontWeight: 700 }}>{icon}</span>
+            {feasibility.length > 0 && (() => {
+              const FEAS_SHORT = { 'Washing Machine': 'WM', 'Refrigerator': 'Fridge', 'Air Conditioner': 'AC', 'Geyser': 'Geyser', 'Dryer': 'Dryer' }
+              const feasIcon  = d => d === 'feasible' ? '✓' : d === 'not_feasible' ? '✗' : d === 'na' ? '—' : '?'
+              const feasColor = d => d === 'feasible' ? '#4dd9c0' : d === 'not_feasible' ? '#f87171' : '#6b6d82'
+              const singletons  = feasibility.filter(f => !f.item_name.includes('Exhaust Fan ·'))
+              const exhaustRows = feasibility.filter(f => f.item_name.includes('Exhaust Fan ·'))
+              function exhaustShort(name) {
+                const loc = name.replace('Exhaust Fan · ', '')
+                const m = loc.match(/Bedroom (\d+) Bathroom/)
+                if (m) return `B${m[1]}`
+                if (loc === 'Common Bathroom') return 'Common'
+                return loc
+              }
+              return (
+                <div style={{ marginBottom: 20, padding: '10px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 7, letterSpacing: '0.08em' }}>APPLIANCES</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                    {singletons.map(f => {
+                      const name = f.item_name.replace('Feasibility: ', '')
+                      const short = FEAS_SHORT[name] || name
+                      const icon  = feasIcon(f.issue_description)
+                      const color = feasColor(f.issue_description)
+                      return (
+                        <span key={name} style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color }}>
+                          {short} <span style={{ fontWeight: 700 }}>{icon}</span>
+                        </span>
+                      )
+                    })}
+                    {exhaustRows.length > 0 && (
+                      <span style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: 'var(--text-muted, #6b6d82)' }}>
+                        Exhaust:{' '}
+                        {exhaustRows.map((f, i) => {
+                          const name = f.item_name.replace('Feasibility: ', '')
+                          const short = exhaustShort(name)
+                          const icon  = feasIcon(f.issue_description)
+                          const color = feasColor(f.issue_description)
+                          return (
+                            <span key={name} style={{ color }}>
+                              {i > 0 && <span style={{ color: 'var(--text-muted, #6b6d82)' }}> · </span>}
+                              {short} <span style={{ fontWeight: 700 }}>{icon}</span>
+                            </span>
+                          )
+                        })}
                       </span>
-                    )
-                  })}
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {/* Action tiles — 2x3 grid */}
             <SectionLabel>Actions</SectionLabel>
