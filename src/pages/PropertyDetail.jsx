@@ -613,50 +613,57 @@ export default function PropertyDetail() {
 
             {/* Appliance feasibility compact card */}
             {feasibility.length > 0 && (() => {
-              const FEAS_SHORT = { 'Washing Machine': 'WM', 'Refrigerator': 'Fridge', 'Air Conditioner': 'AC', 'Geyser': 'Geyser', 'Dryer': 'Dryer' }
+              const SINGLETON_SHORT = { 'Washing Machine': 'WM', 'Refrigerator': 'Fridge', 'Dryer': 'Dryer', 'Air Conditioner': 'AC', 'Geyser': 'Geyser' }
               const feasIcon  = d => d === 'feasible' ? '✓' : d === 'not_feasible' ? '✗' : d === 'na' ? '—' : '?'
               const feasColor = d => d === 'feasible' ? '#4dd9c0' : d === 'not_feasible' ? '#f87171' : '#6b6d82'
-              const singletons  = feasibility.filter(f => !f.item_name.includes('Exhaust Fan ·'))
-              const exhaustRows = feasibility.filter(f => f.item_name.includes('Exhaust Fan ·'))
-              function exhaustShort(name) {
-                const loc = name.replace('Exhaust Fan · ', '')
-                const m = loc.match(/Bedroom (\d+) Bathroom/)
-                if (m) return `B${m[1]}`
+
+              function locShort(name, prefix) {
+                const loc = name.replace(prefix + ' · ', '')
                 if (loc === 'Common Bathroom') return 'Common'
+                if (loc === 'Living Room') return 'Living'
+                const bath = loc.match(/Bedroom (\d+) Bathroom/); if (bath) return `B${bath[1]}`
+                const br   = loc.match(/Bedroom (\d+)/);          if (br)   return `BR${br[1]}`
                 return loc
               }
+
+              function GroupedRow({ prefix, label, rows }) {
+                if (!rows.length) return null
+                return (
+                  <span style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: 'var(--text-dim, #9394a8)' }}>
+                    {label}:{' '}
+                    {rows.map((f, i) => {
+                      const name = f.item_name.replace('Feasibility: ', '')
+                      return (
+                        <span key={name} style={{ color: feasColor(f.issue_description) }}>
+                          {i > 0 && <span style={{ color: 'var(--text-muted, #6b6d82)' }}> · </span>}
+                          {locShort(name, prefix)} <span style={{ fontWeight: 700 }}>{feasIcon(f.issue_description)}</span>
+                        </span>
+                      )
+                    })}
+                  </span>
+                )
+              }
+
+              const singletons  = feasibility.filter(f => !f.item_name.includes(' · '))
+              const exhaustRows = feasibility.filter(f => f.item_name.startsWith('Feasibility: Exhaust Fan · '))
+              const geyserRows  = feasibility.filter(f => f.item_name.startsWith('Feasibility: Geyser · '))
+              const acRows      = feasibility.filter(f => f.item_name.startsWith('Feasibility: Air Conditioner · '))
+
               return (
                 <div style={{ marginBottom: 20, padding: '10px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8 }}>
                   <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 7, letterSpacing: '0.08em' }}>APPLIANCES</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                     {singletons.map(f => {
                       const name = f.item_name.replace('Feasibility: ', '')
-                      const short = FEAS_SHORT[name] || name
-                      const icon  = feasIcon(f.issue_description)
-                      const color = feasColor(f.issue_description)
                       return (
-                        <span key={name} style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color }}>
-                          {short} <span style={{ fontWeight: 700 }}>{icon}</span>
+                        <span key={name} style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: feasColor(f.issue_description) }}>
+                          {SINGLETON_SHORT[name] || name} <span style={{ fontWeight: 700 }}>{feasIcon(f.issue_description)}</span>
                         </span>
                       )
                     })}
-                    {exhaustRows.length > 0 && (
-                      <span style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: 'var(--text-muted, #6b6d82)' }}>
-                        Exhaust:{' '}
-                        {exhaustRows.map((f, i) => {
-                          const name = f.item_name.replace('Feasibility: ', '')
-                          const short = exhaustShort(name)
-                          const icon  = feasIcon(f.issue_description)
-                          const color = feasColor(f.issue_description)
-                          return (
-                            <span key={name} style={{ color }}>
-                              {i > 0 && <span style={{ color: 'var(--text-muted, #6b6d82)' }}> · </span>}
-                              {short} <span style={{ fontWeight: 700 }}>{icon}</span>
-                            </span>
-                          )
-                        })}
-                      </span>
-                    )}
+                    <GroupedRow prefix="Exhaust Fan"     label="Exhaust" rows={exhaustRows} />
+                    <GroupedRow prefix="Geyser"          label="Geyser"  rows={geyserRows}  />
+                    <GroupedRow prefix="Air Conditioner" label="AC"      rows={acRows}      />
                   </div>
                 </div>
               )

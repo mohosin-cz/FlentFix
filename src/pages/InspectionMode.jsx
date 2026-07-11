@@ -151,9 +151,12 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
         rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Misc', item_name: 'Waste Scrapping / Debris Removal', trade: 'cleaning', issue_description: 'Not required', material_cost: 0, labour_cost: 0, item_score: null, excluded_from_estimate: true })
       }
       // Appliance Feasibility — always save all rows (unanswered marked as 'unanswered') so EstimateWorkspace can gate on them
+      // Legacy keys 'Geyser' and 'Air Conditioner' are now room-scoped; skip singleton form to avoid duplicate DB rows.
+      const LEGACY_SINGLETONS = new Set(['Geyser', 'Air Conditioner'])
       const af = tabData?.applianceFeasibility
       if (af) {
         Object.entries(af).forEach(([appliance, f]) => {
+          if (LEGACY_SINGLETONS.has(appliance)) return
           const status = f?.status || null
           rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Feasibility', item_name: `Feasibility: ${appliance}`, trade: 'misc', issue_description: status || 'unanswered', material_cost: 0, labour_cost: 0, item_score: status === 'feasible' ? 10 : status === 'not_feasible' ? 1 : null, excluded_from_estimate: true, notes: f?.notes || '', _media: f?.media || [] })
         })
