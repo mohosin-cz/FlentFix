@@ -292,6 +292,7 @@ export default function PropertyDetail() {
   const [userEmail, setUserEmail]       = useState(null)
   const [menuOpen, setMenuOpen]         = useState(false)
   const [pidModal, setPidModal]         = useState(false)
+  const [feasibility, setFeasibility]   = useState([])
   const menuRef = useRef(null)
 
   const fetchData = useCallback(async () => {
@@ -333,11 +334,16 @@ export default function PropertyDetail() {
       }
       if (!activeInspection) activeInspection = inspData[0]
 
-      // Fetch line items scoped to the active inspection only
-      const { data: lineItems } = await supabase
-        .from('inspection_line_items')
-        .select('id, inspection_id, material_cost, labour_cost, issue_description')
-        .eq('inspection_id', activeInspection.id)
+      // Fetch line items and feasibility rows in parallel
+      const [{ data: lineItems }, { data: feasRows }] = await Promise.all([
+        supabase.from('inspection_line_items')
+          .select('id, inspection_id, material_cost, labour_cost, issue_description')
+          .eq('inspection_id', activeInspection.id),
+        supabase.from('inspection_line_items')
+          .select('item_name, issue_description')
+          .eq('inspection_id', activeInspection.id)
+          .like('item_name', 'Feasibility: %'),
+      ])
 
       const totalCost = (lineItems || []).reduce((s, r) => s + (parseFloat(r.material_cost) || 0) + (parseFloat(r.labour_cost) || 0), 0)
       const issues = (lineItems || []).filter(r => {
@@ -345,6 +351,7 @@ export default function PropertyDetail() {
         return !d.includes('functional') && !d.includes('no issues') && !d.includes('no issue')
       }).length
       setStats({ totalCost, issues, totalItems: (lineItems || []).length })
+      setFeasibility(feasRows || [])
     } catch (e) {
       console.error('[PropertyDetail] stats fetch degraded:', e.message)
     }
@@ -603,6 +610,26 @@ export default function PropertyDetail() {
                 </div>
               ))}
             </div>
+
+            {/* Appliance feasibility compact card */}
+            {feasibility.length > 0 && (
+              <div style={{ marginBottom: 20, padding: '10px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 7, letterSpacing: '0.08em' }}>APPLIANCES</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  {feasibility.map(f => {
+                    const name = f.item_name.replace('Feasibility: ', '')
+                    const short = { 'Washing Machine': 'WM', 'Refrigerator': 'Fridge', 'Air Conditioner': 'AC', 'Geyser': 'Geyser' }[name] || name
+                    const icon  = f.issue_description === 'feasible' ? '✓' : f.issue_description === 'not_feasible' ? '✗' : f.issue_description === 'na' ? '—' : '?'
+                    const color = f.issue_description === 'feasible' ? '#4dd9c0' : f.issue_description === 'not_feasible' ? '#f87171' : '#6b6d82'
+                    return (
+                      <span key={name} style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color }}>
+                        {short} <span style={{ fontWeight: 700 }}>{icon}</span>
+                      </span>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Action tiles — 2x3 grid */}
             <SectionLabel>Actions</SectionLabel>

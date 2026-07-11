@@ -121,9 +121,11 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
   const rows = []
   const data        = draft.data || {}
   const customItems = draft.customItems || {}
+  const FEAS_APPLIANCES = ['Washing Machine', 'Refrigerator', 'Air Conditioner', 'Geyser']
   Object.entries(data).forEach(([tabKey, tabData]) => {
     if (tabKey === 'basics') {
       Object.entries(tabData || {}).forEach(([key, d]) => {
+        if (key === 'wasteScrapping' || key === 'applianceFeasibility') return
         if (!d?.enabled) return
         if (key === 'deepCleaning') {
           const descLabel = (d.rateId && rateMap[d.rateId]) ? rateMap[d.rateId] : 'Deep Cleaning'
@@ -143,6 +145,22 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
           rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: meta.trade, item_name: meta.label, trade: meta.trade, issue_description: desc, notes: areaNote, material_cost: 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: null, _media: d.media || [] })
         }
       })
+      // Waste Scrapping
+      const ws = tabData?.wasteScrapping
+      if (ws?.required === true) {
+        rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Misc', item_name: 'Waste Scrapping / Debris Removal', trade: 'cleaning', issue_description: ws.notes || 'Waste scrapping required', material_cost: 0, labour_cost: parseFloat(ws.labourCost) || 0, item_score: null, _media: ws.media || [] })
+      } else if (ws?.required === false) {
+        rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Misc', item_name: 'Waste Scrapping / Debris Removal', trade: 'cleaning', issue_description: 'Not required', material_cost: 0, labour_cost: 0, item_score: null, excluded_from_estimate: true })
+      }
+      // Appliance Feasibility — always save all rows (unanswered marked as 'unanswered') so EstimateWorkspace can gate on them
+      const af = tabData?.applianceFeasibility
+      if (af) {
+        FEAS_APPLIANCES.forEach(appliance => {
+          const f = af[appliance]
+          const status = f?.status || null
+          rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Feasibility', item_name: `Feasibility: ${appliance}`, trade: 'misc', issue_description: status || 'unanswered', material_cost: 0, labour_cost: 0, item_score: status === 'feasible' ? 10 : status === 'not_feasible' ? 1 : null, excluded_from_estimate: true, notes: f?.notes || '', _media: f?.media || [] })
+        })
+      }
       return
     }
     const tabLabel = toTitle(tabKey)
@@ -214,7 +232,15 @@ function readDraftProgress(pid) {
     if (iDraft?.data) {
       Object.entries(iDraft.data).forEach(([key, val]) => {
         if (key === 'basics') {
-          Object.values(val || {}).forEach(item => {
+          Object.entries(val || {}).forEach(([bKey, item]) => {
+            if (bKey === 'applianceFeasibility') {
+              Object.values(item || {}).forEach(f => { iTotal++; if (f?.status) iDone++ })
+              return
+            }
+            if (bKey === 'wasteScrapping') {
+              iTotal++; if (item?.required !== null && item?.required !== undefined) iDone++
+              return
+            }
             iTotal++
             if (item?.enabled) iDone++
           })

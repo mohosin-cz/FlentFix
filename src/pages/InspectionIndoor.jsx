@@ -191,6 +191,8 @@ const GENERAL_ITEMS = [
   { key: 'carpentry',     label: 'Carpentry Touch-up', trade: 'woodwork', freeText: true },
 ]
 
+const APPLIANCE_FEASIBILITY_LIST = ['Washing Machine', 'Refrigerator', 'Air Conditioner', 'Geyser']
+
 // Section IDs that represent a trade grouping (not a room) — area should be the tab (room) label
 const TRADE_SEC_IDS = new Set(['electrical', 'woodwork', 'misc', 'plumbing'])
 
@@ -232,6 +234,8 @@ function buildInitialState(tabs) {
     if (tab.id === 'basics') {
       s.basics = {}
       GENERAL_ITEMS.forEach(g => { s.basics[g.key] = blankGeneral() })
+      s.basics.wasteScrapping = { required: null, labourCost: '', notes: '', media: [] }
+      s.basics.applianceFeasibility = Object.fromEntries(APPLIANCE_FEASIBILITY_LIST.map(a => [a, { status: null, notes: '', media: [] }]))
       return
     }
     s[tab.id] = {}
@@ -272,6 +276,12 @@ function countItems(tabs, data) {
         total++
         const d = data.basics?.[g.key]
         if (d && (!d.enabled || d.labourCost || d.description || d.areas?.length)) done++
+      })
+      total++
+      if (data.basics?.wasteScrapping?.required !== null && data.basics?.wasteScrapping?.required !== undefined) done++
+      APPLIANCE_FEASIBILITY_LIST.forEach(a => {
+        total++
+        if (data.basics?.applianceFeasibility?.[a]?.status) done++
       })
       return
     }
@@ -1314,6 +1324,82 @@ function CustomItemCard({ item, onChange, onRemove, pid }) {
   )
 }
 
+// ── WasteScrappingCard ────────────────────────────────────────────────────────
+function WasteScrappingCard({ data, onUpdate, pid }) {
+  const isYes = data.required === true
+  return (
+    <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${isYes ? 'rgba(200,150,62,0.3)' : 'var(--border, #2e3040)'}`, borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>Waste Scrapping / Debris Removal</span>
+        {isYes && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 3, background: 'rgba(200,150,62,0.12)', color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700 }}>service</span>}
+      </div>
+      <div style={{ display: 'flex', gap: 0, borderRadius: 7, overflow: 'hidden', border: '1px solid var(--border, #2e3040)', width: 'fit-content' }}>
+        {[{ value: false, label: 'No' }, { value: true, label: 'Yes' }].map(opt => (
+          <button key={String(opt.value)} type="button" onClick={() => onUpdate('required', opt.value)}
+            style={{ padding: '6px 22px', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', background: data.required === opt.value ? (opt.value ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)') : 'transparent', color: data.required === opt.value ? (opt.value ? '#000' : 'var(--text, #e8e8f0)') : 'var(--text-muted, #6b6d82)', transition: 'background 0.15s' }}
+          >{opt.label}</button>
+        ))}
+      </div>
+      {isYes && (
+        <>
+          <Field label="Labour Cost ₹" required>
+            <Input value={data.labourCost} onChange={v => onUpdate('labourCost', v)} type="number" placeholder="e.g. 1500" />
+          </Field>
+          <Field label="Notes" optional>
+            <Textarea value={data.notes || ''} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any specifics…" />
+          </Field>
+          <MediaUpload files={data.media || []} onChange={v => onUpdate('media', v)} pid={pid} itemKey="wasteScrapping" />
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── ApplianceFeasibilityBlock ─────────────────────────────────────────────────
+const FEAS_STATUS_COLORS = { feasible: '#4dd9c0', not_feasible: '#f87171', na: '#6b6d82' }
+
+function ApplianceFeasibilityBlock({ data, onUpdate, pid, feasRefs }) {
+  const answeredCount = APPLIANCE_FEASIBILITY_LIST.filter(a => data[a]?.status).length
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 4px 6px' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Appliance Feasibility</span>
+        <span style={{ fontSize: 10, color: answeredCount === APPLIANCE_FEASIBILITY_LIST.length ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+          {answeredCount}/{APPLIANCE_FEASIBILITY_LIST.length} answered
+        </span>
+      </div>
+      {APPLIANCE_FEASIBILITY_LIST.map(appliance => {
+        const item = data[appliance] || { status: null, notes: '', media: [] }
+        const borderColor = item.status === 'not_feasible' ? 'rgba(248,113,113,0.35)' : item.status === 'feasible' ? 'rgba(77,217,192,0.35)' : 'var(--border, #2e3040)'
+        return (
+          <div key={appliance} ref={el => { if (feasRefs) feasRefs.current[appliance] = el }}
+            style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${borderColor}`, borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: item.status ? (FEAS_STATUS_COLORS[item.status] || 'var(--text, #e8e8f0)') : 'var(--text-dim, #9394a8)' }}>{appliance}</span>
+              <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border, #2e3040)', flexShrink: 0 }}>
+                {[{ value: 'feasible', label: 'Feasible' }, { value: 'not_feasible', label: 'Not feasible' }, { value: 'na', label: 'N/A' }].map(opt => (
+                  <button key={opt.value} type="button"
+                    onClick={() => onUpdate(appliance, 'status', item.status === opt.value ? null : opt.value)}
+                    style={{ padding: '5px 10px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', background: item.status === opt.value ? (FEAS_STATUS_COLORS[opt.value] || 'var(--bg-input, #252731)') : 'transparent', color: item.status === opt.value ? (opt.value === 'na' ? 'var(--text, #e8e8f0)' : '#111') : 'var(--text-muted, #6b6d82)', transition: 'background 0.15s' }}
+                  >{opt.label}</button>
+                ))}
+              </div>
+            </div>
+            {item.status && (
+              <>
+                <Field label="Notes" optional>
+                  <Textarea value={item.notes || ''} onChange={v => onUpdate(appliance, 'notes', v)} rows={2} placeholder={item.status === 'not_feasible' ? 'Why not feasible?' : 'Any notes…'} />
+                </Field>
+                <MediaUpload files={item.media || []} onChange={v => onUpdate(appliance, 'media', v)} pid={pid} itemKey={`feas_${appliance.replace(/\s+/g, '_')}`} />
+              </>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function InspectionIndoor() {
   const navigate       = useNavigate()
@@ -1358,7 +1444,9 @@ export default function InspectionIndoor() {
   const [estimateError, setEstimateError] = useState('')
   const [savedFlash, setSavedFlash]     = useState(false)
   const [tabError, setTabError]         = useState('')
+  const [feasError, setFeasError]       = useState([])
   const flashTimer = useRef(null)
+  const feasRefs   = useRef({})
 
   useEffect(() => {
     if (!pid) { navigate('/inspections/new', { replace: true }); return }
@@ -1415,6 +1503,23 @@ export default function InspectionIndoor() {
     setData(prev => ({ ...prev, basics: { ...prev.basics, [key]: { ...prev.basics[key], [field]: value } } }))
   }
 
+  function updateWaste(field, value) {
+    setData(prev => ({ ...prev, basics: { ...prev.basics, wasteScrapping: { ...(prev.basics?.wasteScrapping || {}), [field]: value } } }))
+  }
+
+  function updateFeasibility(appliance, field, value) {
+    setData(prev => ({
+      ...prev,
+      basics: {
+        ...prev.basics,
+        applianceFeasibility: {
+          ...(prev.basics?.applianceFeasibility || {}),
+          [appliance]: { ...(prev.basics?.applianceFeasibility?.[appliance] || {}), [field]: value },
+        },
+      },
+    }))
+  }
+
   // ── Custom items ──
   function getCI(tabId) { return customItems[tabId] || [] }
   function addCI(tabId)  { setCustomItems(p => ({ ...p, [tabId]: [...getCI(tabId), BLANK_CUSTOM()] })) }
@@ -1426,7 +1531,10 @@ export default function InspectionIndoor() {
 
   // ── Tab navigation ──
   function getIncompleteItems() {
-    if (currentTab.id === 'basics') return []
+    if (currentTab.id === 'basics') {
+      const af = data.basics?.applianceFeasibility || {}
+      return APPLIANCE_FEASIBILITY_LIST.filter(a => !af[a]?.status)
+    }
     const missing = []
     currentTab.sections?.forEach(sec => {
       sec.items.forEach(item => {
@@ -1445,11 +1553,15 @@ export default function InspectionIndoor() {
     if (i > tabIdx) {
       const missing = getIncompleteItems()
       if (missing.length > 0) {
-        setTabError(`${missing.length} item${missing.length > 1 ? 's' : ''} not marked: ${missing.join(', ')}`)
+        if (currentTab.id === 'basics') {
+          setFeasError(missing)
+        } else {
+          setTabError(`${missing.length} item${missing.length > 1 ? 's' : ''} not marked: ${missing.join(', ')}`)
+        }
         return
       }
     }
-    setTabError('')
+    setTabError(''); setFeasError([])
     setOpenCards(new Set())
     setSearchParams({ tab: tabs[i].id }, { replace: true, state })
   }
@@ -1656,6 +1768,18 @@ export default function InspectionIndoor() {
           <button onClick={() => setTabError('')} style={{ background: 'none', border: 'none', color: '#e05c6a', fontSize: 14, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
         </div>
       )}
+      {feasError.length > 0 && (
+        <div style={{ background: 'rgba(240,160,80,0.08)', borderBottom: '1px solid rgba(240,160,80,0.2)', padding: '8px 12px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, color: '#f0a050', fontFamily: 'var(--font-mono, monospace)' }}>⚠ Appliance feasibility pending:</span>
+          {feasError.map(name => (
+            <button key={name} type="button"
+              onClick={() => feasRefs.current[name]?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+              style={{ fontSize: 11, padding: '2px 9px', borderRadius: 10, background: 'rgba(240,160,80,0.15)', border: '1px solid rgba(240,160,80,0.3)', color: '#f0a050', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', fontWeight: 600 }}
+            >{name} →</button>
+          ))}
+          <button onClick={() => setFeasError([])} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#f0a050', fontSize: 14, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+        </div>
+      )}
 
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 120 }}>
         <div style={{ maxWidth: 600, margin: '0 auto', padding: '16px 16px 0', display: 'flex', flexDirection: 'column', gap: 10 }} key={currentTab.id}>
@@ -1680,6 +1804,17 @@ export default function InspectionIndoor() {
                   pid={pid}
                 />
               ))}
+              <WasteScrappingCard
+                data={data.basics?.wasteScrapping || { required: null, labourCost: '', notes: '', media: [] }}
+                onUpdate={updateWaste}
+                pid={pid}
+              />
+              <ApplianceFeasibilityBlock
+                data={data.basics?.applianceFeasibility || {}}
+                onUpdate={updateFeasibility}
+                pid={pid}
+                feasRefs={feasRefs}
+              />
               {getCI('basics').map((ci, idx) => (
                 <CustomItemCard key={ci.id} item={ci} onChange={(f, v) => updateCI('basics', idx, f, v)} onRemove={() => removeCI('basics', idx)} pid={pid} />
               ))}
