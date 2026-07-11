@@ -161,6 +161,22 @@ export default function EstimateWorkspace() {
     setGenerating(true); setGenError(null)
     const inspId = await resolveInspectionWithData(pid)
     if (!inspId) { setGenerating(false); setGenError('No inspection with data found.'); return }
+    // Feasibility gate — block if any appliance row is unanswered
+    const { data: feasRows } = await supabase
+      .from('inspection_line_items')
+      .select('item_name, issue_description')
+      .eq('inspection_id', inspId)
+      .like('item_name', 'Feasibility: %')
+    if (feasRows?.length > 0) {
+      const unanswered = feasRows
+        .filter(r => r.issue_description === 'unanswered')
+        .map(r => r.item_name.replace('Feasibility: ', ''))
+      if (unanswered.length > 0) {
+        setGenerating(false)
+        setGenError(`Appliance feasibility pending: ${unanswered.join(', ')}`)
+        return
+      }
+    }
     const result = await generateEstimate(inspId, pid, userEmail)
     setGenerating(false)
     if (result.error) { setGenError(result.error); return }
