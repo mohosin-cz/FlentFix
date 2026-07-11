@@ -618,7 +618,7 @@ export default function PropertyDetail() {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                   {feasibility.map(f => {
                     const name = f.item_name.replace('Feasibility: ', '')
-                    const short = { 'Washing Machine': 'WM', 'Refrigerator': 'Fridge', 'Air Conditioner': 'AC', 'Geyser': 'Geyser' }[name] || name
+                    const short = { 'Washing Machine': 'WM', 'Refrigerator': 'Fridge', 'Air Conditioner': 'AC', 'Geyser': 'Geyser', 'Dryer': 'Dryer' }[name] || name
                     const icon  = f.issue_description === 'feasible' ? '✓' : f.issue_description === 'not_feasible' ? '✗' : f.issue_description === 'na' ? '—' : '?'
                     const color = f.issue_description === 'feasible' ? '#4dd9c0' : f.issue_description === 'not_feasible' ? '#f87171' : '#6b6d82'
                     return (

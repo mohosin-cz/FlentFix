@@ -129,7 +129,7 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
         if (!d?.enabled) return
         if (key === 'deepCleaning') {
           const descLabel = (d.rateId && rateMap[d.rateId]) ? rateMap[d.rateId] : 'Deep Cleaning'
-          if (d.fullHome !== false) {
+          if (d.fullHome === true) {
             rows.push({ inspection_id: inspectionId, section_name: 'Basics', area: 'Cleaning', item_name: 'Deep Cleaning', trade: 'cleaning', issue_description: descLabel, notes: 'Full Home', material_cost: 0, labour_cost: parseFloat(d.labourCost) || 0, item_score: null, _media: d.media || [] })
           }
           ;(d.specificAreas || []).forEach(sa => {
@@ -242,7 +242,7 @@ function readDraftProgress(pid) {
               return
             }
             iTotal++
-            if (item?.enabled) iDone++
+            if (item?.enabled !== null && item?.enabled !== undefined) iDone++
           })
         } else {
           Object.values(val || {}).forEach(section => {
