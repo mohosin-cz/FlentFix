@@ -191,7 +191,7 @@ const GENERAL_ITEMS = [
   { key: 'carpentry',     label: 'Carpentry Touch-up', trade: 'woodwork', freeText: true },
 ]
 
-const APPLIANCE_FEASIBILITY_LIST = ['Washing Machine', 'Refrigerator', 'Air Conditioner', 'Geyser']
+const APPLIANCE_FEASIBILITY_LIST = ['Washing Machine', 'Refrigerator', 'Air Conditioner', 'Geyser', 'Dryer']
 
 // Section IDs that represent a trade grouping (not a room) — area should be the tab (room) label
 const TRADE_SEC_IDS = new Set(['electrical', 'woodwork', 'misc', 'plumbing'])
@@ -222,7 +222,7 @@ function buildTabs(houseType, bhk) {
 const blankCostRow  = () => ({ action: '', labourRateId: '', labourCost: '', materialCost: '', materialRateId: '', qty: 1 })
 const blankIssueRow = () => ({ id: `ir_${Date.now()}_${Math.random().toString(36).slice(2)}`, issueDescription: '', action: '', labourRateId: '', labourCost: '', materialCost: '' })
 const blankCard = () => ({ health: null, notes: '', media: [], proofMedia: [], fixtureStatus: null, notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {}, action: '', materialItemId: null, materialRateId: null, materialDescription: null, materialCost: '', kindOverride: null })
-const blankGeneral = () => ({ enabled: false, areas: [], partialRooms: '', labourCost: '', rateId: '', notes: '', media: [], description: '', fullHome: true, specificAreas: [] })
+const blankGeneral = () => ({ enabled: null, areas: [], partialRooms: '', labourCost: '', rateId: '', notes: '', media: [], description: '', fullHome: null, specificAreas: [] })
 const BLANK_SPEC_AREA = () => ({ id: `sa_${Date.now()}_${Math.random().toString(36).slice(2)}`, area: '', type: '', notes: '', rateId: '', cost: '' })
 
 const SPECIFIC_AREA_OPTIONS = ['Living Room', 'Kitchen', 'Bedroom 1', 'Bedroom 2', 'Bedroom 3', 'Bathroom', 'Master Bathroom', 'Balcony', 'Utility']
@@ -275,7 +275,7 @@ function countItems(tabs, data) {
       GENERAL_ITEMS.forEach(g => {
         total++
         const d = data.basics?.[g.key]
-        if (d && (!d.enabled || d.labourCost || d.description || d.areas?.length)) done++
+        if (d?.enabled !== null && d?.enabled !== undefined) done++
       })
       total++
       if (data.basics?.wasteScrapping?.required !== null && data.basics?.wasteScrapping?.required !== undefined) done++
@@ -1075,6 +1075,32 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
   )
 }
 
+// ── YesNoControl ─────────────────────────────────────────────────────────────
+// value: null (unanswered) | true (Yes) | false (No)
+// Tap same pill to deselect back to null (unanswered).
+function YesNoControl({ value, onChange }) {
+  return (
+    <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border, #2e3040)', width: 'fit-content' }}>
+      {[{ val: true, label: 'Yes' }, { val: false, label: 'No' }].map(opt => {
+        const sel = value === opt.val
+        return (
+          <button key={String(opt.val)} type="button"
+            onClick={() => onChange(sel ? null : opt.val)}
+            style={{
+              minWidth: 44, padding: '8px 18px', border: 'none',
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'var(--font-mono, monospace)',
+              background: sel ? (opt.val ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)') : 'transparent',
+              color: sel ? (opt.val ? '#000' : 'var(--text, #e8e8f0)') : 'var(--text-muted, #6b6d82)',
+              transition: 'background 0.15s, color 0.15s',
+            }}
+          >{opt.label}</button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Basics toggle item ────────────────────────────────────────────────────────
 function GeneralToggleItem({ config, data, onUpdate, cleaningRates, pid }) {
   const { key, label, areaOptions, multiSelect, freeText, hasPartialRooms, trade } = config
@@ -1096,44 +1122,31 @@ function GeneralToggleItem({ config, data, onUpdate, cleaningRates, pid }) {
     const next = [...(data.specificAreas || [])]; next[idx] = { ...next[idx], [field]: value }; onUpdate('specificAreas', next)
   }
 
-  const toggle = (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-      <span style={{ fontSize: 11, color: data.enabled ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{data.enabled ? 'on' : 'off'}</span>
-      <div style={{ position: 'relative', width: 36, height: 20 }}>
-        <input type="checkbox" checked={data.enabled} onChange={e => onUpdate('enabled', e.target.checked)} style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }} />
-        <div style={{ position: 'absolute', inset: 0, background: data.enabled ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)', border: `1px solid ${data.enabled ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, borderRadius: 10, transition: 'background 0.2s' }} />
-        <div style={{ position: 'absolute', top: 2, left: data.enabled ? 18 : 2, width: 16, height: 16, background: '#fff', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
-      </div>
-    </label>
-  )
+  const isYes = data.enabled === true
 
   return (
-    <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${data.enabled ? 'rgba(200,150,62,0.3)' : 'var(--border, #2e3040)'}`, borderRadius: 10, padding: '14px 16px', transition: 'border-color 0.2s' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: data.enabled ? 16 : 0 }}>
+    <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${isYes ? 'rgba(200,150,62,0.3)' : 'var(--border, #2e3040)'}`, borderRadius: 10, padding: '14px 16px', transition: 'border-color 0.2s' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: isYes ? 16 : 0 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{label}</span>
-        {toggle}
+        <YesNoControl value={data.enabled} onChange={v => onUpdate('enabled', v)} />
       </div>
 
-      {data.enabled && (
+      <div style={{ overflow: 'hidden', maxHeight: isYes ? '2000px' : '0px', opacity: isYes ? 1 : 0, transition: 'max-height 150ms ease-out, opacity 150ms ease', pointerEvents: isYes ? 'auto' : 'none' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
           {isDeepCleaning ? (
             <>
-              {/* Full Home toggle */}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: data.fullHome !== false ? 'rgba(61,186,122,0.08)' : 'var(--bg-input, #252731)', border: `1px solid ${data.fullHome !== false ? 'rgba(61,186,122,0.35)' : 'var(--border, #2e3040)'}`, borderRadius: 8, cursor: 'pointer' }}>
-                <div style={{ position: 'relative', width: 36, height: 20, flexShrink: 0 }}>
-                  <input type="checkbox" checked={data.fullHome !== false} onChange={e => onUpdate('fullHome', e.target.checked)} style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }} />
-                  <div style={{ position: 'absolute', inset: 0, background: data.fullHome !== false ? 'var(--green, #3dba7a)' : 'var(--bg-input, #252731)', border: `1px solid ${data.fullHome !== false ? 'var(--green, #3dba7a)' : 'var(--border, #2e3040)'}`, borderRadius: 10, transition: 'background 0.2s' }} />
-                  <div style={{ position: 'absolute', top: 2, left: data.fullHome !== false ? 18 : 2, width: 16, height: 16, background: '#fff', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
-                </div>
+              {/* Full Home Yes/No */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: data.fullHome === true ? 'rgba(61,186,122,0.08)' : 'var(--bg-input, #252731)', border: `1px solid ${data.fullHome === true ? 'rgba(61,186,122,0.35)' : 'var(--border, #2e3040)'}`, borderRadius: 8 }}>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: data.fullHome !== false ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)' }}>Full Home Deep Cleaning</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: data.fullHome === true ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)' }}>Full Home Deep Cleaning</div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>Covers all rooms and areas</div>
                 </div>
-              </label>
+                <YesNoControl value={data.fullHome} onChange={v => onUpdate('fullHome', v)} />
+              </div>
 
-              {data.fullHome !== false && (
-                <>
+              <div style={{ overflow: 'hidden', maxHeight: data.fullHome === true ? '400px' : '0px', opacity: data.fullHome === true ? 1 : 0, transition: 'max-height 150ms ease-out, opacity 150ms ease' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 2 }}>
                   {cleanOptions.length > 0 && (
                     <Field label="Rate">
                       <SearchableDropdown options={cleanOptions} value={data.rateId} onChange={id => { const r = cleaningRates.find(x => x.id === id); onUpdate('rateId', id); onUpdate('labourCost', r ? String(r.cost_per_unit) : '') }} placeholder="Select cleaning service…" />
@@ -1142,8 +1155,8 @@ function GeneralToggleItem({ config, data, onUpdate, cleaningRates, pid }) {
                   <Field label="Cost (₹)" hint={data.rateId ? 'auto-filled from rate' : undefined}>
                     <Input value={data.labourCost} onChange={v => onUpdate('labourCost', v)} type="number" placeholder="0" />
                   </Field>
-                </>
-              )}
+                </div>
+              </div>
 
               {/* Specific area rows */}
               {(data.specificAreas || []).length > 0 && (
@@ -1234,7 +1247,7 @@ function GeneralToggleItem({ config, data, onUpdate, cleaningRates, pid }) {
           )}
 
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -1328,74 +1341,122 @@ function CustomItemCard({ item, onChange, onRemove, pid }) {
 function WasteScrappingCard({ data, onUpdate, pid }) {
   const isYes = data.required === true
   return (
-    <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${isYes ? 'rgba(200,150,62,0.3)' : 'var(--border, #2e3040)'}`, borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${isYes ? 'rgba(200,150,62,0.3)' : 'var(--border, #2e3040)'}`, borderRadius: 10, padding: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: isYes ? 14 : 0 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>Waste Scrapping / Debris Removal</span>
-        {isYes && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 3, background: 'rgba(200,150,62,0.12)', color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700 }}>service</span>}
+        <YesNoControl value={data.required} onChange={v => onUpdate('required', v)} />
       </div>
-      <div style={{ display: 'flex', gap: 0, borderRadius: 7, overflow: 'hidden', border: '1px solid var(--border, #2e3040)', width: 'fit-content' }}>
-        {[{ value: false, label: 'No' }, { value: true, label: 'Yes' }].map(opt => (
-          <button key={String(opt.value)} type="button" onClick={() => onUpdate('required', opt.value)}
-            style={{ padding: '6px 22px', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', background: data.required === opt.value ? (opt.value ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)') : 'transparent', color: data.required === opt.value ? (opt.value ? '#000' : 'var(--text, #e8e8f0)') : 'var(--text-muted, #6b6d82)', transition: 'background 0.15s' }}
-          >{opt.label}</button>
-        ))}
+      <div style={{ overflow: 'hidden', maxHeight: isYes ? '600px' : '0px', opacity: isYes ? 1 : 0, transition: 'max-height 150ms ease-out, opacity 150ms ease', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Field label="Labour Cost ₹" required>
+          <Input value={data.labourCost} onChange={v => onUpdate('labourCost', v)} type="number" placeholder="e.g. 1500" />
+        </Field>
+        <Field label="Notes" optional>
+          <Textarea value={data.notes || ''} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any specifics…" />
+        </Field>
+        <MediaUpload files={data.media || []} onChange={v => onUpdate('media', v)} pid={pid} itemKey="wasteScrapping" />
       </div>
-      {isYes && (
-        <>
-          <Field label="Labour Cost ₹" required>
-            <Input value={data.labourCost} onChange={v => onUpdate('labourCost', v)} type="number" placeholder="e.g. 1500" />
-          </Field>
-          <Field label="Notes" optional>
-            <Textarea value={data.notes || ''} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any specifics…" />
-          </Field>
-          <MediaUpload files={data.media || []} onChange={v => onUpdate('media', v)} pid={pid} itemKey="wasteScrapping" />
-        </>
-      )}
     </div>
   )
 }
 
 // ── ApplianceFeasibilityBlock ─────────────────────────────────────────────────
-const FEAS_STATUS_COLORS = { feasible: '#4dd9c0', not_feasible: '#f87171', na: '#6b6d82' }
+const FEAS_STATUS_COLORS = { feasible: '#4dd9c0', not_feasible: '#f87171', na: '#9394a8' }
+const FEAS_DOT_LABELS    = { feasible: '✓', not_feasible: '✗', na: '–', null: '○' }
 
 function ApplianceFeasibilityBlock({ data, onUpdate, pid, feasRefs }) {
   const answeredCount = APPLIANCE_FEASIBILITY_LIST.filter(a => data[a]?.status).length
+  const allAnswered   = answeredCount === APPLIANCE_FEASIBILITY_LIST.length
+  const [expanded, setExpanded] = useState(false)
+  const collapseTimer = useRef(null)
+
+  // Auto-expand on mount if any item pending
+  useEffect(() => {
+    if (!allAnswered) setExpanded(true)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-collapse 400ms after the last item gets answered
+  const prevAllAnswered = useRef(allAnswered)
+  useEffect(() => {
+    if (allAnswered && !prevAllAnswered.current && expanded) {
+      clearTimeout(collapseTimer.current)
+      collapseTimer.current = setTimeout(() => setExpanded(false), 400)
+    }
+    prevAllAnswered.current = allAnswered
+    return () => clearTimeout(collapseTimer.current)
+  }, [allAnswered, expanded])
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 4px 6px' }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Appliance Feasibility</span>
-        <span style={{ fontSize: 10, color: answeredCount === APPLIANCE_FEASIBILITY_LIST.length ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
-          {answeredCount}/{APPLIANCE_FEASIBILITY_LIST.length} answered
+    <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${allAnswered ? 'rgba(77,217,192,0.25)' : 'rgba(240,160,80,0.25)'}`, borderRadius: 10, overflow: 'hidden' }}>
+
+      {/* Collapsible header */}
+      <button type="button" onClick={() => setExpanded(p => !p)}
+        style={{ width: '100%', padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', flex: 1 }}>Appliance Feasibility</span>
+
+        {/* Per-appliance status dots */}
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          {APPLIANCE_FEASIBILITY_LIST.map(a => {
+            const st = data[a]?.status || null
+            return (
+              <span key={a} style={{ fontSize: 10, fontWeight: 700, color: st ? FEAS_STATUS_COLORS[st] : 'var(--border, #2e3040)', fontFamily: 'var(--font-mono, monospace)' }}>
+                {FEAS_DOT_LABELS[st] ?? '○'}
+              </span>
+            )
+          })}
+        </div>
+
+        {/* Count + status chip */}
+        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', background: allAnswered ? 'rgba(77,217,192,0.12)' : 'rgba(240,160,80,0.12)', color: allAnswered ? '#4dd9c0' : '#f0a050', whiteSpace: 'nowrap' }}>
+          {allAnswered ? `✓ ${answeredCount}/${APPLIANCE_FEASIBILITY_LIST.length}` : `${answeredCount}/${APPLIANCE_FEASIBILITY_LIST.length} pending`}
         </span>
-      </div>
-      {APPLIANCE_FEASIBILITY_LIST.map(appliance => {
-        const item = data[appliance] || { status: null, notes: '', media: [] }
-        const borderColor = item.status === 'not_feasible' ? 'rgba(248,113,113,0.35)' : item.status === 'feasible' ? 'rgba(77,217,192,0.35)' : 'var(--border, #2e3040)'
-        return (
-          <div key={appliance} ref={el => { if (feasRefs) feasRefs.current[appliance] = el }}
-            style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${borderColor}`, borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 6 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: item.status ? (FEAS_STATUS_COLORS[item.status] || 'var(--text, #e8e8f0)') : 'var(--text-dim, #9394a8)' }}>{appliance}</span>
-              <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border, #2e3040)', flexShrink: 0 }}>
-                {[{ value: 'feasible', label: 'Feasible' }, { value: 'not_feasible', label: 'Not feasible' }, { value: 'na', label: 'N/A' }].map(opt => (
-                  <button key={opt.value} type="button"
-                    onClick={() => onUpdate(appliance, 'status', item.status === opt.value ? null : opt.value)}
-                    style={{ padding: '5px 10px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', background: item.status === opt.value ? (FEAS_STATUS_COLORS[opt.value] || 'var(--bg-input, #252731)') : 'transparent', color: item.status === opt.value ? (opt.value === 'na' ? 'var(--text, #e8e8f0)' : '#111') : 'var(--text-muted, #6b6d82)', transition: 'background 0.15s' }}
-                  >{opt.label}</button>
-                ))}
+
+        {/* Chevron */}
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'var(--text-muted, #6b6d82)' }}>
+          <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+
+      {/* Expandable body */}
+      <div style={{ overflow: 'hidden', maxHeight: expanded ? `${APPLIANCE_FEASIBILITY_LIST.length * 200}px` : '0px', opacity: expanded ? 1 : 0, transition: 'max-height 200ms ease, opacity 150ms ease' }}>
+        <div style={{ borderTop: '1px solid var(--border, #2e3040)', display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {APPLIANCE_FEASIBILITY_LIST.map((appliance, idx) => {
+            const item = data[appliance] || { status: null, notes: '', media: [] }
+            const isNotFeas = item.status === 'not_feasible'
+            const borderTop = idx > 0 ? '1px solid var(--border, #2e3040)' : 'none'
+            const rowBg = isNotFeas ? 'rgba(248,113,113,0.04)' : item.status === 'feasible' ? 'rgba(77,217,192,0.03)' : 'transparent'
+            return (
+              <div key={appliance} ref={el => { if (feasRefs) feasRefs.current[appliance] = el }}
+                style={{ borderTop, background: rowBg, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+                {/* Row: name + three-pill control */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: item.status ? (FEAS_STATUS_COLORS[item.status] || 'var(--text, #e8e8f0)') : 'var(--text-dim, #9394a8)' }}>{appliance}</span>
+                  <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border, #2e3040)', flexShrink: 0 }}>
+                    {[{ value: 'feasible', label: 'Feasible' }, { value: 'not_feasible', label: 'Not feasible' }, { value: 'na', label: 'N/A' }].map(opt => {
+                      const sel = item.status === opt.value
+                      return (
+                        <button key={opt.value} type="button"
+                          onClick={() => onUpdate(appliance, 'status', sel ? null : opt.value)}
+                          style={{ padding: '5px 10px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', background: sel ? (FEAS_STATUS_COLORS[opt.value] || 'var(--bg-input, #252731)') : 'transparent', color: sel ? '#111' : 'var(--text-muted, #6b6d82)', transition: 'background 0.15s' }}
+                        >{opt.label}</button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* "Not feasible" reveals note + photo */}
+                <div style={{ overflow: 'hidden', maxHeight: isNotFeas ? '400px' : '0px', opacity: isNotFeas ? 1 : 0, transition: 'max-height 150ms ease, opacity 150ms ease', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <Field label="Notes" optional>
+                    <Textarea value={item.notes || ''} onChange={v => onUpdate(appliance, 'notes', v)} rows={2} placeholder="Why not feasible?" />
+                  </Field>
+                  <MediaUpload files={item.media || []} onChange={v => onUpdate(appliance, 'media', v)} pid={pid} itemKey={`feas_${appliance.replace(/\s+/g, '_')}`} />
+                </div>
+
               </div>
-            </div>
-            {item.status && (
-              <>
-                <Field label="Notes" optional>
-                  <Textarea value={item.notes || ''} onChange={v => onUpdate(appliance, 'notes', v)} rows={2} placeholder={item.status === 'not_feasible' ? 'Why not feasible?' : 'Any notes…'} />
-                </Field>
-                <MediaUpload files={item.media || []} onChange={v => onUpdate(appliance, 'media', v)} pid={pid} itemKey={`feas_${appliance.replace(/\s+/g, '_')}`} />
-              </>
-            )}
-          </div>
-        )
-      })}
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }
