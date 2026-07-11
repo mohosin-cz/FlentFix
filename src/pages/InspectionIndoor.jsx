@@ -188,7 +188,6 @@ const GENERAL_ITEMS = [
   { key: 'painting',      label: 'Full Home Painting', trade: 'misc',     areaOptions: ['Full','Partial'], multiSelect: false, hasPartialRooms: true },
   { key: 'floorBuffing',  label: 'Floor Buffing',      trade: 'misc',     areaOptions: ['All','Specific rooms'], multiSelect: false },
   { key: 'waterproofing', label: 'Waterproofing',      trade: 'plumbing', areaOptions: ['Bathroom(s)','Balcony','Terrace'], multiSelect: true },
-  { key: 'carpentry',     label: 'Carpentry Touch-up', trade: 'woodwork', freeText: true },
 ]
 
 const APPLIANCE_FEASIBILITY_LIST = ['Washing Machine', 'Refrigerator', 'Air Conditioner', 'Geyser', 'Dryer']

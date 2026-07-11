@@ -82,7 +82,6 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
     painting:      { label: 'Full Home Painting', trade: 'misc'     },
     floorBuffing:  { label: 'Floor Buffing',      trade: 'misc'     },
     waterproofing: { label: 'Waterproofing',      trade: 'plumbing' },
-    carpentry:     { label: 'Carpentry Touch-up', trade: 'woodwork' },
   }
   function toTitle(key) {
     return key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').replace(/\b\w/g, c => c.toUpperCase()).trim()
