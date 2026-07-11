@@ -190,22 +190,40 @@ const GENERAL_ITEMS = [
   { key: 'waterproofing', label: 'Waterproofing',      trade: 'plumbing', areaOptions: ['Bathroom(s)','Balcony','Terrace'], multiSelect: true },
 ]
 
-const APPLIANCE_FEASIBILITY_LIST = ['Washing Machine', 'Refrigerator', 'Air Conditioner', 'Geyser', 'Dryer']
+// scope 'single': one row total; 'bathroom': one per bedroom (last = Common when bhk>=2);
+// 'livable': one per bedroom + Living Room.
+const APPLIANCE_FEASIBILITY = [
+  { name: 'Washing Machine', scope: 'single'   },
+  { name: 'Refrigerator',    scope: 'single'   },
+  { name: 'Dryer',           scope: 'single'   },
+  { name: 'Exhaust Fan',     scope: 'bathroom' },
+  { name: 'Geyser',          scope: 'bathroom' },
+  { name: 'Air Conditioner', scope: 'livable'  },
+]
 
 // Section IDs that represent a trade grouping (not a room) — area should be the tab (room) label
 const TRADE_SEC_IDS = new Set(['electrical', 'woodwork', 'misc', 'plumbing'])
 
 // ── Tab builder ───────────────────────────────────────────────────────────────
-function buildExhaustInstances(tabs) {
-  const instances = []
-  tabs.forEach(tab => {
-    if (!tab.sections) return
-    tab.sections.forEach(sec => {
-      if (sec.id === 'bathroom') instances.push(`Exhaust Fan · ${tab.label} Bathroom`)
-      else if (sec.id === 'commonBath') instances.push('Exhaust Fan · Common Bathroom')
-    })
+// Returns all feasibility keys in order: singletons, then per-bathroom items, then per-livable items.
+// bathroom scope: one per bedroom; when bhk>=2 the last bedroom uses "Common Bathroom" label.
+// livable scope: one per bedroom + Living Room (fallback: bhk+1 rooms).
+function buildScopedInstances(bhk) {
+  const keys = []
+  APPLIANCE_FEASIBILITY.forEach(({ name, scope }) => {
+    if (scope === 'single') {
+      keys.push(name)
+    } else if (scope === 'bathroom') {
+      for (let i = 1; i <= bhk; i++) {
+        const loc = (i === bhk && bhk >= 2) ? 'Common Bathroom' : `Bedroom ${i} Bathroom`
+        keys.push(`${name} · ${loc}`)
+      }
+    } else if (scope === 'livable') {
+      for (let i = 1; i <= bhk; i++) keys.push(`${name} · Bedroom ${i}`)
+      keys.push(`${name} · Living Room`)
+    }
   })
-  return instances
+  return keys
 }
 
 function parseBHK(layout) {
@@ -239,16 +257,15 @@ const BLANK_SPEC_AREA = () => ({ id: `sa_${Date.now()}_${Math.random().toString(
 const SPECIFIC_AREA_OPTIONS = ['Living Room', 'Kitchen', 'Bedroom 1', 'Bedroom 2', 'Bedroom 3', 'Bathroom', 'Master Bathroom', 'Balcony', 'Utility']
 const CLEAN_TYPES = ['Deep Clean', 'Basic Clean', 'Specialised Clean']
 
-function buildInitialState(tabs) {
+function buildInitialState(tabs, bhk) {
   const s = {}
   tabs.forEach(tab => {
     if (tab.id === 'basics') {
       s.basics = {}
       GENERAL_ITEMS.forEach(g => { s.basics[g.key] = blankGeneral() })
       s.basics.wasteScrapping = { required: null, labourCost: '', notes: '', media: [] }
-      const exhaustKeys = buildExhaustInstances(tabs)
       s.basics.applianceFeasibility = Object.fromEntries(
-        [...APPLIANCE_FEASIBILITY_LIST, ...exhaustKeys].map(a => [a, { status: null, notes: '', media: [] }])
+        buildScopedInstances(bhk).map(a => [a, { status: null, notes: '', media: [] }])
       )
       return
     }
@@ -282,7 +299,7 @@ function deepMerge(base, override) {
   return result
 }
 
-function countItems(tabs, data) {
+function countItems(tabs, bhk, data) {
   let done = 0, total = 0
   tabs.forEach(tab => {
     if (tab.id === 'basics') {
@@ -293,7 +310,7 @@ function countItems(tabs, data) {
       })
       total++
       if (data.basics?.wasteScrapping?.required !== null && data.basics?.wasteScrapping?.required !== undefined) done++
-      ;[...APPLIANCE_FEASIBILITY_LIST, ...buildExhaustInstances(tabs)].forEach(a => {
+      buildScopedInstances(bhk).forEach(a => {
         total++
         if (data.basics?.applianceFeasibility?.[a]?.status) done++
       })
@@ -1488,8 +1505,7 @@ export default function InspectionIndoor() {
   console.log('[InspectionIndoor] houseType:', houseType, '| bhk:', bhk)
 
   const tabs = buildTabs(houseType, bhk)
-  const exhaustInstances = buildExhaustInstances(tabs)
-  const allFeasKeys = [...APPLIANCE_FEASIBILITY_LIST, ...exhaustInstances]
+  const allFeasKeys = buildScopedInstances(bhk)
   const tabLabels = tabs.map(t => t.label)
 
   const [searchParams, setSearchParams] = useSearchParams()
@@ -1497,7 +1513,7 @@ export default function InspectionIndoor() {
   const currentTab = tabs[tabIdx]
 
   const [data, setData] = useState(() => {
-    const initial = buildInitialState(tabs)
+    const initial = buildInitialState(tabs, bhk)
     if (!pid) return initial
     try {
       const saved = localStorage.getItem(`flentfix_indoor_draft_${pid}`)
@@ -1649,7 +1665,7 @@ export default function InspectionIndoor() {
   const cleaningRates = labourRates.filter(r => r.trade === 'cleaning')
 
   // ── Progress ──
-  const { done: totalDone, total: totalItems } = countItems(tabs, data)
+  const { done: totalDone, total: totalItems } = countItems(tabs, bhk, data)
   const progress = totalItems ? Math.round((totalDone / totalItems) * 100) : 0
 
   // ── Create estimate ──
