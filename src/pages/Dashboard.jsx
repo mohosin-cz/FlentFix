@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
@@ -129,11 +129,38 @@ function readDraftProgress(pid) {
   }
 }
 
+// ─── Truth-table next action ───────────────────────────────────────────────────
+function computeNextAction(pid, { latestEstByPid, disputesByEstId, draftMap }) {
+  const est          = latestEstByPid[pid]
+  const draft        = draftMap[pid] || {}
+  const draftDone    = (draft.outdoor?.done || 0) + (draft.indoor?.done || 0) + (draft.appliances?.done || 0)
+  const draftTotal   = (draft.outdoor?.total || 0) + (draft.indoor?.total || 0) + (draft.appliances?.total || 0)
+  const draftStarted = draft.outdoor?.started || draft.indoor?.started || draft.appliances?.started
+  const inspInProgress = !!(draftStarted && draftTotal > 0 && draftDone < draftTotal)
+
+  const disputes   = est ? (disputesByEstId[est.id] || []) : []
+  const latestDisp = disputes.length > 0
+    ? [...disputes].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
+    : null
+  const openQuery        = !!(est?.sent_at && latestDisp?.author_type === 'landlord')
+  const landlordMsgCount = disputes.filter(d => d.author_type === 'landlord').length
+
+  if (inspInProgress)
+    return { label: `Continue (${draftDone}/${draftTotal})`, path: '/inspections/mode',          navState: { pid }, openQuery: false, landlordMsgCount: 0 }
+  if (!est)
+    return { label: 'Create Estimate',  path: `/properties/${pid}/estimates`, navState: null, openQuery: false, landlordMsgCount: 0 }
+  if (!est.sent_at)
+    return { label: 'Review & send',    path: `/properties/${pid}/estimates`, navState: null, openQuery: false, landlordMsgCount: 0 }
+  if (openQuery)
+    return { label: `Reply to ${landlordMsgCount} quer${landlordMsgCount !== 1 ? 'ies' : 'y'}`, path: `/properties/${pid}/estimates`, navState: null, openQuery: true, landlordMsgCount }
+  return   { label: 'View estimate',    path: `/properties/${pid}/estimates`, navState: null, openQuery: false, landlordMsgCount: 0 }
+}
+
 // ─── Profile dropdown ──────────────────────────────────────────────────────────
 function ProfileDropdown({ name, email, onLogout }) {
-  const [open, setOpen] = useState(false)
-  const [sub,  setSub]  = useState(null)
-  const ref             = useRef(null)
+  const [open, setOpen]       = useState(false)
+  const [sub,  setSub]        = useState(null)
+  const ref                   = useRef(null)
 
   useEffect(() => {
     function outside(e) { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setSub(null) } }
@@ -161,7 +188,8 @@ function ProfileDropdown({ name, email, onLogout }) {
 
       {open && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 192,
+          position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+          minWidth: 192,
           background: 'var(--bg-panel, #1e2028)',
           border: '1px solid var(--border, #2e3040)',
           borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.32)',
@@ -173,8 +201,8 @@ function ProfileDropdown({ name, email, onLogout }) {
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-mono, monospace)' }}>{name}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono, monospace)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{email}</div>
               </div>
-              <DropItem icon="👤" label="Profile" onClick={() => setSub('profile')} />
-              <DropItem icon="⎋"  label="Log Out" onClick={onLogout} danger />
+              <DropItem icon="👤" label="Profile"  onClick={() => setSub('profile')} />
+              <DropItem icon="⎋"  label="Log Out"  onClick={onLogout} danger />
             </>
           ) : (
             <>
@@ -230,81 +258,141 @@ function DropItem({ icon, label, onClick, danger }) {
   )
 }
 
+// ─── Nav & quick-action config ─────────────────────────────────────────────────
+const NAV_ITEMS = [
+  { label: 'Inspect',    path: '/inspections/new' },
+  { label: 'Properties', path: '/properties' },
+  { label: 'Inventory',  path: '/inventory' },
+  { label: 'Rate Card',  path: '/inventory/public-rc' },
+  { label: 'SOPs',       path: '/sops' },
+]
+
+const QUICK_ACTIONS = [
+  { icon: '+', label: 'New Inspection', path: '/inspections/new' },
+  { icon: '↗', label: 'Log Usage',      path: '/inventory/usage' },
+  { icon: '₹', label: 'Rate Card',      path: '/inventory/public-rc' },
+  { icon: '⚙', label: 'SOPs',           path: '/sops' },
+]
+
+const FEED_COLORS = { inspection: '#c8963e', purchase: '#3dba7a', property: '#6b8de6' }
+
 // ─── Dashboard ─────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { session } = useAuth()
 
   const email = session?.user?.email ?? ''
   const name  = session?.user?.user_metadata?.full_name ?? email.split('@')[0].replace(/[._]/g, ' ')
 
-  const [props,           setProps]           = useState([])
-  const [latestInspByPid, setLatestInspByPid] = useState({})
+  const [properties,      setProperties]      = useState([])
+  const [inspMap,         setInspMap]         = useState({})
   const [latestEstByPid,  setLatestEstByPid]  = useState({})
   const [disputesByEstId, setDisputesByEstId] = useState({})
   const [draftMap,        setDraftMap]        = useState({})
+  const [stats,           setStats]           = useState({ inspMonth: '—', activeProps: '—', invValue: '—' })
+  const [activity,        setActivity]        = useState([])
   const [loading,         setLoading]         = useState(true)
   const [loadError,       setLoadError]       = useState(null)
-  const [activeChip,      setActiveChip]      = useState(null)
   const [showTest,        setShowTest]        = useState(false)
+
+  const isActive = path => path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)
 
   async function logout() {
     await supabase.auth.signOut()
     navigate('/login', { replace: true })
   }
 
-  // ─── 4-query batch ─────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true)
     setLoadError(null)
     try {
-      const [propsRes, inspsRes, estsRes, dispsRes] = await Promise.all([
-        supabase.from('properties')
-          .select('pid,name,type,address,created_at')
-          .order('created_at', { ascending: false }),
-        supabase.from('inspections')
-          .select('pid,house_type,inspection_date,created_at')
-          .order('created_at', { ascending: false }),
-        supabase.from('estimates')
-          .select('id,pid,sent_at,created_at')
-          .order('created_at', { ascending: false }),
-        supabase.from('estimate_disputes')
-          .select('estimate_id,author_type,created_at')
-          .order('created_at', { ascending: false }),
+      // Batch 1: core data (4 queries in parallel — no FK embed)
+      const [propsRes, inspRes, estsRes, dispsRes] = await Promise.all([
+        supabase.from('properties').select('pid,name,type,address,created_at').order('created_at', { ascending: false }),
+        supabase.from('inspections').select('pid,house_type,inspection_date,status,created_at').order('created_at', { ascending: false }),
+        supabase.from('estimates').select('id,pid,sent_at,created_at').order('created_at', { ascending: false }),
+        supabase.from('estimate_disputes').select('estimate_id,author_type,created_at').order('created_at', { ascending: false }),
       ])
 
-      const firstErr = propsRes.error || inspsRes.error || estsRes.error || dispsRes.error
+      const firstErr = propsRes.error || inspRes.error || estsRes.error || dispsRes.error
       if (firstErr) {
         console.error('Dashboard load error:', firstErr)
         setLoadError(firstErr.message || 'Query failed')
         return
       }
 
-      const properties  = propsRes.data  || []
-      const inspections = inspsRes.data  || []
-      const estimates   = estsRes.data   || []
-      const disputes    = dispsRes.data  || []
+      const props = propsRes.data || []
+      const insp  = inspRes.data  || []
+      const ests  = estsRes.data  || []
+      const disps = dispsRes.data || []
 
-      const inspByPid = {}
-      inspections.forEach(i => { if (!inspByPid[i.pid]) inspByPid[i.pid] = i })
+      // Client-side joins (pid is loose text, no FK)
+      const iMap = {}
+      insp.forEach(i => { if (!iMap[i.pid]) iMap[i.pid] = i })
 
       const estByPid = {}
-      estimates.forEach(e => { if (!estByPid[e.pid]) estByPid[e.pid] = e })
+      ests.forEach(e => { if (!estByPid[e.pid]) estByPid[e.pid] = e })
 
       const dispByEst = {}
-      disputes.forEach(d => {
+      disps.forEach(d => {
         if (!dispByEst[d.estimate_id]) dispByEst[d.estimate_id] = []
         dispByEst[d.estimate_id].push(d)
       })
 
-      setProps(properties)
-      setLatestInspByPid(inspByPid)
+      setProperties(props)
+      setInspMap(iMap)
       setLatestEstByPid(estByPid)
       setDisputesByEstId(dispByEst)
 
+      // Read localStorage drafts synchronously
       const dm = {}
-      properties.forEach(p => { dm[p.pid] = readDraftProgress(p.pid) })
+      props.forEach(p => { dm[p.pid] = readDraftProgress(p.pid) })
       setDraftMap(dm)
+
+      // Stats: inventory value (sequential — small table)
+      const monthStart    = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+      const inspThisMonth = insp.filter(i => i.created_at >= monthStart).length
+      const invRes        = await supabase.from('inventory_registry').select('total_amount')
+      const invTotal      = (invRes.data || []).reduce((s, r) => s + (r.total_amount || 0), 0)
+
+      setStats({
+        inspMonth:   inspThisMonth,
+        activeProps: props.length,
+        invValue:    invTotal ? `₹${invTotal.toLocaleString('en-IN')}` : '₹0',
+      })
+
+      // Activity feed (parallel)
+      const [purchRes, recentPropsRes] = await Promise.all([
+        supabase.from('inventory_registry').select('trade,total_amount,vendor_name,created_at').order('created_at', { ascending: false }).limit(5),
+        supabase.from('properties').select('pid,created_at,type').order('created_at', { ascending: false }).limit(3),
+      ])
+
+      const feed = [
+        ...insp.slice(0, 5).map(i => ({
+          title: `Inspection saved · PID ${i.pid}`,
+          desc:  titleCase(i.house_type || ''),
+          date:  i.created_at,
+          link:  `/properties/${i.pid}`,
+          type:  'inspection',
+        })),
+        ...(purchRes.data || []).map(p => ({
+          title: `Purchase logged · ${p.trade}`,
+          desc:  `${p.vendor_name || ''} · ₹${(p.total_amount || 0).toLocaleString('en-IN')}`,
+          date:  p.created_at,
+          link:  '/inventory/history',
+          type:  'purchase',
+        })),
+        ...(recentPropsRes.data || []).map(p => ({
+          title: `Property created · PID ${p.pid}`,
+          desc:  titleCase(p.type || ''),
+          date:  p.created_at,
+          link:  `/properties/${p.pid}`,
+          type:  'property',
+        })),
+      ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8)
+
+      setActivity(feed)
     } catch (err) {
       console.error('Dashboard load error:', err)
       setLoadError(err.message || 'Unexpected error')
@@ -314,171 +402,100 @@ export default function Dashboard() {
   }, [])
 
   const { pullDistance, isRefreshing } = usePullToRefresh(load)
+
   useEffect(() => { load() }, [load])
 
-  // ─── Queue derivation ───────────────────────────────────────────────────────
-  const fullQueue = useMemo(() => {
-    const filtered = props.filter(p => showTest || !/^test/i.test(String(p.pid)))
-
-    return filtered.map(p => {
-      const est          = latestEstByPid[p.pid]
-      const draft        = draftMap[p.pid] || {}
-      const draftDone    = (draft.outdoor?.done || 0) + (draft.indoor?.done || 0) + (draft.appliances?.done || 0)
-      const draftTotal   = (draft.outdoor?.total || 0) + (draft.indoor?.total || 0) + (draft.appliances?.total || 0)
-      const draftStarted = draft.outdoor?.started || draft.indoor?.started || draft.appliances?.started
-      const inspInProgress = !!(draftStarted && draftTotal > 0 && draftDone < draftTotal)
-
-      const disputes   = est ? (disputesByEstId[est.id] || []) : []
-      const latestDisp = disputes.length > 0
-        ? [...disputes].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
-        : null
-      const openQuery = !!(est?.sent_at && latestDisp?.author_type === 'landlord')
-
-      const landlordMsgs     = disputes.filter(d => d.author_type === 'landlord')
-      const landlordMsgCount = landlordMsgs.length
-      const oldestLandlordTs = openQuery && landlordMsgs.length > 0
-        ? Math.min(...landlordMsgs.map(d => new Date(d.created_at).getTime()))
-        : Infinity
-
-      let sortPri, sortTs
-      if (openQuery)                { sortPri = 0; sortTs = oldestLandlordTs }
-      else if (est && !est.sent_at) { sortPri = 1; sortTs = new Date(est.created_at).getTime() }
-      else if (inspInProgress)      { sortPri = 2; sortTs = new Date(p.created_at).getTime() }
-      else                          { sortPri = 3; sortTs = new Date(est?.created_at || p.created_at).getTime() }
-
-      let actionLabel, actionPath, actionState
-      if (inspInProgress) {
-        actionLabel = `Continue (${draftDone}/${draftTotal})`
-        actionPath  = '/inspections/mode'
-        actionState = { pid: p.pid }
-      } else if (!est) {
-        actionLabel = 'Create Estimate'
-        actionPath  = `/properties/${p.pid}/estimates`
-      } else if (!est.sent_at) {
-        actionLabel = 'Review & send'
-        actionPath  = `/properties/${p.pid}/estimates`
-      } else if (openQuery) {
-        actionLabel = `Reply to ${landlordMsgCount} quer${landlordMsgCount !== 1 ? 'ies' : 'y'}`
-        actionPath  = `/properties/${p.pid}/estimates`
-      } else {
-        actionLabel = 'View estimate'
-        actionPath  = `/properties/${p.pid}/estimates`
-      }
-
-      const latestInsp   = latestInspByPid[p.pid]
-      const houseType    = titleCase(latestInsp?.house_type || p.type || '')
-      const lastActivity = latestInsp?.inspection_date || latestInsp?.created_at || est?.created_at || p.created_at
-
-      return { ...p, houseType, lastActivity, est, inspInProgress, draftDone, draftTotal, openQuery, landlordMsgCount, sortPri, sortTs, actionLabel, actionPath, actionState }
-    }).sort((a, b) => {
-      if (a.sortPri !== b.sortPri) return a.sortPri - b.sortPri
-      if (a.sortPri === 0) return a.sortTs - b.sortTs
-      return b.sortTs - a.sortTs
-    })
-  }, [props, latestInspByPid, latestEstByPid, disputesByEstId, draftMap, showTest])
-
-  const visibleQueue = useMemo(() => {
-    if (!activeChip) return fullQueue
-    if (activeChip === 'inprogress') return fullQueue.filter(p => p.inspInProgress)
-    if (activeChip === 'tosend')     return fullQueue.filter(p => p.est && !p.est.sent_at)
-    if (activeChip === 'queries')    return fullQueue.filter(p => p.openQuery)
-    return fullQueue
-  }, [fullQueue, activeChip])
-
-  const inProgressCount = useMemo(() => fullQueue.filter(p => p.inspInProgress).length,        [fullQueue])
-  const toSendCount     = useMemo(() => fullQueue.filter(p => p.est && !p.est.sent_at).length, [fullQueue])
-  const queriesCount    = useMemo(() => fullQueue.filter(p => p.openQuery).length,              [fullQueue])
-
+  // Original stat tiles (inventory value preserved)
   const STATS = [
-    { chipKey: 'inprogress', n: inProgressCount, label: 'Inspections in progress', isQuery: false },
-    { chipKey: 'tosend',     n: toSendCount,     label: 'Estimates to send',        isQuery: false },
-    { chipKey: 'queries',    n: queriesCount,    label: 'Queries awaiting reply',   isQuery: true  },
-    { chipKey: null,         n: fullQueue.length, label: 'Active properties',        isQuery: false },
+    { n: stats.inspMonth,   label: 'Inspections this month' },
+    { n: stats.activeProps, label: 'Active properties' },
+    { n: 0,                 label: 'Open work orders' },
+    { n: stats.invValue,    label: 'Inventory value' },
   ]
 
-  function doNavigate(p) {
-    if (p.actionState) navigate(p.actionPath, { state: p.actionState })
-    else navigate(p.actionPath)
-  }
-
-  const emptyMsg = activeChip
-    ? 'No properties match this filter.'
-    : 'No properties yet — start an inspection to add one.'
+  // TEST-* filter — applied in render
+  const visibleProperties = properties.filter(p => showTest || !/^test/i.test(String(p.pid)))
 
   return (
     <>
       <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
       <div style={s.page}>
-        <style>{`
-          .prop-card:hover  { border-color: var(--accent, #c8963e) !important; }
-          .stat-tile        { transition: background 0.14s; cursor: pointer; }
-          /* 2×2 on mobile/narrow, 1×4 on wide */
-          .stats-grid       { grid-template-columns: repeat(2, 1fr); }
-          @media (min-width: 768px) { .stats-grid { grid-template-columns: repeat(4, 1fr); } }
-        `}</style>
+      <style>{`
+        @media (min-width: 641px) {
+          .dash-nav       { display: flex !important; }
+          .dash-grid      { display: grid !important; grid-template-columns: 1fr 380px; gap: 20px; align-items: start; width: 100%; box-sizing: border-box; }
+          .mob-stats      { display: none  !important; }
+          .desk-stats     { display: block !important; }
+          .dash-quick     { display: block !important; }
+          .dash-right-col { position: sticky; top: 76px; align-self: start; max-height: calc(100vh - 96px); overflow-y: auto; }
+          .dash-greeting  { grid-column: 1 / -1; }
+        }
+        @media (max-width: 640px) {
+          .dash-nav       { display: none  !important; }
+          .mob-stats      { display: grid  !important; }
+          .desk-stats     { display: none  !important; }
+          .dash-quick     { display: none  !important; }
+          .dash-grid      { gap: 12px !important; padding: 12px 16px 80px !important; }
+        }
+        .prop-card:hover { border-color: var(--accent, #c8963e) !important; }
+        .feed-item:hover { background: var(--bg-input, #252731) !important; }
+        .nav-btn:hover   { color: var(--accent, #c8963e) !important; background: rgba(200,150,62,0.06) !important; }
+        .qa-btn:hover    { border-color: var(--accent, #c8963e) !important; color: var(--accent, #c8963e) !important; }
+      `}</style>
 
-        {/* ── Header ── */}
-        <header style={s.header}>
-          <div style={s.headerLeft}>
-            <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
-              <PulseLogo />
-            </button>
-          </div>
-          <ProfileDropdown name={name} email={email} onLogout={logout} />
-        </header>
+      {/* ── Header ── */}
+      <header style={s.header}>
+        <div style={s.headerLeft}>
+          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
+            <PulseLogo />
+          </button>
+          <nav className="dash-nav" style={{ display: 'none', alignItems: 'center', gap: 2, marginLeft: 28 }}>
+            {NAV_ITEMS.map(item => (
+              <button
+                key={item.path}
+                className="nav-btn"
+                onClick={() => navigate(item.path)}
+                style={{
+                  padding: '6px 14px', fontSize: 12,
+                  letterSpacing: '0.06em',
+                  color:      isActive(item.path) ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)',
+                  background: isActive(item.path) ? 'rgba(200,150,62,0.08)' : 'transparent',
+                  borderRadius: 6, cursor: 'pointer',
+                  fontFamily: 'var(--font-mono, monospace)',
+                  textTransform: 'uppercase', border: 'none',
+                  transition: 'color 0.15s, background 0.15s',
+                }}
+              >{item.label}</button>
+            ))}
+          </nav>
+        </div>
+        <ProfileDropdown name={name} email={email} onLogout={logout} />
+      </header>
 
-        {/* ── Body ── */}
-        <main style={s.body}>
+      {/* ── Body ── */}
+      <main style={s.body}>
+
+        <div className="dash-grid" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* Greeting */}
-          <p style={s.greeting}>
+          <p className="dash-greeting" style={s.greeting}>
             {getGreeting()}{' '}
             <span style={{ color: 'var(--accent, #c8963e)', textTransform: 'capitalize' }}>
               {name.split(' ')[0]}
             </span>
           </p>
 
-          {/* ── Stat tiles: 2×2 mobile → 1×4 wide ── */}
-          <div
-            className="stats-grid"
-            style={{
-              display: 'grid',
-              gap: 1,
-              background: 'var(--border, #2e3040)',
-              borderRadius: 12,
-              overflow: 'hidden',
-              marginBottom: 16,
-            }}
-          >
-            {STATS.map(stat => {
-              const isActive = activeChip === stat.chipKey
-              const numColor = isActive
-                ? 'var(--accent, #c8963e)'
-                : stat.isQuery && queriesCount > 0
-                  ? 'rgba(200,150,62,0.85)'
-                  : 'var(--text, #e8e8f0)'
-              return (
-                <div
-                  key={stat.label}
-                  className="stat-tile"
-                  onClick={() => setActiveChip(a => a === stat.chipKey ? null : stat.chipKey)}
-                  style={{
-                    padding: 16,
-                    background: isActive ? 'rgba(200,150,62,0.08)' : 'var(--bg-panel, #1e2028)',
-                  }}
-                >
-                  <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1, color: numColor, fontFamily: 'var(--font-mono, monospace)' }}>
-                    {loading ? '—' : stat.n}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 4 }}>
-                    {stat.label}
-                  </div>
-                </div>
-              )
-            })}
+          {/* Mobile stats 2×2 */}
+          <div className="mob-stats" style={{ display: 'none', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border, #2e3040)', borderRadius: 12, overflow: 'hidden', gridColumn: '1 / -1' }}>
+            {STATS.map(stat => (
+              <div key={stat.label} style={{ padding: 16, background: 'var(--bg-panel, #1e2028)' }}>
+                <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{String(stat.n ?? '—')}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 4 }}>{stat.label}</div>
+              </div>
+            ))}
           </div>
 
-          {/* ── Active properties ── */}
+          {/* LEFT — Active Properties */}
           <section style={s.panel}>
             <div style={s.panelHead}>
               <span style={s.panelTitle}>active_properties</span>
@@ -488,35 +505,55 @@ export default function Dashboard() {
             {loading ? (
               <LogoSpinner />
             ) : loadError ? (
+              /* Honest error strip — never cosplays as empty state */
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.07)', gap: 10 }}>
                 <span style={{ fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>Couldn't load your queue — {loadError}</span>
                 <button onClick={load} style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(224,92,106,0.4)', background: 'transparent', color: 'var(--red, #e05c6a)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>Retry</button>
               </div>
-            ) : visibleQueue.length === 0 ? (
-              <div style={s.empty}>{emptyMsg}</div>
+            ) : visibleProperties.length === 0 ? (
+              <div style={s.empty}>No properties yet — start an inspection to add one.</div>
             ) : (
               <>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {visibleQueue.map(p => (
-                    <div
-                      key={p.pid}
-                      className="prop-card"
-                      onClick={() => doNavigate(p)}
-                      style={s.propCard}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                        <span style={s.propPid}>PID {p.pid}</span>
+                  {visibleProperties.map(prop => {
+                    const li     = inspMap[prop.pid]
+                    const action = computeNextAction(prop.pid, { latestEstByPid, disputesByEstId, draftMap })
+                    return (
+                      <div
+                        key={prop.pid}
+                        className="prop-card"
+                        onClick={() => action.navState ? navigate(action.path, { state: action.navState }) : navigate(action.path)}
+                        style={s.propCard}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <span style={s.propPid}>PID {prop.pid}</span>
+                          {/* Amber query badge — surfaces open landlord threads without redesigning stat grid */}
+                          {action.openQuery && (
+                            <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', background: 'rgba(200,150,62,0.12)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 4, padding: '2px 6px' }}>
+                              {action.landlordMsgCount} quer{action.landlordMsgCount !== 1 ? 'ies' : 'y'}
+                            </span>
+                          )}
+                        </div>
+                        <div style={s.propMeta}>
+                          {(() => {
+                            const typeLabel   = titleCase(prop.type || li?.house_type || '')
+                            const layoutLabel = li?.config?.layout || prop.config?.layout || ''
+                            return typeLabel + (layoutLabel ? ` · ${layoutLabel}` : '')
+                          })()}
+                        </div>
+                        {li && (
+                          <div style={s.propDate}>
+                            Last inspection: {fmt(li.inspection_date || li.created_at)}
+                          </div>
+                        )}
+                        <div style={s.propNext}>↳ Next: {action.label}</div>
                       </div>
-                      <div style={s.propMeta}>{p.houseType || '—'}</div>
-                      {p.lastActivity && (
-                        <div style={s.propDate}>Last inspection: {fmt(p.lastActivity)}</div>
-                      )}
-                      <div style={s.propNext}>↳ Next: {p.actionLabel}</div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
 
-                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border, #2e3040)', textAlign: 'center' }}>
+                {/* Show/hide test properties */}
+                <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border, #2e3040)', textAlign: 'center' }}>
                   <button
                     onClick={() => setShowTest(t => !t)}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', padding: '4px 8px', opacity: 0.6 }}
@@ -524,12 +561,128 @@ export default function Dashboard() {
                     {showTest ? 'Hide test properties' : 'Show test properties'}
                   </button>
                 </div>
+
+                {/* Fewer-than-3 hint */}
+                {visibleProperties.length < 3 && (
+                  <div style={{ border: '1px dashed rgba(200,150,62,0.2)', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Add more properties</span>
+                    <button
+                      onClick={() => navigate('/inspections/new')}
+                      style={{ color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 11, whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}
+                    >+ New</button>
+                  </div>
+                )}
+
+                {/* Property journey pipeline */}
+                <div style={{ marginTop: 16, padding: '12px 0 4px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Property Journey</div>
+                  <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', gap: 0, paddingBottom: 4, WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                    {[
+                      { stage: 'T-5', label: 'INSPECTION',  color: '#c8963e' },
+                      { stage: 'T-4', label: 'ESTIMATE',    color: '#6b8de6' },
+                      { stage: 'T-3', label: 'WORK ORDER',  color: '#9b6de6' },
+                      { stage: 'T-2', label: 'IN PROGRESS', color: '#e6923e' },
+                      { stage: 'T-1', label: 'SNAGGING',    color: '#e6d83e' },
+                      { stage: 'T',   label: 'READY',       color: '#3dba7a' },
+                    ].map((step, idx, arr) => {
+                      const activePid = visibleProperties[0]?.pid
+                      const isAct     = idx === 0
+                      return (
+                        <div key={step.stage} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                            <div style={{
+                              width: 28, height: 28, borderRadius: '50%',
+                              background: isAct ? step.color : 'transparent',
+                              border: `2px solid ${isAct ? step.color : 'var(--border-dash, #3a3d52)'}`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 8, fontWeight: 700, color: isAct ? '#16171f' : 'var(--text-muted, #6b6d82)',
+                              fontFamily: 'var(--font-mono, monospace)',
+                            }}>{step.stage}</div>
+                            <div style={{ fontSize: 8, color: isAct ? step.color : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', letterSpacing: '0.06em' }}>{step.label}</div>
+                            {isAct && activePid && (
+                              <div style={{ fontSize: 8, color: step.color, fontFamily: 'var(--font-mono, monospace)', opacity: 0.8 }}>{activePid}</div>
+                            )}
+                          </div>
+                          {idx < arr.length - 1 && (
+                            <div style={{ width: 24, height: 1, background: 'var(--border-dash, #3a3d52)', margin: '0 2px', marginBottom: 24, flexShrink: 0 }} />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
               </>
             )}
           </section>
 
-        </main>
-      </div>
+          {/* RIGHT column */}
+          <div className="dash-right-col" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* Snapshot stats — desktop only */}
+            <section className="desk-stats" style={{ display: 'none' }}>
+              <div style={s.panel}>
+                <div style={s.panelHead}>
+                  <span style={s.panelTitle}>snapshot</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
+                  {STATS.map(stat => (
+                    <div key={stat.label} style={{ padding: '14px 16px', background: 'var(--bg-panel, #1e2028)' }}>
+                      <div style={{ ...s.statNum, fontSize: 20 }}>{String(stat.n ?? '—')}</div>
+                      <div style={{ ...s.statLabel, marginTop: 4 }}>{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* Quick Actions — desktop only */}
+            <section className="dash-quick" style={{ display: 'none' }}>
+              <div style={s.panel}>
+                <div style={s.panelHead}>
+                  <span style={s.panelTitle}>quick_actions</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {QUICK_ACTIONS.map(a => (
+                    <button key={a.path} className="qa-btn" onClick={() => navigate(a.path)} style={s.qaBtn}>
+                      <span style={{ color: 'var(--accent, #c8963e)', fontWeight: 700, fontSize: 14 }}>{a.icon}</span>
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* Activity feed */}
+            <section style={s.panel}>
+              <div style={s.panelHead}>
+                <span style={s.panelTitle}>activity_feed</span>
+              </div>
+              {activity.length === 0 ? (
+                <div style={s.empty}>No recent activity.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {activity.map((ev, i) => (
+                    <div
+                      key={i}
+                      className="feed-item"
+                      onClick={() => navigate(ev.link)}
+                      style={s.feedItem}
+                    >
+                      <span style={{ fontSize: 7, color: FEED_COLORS[ev.type] || '#c8963e', marginTop: 5, flexShrink: 0 }}>●</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={s.feedTitle}>{ev.title}</div>
+                        <div style={s.feedSub}>{ev.desc} · {fmt(ev.date)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+          </div>
+        </div>
+      </main>
+    </div>
     </>
   )
 }
@@ -607,7 +760,18 @@ const s = {
     cursor: 'pointer',
     fontFamily: 'var(--font-mono, monospace)',
   },
-  // Original card anatomy — values from pre-queue commit
+  statNum: {
+    fontSize: 18,
+    fontWeight: 700,
+    color: 'var(--text, #e8e8f0)',
+    fontFamily: 'var(--font-mono, monospace)',
+  },
+  statLabel: {
+    fontSize: 10,
+    color: 'var(--text-muted, #6b6d82)',
+    fontFamily: 'var(--font-mono, monospace)',
+    marginTop: 2,
+  },
   propCard: {
     padding: '12px 14px',
     background: 'var(--bg-input, #252731)',
@@ -643,5 +807,42 @@ const s = {
     color: 'var(--text-muted, #6b6d82)',
     fontFamily: 'var(--font-mono, monospace)',
     padding: '8px 0',
+  },
+  feedItem: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: '9px 6px',
+    cursor: 'pointer',
+    borderRadius: 6,
+    borderBottom: '1px solid var(--border, #2e3040)',
+    transition: 'background 0.12s',
+  },
+  feedTitle: {
+    fontSize: 12,
+    color: 'var(--text, #e8e8f0)',
+    fontFamily: 'var(--font-mono, monospace)',
+    fontWeight: 500,
+  },
+  feedSub: {
+    fontSize: 10,
+    color: 'var(--text-muted, #6b6d82)',
+    fontFamily: 'var(--font-mono, monospace)',
+    marginTop: 2,
+  },
+  qaBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '10px 12px',
+    background: 'var(--bg-input, #252731)',
+    border: '1px solid var(--border, #2e3040)',
+    borderRadius: 8,
+    cursor: 'pointer',
+    color: 'var(--text, #e8e8f0)',
+    fontSize: 12,
+    fontFamily: 'var(--font-mono, monospace)',
+    textAlign: 'left',
+    transition: 'border-color 0.15s, color 0.15s',
   },
 }
