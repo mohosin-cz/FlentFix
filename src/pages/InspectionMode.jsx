@@ -181,6 +181,13 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
           }
           if (sel.includes('Functional')) {
             rows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: card.health ?? 10, excluded_from_estimate: true, _media: card.media || [] })
+          } else if (card.costType) {
+            // New card-level cost model — one consolidated row per card
+            const qty = Math.max(1, parseFloat(card.qty) || 1)
+            const issueSummary = sel.filter(i => i !== 'Functional').map(i => i === 'Other' ? (card.otherIssue || 'Other') : i).join(', ') || 'Issues'
+            const matCost = card.costType === 'priced' ? (parseFloat(card.materialCost) || 0) * qty : 0
+            const labCost = card.costType === 'priced' ? (parseFloat(card.labourCost) || 0) * qty : 0
+            rows.push({ ...base, issue_description: issueSummary, action: [card.actionType, card.action].filter(Boolean).join(': ') || '', cost_type: card.costType, material_item_id: card.materialItemId || null, material_fxin: card.materialRateId || null, material_description: card.materialDescription || null, material_cost: matCost, labour_cost: labCost, item_score: card.health ?? null, _media: card.media || [] })
           } else {
             sel.forEach((issue, ri) => {
               const cr         = (card.costRows || {})[issue] || {}
