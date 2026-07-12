@@ -232,10 +232,12 @@ export default function Dashboard() {
   const name  = session?.user?.user_metadata?.full_name ?? email.split('@')[0].replace(/[._]/g, ' ')
 
   const [props,           setProps]           = useState([])
+  const [latestInspByPid, setLatestInspByPid] = useState({})
   const [latestEstByPid,  setLatestEstByPid]  = useState({})
   const [disputesByEstId, setDisputesByEstId] = useState({})
   const [draftMap,        setDraftMap]        = useState({})
   const [loading,         setLoading]         = useState(true)
+  const [loadError,       setLoadError]       = useState(null)
   const [activeChip,      setActiveChip]      = useState(null)
   const [showTest,        setShowTest]        = useState(false)
 
@@ -246,10 +248,14 @@ export default function Dashboard() {
 
   const load = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
-      const [propsRes, estsRes, dispsRes] = await Promise.all([
+      const [propsRes, inspsRes, estsRes, dispsRes] = await Promise.all([
         supabase.from('properties')
-          .select('pid,name,type,address,created_at,inspections(house_type,inspection_date,created_at)')
+          .select('pid,name,type,address,created_at')
+          .order('created_at', { ascending: false }),
+        supabase.from('inspections')
+          .select('pid,house_type,inspection_date,created_at')
           .order('created_at', { ascending: false }),
         supabase.from('estimates')
           .select('id,pid,sent_at,created_at')
@@ -259,9 +265,21 @@ export default function Dashboard() {
           .order('created_at', { ascending: false }),
       ])
 
-      const properties = propsRes.data || []
-      const estimates  = estsRes.data  || []
-      const disputes   = dispsRes.data || []
+      const firstErr = propsRes.error || inspsRes.error || estsRes.error || dispsRes.error
+      if (firstErr) {
+        console.error('Dashboard load error:', firstErr)
+        setLoadError(firstErr.message || 'Query failed')
+        return
+      }
+
+      const properties = propsRes.data  || []
+      const inspections = inspsRes.data || []
+      const estimates   = estsRes.data  || []
+      const disputes    = dispsRes.data || []
+
+      // latest inspection per pid (already desc-ordered, so first wins)
+      const inspByPid = {}
+      inspections.forEach(i => { if (!inspByPid[i.pid]) inspByPid[i.pid] = i })
 
       const estByPid = {}
       estimates.forEach(e => { if (!estByPid[e.pid]) estByPid[e.pid] = e })
@@ -273,6 +291,7 @@ export default function Dashboard() {
       })
 
       setProps(properties)
+      setLatestInspByPid(inspByPid)
       setLatestEstByPid(estByPid)
       setDisputesByEstId(dispByEst)
 
@@ -281,6 +300,7 @@ export default function Dashboard() {
       setDraftMap(dm)
     } catch (err) {
       console.error('Dashboard load error:', err)
+      setLoadError(err.message || 'Unexpected error')
     } finally {
       setLoading(false)
     }
@@ -292,6 +312,7 @@ export default function Dashboard() {
   // ─── Derive work queue ──────────────────────────────────────────────────────
   const fullQueue = useMemo(() => {
     const filtered = props.filter(p => showTest || !/^test/i.test(String(p.pid)))
+
 
     return filtered.map(p => {
       const est    = latestEstByPid[p.pid]
@@ -340,8 +361,8 @@ export default function Dashboard() {
         actionPath  = `/properties/${p.pid}/estimates`
       }
 
-      const latestInsp = [...(p.inspections || [])].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
-      const houseType  = titleCase(latestInsp?.house_type || p.type || '')
+      const latestInsp   = latestInspByPid[p.pid]
+      const houseType    = titleCase(latestInsp?.house_type || p.type || '')
       const lastActivity = latestInsp?.inspection_date || latestInsp?.created_at || est?.created_at || p.created_at
 
       return { ...p, houseType, lastActivity, est, inspInProgress, draftDone, draftTotal, openQuery, landlordMsgCount, sortPri, sortTs, actionLabel, actionPath, actionState }
@@ -350,7 +371,7 @@ export default function Dashboard() {
       if (a.sortPri === 0) return a.sortTs - b.sortTs  // oldest unanswered query first
       return b.sortTs - a.sortTs                        // most recent first otherwise
     })
-  }, [props, latestEstByPid, disputesByEstId, draftMap, showTest])
+  }, [props, latestInspByPid, latestEstByPid, disputesByEstId, draftMap, showTest])
 
   const visibleQueue = useMemo(() => {
     if (!activeChip) return fullQueue
@@ -432,6 +453,14 @@ export default function Dashboard() {
           {/* Queue list */}
           {loading ? (
             <LogoSpinner />
+          ) : loadError ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.07)', gap: 10 }}>
+              <span style={{ fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>Couldn't load your queue — {loadError}</span>
+              <button
+                onClick={load}
+                style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(224,92,106,0.4)', background: 'transparent', color: 'var(--red, #e05c6a)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}
+              >Retry</button>
+            </div>
           ) : visibleQueue.length === 0 ? (
             <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
               {activeChip ? 'No properties match this filter.' : 'No properties yet — start an inspection to add one.'}
