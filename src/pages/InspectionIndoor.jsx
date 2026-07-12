@@ -250,7 +250,7 @@ function buildTabs(houseType, bhk) {
 // ── State helpers ─────────────────────────────────────────────────────────────
 const blankCostRow  = () => ({ action: '', labourRateId: '', labourCost: '', materialCost: '', materialRateId: '', qty: 1 })
 const blankIssueRow = () => ({ id: `ir_${Date.now()}_${Math.random().toString(36).slice(2)}`, issueDescription: '', action: '', labourRateId: '', labourCost: '', materialCost: '' })
-const blankCard = () => ({ health: null, notes: '', media: [], proofMedia: [], fixtureStatus: null, notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {}, action: '', materialItemId: null, materialRateId: null, materialDescription: null, materialCost: '', kindOverride: null })
+const blankCard = () => ({ health: null, notes: '', media: [], proofMedia: [], fixtureStatus: null, notAvailable: false, notAvailableNote: '', selectedIssues: [], otherIssue: '', costRows: {}, action: '', actionType: null, costType: null, materialItemId: null, materialRateId: null, materialDescription: null, materialCost: '', labourRateId: '', labourCost: '', qty: 1, kindOverride: null })
 const blankGeneral = () => ({ enabled: null, areas: [], partialRooms: '', labourCost: '', rateId: '', notes: '', media: [], description: '', fullHome: null, specificAreas: [] })
 const BLANK_SPEC_AREA = () => ({ id: `sa_${Date.now()}_${Math.random().toString(36).slice(2)}`, area: '', type: '', notes: '', rateId: '', cost: '' })
 
@@ -455,10 +455,10 @@ function ProofVideoCapture({ itemTotal, proofMedia, onChange, pid, itemKey }) {
 }
 
 // ── Issue checkbox grid ───────────────────────────────────────────────────────
-function IssueCheckboxGrid({ presets, selectedIssues, otherIssue, onSetIssues, onOtherChange }) {
+function IssueCheckboxGrid({ presets, selectedIssues, otherIssue, onSetIssues, onOtherChange, hideFunctional }) {
   const regularPresets = (presets || []).filter(p => p !== 'Functional' && p !== 'Other')
   const hasOtherPreset = (presets || []).includes('Other')
-  const hasFunctional  = (presets || []).includes('Functional')
+  const hasFunctional  = !hideFunctional && (presets || []).includes('Functional')
   const isFunctional   = selectedIssues.includes('Functional')
 
   function toggle(issue) {
@@ -596,7 +596,7 @@ function NotAvailableNote({ value, onChange }) {
 }
 
 // ── Card-level material picker ────────────────────────────────────────────────
-function CardMaterialPicker({ card, onUpdate }) {
+function CardMaterialPicker({ card, onUpdate, trade }) {
   const [search,  setSearch]  = useState('')
   const [results, setResults] = useState([])
   const [open,    setOpen]    = useState(false)
@@ -607,16 +607,18 @@ function CardMaterialPicker({ card, onUpdate }) {
   useEffect(() => {
     if (search.trim().length < 1) { setResults([]); return }
     const t = setTimeout(async () => {
-      const { data } = await supabase
+      let q = supabase
         .from('inventory_items')
         .select('id, fxin, item_name, flent_price, quantity_remaining')
         .gt('flent_price', 0)
         .or(`item_name.ilike.%${search}%,fxin.ilike.%${search}%`)
         .limit(10)
+      if (trade) q = q.eq('trade', trade)
+      const { data } = await q
       setResults(data || [])
     }, 250)
     return () => clearTimeout(t)
-  }, [search])
+  }, [search, trade])
 
   useEffect(() => {
     if (!open) return
@@ -874,6 +876,274 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
   )
 }
 
+// ── Card cost panel (trade-filtered material + labour pickers) ────────────────
+function CardCostPanel({ card, onUpdate, trade, labourRates }) {
+  const [showAll, setShowAll] = useState(false)
+  const tradeRates = (labourRates || []).filter(r => r.trade === trade)
+  const rates = showAll ? (labourRates || []) : (tradeRates.length ? tradeRates : (labourRates || []))
+  const INP = { width: '100%', padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text, #e8e8f0)', fontSize: 16, boxSizing: 'border-box', fontFamily: 'inherit', minHeight: 44 }
+  const LBL = { fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono, monospace)', display: 'block', marginBottom: 6 }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button type="button" onClick={() => setShowAll(p => !p)}
+          style={{ fontSize: 10, padding: '3px 10px', borderRadius: 4, border: '1px solid var(--border, #2e3040)', background: showAll ? 'rgba(200,150,62,0.1)' : 'transparent', color: showAll ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', fontWeight: 600 }}>
+          {showAll ? 'All rates' : `${trade || 'trade'} only`}
+        </button>
+      </div>
+      <CardMaterialPicker card={card} onUpdate={onUpdate} trade={showAll ? null : trade} />
+      <div>
+        <span style={LBL}>Material ₹</span>
+        <input type="number" inputMode="decimal" value={card.materialCost || ''} onChange={e => onUpdate('materialCost', e.target.value)} placeholder="0" style={INP} />
+      </div>
+      <LabourRateDropdown rates={rates} value={card.labourRateId} labourCost={card.labourCost} onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }} />
+      <div>
+        <span style={LBL}>Labour ₹</span>
+        <input type="number" inputMode="decimal" value={card.labourCost || ''} onChange={e => onUpdate('labourCost', e.target.value)} placeholder="0" style={INP} />
+      </div>
+    </div>
+  )
+}
+
+// ── Capture card stepper (staged progressive disclosure) ──────────────────────
+function CardStepper({ card, itemConfig, cardIdx, onUpdate, labourRates, pid, itemTotal, effectiveKind }) {
+  const { trade, issues: presets } = itemConfig
+  const selectedIssues = card.selectedIssues || []
+  const nonFunctional  = selectedIssues.filter(i => i !== 'Functional')
+  const cardQty        = Math.max(1, parseFloat(card.qty) || 1)
+  const needsProofVideo = itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD && nonFunctional.length > 0 && effectiveKind === 'fixture'
+  const hasProof        = (card.proofMedia || []).length > 0
+
+  const ALL_STAGES = ['issues', 'health', 'media', 'notes', 'action', 'action_type', 'cost_type', 'cost', 'qty']
+  function orderedStages(costType) { return ALL_STAGES.filter(s => s !== 'cost' || costType === 'priced') }
+
+  function firstIncomplete(crd) {
+    if (!(crd.selectedIssues || []).length) return 'issues'
+    if (!crd.actionType) return 'action_type'
+    if (!crd.costType) return 'cost_type'
+    return null
+  }
+
+  const [activeStage, setActiveStage] = useState(() => firstIncomplete(card))
+  const [allChips,    setAllChips]    = useState(() => firstIncomplete(card) === null)
+  const [noteOpen,    setNoteOpen]    = useState(!!card.notes)
+  const [actionOpen,  setActionOpen]  = useState(!!card.action)
+  const advTimer = useRef(null)
+  useEffect(() => () => clearTimeout(advTimer.current), [])
+
+  function advanceFrom(stage) {
+    clearTimeout(advTimer.current)
+    const ss = orderedStages(card.costType)
+    const i = ss.indexOf(stage)
+    const next = i >= 0 && i + 1 < ss.length ? ss[i + 1] : null
+    setActiveStage(next)
+    if (next === null) setAllChips(true)
+  }
+
+  function openStage(s) {
+    clearTimeout(advTimer.current)
+    setActiveStage(s)
+  }
+
+  function showChip(s) {
+    if (activeStage === s) return false
+    if (allChips) return true
+    const ss = orderedStages(card.costType)
+    const ai = ss.indexOf(activeStage)
+    const si = ss.indexOf(s)
+    return activeStage !== null && ai >= 0 && si < ai
+  }
+
+  // Receipt text
+  const issueText    = nonFunctional.length ? `${nonFunctional.length} issue${nonFunctional.length !== 1 ? 's' : ''}` : null
+  const healthText   = card.health !== null ? `${card.health}/10` : null
+  const mediaText    = (card.media || []).length ? `${(card.media || []).length} file${(card.media || []).length !== 1 ? 's' : ''}` : null
+  const notesText    = card.notes ? (card.notes.length > 40 ? card.notes.slice(0, 40) + '…' : card.notes) : null
+  const actionText   = card.action ? (card.action.length > 40 ? card.action.slice(0, 40) + '…' : card.action) : null
+  const atText       = card.actionType ? (card.actionType.charAt(0).toUpperCase() + card.actionType.slice(1)) : null
+  const ctText       = card.costType === 'priced' ? 'Priced' : card.costType === 'as_actuals' ? 'As Actuals' : card.costType === 'no_cost' ? 'No Cost' : null
+  const costAmtsText = card.costType === 'priced'
+    ? [card.materialCost && `₹${parseFloat(card.materialCost).toLocaleString('en-IN')} mat`, card.labourCost && `₹${parseFloat(card.labourCost).toLocaleString('en-IN')} lab`].filter(Boolean).join(' + ') || null
+    : null
+  const qtyText = cardQty > 1 ? `× ${cardQty}` : null
+
+  const INP = { width: '100%', padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text, #e8e8f0)', fontSize: 16, boxSizing: 'border-box', fontFamily: 'inherit', minHeight: 44 }
+
+  function Chip({ s, lbl, val }) {
+    if (!showChip(s) || !val) return null
+    return (
+      <button type="button" onClick={() => openStage(s)}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 11px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, cursor: 'pointer', width: '100%', textAlign: 'left', WebkitTapHighlightColor: 'transparent', minHeight: 36 }}>
+        <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0, minWidth: 48 }}>{lbl}</span>
+        <span style={{ width: 1, height: 10, background: 'var(--border, #2e3040)', flexShrink: 0 }} />
+        <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', flexShrink: 0 }}>✎</span>
+      </button>
+    )
+  }
+
+  function StageBox({ s, children }) {
+    const vis = activeStage === s
+    return (
+      <div style={{ overflow: 'hidden', maxHeight: vis ? '2000px' : '0', opacity: vis ? 1 : 0, transition: 'max-height 180ms ease, opacity 180ms ease' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{children}</div>
+      </div>
+    )
+  }
+
+  function NextBtn({ onClick, lbl = 'Next →', disabled = false }) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
+        <button type="button" onClick={onClick} disabled={disabled}
+          style={{ padding: '7px 16px', background: disabled ? 'transparent' : 'rgba(200,150,62,0.1)', border: `1px solid ${disabled ? 'var(--border, #2e3040)' : 'rgba(200,150,62,0.4)'}`, borderRadius: 6, color: disabled ? 'var(--text-muted, #6b6d82)' : 'var(--accent, #c8963e)', fontSize: 11, fontWeight: 700, cursor: disabled ? 'default' : 'pointer', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em' }}>
+          {lbl}
+        </button>
+      </div>
+    )
+  }
+
+  function SegPills({ opts, val, onChange }) {
+    return (
+      <div style={{ display: 'flex', gap: 6 }}>
+        {opts.map(([v, l]) => (
+          <button key={v} type="button" onClick={() => onChange(v)}
+            style={{ flex: 1, padding: '10px 0', border: `1px solid ${val === v ? 'rgba(200,150,62,0.5)' : 'var(--border, #2e3040)'}`, background: val === v ? 'rgba(200,150,62,0.12)' : 'transparent', color: val === v ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', WebkitTapHighlightColor: 'transparent' }}>
+            {l}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  function updateIssues(nextIssues) {
+    if (nextIssues.length > 0 && card.fixtureStatus !== null) onUpdate('fixtureStatus', null)
+    const newCostRows = { ...(card.costRows || {}) }
+    nextIssues.forEach(issue => { if (issue !== 'Functional' && !newCostRows[issue]) newCostRows[issue] = blankCostRow() })
+    onUpdate('selectedIssues', nextIssues)
+    onUpdate('costRows', newCostRows)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+
+      {/* 1 ── ISSUES */}
+      <Chip s="issues" lbl="Issues" val={issueText} />
+      <StageBox s="issues">
+        <IssueCheckboxGrid presets={presets} selectedIssues={selectedIssues} otherIssue={card.otherIssue} onSetIssues={updateIssues} onOtherChange={v => onUpdate('otherIssue', v)} hideFunctional />
+        <NextBtn onClick={() => advanceFrom('issues')} disabled={!nonFunctional.length} lbl="Done →" />
+      </StageBox>
+
+      {/* 2 ── HEALTH */}
+      <Chip s="health" lbl="Health" val={healthText} />
+      <StageBox s="health">
+        <HealthSlider value={card.health} onChange={v => onUpdate('health', v)} />
+        <NextBtn onClick={() => advanceFrom('health')} />
+      </StageBox>
+
+      {/* 3 ── MEDIA */}
+      <Chip s="media" lbl="Media" val={mediaText} />
+      <StageBox s="media">
+        <MediaUpload files={card.media || []} onChange={v => onUpdate('media', v)} pid={pid} itemKey={`${itemConfig.key}_${cardIdx}`} />
+        <NextBtn onClick={() => advanceFrom('media')} lbl={(card.media || []).length ? 'Done →' : 'Skip →'} />
+      </StageBox>
+
+      {/* 4 ── NOTES */}
+      <Chip s="notes" lbl="Notes" val={notesText} />
+      <StageBox s="notes">
+        {(noteOpen || card.notes) ? (
+          <Textarea value={card.notes || ''} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any observations…" />
+        ) : (
+          <button type="button" onClick={() => setNoteOpen(true)}
+            style={{ padding: '10px 14px', border: '1px dashed var(--border, #2e3040)', borderRadius: 6, background: 'transparent', color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
+            + Add note
+          </button>
+        )}
+        <NextBtn onClick={() => advanceFrom('notes')} lbl={card.notes ? 'Done →' : 'Skip →'} />
+      </StageBox>
+
+      {/* 5 ── ACTION */}
+      <Chip s="action" lbl="Action" val={actionText} />
+      <StageBox s="action">
+        {(actionOpen || card.action) ? (
+          <input type="text" value={card.action || ''} onChange={e => onUpdate('action', e.target.value)} placeholder="e.g. Replace the latch, repaint the panel" style={INP} />
+        ) : (
+          <button type="button" onClick={() => setActionOpen(true)}
+            style={{ padding: '10px 14px', border: '1px dashed var(--border, #2e3040)', borderRadius: 6, background: 'transparent', color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
+            + Add action
+          </button>
+        )}
+        <NextBtn onClick={() => advanceFrom('action')} lbl={card.action ? 'Done →' : 'Skip →'} />
+      </StageBox>
+
+      {/* 6 ── ACTION TYPE */}
+      <Chip s="action_type" lbl="Type" val={atText} />
+      <StageBox s="action_type">
+        <SegPills
+          opts={[['repair', 'Repair'], ['replace', 'Replace'], ['install', 'Install']]}
+          val={card.actionType}
+          onChange={v => {
+            onUpdate('actionType', v)
+            clearTimeout(advTimer.current)
+            advTimer.current = setTimeout(() => setActiveStage('cost_type'), 350)
+          }}
+        />
+      </StageBox>
+
+      {/* 7 ── COST TYPE */}
+      <Chip s="cost_type" lbl="Cost" val={ctText} />
+      <StageBox s="cost_type">
+        <SegPills
+          opts={[['priced', 'Priced'], ['as_actuals', 'As Actuals'], ['no_cost', 'No Cost']]}
+          val={card.costType}
+          onChange={v => {
+            onUpdate('costType', v)
+            const nextS = v === 'priced' ? 'cost' : 'qty'
+            clearTimeout(advTimer.current)
+            advTimer.current = setTimeout(() => setActiveStage(nextS), 350)
+          }}
+        />
+      </StageBox>
+
+      {/* 8 ── COST CARD (priced only) */}
+      <Chip s="cost" lbl="Cost ₹" val={costAmtsText} />
+      <StageBox s="cost">
+        <CardCostPanel card={card} onUpdate={onUpdate} trade={trade} labourRates={labourRates} />
+        <NextBtn onClick={() => advanceFrom('cost')} lbl="Done →" />
+      </StageBox>
+
+      {/* 9 ── QTY */}
+      <Chip s="qty" lbl="Qty" val={qtyText} />
+      <StageBox s="qty">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button type="button" onClick={() => onUpdate('qty', Math.max(1, cardQty - 1))}
+            style={{ width: 40, height: 40, borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>−</button>
+          <span style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', color: 'var(--text, #e8e8f0)', minWidth: 32, textAlign: 'center' }}>{cardQty}</span>
+          <button type="button" onClick={() => onUpdate('qty', cardQty + 1)}
+            style={{ width: 40, height: 40, borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>+</button>
+        </div>
+        <NextBtn onClick={() => { clearTimeout(advTimer.current); setActiveStage(null); setAllChips(true) }} lbl="Done" />
+      </StageBox>
+
+      {/* Total */}
+      {itemTotal > 0 && activeStage === null && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.2)', borderRadius: 8, marginTop: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>
+            {card.costType === 'priced' && cardQty > 1
+              ? `${cardQty} × ₹${((parseFloat(card.materialCost) || 0) + (parseFloat(card.labourCost) || 0)).toLocaleString('en-IN')}`
+              : 'Total'}
+          </span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>₹{itemTotal.toLocaleString('en-IN')}</span>
+        </div>
+      )}
+
+      {/* Proof video (inline when total ≥ threshold) */}
+      {needsProofVideo && (
+        <ProofVideoCapture itemTotal={itemTotal} proofMedia={card.proofMedia || []} onChange={v => onUpdate('proofMedia', v)} pid={pid} itemKey={`${itemConfig.key}_${cardIdx}_proof`} />
+      )}
+    </div>
+  )
+}
+
 // ── Item card ─────────────────────────────────────────────────────────────────
 function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onUpdate, onDuplicate, onRemove, labourRates, pid, sectionLabel }) {
   const { label, trade, issues: presets } = itemConfig
@@ -888,11 +1158,13 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
   const done           = effFS !== null || selectedIssues.length > 0 || (isAcPoint && acProvision === 'not_present')
   const nonFunctional  = selectedIssues.filter(i => i !== 'Functional')
   const [confirmSheet, setConfirmSheet] = useState(null)
-  const itemTotal      = nonFunctional.reduce((sum, issue) => {
-    const cr  = costRows[issue] || {}
-    const qty = Math.max(1, parseFloat(cr.qty) || 1)
-    return sum + ((parseFloat(cr.materialCost) || 0) + (parseFloat(cr.labourCost) || 0)) * qty
-  }, 0)
+  const itemTotal = card.costType
+    ? ((parseFloat(card.materialCost) || 0) + (parseFloat(card.labourCost) || 0)) * Math.max(1, parseFloat(card.qty) || 1)
+    : nonFunctional.reduce((sum, issue) => {
+        const cr  = costRows[issue] || {}
+        const qty = Math.max(1, parseFloat(cr.qty) || 1)
+        return sum + ((parseFloat(cr.materialCost) || 0) + (parseFloat(cr.labourCost) || 0)) * qty
+      }, 0)
   const effectiveKind   = card.kindOverride ?? classifyItemKind(label, nonFunctional.join(' '), card.action || '', sectionLabel || '', trade || '')
   const needsProofVideo = nonFunctional.length > 0 && itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD && effectiveKind === 'fixture'
   const hasProof        = (card.proofMedia || []).length > 0
@@ -1011,73 +1283,7 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
             <MediaUpload files={card.media} onChange={v => onUpdate('media', v)} pid={pid} itemKey={`${itemConfig.key}_${cardIdx}`} />
           </div>
         ) : (
-          <>
-            <Field label="Issues">
-              <IssueCheckboxGrid
-                presets={presets}
-                selectedIssues={selectedIssues}
-                otherIssue={card.otherIssue}
-                onSetIssues={toggleIssue}
-                onOtherChange={v => onUpdate('otherIssue', v)}
-              />
-            </Field>
-
-            <Field label="Health Score">
-              <HealthSlider value={card.health} onChange={v => onUpdate('health', v)} />
-            </Field>
-
-            <MediaUpload files={card.media} onChange={v => onUpdate('media', v)} pid={pid} itemKey={`${itemConfig.key}_${cardIdx}`} />
-
-            <ProofVideoCapture
-              itemTotal={itemTotal}
-              proofMedia={card.proofMedia || []}
-              onChange={v => onUpdate('proofMedia', v)}
-              pid={pid}
-              itemKey={`${itemConfig.key}_${cardIdx}_proof`}
-            />
-
-            <Field label="Notes" optional>
-              <Textarea value={card.notes} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any observations…" />
-            </Field>
-
-            <Field label="Action — what we'll do" optional>
-              <input
-                type="text"
-                value={card.action || ''}
-                onChange={e => onUpdate('action', e.target.value)}
-                placeholder="e.g. Replace the latch, repaint the panel"
-                style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text, #e8e8f0)', fontSize: 16, boxSizing: 'border-box', fontFamily: 'inherit', minHeight: 44 }}
-              />
-            </Field>
-
-            <Field label="Material" optional>
-              <CardMaterialPicker card={card} onUpdate={onUpdate} />
-            </Field>
-
-            {nonFunctional.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)' }}>Cost Breakdown</span>
-                {nonFunctional.map(issue => (
-                  <IssueCostRow
-                    key={issue}
-                    issueLabel={issue === 'Other' ? (card.otherIssue || 'Other') : issue}
-                    costRow={costRows[issue] || {}}
-                    tradeRates={tradeRates}
-                    onUpdate={(field, value) => updateCostRow(issue, { [field]: value })}
-                    onSelectRate={(id, cost, desc) => updateCostRow(issue, { labourRateId: id, labourCost: cost, labourDescription: desc })}
-                    onSelectMaterial={(id, fxin, cost, name) => updateCostRow(issue, { materialItemId: id, materialRateId: fxin, materialCost: cost, materialDescription: name })}
-                  />
-                ))}
-              </div>
-            )}
-
-            {itemTotal > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.25)', borderRadius: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-dim, #9394a8)' }}>Item Total</span>
-                <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent, #c8963e)' }}>₹{itemTotal.toLocaleString('en-IN')}</span>
-              </div>
-            )}
-          </>
+          <CardStepper card={card} itemConfig={itemConfig} cardIdx={cardIdx} onUpdate={onUpdate} labourRates={labourRates} pid={pid} itemTotal={itemTotal} effectiveKind={effectiveKind} />
         )}
       </div>
     </AccordionCard>
