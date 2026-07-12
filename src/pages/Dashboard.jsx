@@ -231,7 +231,7 @@ function DropItem({ icon, label, onClick, danger }) {
   )
 }
 
-// ─── Shared: error strip ───────────────────────────────────────────────────────
+// ─── Shared error strip ────────────────────────────────────────────────────────
 function ErrorStrip({ msg, onRetry }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.07)', gap: 10 }}>
@@ -299,7 +299,6 @@ export default function Dashboard() {
       const estimates   = estsRes.data   || []
       const disputes    = dispsRes.data  || []
 
-      // latest inspection per pid (desc-ordered, first wins)
       const inspByPid = {}
       inspections.forEach(i => { if (!inspByPid[i.pid]) inspByPid[i.pid] = i })
 
@@ -349,9 +348,9 @@ export default function Dashboard() {
         : null
       const openQuery = !!(est?.sent_at && latestDisp?.author_type === 'landlord')
 
-      const landlordMsgs      = disputes.filter(d => d.author_type === 'landlord')
-      const landlordMsgCount  = landlordMsgs.length
-      const oldestLandlordTs  = openQuery && landlordMsgs.length > 0
+      const landlordMsgs     = disputes.filter(d => d.author_type === 'landlord')
+      const landlordMsgCount = landlordMsgs.length
+      const oldestLandlordTs = openQuery && landlordMsgs.length > 0
         ? Math.min(...landlordMsgs.map(d => new Date(d.created_at).getTime()))
         : Infinity
 
@@ -387,7 +386,7 @@ export default function Dashboard() {
       return { ...p, houseType, lastActivity, est, inspInProgress, draftDone, draftTotal, openQuery, landlordMsgCount, sortPri, sortTs, actionLabel, actionPath, actionState }
     }).sort((a, b) => {
       if (a.sortPri !== b.sortPri) return a.sortPri - b.sortPri
-      if (a.sortPri === 0) return a.sortTs - b.sortTs  // oldest unanswered query first
+      if (a.sortPri === 0) return a.sortTs - b.sortTs
       return b.sortTs - a.sortTs
     })
   }, [props, latestInspByPid, latestEstByPid, disputesByEstId, draftMap, showTest])
@@ -404,49 +403,29 @@ export default function Dashboard() {
   const toSendCount     = useMemo(() => fullQueue.filter(p => p.est && !p.est.sent_at).length, [fullQueue])
   const queriesCount    = useMemo(() => fullQueue.filter(p => p.openQuery).length,              [fullQueue])
 
-  // Mobile triage chips (hidden when count=0)
+  // Mobile triage chips
   const mobileChips = [
     { key: 'inprogress', label: `${inProgressCount} in progress`, count: inProgressCount },
     { key: 'tosend',     label: `${toSendCount} to send`,         count: toSendCount     },
     { key: 'queries',    label: `${queriesCount} queries`,         count: queriesCount    },
   ].filter(c => c.count > 0)
 
-  // Desktop stat tiles — clicking sets activeChip filter (null = show all)
+  // Desktop stat tiles — 4 items, tappable, act as filter radio
   const desktopStats = [
-    { key: 'inprogress', n: inProgressCount, label: 'Inspections in progress' },
-    { key: 'tosend',     n: toSendCount,     label: 'Estimates to send'        },
-    { key: 'queries',    n: queriesCount,    label: 'Queries awaiting reply'   },
-    { key: null,         n: fullQueue.length, label: 'Active properties'        },
+    { chipKey: 'inprogress', n: loading ? '—' : inProgressCount, label: 'Inspections in progress', isQuery: false },
+    { chipKey: 'tosend',     n: loading ? '—' : toSendCount,     label: 'Estimates to send',        isQuery: false },
+    { chipKey: 'queries',    n: loading ? '—' : queriesCount,    label: 'Queries awaiting reply',   isQuery: true  },
+    { chipKey: null,         n: loading ? '—' : fullQueue.length, label: 'Active properties',        isQuery: false },
   ]
 
-  // ─── Shared action button helper ────────────────────────────────────────────
-  function doAction(e, p) {
-    e.stopPropagation()
+  function doNavigate(p) {
     if (p.actionState) navigate(p.actionPath, { state: p.actionState })
     else navigate(p.actionPath)
   }
 
-  function actionStyle(p) {
-    const isReply = p.openQuery
-    const isDim   = p.actionLabel === 'View estimate'
-    return {
-      padding: '6px 10px', borderRadius: 6, cursor: 'pointer',
-      border: `1px solid ${isReply ? 'rgba(200,150,62,0.6)' : 'rgba(200,150,62,0.22)'}`,
-      background: isReply ? 'rgba(200,150,62,0.12)' : 'transparent',
-      color: isReply ? 'var(--accent, #c8963e)' : isDim ? 'var(--text-muted, #6b6d82)' : 'var(--text, #e8e8f0)',
-      fontSize: 11, fontWeight: isReply ? 700 : 600,
-      fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', flexShrink: 0,
-    }
-  }
-
-  // ─── Shared empty state ─────────────────────────────────────────────────────
-  function QueueEmpty() {
-    return (
-      <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
-        {activeChip ? 'No properties match this filter.' : 'No properties yet — start an inspection to add one.'}
-      </div>
-    )
-  }
+  const emptyMsg = activeChip
+    ? 'No properties match this filter.'
+    : 'No properties yet — start an inspection to add one.'
 
   return (
     <>
@@ -454,21 +433,25 @@ export default function Dashboard() {
       <div style={s.page}>
         <style>{`
           /* layout breakpoint */
-          .dash-mobile  { display: flex; flex-direction: column; }
-          .dash-desktop { display: none; }
+          .dash-mobile  { display: flex !important; flex-direction: column; }
+          .dash-desktop { display: none  !important; }
           @media (min-width: 768px) {
-            .dash-mobile  { display: none !important; }
+            .dash-mobile  { display: none  !important; }
             .dash-desktop { display: block !important; }
           }
-          /* card hover */
-          .prop-card:hover  { border-color: var(--accent, #c8963e) !important; }
-          .q-card:active    { border-color: rgba(200,150,62,0.5) !important; }
-          .stat-tile        { transition: border-color 0.15s, background 0.15s; cursor: pointer; }
-          .chip-btn         { transition: background 0.15s, color 0.15s; }
-          .act-btn:active   { opacity: 0.7; }
+          /* stat grid: 2×2 at 768-1099px, 1×4 at ≥1100px */
+          .desk-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          @media (min-width: 1100px) {
+            .desk-stats-grid { grid-template-columns: repeat(4, 1fr) !important; }
+          }
+          /* hover states */
+          .prop-card:hover { border-color: var(--accent, #c8963e) !important; }
+          .stat-tile       { transition: background 0.14s; }
+          .chip-btn        { transition: background 0.15s, color 0.15s; }
+          .q-card:active   { border-color: rgba(200,150,62,0.5) !important; }
         `}</style>
 
-        {/* ── Header (shared) ── */}
+        {/* ── Shared header ── */}
         <header style={s.header}>
           <button
             onClick={() => navigate('/')}
@@ -479,10 +462,9 @@ export default function Dashboard() {
           <ProfileDropdown name={name} email={email} onLogout={logout} />
         </header>
 
-        {/* ══════════════════════ MOBILE (<768px) ══════════════════════════════ */}
+        {/* ══════════ MOBILE (<768px) ══════════════════════════════════════════ */}
         <main className="dash-mobile" style={s.mobileBody}>
 
-          {/* Triage strip — hidden when all counts zero */}
           {mobileChips.length > 0 && (
             <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
               {mobileChips.map(c => (
@@ -503,38 +485,38 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Queue header row */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <button
-              onClick={() => navigate('/properties')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}
-            >{fullQueue.length} properties →</button>
-            <button
-              onClick={() => navigate('/inspections/new')}
-              style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(200,150,62,0.3)', background: 'transparent', color: 'var(--accent, #c8963e)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}
-            >+ New Inspection</button>
+            <button onClick={() => navigate('/properties')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+              {fullQueue.length} properties →
+            </button>
+            <button onClick={() => navigate('/inspections/new')} style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(200,150,62,0.3)', background: 'transparent', color: 'var(--accent, #c8963e)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+              + New Inspection
+            </button>
           </div>
 
-          {/* Queue body */}
           {loading ? <LogoSpinner />
             : loadError ? <ErrorStrip msg={loadError} onRetry={load} />
-            : visibleQueue.length === 0 ? <QueueEmpty />
+            : visibleQueue.length === 0 ? <div style={s.empty}>{emptyMsg}</div>
             : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {visibleQueue.map(p => (
-                  <div key={p.pid} className="q-card" style={{
+                  <div key={p.pid} className="q-card" onClick={() => doNavigate(p)} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '10px 14px',
                     background: 'var(--bg-panel, #1e2028)',
                     border: '1px solid var(--border, #2e3040)',
-                    borderRadius: 8,
+                    borderRadius: 8, cursor: 'pointer',
                   }}>
                     <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 14, fontWeight: 700, color: 'var(--accent, #c8963e)', flexShrink: 0, minWidth: 36 }}>{p.pid}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.houseType || '—'}</div>
                       <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 1 }}>{fmt(p.lastActivity)}</div>
                     </div>
-                    <button className="act-btn" onClick={e => doAction(e, p)} style={actionStyle(p)}>{p.actionLabel}</button>
+                    <span style={{
+                      fontSize: 11, fontWeight: p.openQuery ? 700 : 600, flexShrink: 0,
+                      color: p.openQuery ? 'var(--accent, #c8963e)' : p.actionLabel === 'View estimate' ? 'var(--text-muted, #6b6d82)' : 'var(--text, #e8e8f0)',
+                      fontFamily: 'var(--font-mono, monospace)',
+                    }}>{p.actionLabel} →</span>
                   </div>
                 ))}
               </div>
@@ -548,7 +530,7 @@ export default function Dashboard() {
           </div>
         </main>
 
-        {/* ══════════════════════ DESKTOP (≥768px) ═════════════════════════════ */}
+        {/* ══════════ DESKTOP (≥768px) ═════════════════════════════════════════ */}
         <div className="dash-desktop">
           <main style={s.desktopBody}>
 
@@ -560,82 +542,85 @@ export default function Dashboard() {
               </span>
             </p>
 
-            {/* Stats tiles — 4 across, tappable, act as radio filter */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 24 }}>
-              {desktopStats.map(stat => {
-                const active = activeChip === stat.key
-                return (
-                  <div
-                    key={stat.label}
-                    className="stat-tile"
-                    onClick={() => setActiveChip(a => a === stat.key ? null : stat.key)}
-                    style={{
-                      padding: '16px 18px',
-                      background: active ? 'rgba(200,150,62,0.08)' : 'var(--bg-panel, #1e2028)',
-                      border: `1px solid ${active ? 'rgba(200,150,62,0.5)' : 'var(--border, #2e3040)'}`,
-                      borderRadius: 10,
-                    }}
-                  >
-                    <div style={{ fontSize: 32, fontWeight: 700, lineHeight: 1, color: active ? 'var(--accent, #c8963e)' : 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 6 }}>
-                      {stat.n}
+            {/* ── Stat tiles: 2×2 on narrow desktop, 1×4 on wide ── */}
+            <div style={{ marginBottom: 20 }}>
+              <div
+                className="desk-stats-grid"
+                style={{
+                  display: 'grid',
+                  gap: 1,
+                  background: 'var(--border, #2e3040)',
+                  borderRadius: 10,
+                  overflow: 'hidden',
+                }}
+              >
+                {desktopStats.map(stat => {
+                  const isActive = activeChip === stat.chipKey
+                  // query tile: amber number whenever count > 0 (subtle accent)
+                  const numColor = isActive
+                    ? 'var(--accent, #c8963e)'
+                    : stat.isQuery && queriesCount > 0
+                      ? 'rgba(200,150,62,0.85)'
+                      : 'var(--text, #e8e8f0)'
+                  return (
+                    <div
+                      key={stat.label}
+                      className="stat-tile"
+                      onClick={() => setActiveChip(a => a === stat.chipKey ? null : stat.chipKey)}
+                      style={{
+                        padding: '14px 16px',
+                        background: isActive ? 'rgba(200,150,62,0.08)' : 'var(--bg-panel, #1e2028)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ ...s.statNum, fontSize: 22, color: numColor }}>{stat.n}</div>
+                      <div style={{ ...s.statLabel, marginTop: 4 }}>{stat.label}</div>
                     </div>
-                    <div style={{ fontSize: 11, color: active ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.4 }}>
-                      {stat.label}
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
 
-            {/* Active properties section */}
+            {/* ── Active properties panel ── */}
             <div style={s.panel}>
               <div style={s.panelHead}>
                 <span style={s.panelTitle}>active_properties</span>
-                <button
-                  onClick={() => navigate('/inspections/new')}
-                  style={s.btnAccent}
-                >+ New Inspection →</button>
+                <button style={s.btnAccent} onClick={() => navigate('/inspections/new')}>+ New Inspection →</button>
               </div>
 
               {loading ? <LogoSpinner />
                 : loadError ? <ErrorStrip msg={loadError} onRetry={load} />
-                : visibleQueue.length === 0 ? <QueueEmpty />
+                : visibleQueue.length === 0 ? <div style={s.empty}>{emptyMsg}</div>
                 : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {visibleQueue.map(p => (
-                      <div
-                        key={p.pid}
-                        className="prop-card"
-                        onClick={() => navigate(`/properties/${p.pid}`)}
-                        style={s.propCard}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                          {/* Left: PID + meta */}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 3 }}>
-                              <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 13, fontWeight: 700, color: 'var(--accent, #c8963e)' }}>{p.pid}</span>
-                              <span style={{ fontSize: 12, color: 'var(--text, #e8e8f0)' }}>{p.houseType || '—'}</span>
-                            </div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
-                              Last activity: {fmt(p.lastActivity)}
-                            </div>
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {visibleQueue.map(p => (
+                        <div
+                          key={p.pid}
+                          className="prop-card"
+                          onClick={() => doNavigate(p)}
+                          style={s.propCard}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                            <span style={s.propPid}>PID {p.pid}</span>
                           </div>
-                          {/* Right: action button */}
-                          <button className="act-btn" onClick={e => doAction(e, p)} style={actionStyle(p)}>
-                            {p.actionLabel}
-                          </button>
+                          <div style={s.propMeta}>{p.houseType || '—'}</div>
+                          {p.lastActivity && (
+                            <div style={s.propDate}>Last inspection: {fmt(p.lastActivity)}</div>
+                          )}
+                          <div style={s.propNext}>↳ Next: {p.actionLabel}</div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+
+                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border, #2e3040)', textAlign: 'center' }}>
+                      <button onClick={() => setShowTest(t => !t)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', padding: '4px 8px', opacity: 0.6 }}>
+                        {showTest ? 'Hide test properties' : 'Show test properties'}
+                      </button>
+                    </div>
+                  </>
                 )
               }
-
-              <div style={{ marginTop: 16, textAlign: 'center', borderTop: '1px solid var(--border, #2e3040)', paddingTop: 12 }}>
-                <button onClick={() => setShowTest(t => !t)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', padding: '4px 8px', opacity: 0.6 }}>
-                  {showTest ? 'Hide test properties' : 'Show test properties'}
-                </button>
-              </div>
             </div>
 
           </main>
@@ -668,6 +653,7 @@ const s = {
     position: 'sticky',
     top: 0,
     zIndex: 100,
+    gap: 12,
   },
   mobileBody: {
     flex: 1,
@@ -678,15 +664,15 @@ const s = {
   },
   desktopBody: {
     flex: 1,
-    padding: '28px 32px 80px',
+    padding: '16px 24px 80px',
+    width: '100%',
     maxWidth: 960,
     margin: '0 auto',
-    width: '100%',
     boxSizing: 'border-box',
   },
   greeting: {
-    margin: '0 0 20px',
-    fontSize: 13,
+    margin: '0 0 16px',
+    fontSize: 12,
     color: 'var(--text-muted, #6b6d82)',
     fontFamily: 'var(--font-mono, monospace)',
   },
@@ -704,30 +690,71 @@ const s = {
   },
   panelTitle: {
     fontSize: 11,
-    fontWeight: 700,
+    fontWeight: 600,
     color: 'var(--text-muted, #6b6d82)',
     fontFamily: 'var(--font-mono, monospace)',
     textTransform: 'uppercase',
     letterSpacing: '0.08em',
   },
   btnAccent: {
-    color: 'var(--accent, #c8963e)',
-    background: 'none',
-    border: '1px solid rgba(200,150,62,0.35)',
-    borderRadius: 6,
-    padding: '5px 12px',
-    cursor: 'pointer',
     fontSize: 11,
     fontWeight: 600,
+    color: 'var(--accent, #c8963e)',
+    background: 'rgba(200,150,62,0.08)',
+    border: '1px solid rgba(200,150,62,0.25)',
+    borderRadius: 6,
+    padding: '5px 10px',
+    cursor: 'pointer',
     fontFamily: 'var(--font-mono, monospace)',
-    whiteSpace: 'nowrap',
   },
+  statNum: {
+    fontSize: 18,
+    fontWeight: 700,
+    color: 'var(--text, #e8e8f0)',
+    fontFamily: 'var(--font-mono, monospace)',
+    lineHeight: 1,
+  },
+  statLabel: {
+    fontSize: 10,
+    color: 'var(--text-muted, #6b6d82)',
+    fontFamily: 'var(--font-mono, monospace)',
+    marginTop: 2,
+  },
+  // Original property card anatomy — exact values from pre-queue commit
   propCard: {
     padding: '12px 14px',
-    background: 'var(--bg, #16171f)',
+    background: 'var(--bg-input, #252731)',
     border: '1px solid var(--border, #2e3040)',
     borderRadius: 8,
     cursor: 'pointer',
     transition: 'border-color 0.15s',
+  },
+  propPid: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: 'var(--accent, #c8963e)',
+    fontFamily: 'var(--font-mono, monospace)',
+  },
+  propMeta: {
+    fontSize: 12,
+    color: 'var(--text-dim, #9394a8)',
+    marginBottom: 3,
+  },
+  propDate: {
+    fontSize: 11,
+    color: 'var(--text-muted, #6b6d82)',
+    fontFamily: 'var(--font-mono, monospace)',
+  },
+  propNext: {
+    fontSize: 11,
+    color: 'var(--accent, #c8963e)',
+    fontFamily: 'var(--font-mono, monospace)',
+    marginTop: 4,
+  },
+  empty: {
+    fontSize: 12,
+    color: 'var(--text-muted, #6b6d82)',
+    fontFamily: 'var(--font-mono, monospace)',
+    padding: '8px 0',
   },
 }
