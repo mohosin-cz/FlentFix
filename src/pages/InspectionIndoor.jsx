@@ -1390,14 +1390,93 @@ function WasteScrappingCard({ data, onUpdate, pid }) {
   )
 }
 
-// ── ApplianceFeasibilityBlock ─────────────────────────────────────────────────
+// ── ApplianceFeasibilityBlock — master-detail ─────────────────────────────────
 const FEAS_STATUS_COLORS = { feasible: '#4dd9c0', not_feasible: '#f87171', na: '#9394a8' }
 const FEAS_DOT_LABELS    = { feasible: '✓', not_feasible: '✗', na: '–', null: '○' }
+
+function FeasibilityTriState({ value, onChange }) {
+  return (
+    <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border, #2e3040)', flexShrink: 0 }}>
+      {[{ v: 'feasible', l: 'Feasible' }, { v: 'not_feasible', l: 'Not feasible' }, { v: 'na', l: 'N/A' }].map(opt => {
+        const sel = value === opt.v
+        return (
+          <button key={opt.v} type="button" onClick={() => onChange(sel ? null : opt.v)}
+            style={{ padding: '5px 10px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', background: sel ? (FEAS_STATUS_COLORS[opt.v] || 'var(--bg-input, #252731)') : 'transparent', color: sel ? '#111' : 'var(--text-muted, #6b6d82)', transition: 'background 0.15s' }}
+          >{opt.l}</button>
+        )
+      })}
+    </div>
+  )
+}
+
+function FeasibilitySheet({ applianceName, roomKeys, data, onUpdate, pid, onClose }) {
+  const [dragY, setDragY] = useState(0)
+  const startYRef   = useRef(null)
+  const draggingRef = useRef(false)
+
+  function markAllFeasible() { roomKeys.forEach(k => onUpdate(k, 'status', 'feasible')) }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.48)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }}
+      onClick={onClose}>
+      <div
+        style={{ width: '100%', background: 'var(--bg-panel, #1e2028)', borderRadius: '12px 12px 0 0', maxHeight: '82vh', display: 'flex', flexDirection: 'column', transform: `translateY(${Math.max(0, dragY)}px)`, transition: draggingRef.current ? 'none' : 'transform 0.25s cubic-bezier(.4,0,.2,1)' }}
+        onClick={e => e.stopPropagation()}
+        onTouchStart={e => { startYRef.current = e.touches[0].clientY; draggingRef.current = false }}
+        onTouchMove={e => { const d = e.touches[0].clientY - startYRef.current; if (d > 8) { draggingRef.current = true; setDragY(d) } }}
+        onTouchEnd={() => { if (dragY > 80) onClose(); else setDragY(0); draggingRef.current = false }}
+      >
+        {/* Handle */}
+        <div style={{ width: 36, height: 3, borderRadius: 2, background: 'var(--border-dash, #3a3d52)', margin: '10px auto 0', flexShrink: 0 }} />
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px 10px', borderBottom: '1px solid var(--border, #2e3040)', gap: 10, flexShrink: 0 }}>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{applianceName} — feasibility</span>
+          <button type="button" onClick={markAllFeasible}
+            style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: '4px 2px', flexShrink: 0 }}>
+            Mark all feasible
+          </button>
+          <button type="button" onClick={onClose}
+            style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, cursor: 'pointer', padding: '4px 12px', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>
+            Done
+          </button>
+        </div>
+
+        {/* Scrollable rooms list */}
+        <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 40 }}>
+          {roomKeys.map((key, idx) => {
+            const item      = data[key] || { status: null, notes: '', media: [] }
+            const isNotFeas = item.status === 'not_feasible'
+            const loc       = key.replace(applianceName + ' · ', '')
+            return (
+              <div key={key} style={{ borderBottom: idx < roomKeys.length - 1 ? '1px solid var(--border, #2e3040)' : 'none' }}>
+                <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: item.status ? (FEAS_STATUS_COLORS[item.status] || 'var(--text, #e8e8f0)') : 'var(--text-dim, #9394a8)', flex: 1 }}>{loc}</span>
+                  <FeasibilityTriState value={item.status} onChange={v => onUpdate(key, 'status', v)} />
+                </div>
+                {/* Not feasible — note + photo, 180ms */}
+                <div style={{ overflow: 'hidden', maxHeight: isNotFeas ? '420px' : '0px', opacity: isNotFeas ? 1 : 0, transition: 'max-height 180ms ease, opacity 180ms ease' }}>
+                  <div style={{ padding: '0 16px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <Field label="Notes" optional>
+                      <Textarea value={item.notes || ''} onChange={v => onUpdate(key, 'notes', v)} rows={2} placeholder="Why not feasible?" />
+                    </Field>
+                    <MediaUpload files={item.media || []} onChange={v => onUpdate(key, 'media', v)} pid={pid} itemKey={`feas_${key.replace(/[\s·]+/g, '_')}`} />
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function ApplianceFeasibilityBlock({ data, allKeys, onUpdate, pid, feasRefs }) {
   const answeredCount = allKeys.filter(a => data[a]?.status).length
   const allAnswered   = answeredCount === allKeys.length
   const [expanded, setExpanded] = useState(false)
+  const [sheet, setSheet]       = useState(null)
   const collapseTimer = useRef(null)
 
   // Auto-expand on mount if any item pending
@@ -1405,7 +1484,7 @@ function ApplianceFeasibilityBlock({ data, allKeys, onUpdate, pid, feasRefs }) {
     if (!allAnswered) setExpanded(true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-collapse 400ms after the last item gets answered
+  // Auto-collapse 400ms after last item answered
   const prevAllAnswered = useRef(allAnswered)
   useEffect(() => {
     if (allAnswered && !prevAllAnswered.current && expanded) {
@@ -1416,79 +1495,125 @@ function ApplianceFeasibilityBlock({ data, allKeys, onUpdate, pid, feasRefs }) {
     return () => clearTimeout(collapseTimer.current)
   }, [allAnswered, expanded])
 
+  // Build 6 master groups from config
+  const groups = APPLIANCE_FEASIBILITY.map(({ name, scope }) => ({
+    name,
+    scope,
+    keys: scope === 'single' ? [name] : allKeys.filter(k => k.startsWith(name + ' · ')),
+  }))
+
   return (
-    <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${allAnswered ? 'rgba(77,217,192,0.25)' : 'rgba(240,160,80,0.25)'}`, borderRadius: 10, overflow: 'hidden' }}>
+    <>
+      <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${allAnswered ? 'rgba(77,217,192,0.25)' : 'rgba(240,160,80,0.25)'}`, borderRadius: 10, overflow: 'hidden' }}>
 
-      {/* Collapsible header */}
-      <button type="button" onClick={() => setExpanded(p => !p)}
-        style={{ width: '100%', padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', flex: 1 }}>Appliance Feasibility</span>
+        {/* Collapsible header */}
+        <button type="button" onClick={() => setExpanded(p => !p)}
+          style={{ width: '100%', padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', flex: 1 }}>Appliance Feasibility</span>
 
-        {/* Per-appliance status dots */}
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          {allKeys.map(a => {
-            const st = data[a]?.status || null
-            return (
-              <span key={a} style={{ fontSize: 10, fontWeight: 700, color: st ? FEAS_STATUS_COLORS[st] : 'var(--border, #2e3040)', fontFamily: 'var(--font-mono, monospace)' }}>
-                {FEAS_DOT_LABELS[st] ?? '○'}
-              </span>
-            )
-          })}
-        </div>
+          {/* All-key dots (singletons + per-room, in order) */}
+          <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+            {allKeys.map(a => {
+              const st = data[a]?.status || null
+              return (
+                <span key={a} style={{ fontSize: 9, fontWeight: 700, color: st ? FEAS_STATUS_COLORS[st] : 'var(--border, #2e3040)', fontFamily: 'var(--font-mono, monospace)' }}>
+                  {FEAS_DOT_LABELS[st] ?? '○'}
+                </span>
+              )
+            })}
+          </div>
 
-        {/* Count + status chip */}
-        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', background: allAnswered ? 'rgba(77,217,192,0.12)' : 'rgba(240,160,80,0.12)', color: allAnswered ? '#4dd9c0' : '#f0a050', whiteSpace: 'nowrap' }}>
-          {allAnswered ? `✓ ${answeredCount}/${allKeys.length}` : `${answeredCount}/${allKeys.length} pending`}
-        </span>
+          {/* Count chip */}
+          <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', background: allAnswered ? 'rgba(77,217,192,0.12)' : 'rgba(240,160,80,0.12)', color: allAnswered ? '#4dd9c0' : '#f0a050', whiteSpace: 'nowrap' }}>
+            {allAnswered ? `✓ ${answeredCount}/${allKeys.length}` : `${answeredCount}/${allKeys.length} pending`}
+          </span>
 
-        {/* Chevron */}
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'var(--text-muted, #6b6d82)' }}>
-          <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
+          {/* Down chevron */}
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'var(--text-muted, #6b6d82)' }}>
+            <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
 
-      {/* Expandable body */}
-      <div style={{ overflow: 'hidden', maxHeight: expanded ? `${allKeys.length * 200}px` : '0px', opacity: expanded ? 1 : 0, transition: 'max-height 200ms ease, opacity 150ms ease' }}>
-        <div style={{ borderTop: '1px solid var(--border, #2e3040)', display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {allKeys.map((appliance, idx) => {
-            const item = data[appliance] || { status: null, notes: '', media: [] }
-            const isNotFeas = item.status === 'not_feasible'
-            const borderTop = idx > 0 ? '1px solid var(--border, #2e3040)' : 'none'
-            const rowBg = isNotFeas ? 'rgba(248,113,113,0.04)' : item.status === 'feasible' ? 'rgba(77,217,192,0.03)' : 'transparent'
-            return (
-              <div key={appliance} ref={el => { if (feasRefs) feasRefs.current[appliance] = el }}
-                style={{ borderTop, background: rowBg, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Expandable body — one master row per appliance */}
+        <div style={{ overflow: 'hidden', maxHeight: expanded ? '2000px' : '0px', opacity: expanded ? 1 : 0, transition: 'max-height 200ms ease, opacity 150ms ease' }}>
+          <div style={{ borderTop: '1px solid var(--border, #2e3040)' }}>
+            {groups.map(({ name, scope, keys }, idx) => {
+              const borderTop = idx > 0 ? '1px solid var(--border, #2e3040)' : 'none'
 
-                {/* Row: name + three-pill control */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: item.status ? (FEAS_STATUS_COLORS[item.status] || 'var(--text, #e8e8f0)') : 'var(--text-dim, #9394a8)' }}>{appliance}</span>
-                  <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border, #2e3040)', flexShrink: 0 }}>
-                    {[{ value: 'feasible', label: 'Feasible' }, { value: 'not_feasible', label: 'Not feasible' }, { value: 'na', label: 'N/A' }].map(opt => {
-                      const sel = item.status === opt.value
-                      return (
-                        <button key={opt.value} type="button"
-                          onClick={() => onUpdate(appliance, 'status', sel ? null : opt.value)}
-                          style={{ padding: '5px 10px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', background: sel ? (FEAS_STATUS_COLORS[opt.value] || 'var(--bg-input, #252731)') : 'transparent', color: sel ? '#111' : 'var(--text-muted, #6b6d82)', transition: 'background 0.15s' }}
-                        >{opt.label}</button>
-                      )
-                    })}
+              if (scope === 'single') {
+                const item = data[name] || { status: null, notes: '', media: [] }
+                const isNotFeas = item.status === 'not_feasible'
+                const rowBg = isNotFeas ? 'rgba(248,113,113,0.04)' : item.status === 'feasible' ? 'rgba(77,217,192,0.03)' : 'transparent'
+                return (
+                  <div key={name} ref={el => { if (feasRefs?.current) feasRefs.current[name] = el }}
+                    style={{ borderTop, background: rowBg, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: item.status ? (FEAS_STATUS_COLORS[item.status] || 'var(--text, #e8e8f0)') : 'var(--text-dim, #9394a8)' }}>{name}</span>
+                      <FeasibilityTriState value={item.status} onChange={v => onUpdate(name, 'status', v)} />
+                    </div>
+                    <div style={{ overflow: 'hidden', maxHeight: isNotFeas ? '400px' : '0px', opacity: isNotFeas ? 1 : 0, transition: 'max-height 150ms ease, opacity 150ms ease', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <Field label="Notes" optional>
+                        <Textarea value={item.notes || ''} onChange={v => onUpdate(name, 'notes', v)} rows={2} placeholder="Why not feasible?" />
+                      </Field>
+                      <MediaUpload files={item.media || []} onChange={v => onUpdate(name, 'media', v)} pid={pid} itemKey={`feas_${name.replace(/\s+/g, '_')}`} />
+                    </div>
                   </div>
-                </div>
+                )
+              }
 
-                {/* "Not feasible" reveals note + photo */}
-                <div style={{ overflow: 'hidden', maxHeight: isNotFeas ? '400px' : '0px', opacity: isNotFeas ? 1 : 0, transition: 'max-height 150ms ease, opacity 150ms ease', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <Field label="Notes" optional>
-                    <Textarea value={item.notes || ''} onChange={v => onUpdate(appliance, 'notes', v)} rows={2} placeholder="Why not feasible?" />
-                  </Field>
-                  <MediaUpload files={item.media || []} onChange={v => onUpdate(appliance, 'media', v)} pid={pid} itemKey={`feas_${appliance.replace(/\s+/g, '_')}`} />
-                </div>
+              // Room-scoped: name + per-room dots + right chevron → sheet
+              const answered   = keys.filter(k => data[k]?.status).length
+              const groupDone  = answered === keys.length
+              const hasNotFeas = keys.some(k => data[k]?.status === 'not_feasible')
+              const chipColor  = groupDone ? '#4dd9c0' : hasNotFeas ? '#f87171' : '#f0a050'
+              return (
+                <div key={name} ref={el => { if (feasRefs?.current) keys.forEach(k => { feasRefs.current[k] = el }) }}
+                  style={{ borderTop }}>
+                  <button type="button" onClick={() => setSheet({ name, keys })}
+                    style={{ width: '100%', padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', WebkitTapHighlightColor: 'transparent' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: groupDone ? '#4dd9c0' : 'var(--text-dim, #9394a8)', flex: 1 }}>{name}</span>
 
-              </div>
-            )
-          })}
+                    {/* Per-room dots */}
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      {keys.map(k => {
+                        const st = data[k]?.status || null
+                        return (
+                          <span key={k} style={{ fontSize: 10, fontWeight: 700, color: st ? FEAS_STATUS_COLORS[st] : 'var(--border, #2e3040)', fontFamily: 'var(--font-mono, monospace)' }}>
+                            {FEAS_DOT_LABELS[st] ?? '○'}
+                          </span>
+                        )
+                      })}
+                    </div>
+
+                    {/* n/N chip */}
+                    <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 8, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', background: `${chipColor}18`, color: chipColor, whiteSpace: 'nowrap' }}>
+                      {answered}/{keys.length}
+                    </span>
+
+                    {/* Right chevron */}
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, color: 'var(--text-muted, #6b6d82)' }}>
+                      <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Bottom sheet for room-scoped appliance */}
+      {sheet && (
+        <FeasibilitySheet
+          applianceName={sheet.name}
+          roomKeys={sheet.keys}
+          data={data}
+          onUpdate={onUpdate}
+          pid={pid}
+          onClose={() => setSheet(null)}
+        />
+      )}
+    </>
   )
 }
 
