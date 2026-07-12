@@ -607,15 +607,15 @@ function CardMaterialPicker({ card, onUpdate, trade }) {
   useEffect(() => {
     if (search.trim().length < 1) { setResults([]); return }
     const t = setTimeout(async () => {
-      let q = supabase
+      const { data } = await supabase
         .from('inventory_items')
-        .select('id, fxin, item_name, flent_price, quantity_remaining')
+        .select('id, fxin, item_name, flent_price, quantity_remaining, trade')
         .gt('flent_price', 0)
         .or(`item_name.ilike.%${search}%,fxin.ilike.%${search}%`)
-        .limit(10)
-      if (trade) q = q.eq('trade', trade)
-      const { data } = await q
-      setResults(data || [])
+        .limit(20)
+      // rank: same-trade items sort first, cross-trade items below
+      const sorted = (data || []).sort((a, b) => (a.trade === trade ? 0 : 1) - (b.trade === trade ? 0 : 1))
+      setResults(sorted.slice(0, 12))
     }, 250)
     return () => clearTimeout(t)
   }, [search, trade])
@@ -684,7 +684,10 @@ function CardMaterialPicker({ card, onUpdate, trade }) {
                     onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
                     <div>
-                      <div style={{ fontSize: 9, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 2 }}>{item.fxin}</div>
+                      <div style={{ fontSize: 9, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 2 }}>
+                        {item.fxin}
+                        {item.trade && item.trade !== trade && <span style={{ color: 'var(--text-muted, #6b6d82)', marginLeft: 6 }}>· {item.trade}</span>}
+                      </div>
                       <div style={{ fontSize: 13, color: 'var(--text, #e8e8f0)' }}>{item.item_name}</div>
                       {item.quantity_remaining != null && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)' }}>{item.quantity_remaining} in stock</div>}
                     </div>
@@ -694,12 +697,6 @@ function CardMaterialPicker({ card, onUpdate, trade }) {
               })}
             </div>
           )}
-        </div>
-      )}
-      {card.materialDescription && (
-        <div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', letterSpacing: '0.08em', marginBottom: 4, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase' }}>Material cost ₹</div>
-          <input type="number" inputMode="decimal" value={card.materialCost || ''} onChange={e => onUpdate('materialCost', e.target.value)} placeholder="0" style={INP} />
         </div>
       )}
     </div>
@@ -878,29 +875,71 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
 
 // ── Card cost panel (trade-filtered material + labour pickers) ────────────────
 function CardCostPanel({ card, onUpdate, trade, labourRates }) {
-  const [showAll, setShowAll] = useState(false)
-  const tradeRates = (labourRates || []).filter(r => r.trade === trade)
-  const rates = showAll ? (labourRates || []) : (tradeRates.length ? tradeRates : (labourRates || []))
+  // Trade-matched rates sort first; all rates always available (ranked, not filtered)
+  const sortedRates = [...(labourRates || [])].sort((a, b) => (a.trade === trade ? 0 : 1) - (b.trade === trade ? 0 : 1))
   const INP = { width: '100%', padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text, #e8e8f0)', fontSize: 16, boxSizing: 'border-box', fontFamily: 'inherit', minHeight: 44 }
   const LBL = { fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono, monospace)', display: 'block', marginBottom: 6 }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button type="button" onClick={() => setShowAll(p => !p)}
-          style={{ fontSize: 10, padding: '3px 10px', borderRadius: 4, border: '1px solid var(--border, #2e3040)', background: showAll ? 'rgba(200,150,62,0.1)' : 'transparent', color: showAll ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', fontWeight: 600 }}>
-          {showAll ? 'All rates' : `${trade || 'trade'} only`}
-        </button>
-      </div>
-      <CardMaterialPicker card={card} onUpdate={onUpdate} trade={showAll ? null : trade} />
+      <CardMaterialPicker card={card} onUpdate={onUpdate} trade={trade} />
       <div>
         <span style={LBL}>Material ₹</span>
         <input type="number" inputMode="decimal" value={card.materialCost || ''} onChange={e => onUpdate('materialCost', e.target.value)} placeholder="0" style={INP} />
       </div>
-      <LabourRateDropdown rates={rates} value={card.labourRateId} labourCost={card.labourCost} onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }} />
+      <LabourRateDropdown rates={sortedRates} value={card.labourRateId} labourCost={card.labourCost} onSelect={(id, cost) => { onUpdate('labourRateId', id); onUpdate('labourCost', cost) }} />
       <div>
         <span style={LBL}>Labour ₹</span>
         <input type="number" inputMode="decimal" value={card.labourCost || ''} onChange={e => onUpdate('labourCost', e.target.value)} placeholder="0" style={INP} />
       </div>
+    </div>
+  )
+}
+
+// ── Stepper primitives at module scope — MUST NOT be defined inside CardStepper.
+// Inline component definitions create new function references every render,
+// which makes React treat them as different types → unmount/remount on each
+// keystroke → iOS keyboard drops. Module scope gives stable references.
+function StepperStageBox({ active, children }) {
+  return (
+    <div style={{ overflow: 'hidden', maxHeight: active ? '2000px' : '0', opacity: active ? 1 : 0, transition: 'max-height 180ms ease, opacity 180ms ease' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{children}</div>
+    </div>
+  )
+}
+
+function StepperChip({ visible, value, label, onOpen }) {
+  if (!visible || !value) return null
+  return (
+    <button type="button" onClick={onOpen}
+      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 11px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, cursor: 'pointer', width: '100%', textAlign: 'left', WebkitTapHighlightColor: 'transparent', minHeight: 36 }}>
+      <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0, minWidth: 48 }}>{label}</span>
+      <span style={{ width: 1, height: 10, background: 'var(--border, #2e3040)', flexShrink: 0 }} />
+      <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+      <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', flexShrink: 0 }}>✎</span>
+    </button>
+  )
+}
+
+function StepperNextBtn({ onClick, label = 'Next →', disabled = false }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
+      <button type="button" onClick={onClick} disabled={disabled}
+        style={{ padding: '7px 16px', background: disabled ? 'transparent' : 'rgba(200,150,62,0.1)', border: `1px solid ${disabled ? 'var(--border, #2e3040)' : 'rgba(200,150,62,0.4)'}`, borderRadius: 6, color: disabled ? 'var(--text-muted, #6b6d82)' : 'var(--accent, #c8963e)', fontSize: 11, fontWeight: 700, cursor: disabled ? 'default' : 'pointer', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em' }}>
+        {label}
+      </button>
+    </div>
+  )
+}
+
+function StepperSegPills({ opts, val, onChange }) {
+  return (
+    <div style={{ display: 'flex', gap: 6 }}>
+      {opts.map(([v, l]) => (
+        <button key={v} type="button" onClick={() => onChange(v)}
+          style={{ flex: 1, padding: '10px 0', border: `1px solid ${val === v ? 'rgba(200,150,62,0.5)' : 'var(--border, #2e3040)'}`, background: val === v ? 'rgba(200,150,62,0.12)' : 'transparent', color: val === v ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', WebkitTapHighlightColor: 'transparent' }}>
+          {l}
+        </button>
+      ))}
     </div>
   )
 }
@@ -912,7 +951,6 @@ function CardStepper({ card, itemConfig, cardIdx, onUpdate, labourRates, pid, it
   const nonFunctional  = selectedIssues.filter(i => i !== 'Functional')
   const cardQty        = Math.max(1, parseFloat(card.qty) || 1)
   const needsProofVideo = itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD && nonFunctional.length > 0 && effectiveKind === 'fixture'
-  const hasProof        = (card.proofMedia || []).length > 0
 
   const ALL_STAGES = ['issues', 'health', 'media', 'notes', 'action', 'action_type', 'cost_type', 'cost', 'qty']
   function orderedStages(costType) { return ALL_STAGES.filter(s => s !== 'cost' || costType === 'priced') }
@@ -969,52 +1007,6 @@ function CardStepper({ card, itemConfig, cardIdx, onUpdate, labourRates, pid, it
 
   const INP = { width: '100%', padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text, #e8e8f0)', fontSize: 16, boxSizing: 'border-box', fontFamily: 'inherit', minHeight: 44 }
 
-  function Chip({ s, lbl, val }) {
-    if (!showChip(s) || !val) return null
-    return (
-      <button type="button" onClick={() => openStage(s)}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 11px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, cursor: 'pointer', width: '100%', textAlign: 'left', WebkitTapHighlightColor: 'transparent', minHeight: 36 }}>
-        <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0, minWidth: 48 }}>{lbl}</span>
-        <span style={{ width: 1, height: 10, background: 'var(--border, #2e3040)', flexShrink: 0 }} />
-        <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
-        <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', flexShrink: 0 }}>✎</span>
-      </button>
-    )
-  }
-
-  function StageBox({ s, children }) {
-    const vis = activeStage === s
-    return (
-      <div style={{ overflow: 'hidden', maxHeight: vis ? '2000px' : '0', opacity: vis ? 1 : 0, transition: 'max-height 180ms ease, opacity 180ms ease' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{children}</div>
-      </div>
-    )
-  }
-
-  function NextBtn({ onClick, lbl = 'Next →', disabled = false }) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
-        <button type="button" onClick={onClick} disabled={disabled}
-          style={{ padding: '7px 16px', background: disabled ? 'transparent' : 'rgba(200,150,62,0.1)', border: `1px solid ${disabled ? 'var(--border, #2e3040)' : 'rgba(200,150,62,0.4)'}`, borderRadius: 6, color: disabled ? 'var(--text-muted, #6b6d82)' : 'var(--accent, #c8963e)', fontSize: 11, fontWeight: 700, cursor: disabled ? 'default' : 'pointer', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em' }}>
-          {lbl}
-        </button>
-      </div>
-    )
-  }
-
-  function SegPills({ opts, val, onChange }) {
-    return (
-      <div style={{ display: 'flex', gap: 6 }}>
-        {opts.map(([v, l]) => (
-          <button key={v} type="button" onClick={() => onChange(v)}
-            style={{ flex: 1, padding: '10px 0', border: `1px solid ${val === v ? 'rgba(200,150,62,0.5)' : 'var(--border, #2e3040)'}`, background: val === v ? 'rgba(200,150,62,0.12)' : 'transparent', color: val === v ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', WebkitTapHighlightColor: 'transparent' }}>
-            {l}
-          </button>
-        ))}
-      </div>
-    )
-  }
-
   function updateIssues(nextIssues) {
     if (nextIssues.length > 0 && card.fixtureStatus !== null) onUpdate('fixtureStatus', null)
     const newCostRows = { ...(card.costRows || {}) }
@@ -1027,29 +1019,29 @@ function CardStepper({ card, itemConfig, cardIdx, onUpdate, labourRates, pid, it
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
 
       {/* 1 ── ISSUES */}
-      <Chip s="issues" lbl="Issues" val={issueText} />
-      <StageBox s="issues">
+      <StepperChip visible={showChip('issues')} label="Issues" value={issueText} onOpen={() => openStage('issues')} />
+      <StepperStageBox active={activeStage === 'issues'}>
         <IssueCheckboxGrid presets={presets} selectedIssues={selectedIssues} otherIssue={card.otherIssue} onSetIssues={updateIssues} onOtherChange={v => onUpdate('otherIssue', v)} hideFunctional />
-        <NextBtn onClick={() => advanceFrom('issues')} disabled={!nonFunctional.length} lbl="Done →" />
-      </StageBox>
+        <StepperNextBtn onClick={() => advanceFrom('issues')} disabled={!nonFunctional.length} label="Done →" />
+      </StepperStageBox>
 
       {/* 2 ── HEALTH */}
-      <Chip s="health" lbl="Health" val={healthText} />
-      <StageBox s="health">
+      <StepperChip visible={showChip('health')} label="Health" value={healthText} onOpen={() => openStage('health')} />
+      <StepperStageBox active={activeStage === 'health'}>
         <HealthSlider value={card.health} onChange={v => onUpdate('health', v)} />
-        <NextBtn onClick={() => advanceFrom('health')} />
-      </StageBox>
+        <StepperNextBtn onClick={() => advanceFrom('health')} />
+      </StepperStageBox>
 
       {/* 3 ── MEDIA */}
-      <Chip s="media" lbl="Media" val={mediaText} />
-      <StageBox s="media">
+      <StepperChip visible={showChip('media')} label="Media" value={mediaText} onOpen={() => openStage('media')} />
+      <StepperStageBox active={activeStage === 'media'}>
         <MediaUpload files={card.media || []} onChange={v => onUpdate('media', v)} pid={pid} itemKey={`${itemConfig.key}_${cardIdx}`} />
-        <NextBtn onClick={() => advanceFrom('media')} lbl={(card.media || []).length ? 'Done →' : 'Skip →'} />
-      </StageBox>
+        <StepperNextBtn onClick={() => advanceFrom('media')} label={(card.media || []).length ? 'Done →' : 'Skip →'} />
+      </StepperStageBox>
 
       {/* 4 ── NOTES */}
-      <Chip s="notes" lbl="Notes" val={notesText} />
-      <StageBox s="notes">
+      <StepperChip visible={showChip('notes')} label="Notes" value={notesText} onOpen={() => openStage('notes')} />
+      <StepperStageBox active={activeStage === 'notes'}>
         {(noteOpen || card.notes) ? (
           <Textarea value={card.notes || ''} onChange={v => onUpdate('notes', v)} rows={2} placeholder="Any observations…" />
         ) : (
@@ -1058,12 +1050,12 @@ function CardStepper({ card, itemConfig, cardIdx, onUpdate, labourRates, pid, it
             + Add note
           </button>
         )}
-        <NextBtn onClick={() => advanceFrom('notes')} lbl={card.notes ? 'Done →' : 'Skip →'} />
-      </StageBox>
+        <StepperNextBtn onClick={() => advanceFrom('notes')} label={card.notes ? 'Done →' : 'Skip →'} />
+      </StepperStageBox>
 
       {/* 5 ── ACTION */}
-      <Chip s="action" lbl="Action" val={actionText} />
-      <StageBox s="action">
+      <StepperChip visible={showChip('action')} label="Action" value={actionText} onOpen={() => openStage('action')} />
+      <StepperStageBox active={activeStage === 'action'}>
         {(actionOpen || card.action) ? (
           <input type="text" value={card.action || ''} onChange={e => onUpdate('action', e.target.value)} placeholder="e.g. Replace the latch, repaint the panel" style={INP} />
         ) : (
@@ -1072,13 +1064,13 @@ function CardStepper({ card, itemConfig, cardIdx, onUpdate, labourRates, pid, it
             + Add action
           </button>
         )}
-        <NextBtn onClick={() => advanceFrom('action')} lbl={card.action ? 'Done →' : 'Skip →'} />
-      </StageBox>
+        <StepperNextBtn onClick={() => advanceFrom('action')} label={card.action ? 'Done →' : 'Skip →'} />
+      </StepperStageBox>
 
       {/* 6 ── ACTION TYPE */}
-      <Chip s="action_type" lbl="Type" val={atText} />
-      <StageBox s="action_type">
-        <SegPills
+      <StepperChip visible={showChip('action_type')} label="Type" value={atText} onOpen={() => openStage('action_type')} />
+      <StepperStageBox active={activeStage === 'action_type'}>
+        <StepperSegPills
           opts={[['repair', 'Repair'], ['replace', 'Replace'], ['install', 'Install']]}
           val={card.actionType}
           onChange={v => {
@@ -1087,12 +1079,12 @@ function CardStepper({ card, itemConfig, cardIdx, onUpdate, labourRates, pid, it
             advTimer.current = setTimeout(() => setActiveStage('cost_type'), 350)
           }}
         />
-      </StageBox>
+      </StepperStageBox>
 
       {/* 7 ── COST TYPE */}
-      <Chip s="cost_type" lbl="Cost" val={ctText} />
-      <StageBox s="cost_type">
-        <SegPills
+      <StepperChip visible={showChip('cost_type')} label="Cost" value={ctText} onOpen={() => openStage('cost_type')} />
+      <StepperStageBox active={activeStage === 'cost_type'}>
+        <StepperSegPills
           opts={[['priced', 'Priced'], ['as_actuals', 'As Actuals'], ['no_cost', 'No Cost']]}
           val={card.costType}
           onChange={v => {
@@ -1102,18 +1094,18 @@ function CardStepper({ card, itemConfig, cardIdx, onUpdate, labourRates, pid, it
             advTimer.current = setTimeout(() => setActiveStage(nextS), 350)
           }}
         />
-      </StageBox>
+      </StepperStageBox>
 
       {/* 8 ── COST CARD (priced only) */}
-      <Chip s="cost" lbl="Cost ₹" val={costAmtsText} />
-      <StageBox s="cost">
+      <StepperChip visible={showChip('cost')} label="Cost ₹" value={costAmtsText} onOpen={() => openStage('cost')} />
+      <StepperStageBox active={activeStage === 'cost'}>
         <CardCostPanel card={card} onUpdate={onUpdate} trade={trade} labourRates={labourRates} />
-        <NextBtn onClick={() => advanceFrom('cost')} lbl="Done →" />
-      </StageBox>
+        <StepperNextBtn onClick={() => advanceFrom('cost')} label="Done →" />
+      </StepperStageBox>
 
       {/* 9 ── QTY */}
-      <Chip s="qty" lbl="Qty" val={qtyText} />
-      <StageBox s="qty">
+      <StepperChip visible={showChip('qty')} label="Qty" value={qtyText} onOpen={() => openStage('qty')} />
+      <StepperStageBox active={activeStage === 'qty'}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <button type="button" onClick={() => onUpdate('qty', Math.max(1, cardQty - 1))}
             style={{ width: 40, height: 40, borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>−</button>
@@ -1121,8 +1113,8 @@ function CardStepper({ card, itemConfig, cardIdx, onUpdate, labourRates, pid, it
           <button type="button" onClick={() => onUpdate('qty', cardQty + 1)}
             style={{ width: 40, height: 40, borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>+</button>
         </div>
-        <NextBtn onClick={() => { clearTimeout(advTimer.current); setActiveStage(null); setAllChips(true) }} lbl="Done" />
-      </StageBox>
+        <StepperNextBtn onClick={() => { clearTimeout(advTimer.current); setActiveStage(null); setAllChips(true) }} label="Done" />
+      </StepperStageBox>
 
       {/* Total */}
       {itemTotal > 0 && activeStage === null && (
@@ -1753,8 +1745,8 @@ function ApplianceFeasibilityBlock({ data, allKeys, onUpdate, pid, feasRefs }) {
                 return (
                   <div key={name} ref={el => { if (feasRefs?.current) feasRefs.current[name] = el }}
                     style={{ borderTop, background: rowBg, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: item.status ? (FEAS_STATUS_COLORS[item.status] || 'var(--text, #e8e8f0)') : 'var(--text-dim, #9394a8)' }}>{name}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: item.status ? (FEAS_STATUS_COLORS[item.status] || 'var(--text, #e8e8f0)') : 'var(--text-dim, #9394a8)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
                       <FeasibilityTriState value={item.status} onChange={v => onUpdate(name, 'status', v)} />
                     </div>
                     <div style={{ overflow: 'hidden', maxHeight: isNotFeas ? '400px' : '0px', opacity: isNotFeas ? 1 : 0, transition: 'max-height 150ms ease, opacity 150ms ease', display: 'flex', flexDirection: 'column', gap: 10 }}>
