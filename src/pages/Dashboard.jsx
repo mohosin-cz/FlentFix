@@ -23,6 +23,14 @@ const PulseLogo = () => (
 )
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h >= 5  && h < 12) return 'Good morning'
+  if (h >= 12 && h < 17) return 'Good afternoon'
+  if (h >= 17 && h < 21) return 'Good evening'
+  return 'Burning the midnight oil,'
+}
+
 function initials(name = '') {
   return name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'FL'
 }
@@ -223,6 +231,19 @@ function DropItem({ icon, label, onClick, danger }) {
   )
 }
 
+// ─── Shared: error strip ───────────────────────────────────────────────────────
+function ErrorStrip({ msg, onRetry }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.07)', gap: 10 }}>
+      <span style={{ fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>Couldn't load your queue — {msg}</span>
+      <button
+        onClick={onRetry}
+        style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(224,92,106,0.4)', background: 'transparent', color: 'var(--red, #e05c6a)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}
+      >Retry</button>
+    </div>
+  )
+}
+
 // ─── Dashboard ─────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -246,6 +267,7 @@ export default function Dashboard() {
     navigate('/login', { replace: true })
   }
 
+  // ─── 4-query batch ─────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true)
     setLoadError(null)
@@ -272,12 +294,12 @@ export default function Dashboard() {
         return
       }
 
-      const properties = propsRes.data  || []
-      const inspections = inspsRes.data || []
-      const estimates   = estsRes.data  || []
-      const disputes    = dispsRes.data || []
+      const properties  = propsRes.data  || []
+      const inspections = inspsRes.data  || []
+      const estimates   = estsRes.data   || []
+      const disputes    = dispsRes.data  || []
 
-      // latest inspection per pid (already desc-ordered, so first wins)
+      // latest inspection per pid (desc-ordered, first wins)
       const inspByPid = {}
       inspections.forEach(i => { if (!inspByPid[i.pid]) inspByPid[i.pid] = i })
 
@@ -309,14 +331,13 @@ export default function Dashboard() {
   const { pullDistance, isRefreshing } = usePullToRefresh(load)
   useEffect(() => { load() }, [load])
 
-  // ─── Derive work queue ──────────────────────────────────────────────────────
+  // ─── Derive work queue (shared by both layouts) ─────────────────────────────
   const fullQueue = useMemo(() => {
     const filtered = props.filter(p => showTest || !/^test/i.test(String(p.pid)))
 
-
     return filtered.map(p => {
-      const est    = latestEstByPid[p.pid]
-      const draft  = draftMap[p.pid] || {}
+      const est          = latestEstByPid[p.pid]
+      const draft        = draftMap[p.pid] || {}
       const draftDone    = (draft.outdoor?.done || 0) + (draft.indoor?.done || 0) + (draft.appliances?.done || 0)
       const draftTotal   = (draft.outdoor?.total || 0) + (draft.indoor?.total || 0) + (draft.appliances?.total || 0)
       const draftStarted = draft.outdoor?.started || draft.indoor?.started || draft.appliances?.started
@@ -328,20 +349,18 @@ export default function Dashboard() {
         : null
       const openQuery = !!(est?.sent_at && latestDisp?.author_type === 'landlord')
 
-      const landlordMsgs = disputes.filter(d => d.author_type === 'landlord')
-      const landlordMsgCount = landlordMsgs.length
-      const oldestLandlordTs = openQuery && landlordMsgs.length > 0
+      const landlordMsgs      = disputes.filter(d => d.author_type === 'landlord')
+      const landlordMsgCount  = landlordMsgs.length
+      const oldestLandlordTs  = openQuery && landlordMsgs.length > 0
         ? Math.min(...landlordMsgs.map(d => new Date(d.created_at).getTime()))
         : Infinity
 
-      // Sort priority: 0=open queries, 1=unsent estimates, 2=in-progress, 3=rest
       let sortPri, sortTs
-      if (openQuery)               { sortPri = 0; sortTs = oldestLandlordTs }
-      else if (est && !est.sent_at){ sortPri = 1; sortTs = new Date(est.created_at).getTime() }
-      else if (inspInProgress)     { sortPri = 2; sortTs = new Date(p.created_at).getTime() }
-      else                         { sortPri = 3; sortTs = new Date(est?.created_at || p.created_at).getTime() }
+      if (openQuery)                { sortPri = 0; sortTs = oldestLandlordTs }
+      else if (est && !est.sent_at) { sortPri = 1; sortTs = new Date(est.created_at).getTime() }
+      else if (inspInProgress)      { sortPri = 2; sortTs = new Date(p.created_at).getTime() }
+      else                          { sortPri = 3; sortTs = new Date(est?.created_at || p.created_at).getTime() }
 
-      // Next action button
       let actionLabel, actionPath, actionState
       if (inspInProgress) {
         actionLabel = `Continue (${draftDone}/${draftTotal})`
@@ -369,7 +388,7 @@ export default function Dashboard() {
     }).sort((a, b) => {
       if (a.sortPri !== b.sortPri) return a.sortPri - b.sortPri
       if (a.sortPri === 0) return a.sortTs - b.sortTs  // oldest unanswered query first
-      return b.sortTs - a.sortTs                        // most recent first otherwise
+      return b.sortTs - a.sortTs
     })
   }, [props, latestInspByPid, latestEstByPid, disputesByEstId, draftMap, showTest])
 
@@ -381,27 +400,75 @@ export default function Dashboard() {
     return fullQueue
   }, [fullQueue, activeChip])
 
-  const inProgressCount = useMemo(() => fullQueue.filter(p => p.inspInProgress).length,          [fullQueue])
-  const toSendCount     = useMemo(() => fullQueue.filter(p => p.est && !p.est.sent_at).length,   [fullQueue])
-  const queriesCount    = useMemo(() => fullQueue.filter(p => p.openQuery).length,                [fullQueue])
+  const inProgressCount = useMemo(() => fullQueue.filter(p => p.inspInProgress).length,        [fullQueue])
+  const toSendCount     = useMemo(() => fullQueue.filter(p => p.est && !p.est.sent_at).length, [fullQueue])
+  const queriesCount    = useMemo(() => fullQueue.filter(p => p.openQuery).length,              [fullQueue])
 
-  const chips = [
-    { key: 'inprogress', label: `${inProgressCount} in progress` },
-    { key: 'tosend',     label: `${toSendCount} to send`         },
-    { key: 'queries',    label: `${queriesCount} queries`         },
-  ].filter((c, i) => [inProgressCount, toSendCount, queriesCount][i] > 0)
+  // Mobile triage chips (hidden when count=0)
+  const mobileChips = [
+    { key: 'inprogress', label: `${inProgressCount} in progress`, count: inProgressCount },
+    { key: 'tosend',     label: `${toSendCount} to send`,         count: toSendCount     },
+    { key: 'queries',    label: `${queriesCount} queries`,         count: queriesCount    },
+  ].filter(c => c.count > 0)
+
+  // Desktop stat tiles — clicking sets activeChip filter (null = show all)
+  const desktopStats = [
+    { key: 'inprogress', n: inProgressCount, label: 'Inspections in progress' },
+    { key: 'tosend',     n: toSendCount,     label: 'Estimates to send'        },
+    { key: 'queries',    n: queriesCount,    label: 'Queries awaiting reply'   },
+    { key: null,         n: fullQueue.length, label: 'Active properties'        },
+  ]
+
+  // ─── Shared action button helper ────────────────────────────────────────────
+  function doAction(e, p) {
+    e.stopPropagation()
+    if (p.actionState) navigate(p.actionPath, { state: p.actionState })
+    else navigate(p.actionPath)
+  }
+
+  function actionStyle(p) {
+    const isReply = p.openQuery
+    const isDim   = p.actionLabel === 'View estimate'
+    return {
+      padding: '6px 10px', borderRadius: 6, cursor: 'pointer',
+      border: `1px solid ${isReply ? 'rgba(200,150,62,0.6)' : 'rgba(200,150,62,0.22)'}`,
+      background: isReply ? 'rgba(200,150,62,0.12)' : 'transparent',
+      color: isReply ? 'var(--accent, #c8963e)' : isDim ? 'var(--text-muted, #6b6d82)' : 'var(--text, #e8e8f0)',
+      fontSize: 11, fontWeight: isReply ? 700 : 600,
+      fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', flexShrink: 0,
+    }
+  }
+
+  // ─── Shared empty state ─────────────────────────────────────────────────────
+  function QueueEmpty() {
+    return (
+      <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+        {activeChip ? 'No properties match this filter.' : 'No properties yet — start an inspection to add one.'}
+      </div>
+    )
+  }
 
   return (
     <>
       <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
       <div style={s.page}>
         <style>{`
-          .q-card:active  { border-color: rgba(200,150,62,0.5) !important; }
-          .chip-btn       { transition: background 0.15s, color 0.15s; }
-          .act-btn:active { opacity: 0.7; }
+          /* layout breakpoint */
+          .dash-mobile  { display: flex; flex-direction: column; }
+          .dash-desktop { display: none; }
+          @media (min-width: 768px) {
+            .dash-mobile  { display: none !important; }
+            .dash-desktop { display: block !important; }
+          }
+          /* card hover */
+          .prop-card:hover  { border-color: var(--accent, #c8963e) !important; }
+          .q-card:active    { border-color: rgba(200,150,62,0.5) !important; }
+          .stat-tile        { transition: border-color 0.15s, background 0.15s; cursor: pointer; }
+          .chip-btn         { transition: background 0.15s, color 0.15s; }
+          .act-btn:active   { opacity: 0.7; }
         `}</style>
 
-        {/* ── Slim header ── */}
+        {/* ── Header (shared) ── */}
         <header style={s.header}>
           <button
             onClick={() => navigate('/')}
@@ -412,25 +479,23 @@ export default function Dashboard() {
           <ProfileDropdown name={name} email={email} onLogout={logout} />
         </header>
 
-        {/* ── Body ── */}
-        <main style={s.body}>
+        {/* ══════════════════════ MOBILE (<768px) ══════════════════════════════ */}
+        <main className="dash-mobile" style={s.mobileBody}>
 
-          {/* Triage strip — hidden when all counts are zero */}
-          {chips.length > 0 && (
+          {/* Triage strip — hidden when all counts zero */}
+          {mobileChips.length > 0 && (
             <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-              {chips.map(c => (
+              {mobileChips.map(c => (
                 <button
                   key={c.key}
                   className="chip-btn"
                   onClick={() => setActiveChip(a => a === c.key ? null : c.key)}
                   style={{
-                    padding: '5px 12px',
-                    borderRadius: 20,
+                    padding: '5px 12px', borderRadius: 20,
                     border: '1px solid rgba(200,150,62,0.45)',
                     background: activeChip === c.key ? 'var(--accent, #c8963e)' : 'transparent',
                     color: activeChip === c.key ? '#16171f' : 'var(--accent, #c8963e)',
-                    fontSize: 11, fontWeight: 700,
-                    cursor: 'pointer',
+                    fontSize: 11, fontWeight: 700, cursor: 'pointer',
                     fontFamily: 'var(--font-mono, monospace)',
                   }}
                 >{c.label}</button>
@@ -450,81 +515,132 @@ export default function Dashboard() {
             >+ New Inspection</button>
           </div>
 
-          {/* Queue list */}
-          {loading ? (
-            <LogoSpinner />
-          ) : loadError ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.07)', gap: 10 }}>
-              <span style={{ fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>Couldn't load your queue — {loadError}</span>
-              <button
-                onClick={load}
-                style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(224,92,106,0.4)', background: 'transparent', color: 'var(--red, #e05c6a)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}
-              >Retry</button>
-            </div>
-          ) : visibleQueue.length === 0 ? (
-            <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
-              {activeChip ? 'No properties match this filter.' : 'No properties yet — start an inspection to add one.'}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {visibleQueue.map(p => (
-                <div key={p.pid} className="q-card" style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '10px 14px',
-                  background: 'var(--bg-panel, #1e2028)',
-                  border: '1px solid var(--border, #2e3040)',
-                  borderRadius: 8,
-                }}>
-                  {/* PID — amber mono, no prefix */}
-                  <span style={{
-                    fontFamily: 'var(--font-mono, monospace)',
-                    fontSize: 14, fontWeight: 700,
-                    color: 'var(--accent, #c8963e)',
-                    flexShrink: 0,
-                    minWidth: 40,
-                  }}>{p.pid}</span>
-
-                  {/* House type + last activity */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.houseType || '—'}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 1 }}>{fmt(p.lastActivity)}</div>
+          {/* Queue body */}
+          {loading ? <LogoSpinner />
+            : loadError ? <ErrorStrip msg={loadError} onRetry={load} />
+            : visibleQueue.length === 0 ? <QueueEmpty />
+            : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {visibleQueue.map(p => (
+                  <div key={p.pid} className="q-card" style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 14px',
+                    background: 'var(--bg-panel, #1e2028)',
+                    border: '1px solid var(--border, #2e3040)',
+                    borderRadius: 8,
+                  }}>
+                    <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 14, fontWeight: 700, color: 'var(--accent, #c8963e)', flexShrink: 0, minWidth: 36 }}>{p.pid}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.houseType || '—'}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 1 }}>{fmt(p.lastActivity)}</div>
+                    </div>
+                    <button className="act-btn" onClick={e => doAction(e, p)} style={actionStyle(p)}>{p.actionLabel}</button>
                   </div>
+                ))}
+              </div>
+            )
+          }
 
-                  {/* Next action — single deep-link button */}
-                  <button
-                    className="act-btn"
-                    onClick={() => p.actionState ? navigate(p.actionPath, { state: p.actionState }) : navigate(p.actionPath)}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: 6,
-                      border: `1px solid ${p.openQuery ? 'rgba(200,150,62,0.6)' : 'rgba(200,150,62,0.22)'}`,
-                      background: p.openQuery ? 'rgba(200,150,62,0.12)' : 'transparent',
-                      color: p.openQuery
-                        ? 'var(--accent, #c8963e)'
-                        : p.actionLabel === 'View estimate'
-                          ? 'var(--text-muted, #6b6d82)'
-                          : 'var(--text, #e8e8f0)',
-                      fontSize: 11, fontWeight: p.openQuery ? 700 : 600,
-                      cursor: 'pointer',
-                      fontFamily: 'var(--font-mono, monospace)',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                    }}
-                  >{p.actionLabel}</button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Test-pid toggle */}
           <div style={{ marginTop: 20, textAlign: 'center' }}>
-            <button
-              onClick={() => setShowTest(t => !t)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', padding: '4px 8px', opacity: 0.6 }}
-            >{showTest ? 'Hide test properties' : 'Show test properties'}</button>
+            <button onClick={() => setShowTest(t => !t)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', padding: '4px 8px', opacity: 0.6 }}>
+              {showTest ? 'Hide test properties' : 'Show test properties'}
+            </button>
           </div>
-
         </main>
+
+        {/* ══════════════════════ DESKTOP (≥768px) ═════════════════════════════ */}
+        <div className="dash-desktop">
+          <main style={s.desktopBody}>
+
+            {/* Greeting */}
+            <p style={s.greeting}>
+              {getGreeting()}{' '}
+              <span style={{ color: 'var(--accent, #c8963e)', textTransform: 'capitalize' }}>
+                {name.split(' ')[0]}
+              </span>
+            </p>
+
+            {/* Stats tiles — 4 across, tappable, act as radio filter */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 24 }}>
+              {desktopStats.map(stat => {
+                const active = activeChip === stat.key
+                return (
+                  <div
+                    key={stat.label}
+                    className="stat-tile"
+                    onClick={() => setActiveChip(a => a === stat.key ? null : stat.key)}
+                    style={{
+                      padding: '16px 18px',
+                      background: active ? 'rgba(200,150,62,0.08)' : 'var(--bg-panel, #1e2028)',
+                      border: `1px solid ${active ? 'rgba(200,150,62,0.5)' : 'var(--border, #2e3040)'}`,
+                      borderRadius: 10,
+                    }}
+                  >
+                    <div style={{ fontSize: 32, fontWeight: 700, lineHeight: 1, color: active ? 'var(--accent, #c8963e)' : 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 6 }}>
+                      {stat.n}
+                    </div>
+                    <div style={{ fontSize: 11, color: active ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.4 }}>
+                      {stat.label}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Active properties section */}
+            <div style={s.panel}>
+              <div style={s.panelHead}>
+                <span style={s.panelTitle}>active_properties</span>
+                <button
+                  onClick={() => navigate('/inspections/new')}
+                  style={s.btnAccent}
+                >+ New Inspection →</button>
+              </div>
+
+              {loading ? <LogoSpinner />
+                : loadError ? <ErrorStrip msg={loadError} onRetry={load} />
+                : visibleQueue.length === 0 ? <QueueEmpty />
+                : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {visibleQueue.map(p => (
+                      <div
+                        key={p.pid}
+                        className="prop-card"
+                        onClick={() => navigate(`/properties/${p.pid}`)}
+                        style={s.propCard}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                          {/* Left: PID + meta */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 3 }}>
+                              <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 13, fontWeight: 700, color: 'var(--accent, #c8963e)' }}>{p.pid}</span>
+                              <span style={{ fontSize: 12, color: 'var(--text, #e8e8f0)' }}>{p.houseType || '—'}</span>
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                              Last activity: {fmt(p.lastActivity)}
+                            </div>
+                          </div>
+                          {/* Right: action button */}
+                          <button className="act-btn" onClick={e => doAction(e, p)} style={actionStyle(p)}>
+                            {p.actionLabel}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+
+              <div style={{ marginTop: 16, textAlign: 'center', borderTop: '1px solid var(--border, #2e3040)', paddingTop: 12 }}>
+                <button onClick={() => setShowTest(t => !t)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', padding: '4px 8px', opacity: 0.6 }}>
+                  {showTest ? 'Hide test properties' : 'Show test properties'}
+                </button>
+              </div>
+            </div>
+
+          </main>
+        </div>
+
       </div>
     </>
   )
@@ -553,10 +669,65 @@ const s = {
     top: 0,
     zIndex: 100,
   },
-  body: {
+  mobileBody: {
     flex: 1,
     padding: '16px 16px 80px',
     width: '100%',
     boxSizing: 'border-box',
+    flexDirection: 'column',
+  },
+  desktopBody: {
+    flex: 1,
+    padding: '28px 32px 80px',
+    maxWidth: 960,
+    margin: '0 auto',
+    width: '100%',
+    boxSizing: 'border-box',
+  },
+  greeting: {
+    margin: '0 0 20px',
+    fontSize: 13,
+    color: 'var(--text-muted, #6b6d82)',
+    fontFamily: 'var(--font-mono, monospace)',
+  },
+  panel: {
+    background: 'var(--bg-panel, #1e2028)',
+    border: '1px solid var(--border, #2e3040)',
+    borderRadius: 10,
+    padding: 16,
+  },
+  panelHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  panelTitle: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: 'var(--text-muted, #6b6d82)',
+    fontFamily: 'var(--font-mono, monospace)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+  },
+  btnAccent: {
+    color: 'var(--accent, #c8963e)',
+    background: 'none',
+    border: '1px solid rgba(200,150,62,0.35)',
+    borderRadius: 6,
+    padding: '5px 12px',
+    cursor: 'pointer',
+    fontSize: 11,
+    fontWeight: 600,
+    fontFamily: 'var(--font-mono, monospace)',
+    whiteSpace: 'nowrap',
+  },
+  propCard: {
+    padding: '12px 14px',
+    background: 'var(--bg, #16171f)',
+    border: '1px solid var(--border, #2e3040)',
+    borderRadius: 8,
+    cursor: 'pointer',
+    transition: 'border-color 0.15s',
   },
 }
