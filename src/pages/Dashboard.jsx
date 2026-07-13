@@ -152,7 +152,7 @@ function computeNextAction(pid, { latestEstByPid, disputesByEstId, draftMap }) {
   if (!est.sent_at)
     return { label: 'Review & send',    path: `/properties/${pid}/estimates`, navState: null, openQuery: false, landlordMsgCount: 0 }
   if (openQuery)
-    return { label: `Reply to ${landlordMsgCount} quer${landlordMsgCount !== 1 ? 'ies' : 'y'}`, path: `/properties/${pid}/estimates`, navState: null, openQuery: true, landlordMsgCount }
+    return { label: `Reply to ${landlordMsgCount} quer${landlordMsgCount !== 1 ? 'ies' : 'y'}`, path: `/properties/${pid}/estimates`, navState: { tab: 'queries' }, openQuery: true, landlordMsgCount }
   return   { label: 'View estimate',    path: `/properties/${pid}/estimates`, navState: null, openQuery: false, landlordMsgCount: 0 }
 }
 
@@ -510,10 +510,15 @@ export default function Dashboard() {
                 <span style={{ fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>Couldn't load your queue — {loadError}</span>
                 <button onClick={load} style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(224,92,106,0.4)', background: 'transparent', color: 'var(--red, #e05c6a)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>Retry</button>
               </div>
-            ) : visibleProperties.length === 0 ? (
+            ) : properties.length === 0 ? (
               <div style={s.empty}>No properties yet — start an inspection to add one.</div>
             ) : (
               <>
+                {/* All-filtered-as-test edge case */}
+                {visibleProperties.length === 0 && (
+                  <div style={s.empty}>All properties are test PIDs — hidden by default.</div>
+                )}
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {visibleProperties.map(prop => {
                     const li     = inspMap[prop.pid]
@@ -552,7 +557,7 @@ export default function Dashboard() {
                   })}
                 </div>
 
-                {/* Show/hide test properties */}
+                {/* Show/hide test properties — always rendered when there are any properties */}
                 <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border, #2e3040)', textAlign: 'center' }}>
                   <button
                     onClick={() => setShowTest(t => !t)}
