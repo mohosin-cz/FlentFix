@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { generateEstimate, reconcileEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
 import { generateInvoice } from '../utils/generateInvoice'
@@ -58,6 +58,7 @@ function StatBox({ label, value, color }) {
 export default function EstimateWorkspace() {
   const navigate  = useNavigate()
   const { pid }   = useParams()
+  const location  = useLocation()
 
   const [estimates, setEstimates]         = useState([])
   const [property, setProperty]           = useState(null)
@@ -68,7 +69,7 @@ export default function EstimateWorkspace() {
   const [invoiceId, setInvoiceId]         = useState(null)
   const [userEmail, setUserEmail]         = useState(null)
   const [copied, setCopied]               = useState(false)
-  const [activeTab, setActiveTab]         = useState('overview') // 'overview' | 'queries' | 'history'
+  const [activeTab, setActiveTab]         = useState(location.state?.tab || 'overview') // 'overview' | 'queries' | 'history'
   const [versions, setVersions]           = useState([])
   const [disputes, setDisputes]           = useState([])
   const [queryThreadItemId, setQueryThreadItemId] = useState(null)
