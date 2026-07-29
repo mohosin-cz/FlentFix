@@ -23,14 +23,6 @@ const PulseLogo = () => (
 )
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-function getGreeting() {
-  const h = new Date().getHours()
-  if (h >= 5  && h < 12) return 'Good morning'
-  if (h >= 12 && h < 17) return 'Good afternoon'
-  if (h >= 17 && h < 21) return 'Good evening'
-  return 'Burning the midnight oil,'
-}
-
 function initials(name = '') {
   return name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'FL'
 }
@@ -428,7 +420,6 @@ export default function Dashboard() {
           .desk-stats     { display: block !important; }
           .dash-quick     { display: block !important; }
           .dash-right-col { position: sticky; top: 76px; align-self: start; max-height: calc(100vh - 96px); overflow-y: auto; }
-          .dash-greeting  { grid-column: 1 / -1; }
         }
         @media (max-width: 640px) {
           .dash-nav       { display: none  !important; }
@@ -476,14 +467,6 @@ export default function Dashboard() {
       <main style={s.body}>
 
         <div className="dash-grid" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* Greeting */}
-          <p className="dash-greeting" style={s.greeting}>
-            {getGreeting()}{' '}
-            <span style={{ color: 'var(--accent, #c8963e)', textTransform: 'capitalize' }}>
-              {name.split(' ')[0]}
-            </span>
-          </p>
 
           {/* Mobile stats 2×2 */}
           <div className="mob-stats" style={{ display: 'none', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border, #2e3040)', borderRadius: 12, overflow: 'hidden', gridColumn: '1 / -1' }}>
@@ -727,12 +710,6 @@ const s = {
     padding: '16px 24px 80px',
     width: '100%',
     boxSizing: 'border-box',
-  },
-  greeting: {
-    margin: '0 0 16px',
-    fontSize: 12,
-    color: 'var(--text-muted, #6b6d82)',
-    fontFamily: 'var(--font-mono, monospace)',
   },
   panel: {
     background: 'var(--bg-panel, #1e2028)',
