@@ -55,6 +55,21 @@ const TILES = [
     border: 'rgba(61,186,122,0.25)',
   },
   {
+    key: 'utilities',
+    title: 'Utilities & Access',
+    sub: 'Subscriptions · lockbox',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M9 2v6M15 2v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+        <path d="M7 8h10v3a5 5 0 0 1-10 0z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
+        <path d="M12 16v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+      </svg>
+    ),
+    color: '#a78bfa',
+    bg: 'rgba(167,139,250,0.08)',
+    border: 'rgba(167,139,250,0.25)',
+  },
+  {
     key: 'appliance',
     title: 'Appliance Report',
     sub: 'All appliances',
@@ -293,6 +308,8 @@ export default function PropertyDetail() {
   const [menuOpen, setMenuOpen]         = useState(false)
   const [pidModal, setPidModal]         = useState(false)
   const [feasibility, setFeasibility]   = useState([])
+  const [access, setAccess]             = useState(null)
+  const [utilities, setUtilities]       = useState([])
   const menuRef = useRef(null)
 
   const fetchData = useCallback(async () => {
@@ -318,6 +335,12 @@ export default function PropertyDetail() {
         if (error) console.error('quick_notes fetch error:', error)
         setQuickNote(data || null)
       })
+
+    // Utilities & access summary — tolerate tables not existing yet (pre-migration)
+    supabase.from('property_access').select('lockbox_code').eq('pid', pid).maybeSingle()
+      .then(({ data }) => setAccess(data || null))
+    supabase.from('property_utilities').select('id, status').eq('pid', pid)
+      .then(({ data }) => setUtilities(data || []))
 
     if (!inspData?.length) return
 
@@ -386,6 +409,8 @@ export default function PropertyDetail() {
   async function handleTile(key) {
     if (key === 'estimate') {
       navigate(`/properties/${pid}/estimates`)
+    } else if (key === 'utilities') {
+      navigate(`/properties/${pid}/utilities`)
     } else if (key === 'appliance') {
       navigate('/inspections/appliance-report', { state: { inspectionId: latestId, pid } })
     } else if (key === 'invoice') {
@@ -702,6 +727,36 @@ export default function PropertyDetail() {
                 </button>
               ))}
             </div>
+
+            {/* Utilities & Access summary strip */}
+            {(access?.lockbox_code || utilities.length > 0) && (() => {
+              const activeCount = utilities.filter(u => u.status === 'active').length
+              return (
+                <button
+                  onClick={() => navigate(`/properties/${pid}/utilities`)}
+                  style={{ width: '100%', marginTop: 12, display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.22)', borderRadius: 10, cursor: 'pointer', textAlign: 'left', WebkitTapHighlightColor: 'transparent' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#a78bfa' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(167,139,250,0.22)' }}
+                >
+                  {access?.lockbox_code && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono, monospace)' }}>
+                      <span style={{ fontSize: 13 }}>🔒</span>
+                      <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--text, #e8e8f0)' }}>{access.lockbox_code}</span>
+                    </span>
+                  )}
+                  {access?.lockbox_code && utilities.length > 0 && (
+                    <span style={{ width: 1, height: 18, background: 'rgba(167,139,250,0.25)' }} />
+                  )}
+                  {utilities.length > 0 && (
+                    <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>
+                      {utilities.length} {utilities.length === 1 ? 'utility' : 'utilities'}
+                      {activeCount > 0 && <span style={{ color: 'var(--text-muted, #6b6d82)' }}> · {activeCount} active</span>}
+                    </span>
+                  )}
+                  <span style={{ marginLeft: 'auto', fontSize: 13, color: '#a78bfa' }}>→</span>
+                </button>
+              )
+            })()}
 
             {/* Stage action buttons — desktop only (mobile shows in pipeline card) */}
             {!isMobile && getStageActions().length > 0 && (
