@@ -17,6 +17,7 @@ import Estimate from './pages/Estimate'
 import Properties from './pages/Properties'
 import PropertyDetail from './pages/PropertyDetail'
 import PropertyBin from './pages/PropertyBin'
+import PropertyUtilities from './pages/PropertyUtilities'
 import RawInspectionData from './pages/RawInspectionData'
 import RateCard from './pages/RateCard'
 import ExploreInventory from './pages/inventory/ExploreInventory'
@@ -151,6 +152,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/properties/:pid/utilities" element={<ProtectedRoute><PropertyUtilities /></ProtectedRoute>} />
           <Route path="/properties/:pid/raw" element={<ProtectedRoute><RawInspectionData /></ProtectedRoute>} />
           <Route path="/properties/:pid/estimates" element={<ProtectedRoute><EstimateWorkspace /></ProtectedRoute>} />
           <Route path="/tax-invoice/:id" element={<ProtectedRoute><TaxInvoice /></ProtectedRoute>} />
