@@ -36,6 +36,7 @@ import Signup from './pages/Signup'
 import Flentfit from './pages/Flentfit'
 import SOPs from './pages/SOPs'
 import SOPSetup from './pages/SOPSetup'
+import Onboard from './pages/Onboard'
 
 function migrateLocalNotes() {
   if (localStorage.getItem('_flent_notes_migrated')) return
@@ -196,6 +197,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/onboard" element={<Onboard />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <FloatingNav />
