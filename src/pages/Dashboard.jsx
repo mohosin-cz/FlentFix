@@ -257,6 +257,7 @@ const NAV_ITEMS = [
   { label: 'Inventory',  path: '/inventory' },
   { label: 'Rate Card',  path: '/inventory/public-rc' },
   { label: 'SOPs',       path: '/sops' },
+  { label: 'Vendor Management', path: '/vendors' },
 ]
 
 const QUICK_ACTIONS = [
