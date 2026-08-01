@@ -127,6 +127,8 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
 
   const liveUrl = docs.live && docs.live.url
   const hasBank = row.bank_account_no || row.bank_ifsc || row.bank_account_name
+  // already onboarded (opened from the roster) or just onboarded this session
+  const onboardedCode = done || (row.status === 'approved' ? row.vendor_code : null)
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
@@ -147,6 +149,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
             <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.full_name}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.28)', borderRadius: 6, padding: '1px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{row.trade}</span>
+              {row.vendor_code && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.28)', borderRadius: 6, padding: '1px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{row.vendor_code}</span>}
               {row.pod && <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{row.pod}</span>}
               <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{relTime(row.submitted_at)}</span>
             </div>
@@ -199,17 +202,21 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
         <div style={{ borderTop: '1px solid var(--border, #2e3040)', padding: '12px 18px', paddingBottom: 'max(14px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--bg-panel, #1e2028)' }}>
           {err && <ErrStrip>{err}</ErrStrip>}
 
-          {done ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {onboardedCode ? (
+            <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 10 }}>
                 <span style={{ fontSize: 20 }}>✓</span>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green, #3dba7a)' }}>Onboarded</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>Vendor code {done}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green, #3dba7a)' }}>Onboarded{row.reviewed_at ? ` · ${fmtDate(row.reviewed_at)}` : ''}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>Vendor code {onboardedCode}</div>
                 </div>
               </div>
-              <BtnPrimary onClick={onOnboarded}>Done</BtnPrimary>
-            </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>POD</span>
+                <PillGroup options={POD_OPTIONS} value={row.pod || 'Unassigned'} onChange={assignPod} />
+              </div>
+              {done && <BtnPrimary onClick={onOnboarded}>Done</BtnPrimary>}
+            </>
           ) : (
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
