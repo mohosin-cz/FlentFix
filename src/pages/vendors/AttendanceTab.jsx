@@ -96,6 +96,9 @@ function PunchLine({ label, p, ot }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
       <span style={{ fontSize: 11, fontWeight: 700, color: c, fontFamily: 'var(--font-mono, monospace)', minWidth: 28 }}>{label}</span>
       <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtTime(p.punched_at)}</span>
+      {p.selfie_path && <a href={avatarUrl(p.selfie_path)} target="_blank" rel="noreferrer" title="Punch selfie" style={{ display: 'inline-flex', lineHeight: 0 }}>
+        <img src={avatarUrl(p.selfie_path)} alt="selfie" style={{ width: 26, height: 26, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border, #2e3040)' }} />
+      </a>}
       <Loc p={p} />
     </div>
   )
