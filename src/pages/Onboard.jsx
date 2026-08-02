@@ -275,7 +275,7 @@ function ReviewRow({ label, value, onEdit }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const EMPTY = {
-  full_name: '', phone: '', alt_phone: '', email: '', address_line: '', city: '', pincode: '', trade: '',
+  full_name: '', phone: '', alt_phone: '', email: '', date_of_joining: '', address_line: '', city: '', pincode: '', trade: '',
   bank_account_name: '', bank_account_no: '', bank_account_no_confirm: '', bank_ifsc: '', upi_id: '',
   aadhaar_last4: '', pan_number: '', dl_number: '', dl_expiry: '',
 }
@@ -311,7 +311,7 @@ export default function Onboard() {
   }
 
   // ── derived validity ──────────────────────────────────────────────────────
-  const stage1Done = !!form.full_name.trim() && isPhone(form.phone) && !!form.trade
+  const stage1Done = !!form.full_name.trim() && isPhone(form.phone) && isEmail(form.email) && !!form.trade
   const stage2Done = !!livePhoto && !!geo
 
   const bankValid =
@@ -344,6 +344,7 @@ export default function Onboard() {
   const missing = []
   if (!form.full_name.trim()) missing.push({ label: 'Full name', stage: 1, target: 'f-full_name' })
   if (!isPhone(form.phone)) missing.push({ label: 'Valid 10-digit phone', stage: 1, target: 'f-phone' })
+  if (!isEmail(form.email)) missing.push({ label: 'Valid email', stage: 1, target: 'f-email' })
   if (!form.trade) missing.push({ label: 'Trade', stage: 1, target: 'anchor-1' })
   if (!livePhoto) missing.push({ label: 'Live photo', stage: 2, target: 'anchor-2' })
   if (!geo) missing.push({ label: 'GPS location', stage: 2, target: 'anchor-2' })
@@ -435,6 +436,7 @@ export default function Onboard() {
         city: clean(form.city),
         pincode: clean(form.pincode),
         trade: form.trade,
+        date_of_joining: clean(form.date_of_joining),
         live_photo_path: livePath,
         capture_lat: geo.lat,
         capture_lng: geo.lng,
@@ -521,7 +523,8 @@ export default function Onboard() {
           <TextField id="f-full_name" label="Full name" value={form.full_name} onChange={setField('full_name')} placeholder="As per your ID" autoCapitalize="words" />
           <TextField id="f-phone" label="Phone" value={form.phone} onChange={setField('phone')} placeholder="10-digit mobile" type="tel" inputMode="numeric" maxLength={10} error={phoneErr} />
           <TextField id="f-alt_phone" label="Alternate phone" optional value={form.alt_phone} onChange={setField('alt_phone')} placeholder="10-digit mobile" type="tel" inputMode="numeric" maxLength={10} error={altErr} />
-          <TextField id="f-email" label="Email" optional value={form.email} onChange={setField('email')} placeholder="name@example.com" type="email" inputMode="email" error={emailErr} />
+          <TextField id="f-email" label="Email" value={form.email} onChange={setField('email')} placeholder="name@example.com" type="email" inputMode="email" error={emailErr} />
+          <TextField id="f-date_of_joining" label="Date of joining" optional value={form.date_of_joining} onChange={setField('date_of_joining')} type="date" />
           <TextField id="f-address_line" label="Address" optional value={form.address_line} onChange={setField('address_line')} placeholder="House / street / area" />
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>
@@ -614,6 +617,7 @@ export default function Onboard() {
             <ReviewRow label="Phone" value={form.phone.trim()} onEdit={() => jumpTo(1, 'f-phone')} />
             <ReviewRow label="Alt phone" value={form.alt_phone.trim()} onEdit={() => jumpTo(1, 'f-alt_phone')} />
             <ReviewRow label="Email" value={form.email.trim()} onEdit={() => jumpTo(1, 'f-email')} />
+            <ReviewRow label="Joining" value={form.date_of_joining} onEdit={() => jumpTo(1, 'f-date_of_joining')} />
             <ReviewRow label="Address" value={[form.address_line.trim(), form.city.trim(), form.pincode.trim()].filter(Boolean).join(', ')} onEdit={() => jumpTo(1, 'f-address_line')} />
             <ReviewRow label="Trade" value={form.trade} onEdit={() => jumpTo(1, 'anchor-1')} />
             <ReviewRow label="Live photo" value={livePhoto ? 'Captured ✓' : ''} onEdit={() => jumpTo(2, 'anchor-2')} />
