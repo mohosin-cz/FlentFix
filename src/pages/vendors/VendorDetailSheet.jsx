@@ -5,6 +5,44 @@ import {
   POD_OPTIONS, signedDocUrl, fmtDate, fmtDateTime, relTime,
   maskAccount, initials, avatarColor,
 } from '../../utils/vendorHub'
+import { isEmail } from '../../utils/vendorOnboard'
+
+// ── editable email row (staff can add/fix email — needed for attendance OTP) ─
+function EmailRow({ value, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [input, setInput] = useState(value || '')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  async function save() {
+    setBusy(true); setErr('')
+    const e = await onSave(input)
+    setBusy(false)
+    if (e) setErr(e); else setEditing(false)
+  }
+  return (
+    <div style={{ display: 'flex', gap: 12, padding: '8px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
+      <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', minWidth: 96, flexShrink: 0, paddingTop: 1 }}>Email</span>
+      <div style={{ flex: 1 }}>
+        {editing ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input value={input} onChange={e => setInput(e.target.value)} placeholder="name@example.com" type="email" inputMode="email" autoCapitalize="off" autoCorrect="off"
+                style={{ flex: 1, minWidth: 0, padding: '7px 10px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, outline: 'none', fontFamily: 'inherit' }} />
+              <button type="button" onClick={save} disabled={busy} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: '#fff', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 6, padding: '0 12px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{busy ? '…' : 'save'}</button>
+              <button type="button" onClick={() => { setEditing(false); setErr(''); setInput(value || '') }} style={{ flexShrink: 0, fontSize: 11, color: 'var(--text-muted, #6b6d82)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 6, padding: '0 10px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>cancel</button>
+            </div>
+            {err && <span style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>{err}</span>}
+          </div>
+        ) : (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 13, color: value ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', wordBreak: 'break-word' }}>{value || 'Not provided'}</span>
+            <button type="button" onClick={() => { setInput(value || ''); setEditing(true) }} style={{ fontSize: 10, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{value ? 'edit' : 'add'}</button>
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
 
 // ── loud error strip (real messages only) ───────────────────────────────────
 function ErrStrip({ children }) {
@@ -130,6 +168,16 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
   // already onboarded (opened from the roster) or just onboarded this session
   const onboardedCode = done || (row.status === 'approved' ? row.vendor_code : null)
 
+  async function saveEmail(next) {
+    const e = (next || '').trim().toLowerCase()
+    if (!isEmail(e)) return 'Enter a valid email address.'
+    const { error } = await supabase.from('vendors').update({ email: e }).eq('id', row.id)
+    if (error) return error.message
+    setRow(r => ({ ...r, email: e }))
+    onUpdated && onUpdated()
+    return null
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
       <div
@@ -162,7 +210,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
           <Card title="Contact">
             <Row label="Phone">{row.phone}</Row>
             <Row label="Alt phone">{row.alt_phone}</Row>
-            <Row label="Email">{row.email}</Row>
+            <EmailRow value={row.email} onSave={saveEmail} />
             <Row label="Address">{[row.address_line, row.city, row.pincode].filter(Boolean).join(', ') || '—'}</Row>
           </Card>
 
