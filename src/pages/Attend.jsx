@@ -109,6 +109,36 @@ function AvatarBig({ name, url, onPick, busy }) {
   )
 }
 
+// editable fields during an approved window (email + name stay locked)
+const EDIT_FIELDS = [
+  { section: 'Contact', fields: [
+    { k: 'phone', label: 'Phone' }, { k: 'alt_phone', label: 'Alt phone' },
+    { k: 'address_line', label: 'Address' }, { k: 'city', label: 'City' }, { k: 'pincode', label: 'Pincode' },
+  ] },
+  { section: 'Payout', fields: [
+    { k: 'bank_account_name', label: 'Account name' },
+    { k: 'bank_account_no', label: 'Account no.' },
+    { k: 'bank_ifsc', label: 'IFSC' }, { k: 'upi_id', label: 'UPI ID' },
+  ] },
+  { section: 'Documents', fields: [
+    { k: 'pan_number', label: 'PAN' }, { k: 'dl_number', label: 'Licence no.' },
+    { k: 'dl_expiry', label: 'Licence expiry', type: 'date' },
+  ] },
+]
+const EDIT_KEYS = EDIT_FIELDS.flatMap(g => g.fields.map(f => f.k))
+// bank account isn't returned in full (masked), so start it blank
+function initDraft(p) { const d = {}; for (const k of EDIT_KEYS) d[k] = k === 'bank_account_no' ? '' : (p[k] || ''); return d }
+
+function EInput({ label, value, onChange, placeholder, type }) {
+  return (
+    <div style={{ display: 'flex', gap: 12, padding: '8px 0', borderTop: '1px solid var(--border, #2e3040)', alignItems: 'center' }}>
+      <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', minWidth: 96, flexShrink: 0 }}>{label}</span>
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} type={type || 'text'}
+        style={{ flex: 1, minWidth: 0, padding: '8px 10px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, outline: 'none', fontFamily: 'inherit' }} />
+    </div>
+  )
+}
+
 export default function Attend() {
   const [step, setStep] = useState(() => { try { return localStorage.getItem(TOKEN_KEY) ? 'resume' : 'email' } catch { return 'email' } })
   const [initialToken] = useState(() => { try { return localStorage.getItem(TOKEN_KEY) || '' } catch { return '' } })
@@ -130,6 +160,12 @@ export default function Attend() {
   const [history, setHistory] = useState(null)
   const [avatarBusy, setAvatarBusy] = useState(false)
   const [avatarErr, setAvatarErr] = useState('')
+  const [editReq, setEditReq] = useState(null)       // {id,status,expires_at,proposed,decision_note}
+  const [editDraft, setEditDraft] = useState(null)   // in-progress edits during a granted window
+  const [editReason, setEditReason] = useState('')
+  const [editBusy, setEditBusy] = useState(false)
+  const [editErr, setEditErr] = useState('')
+  const [nowTs, setNowTs] = useState(0)              // ticker for the countdown
 
   const captureLocation = useCallback(async () => {
     setGeoErr(''); setGeoBusy(true)
@@ -147,10 +183,59 @@ export default function Attend() {
     if (!error && data) setProfile(Array.isArray(data) ? data[0] : data)
   }, [])
 
+  const loadEditStatus = useCallback(async () => {
+    const { data, error } = await supabase.rpc('attend_edit_status', { p_token: tokenRef.current })
+    if (error) return
+    setEditReq(Array.isArray(data) ? (data[0] || null) : (data || null))
+  }, [])
+
   const enterPortal = useCallback(async (v) => {
     setVendor(v); setTab('time'); setStep('portal')
-    loadHistory(); loadProfile(); captureLocation()
-  }, [captureLocation, loadHistory, loadProfile])
+    loadHistory(); loadProfile(); loadEditStatus(); captureLocation()
+  }, [captureLocation, loadHistory, loadProfile, loadEditStatus])
+
+  const isGranted = editReq && editReq.status === 'granted' && editReq.expires_at && new Date(editReq.expires_at).getTime() > nowTs
+  const minsLeft = editReq && editReq.expires_at ? Math.max(0, Math.ceil((new Date(editReq.expires_at).getTime() - nowTs) / 60000)) : 0
+
+  // seed / clear the edit draft when the window opens or closes
+  useEffect(() => {
+    if (editReq && editReq.status === 'granted' && profile && !editDraft) setEditDraft(initDraft(profile))
+    if ((!editReq || editReq.status !== 'granted') && editDraft) setEditDraft(null)
+  }, [editReq, profile, editDraft])
+
+  // countdown ticker; auto-refresh status the moment the window lapses
+  useEffect(() => {
+    if (!editReq || editReq.status !== 'granted') return
+    setNowTs(Date.now())
+    const iv = setInterval(() => {
+      const t = Date.now(); setNowTs(t)
+      if (editReq.expires_at && new Date(editReq.expires_at).getTime() <= t) loadEditStatus()
+    }, 15000)
+    return () => clearInterval(iv)
+  }, [editReq, loadEditStatus])
+
+  async function requestEdit() {
+    setEditBusy(true); setEditErr('')
+    const { error } = await supabase.rpc('attend_request_edit', { p_token: tokenRef.current, p_reason: editReason || null })
+    setEditBusy(false)
+    if (error) { setEditErr(error.message); return }
+    setEditReason(''); loadEditStatus()
+  }
+
+  async function submitEdit() {
+    setEditBusy(true); setEditErr('')
+    const changes = {}
+    for (const k of EDIT_KEYS) {
+      const val = (editDraft[k] ?? '').toString().trim()
+      const orig = k === 'bank_account_no' ? '' : (profile[k] || '')
+      if (val !== String(orig)) changes[k] = val
+    }
+    if (Object.keys(changes).length === 0) { setEditErr('You haven’t changed anything yet.'); setEditBusy(false); return }
+    const { error } = await supabase.rpc('attend_submit_edit', { p_token: tokenRef.current, p_changes: changes })
+    setEditBusy(false)
+    if (error) { setEditErr(error.message); return }
+    setEditDraft(null); loadEditStatus()
+  }
 
   useEffect(() => {
     if (step !== 'resume') return
@@ -351,24 +436,61 @@ export default function Attend() {
               <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Tap the photo to {profile.avatar_path ? 'change' : 'add'} it</span>
               {avatarErr && <RedStrip title="Photo">{avatarErr}</RedStrip>}
             </div>
-            <PCard title="Contact">
-              <PRow label="Phone">{profile.phone}</PRow>
-              <PRow label="Alt phone">{profile.alt_phone}</PRow>
-              <PRow label="Email">{profile.email}</PRow>
-              <PRow label="Address">{[profile.address_line, profile.city, profile.pincode].filter(Boolean).join(', ')}</PRow>
-              <PRow label="Joined">{profile.date_of_joining ? fmtDate(profile.date_of_joining) : '—'}</PRow>
-            </PCard>
-            <PCard title="Payout">
-              <PRow label="Account name">{profile.bank_account_name}</PRow>
-              <PRow label="Account no.">{profile.bank_account_last4 ? maskAccount(profile.bank_account_last4) : '—'}</PRow>
-              <PRow label="IFSC">{profile.bank_ifsc}</PRow>
-              <PRow label="UPI ID">{profile.upi_id}</PRow>
-            </PCard>
-            <PCard title="Documents">
-              <PRow label="Aadhaar">{profile.aadhaar_last4 ? `•••• •••• ${profile.aadhaar_last4}` : '—'}</PRow>
-              <PRow label="PAN">{profile.pan_number}</PRow>
-              <PRow label="Licence">{profile.dl_number ? `${profile.dl_number}${profile.dl_expiry ? ` · exp ${fmtDate(profile.dl_expiry)}` : ''}` : '—'}</PRow>
-            </PCard>
+            {/* ── edit-access gate ─────────────────────────────────── */}
+            {isGranted ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: '11px 14px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 12 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>✎ Editing open · {minsLeft} min left</span>
+                <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>Change what you need below, then submit — staff review your changes before they go live.</span>
+              </div>
+            ) : editReq && editReq.status === 'requested' ? (
+              <div style={{ padding: '11px 14px', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.30)', borderRadius: 12, fontSize: 12, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>⏳ Edit access requested — waiting for staff approval.</div>
+            ) : editReq && editReq.status === 'submitted' ? (
+              <div style={{ padding: '11px 14px', background: 'rgba(91,141,239,0.10)', border: '1px solid rgba(91,141,239,0.30)', borderRadius: 12, fontSize: 12, color: '#5b8def', fontFamily: 'var(--font-mono, monospace)' }}>✓ Changes submitted — pending staff review.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
+                {editReq && editReq.status === 'applied' && <span style={{ fontSize: 12, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>✓ Your last update was applied.</span>}
+                {editReq && editReq.status === 'denied' && <span style={{ fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>Your last request was declined{editReq.decision_note ? `: ${editReq.decision_note}` : '.'}</span>}
+                <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>Need to update your phone, bank, UPI or documents? Request a one-time edit window — staff approve it, then review your changes before they go live.</span>
+                <input value={editReason} onChange={e => setEditReason(e.target.value)} placeholder="What do you need to change? (optional)" style={{ padding: '9px 12px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, outline: 'none', fontFamily: 'inherit' }} />
+                {editErr && <RedStrip title="Couldn’t submit">{editErr}</RedStrip>}
+                <button type="button" onClick={requestEdit} disabled={editBusy} style={bigBtn('primary', editBusy)}>{editBusy ? 'Requesting…' : 'Request edit access'}</button>
+              </div>
+            )}
+
+            {/* ── fields: editable during a granted window, else read-only ── */}
+            {isGranted && editDraft ? <>
+              {EDIT_FIELDS.map(g => (
+                <PCard key={g.section} title={g.section}>
+                  {g.section === 'Contact' && <PRow label="Email">{profile.email}</PRow>}
+                  {g.fields.map(f => (
+                    <EInput key={f.k} label={f.label} type={f.type} value={editDraft[f.k]} onChange={v => setEditDraft(d => ({ ...d, [f.k]: v }))}
+                      placeholder={f.k === 'bank_account_no' && profile.bank_account_last4 ? `•••• ${profile.bank_account_last4} — enter new` : ''} />
+                  ))}
+                </PCard>
+              ))}
+              {editErr && <RedStrip title="Couldn’t submit">{editErr}</RedStrip>}
+              <button type="button" onClick={submitEdit} disabled={editBusy} style={bigBtn('primary', editBusy)}>{editBusy ? 'Submitting…' : 'Submit changes for review →'}</button>
+              <button type="button" onClick={() => setEditDraft(initDraft(profile))} style={linkBtn}>Reset changes</button>
+            </> : <>
+              <PCard title="Contact">
+                <PRow label="Phone">{profile.phone}</PRow>
+                <PRow label="Alt phone">{profile.alt_phone}</PRow>
+                <PRow label="Email">{profile.email}</PRow>
+                <PRow label="Address">{[profile.address_line, profile.city, profile.pincode].filter(Boolean).join(', ')}</PRow>
+                <PRow label="Joined">{profile.date_of_joining ? fmtDate(profile.date_of_joining) : '—'}</PRow>
+              </PCard>
+              <PCard title="Payout">
+                <PRow label="Account name">{profile.bank_account_name}</PRow>
+                <PRow label="Account no.">{profile.bank_account_last4 ? maskAccount(profile.bank_account_last4) : '—'}</PRow>
+                <PRow label="IFSC">{profile.bank_ifsc}</PRow>
+                <PRow label="UPI ID">{profile.upi_id}</PRow>
+              </PCard>
+              <PCard title="Documents">
+                <PRow label="Aadhaar">{profile.aadhaar_last4 ? `•••• •••• ${profile.aadhaar_last4}` : '—'}</PRow>
+                <PRow label="PAN">{profile.pan_number}</PRow>
+                <PRow label="Licence">{profile.dl_number ? `${profile.dl_number}${profile.dl_expiry ? ` · exp ${fmtDate(profile.dl_expiry)}` : ''}` : '—'}</PRow>
+              </PCard>
+            </>}
           </> : <div style={{ padding: '30px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading profile…</div>)}
 
           {/* ── PAYROLL ──────────────────────────────────────────────────── */}
