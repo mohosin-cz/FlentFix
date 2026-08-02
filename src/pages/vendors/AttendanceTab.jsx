@@ -71,7 +71,7 @@ function PunchTag({ p, big }) {
 // ── one live-feed event ─────────────────────────────────────────────────────
 function FeedRow({ p, siteLabel }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
       <Ava v={p.vendor} size={32} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -258,16 +258,18 @@ export default function AttendanceTab() {
 
           {/* ── LIVE FEED ─────────────────────────────────────────────────── */}
           {view === 'feed' && (
-            <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: '2px 14px 10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0 2px' }}>
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px' }}>
                 <span style={{ width: 7, height: 7, borderRadius: 4, background: isToday ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }} />
                 <span style={{ fontSize: 10, fontWeight: 700, color: isToday ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{isToday ? 'Live' : dateLabel}</span>
                 <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{feed.length} event{feed.length === 1 ? '' : 's'}</span>
               </div>
               {feed.length === 0
-                ? <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No punches {isToday ? 'yet today' : 'on this day'}.</div>
-                : feed.map((p, i) => <FeedRow key={p.id || i} p={p} siteLabel={p.pid ? (siteMap[p.pid] || p.pid) : ''} />)}
-            </div>
+                ? <div style={{ padding: '30px 20px', textAlign: 'center', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 12, fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No punches {isToday ? 'yet today' : 'on this day'}.</div>
+                : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {feed.map((p, i) => <FeedRow key={p.id || i} p={p} siteLabel={p.pid ? (siteMap[p.pid] || p.pid) : ''} />)}
+                  </div>}
+            </>
           )}
 
           {/* ── BY VENDOR ─────────────────────────────────────────────────── */}
