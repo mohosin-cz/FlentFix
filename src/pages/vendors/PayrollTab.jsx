@@ -361,6 +361,22 @@ function ReviewFlow({ period, rows: initialRows, onClose }) {
     for (let k = 1; k <= total; k++) { const cand = (idx + k) % total; if (!nextSet.has(rows[cand].id)) { setIdx(cand); break } }
   }
 
+  async function removeCurrent() {
+    if (!cur) return
+    if (!window.confirm(`Remove ${cur.beneficiary_name || 'this person'} from this month's payout?`)) return
+    const id = cur.id
+    if (!String(id).startsWith('new-')) {
+      const { error } = await supabase.from('vendor_payouts').delete().eq('id', id)
+      if (error) { setErr(error.message); return }
+    }
+    setErr('')
+    setApproved(prev => { const n = new Set(prev); n.delete(id); return n })
+    const nr = rows.filter(r => r.id !== id)
+    setRows(nr)
+    if (nr.length === 0) { onClose(); return }
+    setIdx(i => Math.min(i, nr.length - 1))
+  }
+
   async function submitFinal() {
     setBusy(true); setErr('')
     try {
@@ -384,7 +400,7 @@ function ReviewFlow({ period, rows: initialRows, onClose }) {
   }
 
   const muted = 'var(--text-muted, #6b6d82)', mono = 'var(--font-mono, monospace)'
-  const overlay = { position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(8,9,13,0.55)', backdropFilter: 'blur(7px)', WebkitBackdropFilter: 'blur(7px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto' }
+  const overlay = { position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(8,9,13,0.55)', backdropFilter: 'blur(7px)', WebkitBackdropFilter: 'blur(7px)', overflowY: 'auto', padding: '20px 16px' }
   const cardStyle = { animation: 'cardIn .25s ease', width: '100%', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 18, padding: 18, display: 'flex', flexDirection: 'column', gap: 11, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }
   const navBtn = { padding: '11px 14px', fontSize: 14, fontWeight: 600, borderRadius: 9, cursor: 'pointer', fontFamily: mono, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)' }
   const approveBtn = { flex: 1, padding: '11px 14px', fontSize: 14, fontWeight: 700, borderRadius: 9, cursor: 'pointer', fontFamily: mono, border: 'none', background: 'var(--green, #3dba7a)', color: '#fff' }
@@ -394,7 +410,7 @@ function ReviewFlow({ period, rows: initialRows, onClose }) {
   return (
     <div style={overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <style>{`@keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}`}</style>
-      <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ width: '100%', maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: mono }}>Review · {monthLabel(period.period_month)}</div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.72)', fontFamily: mono }}>{approved.size} / {total} approved</div>
@@ -435,11 +451,13 @@ function ReviewFlow({ period, rows: initialRows, onClose }) {
               {Number(cur.advance_recovered) > 0 && <div style={brkRow}><span>Advance recovered</span><span style={{ color: 'var(--red, #e05c6a)' }}>− {money(Number(cur.advance_recovered))}</span></div>}
               <div style={{ ...brkRow, borderTop: '1px solid var(--border, #2e3040)', paddingTop: 7 }}><span style={{ color: 'var(--text, #e8e8f0)', fontWeight: 700 }}>Total payout</span><span style={{ color: 'var(--accent, #c8963e)', fontWeight: 700, fontSize: 15 }}>{money(totalOf(cur))}</span></div>
             </div>
+            {err && <Err>{err}</Err>}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <button type="button" onClick={() => go(-1)} disabled={idx === 0} style={{ ...navBtn, opacity: idx === 0 ? 0.4 : 1 }}>‹</button>
               <button type="button" onClick={approveCurrent} style={approveBtn}>{approved.has(cur.id) ? '✓ Approved · next' : '✓ Approve'}</button>
               <button type="button" onClick={() => go(1)} disabled={idx === total - 1} style={{ ...navBtn, opacity: idx === total - 1 ? 0.4 : 1 }}>›</button>
             </div>
+            <button type="button" onClick={removeCurrent} style={{ background: 'none', border: 'none', color: 'var(--red, #e05c6a)', cursor: 'pointer', fontSize: 12, fontFamily: mono, padding: '2px', alignSelf: 'center' }}>✕ Remove this person from the month</button>
           </div>
         )}
 
