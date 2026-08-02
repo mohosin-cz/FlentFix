@@ -7,6 +7,17 @@ const monthLabel = (d) => d ? new Date(d).toLocaleDateString('en-IN', { month: '
 const avatarUrl = (p) => { if (!p) return null; try { return supabase.storage.from('vendor-avatars').getPublicUrl(p).data.publicUrl } catch { return null } }
 const totalOf = (f) => Number(f.fixed_pay || 0) + Number(f.allowance || 0) + Number(f.ot_amount || 0) - Number(f.advance_recovered || 0)
 
+const CSV_COLS = ['beneficiary_name', 'team', 'cost_centre', 'fixed_pay', 'allowance', 'days_worked', 'ot_days', 'ot_amount', 'advance_given', 'advance_recovered', 'total_payout', 'upi_id', 'bank_account_name', 'bank_account_no', 'bank_ifsc', 'utr']
+function downloadCsv(period, rows) {
+  const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
+  const csv = [CSV_COLS.join(','), ...rows.map(r => CSV_COLS.map(c => esc(r[c])).join(','))].join('\n')
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+  const a = document.createElement('a')
+  a.href = url; a.download = `payroll-${monthLabel(period.period_month).replace(/\s+/g, '-')}.csv`
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url)
+}
+const actBtn = { padding: '7px 12px', fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)' }
+
 function Ava({ name, path, size = 34 }) {
   const url = avatarUrl(path)
   return url
@@ -83,7 +94,13 @@ export default function PayrollTab() {
           </div>
           <div style={{ display: 'flex', gap: 20, marginTop: 12, fontFamily: 'var(--font-mono, monospace)' }}>
             <div><div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent, #c8963e)' }}>{money(total)}</div><div style={lbl}>total payout</div></div>
-            <div><div style={{ fontSize: 18, fontWeight: 700 }}>{(payouts || []).length}</div><div style={lbl}>vendors</div></div>
+            <div><div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{(payouts || []).length}</div><div style={lbl}>vendors</div></div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+            <button type="button" onClick={() => downloadCsv(period, payouts || [])} style={actBtn}>⤓ Download CSV</button>
+            {period.status === 'draft' && <button type="button" onClick={async () => { await supabase.rpc('payroll_fill_month', { p_period_id: period.id }); openPeriod(period) }} style={actBtn}>↻ Regenerate</button>}
+            {period.status === 'draft' && <button type="button" onClick={async () => { await supabase.from('vendor_payroll_periods').update({ status: 'paid', locked_at: new Date().toISOString() }).eq('id', period.id); setPeriod({ ...period, status: 'paid' }) }} style={{ ...actBtn, color: 'var(--green, #3dba7a)', borderColor: 'var(--green, #3dba7a)' }}>✓ Mark paid</button>}
+            {period.status === 'draft' && <button type="button" onClick={async () => { if (!window.confirm('Delete this draft month and its lines?')) return; await supabase.from('vendor_payouts').delete().eq('period_id', period.id); await supabase.from('vendor_payroll_periods').delete().eq('id', period.id); setPeriod(null); setPayouts(null); loadPeriods() }} style={{ ...actBtn, color: 'var(--red, #e05c6a)' }}>Delete</button>}
           </div>
         </div>
         {rowsLoading ? <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>
@@ -152,30 +169,16 @@ function NewPeriodSheet({ onClose, onCreated }) {
     setErr(''); setBusy(true)
     const [y, m] = month.split('-').map(Number)
     const days = new Date(y, m, 0).getDate()
-    const start = `${month}-01`
-    const end = `${y}-${String(m).padStart(2, '0')}-${String(days).padStart(2, '0')}`
-    const { data: per, error } = await supabase.from('vendor_payroll_periods').insert({ period_month: start, days_in_month: days, status: 'draft' }).select().single()
+    const { data: per, error } = await supabase.from('vendor_payroll_periods').insert({ period_month: `${month}-01`, days_in_month: days, status: 'draft' }).select().single()
     if (error) { setErr(error.message); setBusy(false); return }
-    const [vRes, rRes, sRes] = await Promise.all([
-      supabase.from('vendors').select('id,full_name,trade,pod,monthly_rate,upi_id,bank_account_name,bank_account_no,bank_ifsc').eq('status', 'approved'),
-      supabase.from('payroll_trade_rate').select('*'),
-      supabase.rpc('payout_month_stats', { p_start: start, p_end: end }),
-    ])
-    const rateMap = {}; for (const r of rRes.data || []) rateMap[r.trade] = r.monthly_rate
-    const statMap = {}; for (const s of sRes.data || []) statMap[s.vendor_id] = s
-    const rows = (vRes.data || []).map(v => {
-      const fixed = Number(v.monthly_rate ?? rateMap[v.trade] ?? 0)
-      const st = statMap[v.id] || {}
-      const otDays = Number(st.ot_days || 0)
-      const otAmount = days > 0 ? Math.round(otDays * (fixed / days)) : 0   // 1 OT day = 1 day's pay
-      return { period_id: per.id, vendor_id: v.id, beneficiary_name: v.full_name, team: v.pod, fixed_pay: fixed, allowance: 0, days_worked: st.present_days ?? null, ot_days: otDays, ot_amount: otAmount, advance_given: 0, advance_recovered: 0, total_payout: fixed + otAmount, upi_id: v.upi_id, bank_account_name: v.bank_account_name, bank_account_no: v.bank_account_no, bank_ifsc: v.bank_ifsc, source: 'generated' }
-    })
-    if (rows.length) { const { error: iErr } = await supabase.from('vendor_payouts').insert(rows); if (iErr) { setErr(iErr.message); setBusy(false); return } }
-    setBusy(false); onCreated(per)
+    const { error: fErr } = await supabase.rpc('payroll_fill_month', { p_period_id: per.id })
+    setBusy(false)
+    if (fErr) { setErr(fErr.message); return }
+    onCreated(per)
   }
   return (
     <Sheet title="New payroll month" onClose={onClose}>
-      <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>Creates a draft month, auto-filled per approved vendor: fixed pay from their rate, days worked + overtime from attendance, and their bank/UPI details. Review, tweak, then mark it paid.</div>
+      <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>Creates a draft month, auto-filled per approved vendor: their latest salary carried forward, days worked + overtime from attendance, team, and bank/UPI details. Review, tweak, then mark it paid.</div>
       <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={lbl}>Month</span><input type="month" value={month} onChange={e => setMonth(e.target.value)} style={inp} /></label>
       {err && <Err>{err}</Err>}
       <button type="button" onClick={create} disabled={busy} style={primary(busy)}>{busy ? 'Creating…' : 'Create month'}</button>
