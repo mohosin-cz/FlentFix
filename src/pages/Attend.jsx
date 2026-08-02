@@ -370,7 +370,13 @@ export default function Attend() {
             </div>
 
             {!onClock && (
-              <Field label="Site / property ID"><Input value={pid} onChange={setPid} placeholder="Type the site's PID" autoCapitalize="characters" autoCorrect="off" /></Field>
+              <Field label="Site / property ID">
+                <div style={{ display: 'flex', alignItems: 'stretch', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, overflow: 'hidden' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.10)', borderRight: '1px solid var(--border, #2e3040)', fontFamily: 'var(--font-mono, monospace)' }}>PID</span>
+                  <input value={pid} onChange={e => setPid(e.target.value)} placeholder="enter the number" autoCapitalize="characters" autoCorrect="off"
+                    style={{ flex: 1, minWidth: 0, padding: '13px 12px', fontSize: 16, color: 'var(--text, #e8e8f0)', background: 'none', border: 'none', outline: 'none', fontFamily: 'inherit' }} />
+                </div>
+              </Field>
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10 }}>
