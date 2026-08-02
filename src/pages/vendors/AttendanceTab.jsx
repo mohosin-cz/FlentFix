@@ -69,21 +69,65 @@ function PunchTag({ p, big }) {
 }
 
 // ── one live-feed event ─────────────────────────────────────────────────────
-function FeedRow({ p, siteLabel }) {
+// pair punches into in→out sessions (per vendor, per kind), newest first
+function buildSessions(punches) {
+  const byVK = {}
+  for (const p of punches) { const key = `${p.vendor_id}|${p.kind || 'regular'}`; (byVK[key] = byVK[key] || []).push(p) }
+  const out = []
+  for (const key of Object.keys(byVK)) {
+    const list = [...byVK[key]].sort((a, b) => new Date(a.punched_at) - new Date(b.punched_at))
+    let openIn = null
+    for (const p of list) {
+      if (p.punch_type === 'in') { if (openIn) out.push({ vendor: openIn.vendor, kind: openIn.kind || 'regular', inP: openIn, outP: null }); openIn = p }
+      else if (openIn) { out.push({ vendor: openIn.vendor, kind: openIn.kind || 'regular', inP: openIn, outP: p }); openIn = null }
+      else out.push({ vendor: p.vendor, kind: p.kind || 'regular', inP: null, outP: p })
+    }
+    if (openIn) out.push({ vendor: openIn.vendor, kind: openIn.kind || 'regular', inP: openIn, outP: null })
+  }
+  return out.sort((a, b) => new Date((b.outP || b.inP).punched_at) - new Date((a.outP || a.inP).punched_at))
+}
+
+function PunchLine({ label, p, ot, siteMap }) {
+  const inn = label === 'IN'
+  const c = inn ? (ot ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)'
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
-      <Ava v={p.vendor} size={32} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.vendor ? p.vendor.full_name : 'Unknown'}</span>
-          <PunchTag p={p} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: c, fontFamily: 'var(--font-mono, monospace)', minWidth: 28 }}>{label}</span>
+      <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtTime(p.punched_at)}</span>
+      {p.pid && <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>· {siteMap[p.pid] || p.pid}</span>}
+      <Loc p={p} />
+    </div>
+  )
+}
+
+// one session (check-in + its check-out) as a tile
+function SessionTile({ ses, siteMap }) {
+  const ot = ses.kind === 'overtime'
+  const open = !ses.outP
+  const v = ses.vendor
+  const dur = (ses.inP && ses.outP) ? new Date(ses.outP.punched_at).getTime() - new Date(ses.inP.punched_at).getTime() : null
+  const statusC = ot ? '#5b8def' : 'var(--green, #3dba7a)'
+  return (
+    <div style={{ padding: '12px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+        <Ava v={v} size={34} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v ? v.full_name : 'Unknown'}</span>
+            {ot && <span style={{ fontSize: 9, color: '#5b8def', border: '1px solid #5b8def55', borderRadius: 4, padding: '0 5px', fontFamily: 'var(--font-mono, monospace)' }}>OT</span>}
+          </div>
+          {v && v.trade && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{v.trade}</span>}
         </div>
-        <div style={{ marginTop: 2 }}><Loc p={p} /></div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          {open
+            ? <span style={{ fontSize: 10, fontWeight: 700, color: statusC, border: `1px solid ${statusC}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{ot ? 'Overtime' : 'On site'}</span>
+            : <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDuration(dur)}</span>}
+        </div>
       </div>
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtTime(p.punched_at)}</div>
-        <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{siteLabel || p.pid || ''}</div>
-      </div>
+      {ses.inP && <PunchLine label="IN" p={ses.inP} ot={ot} siteMap={siteMap} />}
+      {ses.outP
+        ? <PunchLine label="OUT" p={ses.outP} ot={ot} siteMap={siteMap} />
+        : <div style={{ marginTop: 6, fontSize: 11, color: statusC, fontFamily: 'var(--font-mono, monospace)' }}>OUT&nbsp;&nbsp;— still on site</div>}
     </div>
   )
 }
@@ -208,7 +252,7 @@ export default function AttendanceTab() {
     return { vid, name: v.full_name || 'Unknown', trade: v.trade || '', vendor: v, punches: list, ...s }
   }).sort((a, b) => (a.status === b.status ? 0 : a.status === 'on_site' ? -1 : 1))
 
-  const feed = [...(punches || [])].reverse()   // newest first
+  const sessions = buildSessions(punches || [])   // in→out pairs, newest first
   const onSite = summaries.filter(s => s.status === 'on_site').length
   const out = summaries.filter(s => s.status === 'checked_out').length
   const punchedIds = new Set(Object.keys(byVendor))
@@ -262,12 +306,12 @@ export default function AttendanceTab() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px' }}>
                 <span style={{ width: 7, height: 7, borderRadius: 4, background: isToday ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }} />
                 <span style={{ fontSize: 10, fontWeight: 700, color: isToday ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{isToday ? 'Live' : dateLabel}</span>
-                <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{feed.length} event{feed.length === 1 ? '' : 's'}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{sessions.length} session{sessions.length === 1 ? '' : 's'}</span>
               </div>
-              {feed.length === 0
+              {sessions.length === 0
                 ? <div style={{ padding: '30px 20px', textAlign: 'center', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 12, fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No punches {isToday ? 'yet today' : 'on this day'}.</div>
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {feed.map((p, i) => <FeedRow key={p.id || i} p={p} siteLabel={p.pid ? (siteMap[p.pid] || p.pid) : ''} />)}
+                    {sessions.map((ses, i) => <SessionTile key={(ses.inP || ses.outP).id || i} ses={ses} siteMap={siteMap} />)}
                   </div>}
             </>
           )}
