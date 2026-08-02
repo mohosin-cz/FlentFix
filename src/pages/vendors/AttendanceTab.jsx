@@ -8,6 +8,8 @@ const avatarUrl = (path) => {
   try { return supabase.storage.from('vendor-avatars').getPublicUrl(path).data.publicUrl } catch { return null }
 }
 const mapsLink = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}`
+const shiftDay = (d, delta) => { const dt = new Date(`${d}T12:00:00`); dt.setDate(dt.getDate() + delta); const s = dt.toISOString().slice(0, 10); const t = todayStr(); return s > t ? t : s }
+const dayNav = { width: 34, minWidth: 34, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-dim, #9394a8)', cursor: 'pointer', fontSize: 15, fontFamily: 'var(--font-mono, monospace)' }
 
 // ── summarise one vendor's punches for the day (kind-aware) ──────────────────
 function summarize(list) {
@@ -87,15 +89,25 @@ function buildSessions(punches) {
   return out.sort((a, b) => new Date((b.outP || b.inP).punched_at) - new Date((a.outP || a.inP).punched_at))
 }
 
-function PunchLine({ label, p, ot, siteMap }) {
+function PunchLine({ label, p, ot }) {
   const inn = label === 'IN'
   const c = inn ? (ot ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
       <span style={{ fontSize: 11, fontWeight: 700, color: c, fontFamily: 'var(--font-mono, monospace)', minWidth: 28 }}>{label}</span>
       <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtTime(p.punched_at)}</span>
-      {p.pid && <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>· {siteMap[p.pid] || p.pid}</span>}
       <Loc p={p} />
+    </div>
+  )
+}
+
+// prominent PID badge (loud, top of a tile)
+function PidBadge({ pid, siteMap }) {
+  if (!pid) return null
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10, padding: '6px 11px', background: 'rgba(200,150,62,0.12)', border: '1px solid rgba(200,150,62,0.32)', borderRadius: 8, width: 'fit-content' }}>
+      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>PID</span>
+      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.02em' }}>{(siteMap && siteMap[pid]) || pid}</span>
     </div>
   )
 }
@@ -105,10 +117,12 @@ function SessionTile({ ses, siteMap }) {
   const ot = ses.kind === 'overtime'
   const open = !ses.outP
   const v = ses.vendor
+  const pid = (ses.inP && ses.inP.pid) || (ses.outP && ses.outP.pid) || null
   const dur = (ses.inP && ses.outP) ? new Date(ses.outP.punched_at).getTime() - new Date(ses.inP.punched_at).getTime() : null
   const statusC = ot ? '#5b8def' : 'var(--green, #3dba7a)'
   return (
     <div style={{ padding: '12px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
+      <PidBadge pid={pid} siteMap={siteMap} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
         <Ava v={v} size={34} />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -124,9 +138,9 @@ function SessionTile({ ses, siteMap }) {
             : <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDuration(dur)}</span>}
         </div>
       </div>
-      {ses.inP && <PunchLine label="IN" p={ses.inP} ot={ot} siteMap={siteMap} />}
+      {ses.inP && <PunchLine label="IN" p={ses.inP} ot={ot} />}
       {ses.outP
-        ? <PunchLine label="OUT" p={ses.outP} ot={ot} siteMap={siteMap} />
+        ? <PunchLine label="OUT" p={ses.outP} ot={ot} />
         : <div style={{ marginTop: 6, fontSize: 11, color: statusC, fontFamily: 'var(--font-mono, monospace)' }}>OUT&nbsp;&nbsp;— still on site</div>}
     </div>
   )
@@ -264,10 +278,13 @@ export default function AttendanceTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button type="button" onClick={() => setDate(shiftDay(date, -1))} style={dayNav}>‹</button>
         <input type="date" value={date} max={todayStr()} onChange={e => setDate(e.target.value)}
-          style={{ flex: 1, padding: '9px 12px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, outline: 'none', fontFamily: 'var(--font-mono, monospace)' }} />
-        <button type="button" onClick={() => setSharing(true)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 12px', background: 'rgba(200,150,62,0.10)', border: '1px solid var(--accent, #c8963e)', borderRadius: 8, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>⇱ Punch link</button>
+          style={{ flex: '0 1 auto', width: 138, padding: '8px 10px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, outline: 'none', fontFamily: 'var(--font-mono, monospace)' }} />
+        <button type="button" onClick={() => setDate(shiftDay(date, 1))} disabled={isToday} style={{ ...dayNav, opacity: isToday ? 0.35 : 1 }}>›</button>
+        {!isToday && <button type="button" onClick={() => setDate(todayStr())} style={{ ...dayNav, width: 'auto', padding: '0 10px', fontSize: 11 }}>Today</button>}
+        <button type="button" onClick={() => setSharing(true)} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '8px 11px', background: 'rgba(200,150,62,0.10)', border: '1px solid var(--accent, #c8963e)', borderRadius: 8, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>⇱ Punch link</button>
       </div>
 
       {error && (
