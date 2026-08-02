@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { Field, Input } from '../components/ui'
 import { getPosition, fmtTime, fmtDate, fmtDuration, maskAccount, initials, avatarColor } from '../utils/vendorHub'
 import { compressToWebp } from '../utils/vendorOnboard'
+import FlentWordmark from '../components/FlentWordmark'
 
 const TOKEN_KEY = 'flent_attend_token'
 const avatarUrl = (path) => {
@@ -36,7 +37,7 @@ function Shell({ children }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', flexDirection: 'column', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 18px', minHeight: 56, flexShrink: 0, paddingTop: 'env(safe-area-inset-top)', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
-        <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent, #c8963e)', letterSpacing: '0.04em', fontFamily: 'var(--font-mono, monospace)' }}>FLENT</span>
+        <FlentWordmark variant="light" height={18} />
         <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>vendor portal</span>
       </header>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
@@ -252,7 +253,7 @@ export default function Attend() {
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', flexDirection: 'column', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}>
       <input ref={fileRef} type="file" accept="image/*" onChange={onAvatarFile} style={{ display: 'none' }} />
       <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', minHeight: 56, flexShrink: 0, paddingTop: 'env(safe-area-inset-top)', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
-        <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent, #c8963e)', letterSpacing: '0.04em', fontFamily: 'var(--font-mono, monospace)' }}>FLENT</span>
+        <FlentWordmark variant="light" height={18} />
         {headerAvatar
           ? <img src={headerAvatar} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border, #2e3040)' }} />
           : <span style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor(vendor.full_name) + '22', color: avatarColor(vendor.full_name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)' }}>{initials(vendor.full_name)}</span>}
