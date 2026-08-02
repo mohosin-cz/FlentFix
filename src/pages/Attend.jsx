@@ -144,6 +144,7 @@ export default function Attend() {
   const [initialToken] = useState(() => { try { return localStorage.getItem(TOKEN_KEY) || '' } catch { return '' } })
   const tokenRef = useRef(initialToken)
   const fileRef = useRef(null)
+  const selfieRef = useRef(null)
 
   const [email, setEmail] = useState('')
   const [vendor, setVendor] = useState(null)
@@ -160,6 +161,7 @@ export default function Attend() {
   const [history, setHistory] = useState(null)
   const [avatarBusy, setAvatarBusy] = useState(false)
   const [avatarErr, setAvatarErr] = useState('')
+  const [pendingType, setPendingType] = useState(null)  // punch awaiting its selfie
   const [editReq, setEditReq] = useState(null)       // {id,status,expires_at,proposed,decision_note}
   const [editDraft, setEditDraft] = useState(null)   // in-progress edits during a granted window
   const [editReason, setEditReason] = useState('')
@@ -271,16 +273,39 @@ export default function Attend() {
   const activeOpen = kind === 'regular' ? openReg : openOt
   const onClock = !!activeOpen
 
-  async function punch(type) {
+  // a punch always captures a selfie first: open the camera, then record on capture
+  function startPunch(type) {
     setErr(''); setConfirm(null)
     if (type === 'in' && !pid.trim()) { setErr('Enter the site / property ID you are working at.'); return }
-    setBusy(true)
+    setPendingType(type)
+    if (selfieRef.current) selfieRef.current.click()
+  }
+
+  async function onSelfie(e) {
+    const file = e.target.files && e.target.files[0]
+    e.target.value = ''
+    const type = pendingType
+    setPendingType(null)
+    if (!file || !type) return
+    await punch(type, file)
+  }
+
+  async function punch(type, selfieFile) {
+    setErr(''); setConfirm(null); setBusy(true)
     let g = geo
     if (!g) { try { g = await getPosition(); setGeo(g) } catch (e) { setGeoErr(e.message) } }
+    let selfiePath = null
+    try {
+      const webp = await compressToWebp(selfieFile)
+      selfiePath = `selfies/${crypto.randomUUID()}.webp`
+      const { error: upErr } = await supabase.storage.from('vendor-avatars').upload(selfiePath, webp, { contentType: 'image/webp' })
+      if (upErr) throw upErr
+    } catch { setBusy(false); setErr('Could not save the selfie — please try again.'); return }
     const { data, error } = await supabase.rpc('attend_punch', {
       p_token: tokenRef.current, p_type: type, p_kind: kind,
       p_pid: type === 'in' ? pid.trim() : (pid.trim() || null),
       p_lat: g ? g.lat : null, p_lng: g ? g.lng : null, p_accuracy: g ? g.accuracy : null,
+      p_selfie: selfiePath,
     })
     setBusy(false)
     if (error) { setErr(error.message); return }
@@ -337,6 +362,7 @@ export default function Attend() {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', flexDirection: 'column', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}>
       <input ref={fileRef} type="file" accept="image/*" onChange={onAvatarFile} style={{ display: 'none' }} />
+      <input ref={selfieRef} type="file" accept="image/*" capture="user" onChange={onSelfie} style={{ display: 'none' }} />
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 16px', minHeight: 56, flexShrink: 0, paddingTop: 'env(safe-area-inset-top)', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
         <FlentWordmark variant="light" height={18} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -392,8 +418,8 @@ export default function Attend() {
               </div>
             )}
             {err && <RedStrip title="Couldn’t record">{err}</RedStrip>}
-            <button type="button" onClick={() => punch(onClock ? 'out' : 'in')} disabled={busy} style={bigBtn(onClock ? 'danger' : (isOt ? 'ot' : 'go'), busy)}>
-              {busy ? 'Recording…' : onClock ? (isOt ? 'End overtime →' : 'Check out →') : (isOt ? 'Start overtime →' : 'Check in →')}
+            <button type="button" onClick={() => startPunch(onClock ? 'out' : 'in')} disabled={busy} style={bigBtn(onClock ? 'danger' : (isOt ? 'ot' : 'go'), busy)}>
+              {busy ? 'Recording…' : `📷 ${onClock ? (isOt ? 'End overtime' : 'Check out') : (isOt ? 'Start overtime' : 'Check in')} →`}
             </button>
 
             <PCard title="Attendance history">
