@@ -1,12 +1,37 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { Field, Input } from '../components/ui'
-import { getPosition, fmtTime, fmtDate, maskAccount } from '../utils/vendorHub'
+import { getPosition, fmtTime, fmtDate, fmtDuration, maskAccount, initials, avatarColor } from '../utils/vendorHub'
+import { compressToWebp } from '../utils/vendorOnboard'
 
 const TOKEN_KEY = 'flent_attend_token'
+const avatarUrl = (path) => {
+  if (!path) return null
+  try { return supabase.storage.from('vendor-avatars').getPublicUrl(path).data.publicUrl } catch { return null }
+}
 
-// All sub-components at module scope (stable identity → no Android keyboard drop).
+// group punches into days, pairing in/out per kind → { date, regularMs, otMs, punches[] }
+function groupHistory(list) {
+  const byDay = {}
+  for (const h of list || []) {
+    const d = new Date(h.punched_at)
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+    ;(byDay[key] = byDay[key] || []).push(h)
+  }
+  return Object.values(byDay).map(punches => {
+    const asc = [...punches].sort((a, b) => new Date(a.punched_at) - new Date(b.punched_at))
+    const ms = { regular: 0, overtime: 0 }
+    const open = { regular: null, overtime: null }
+    for (const p of asc) {
+      const k = p.kind || 'regular'
+      if (p.punch_type === 'in') { if (open[k] == null) open[k] = new Date(p.punched_at).getTime() }
+      else if (open[k] != null) { ms[k] += new Date(p.punched_at).getTime() - open[k]; open[k] = null }
+    }
+    return { date: asc[0].punched_at, regularMs: ms.regular, otMs: ms.overtime, punches: [...asc].reverse() }
+  }).sort((a, b) => new Date(b.date) - new Date(a.date))
+}
 
+// ── layout primitives (module scope: stable identity) ───────────────────────
 function Shell({ children }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', flexDirection: 'column', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}>
@@ -15,14 +40,11 @@ function Shell({ children }) {
         <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>vendor portal</span>
       </header>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        <div style={{ padding: '18px 16px', paddingBottom: 'max(24px, env(safe-area-inset-bottom))', maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {children}
-        </div>
+        <div style={{ padding: '18px 16px', paddingBottom: 'max(24px, env(safe-area-inset-bottom))', maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>{children}</div>
       </div>
     </div>
   )
 }
-
 function RedStrip({ title, children }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 14px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8 }}>
@@ -31,37 +53,29 @@ function RedStrip({ title, children }) {
     </div>
   )
 }
-
 function bigBtn(kind, disabled) {
-  const bg = disabled ? 'var(--bg-input, #252731)' : kind === 'danger' ? 'var(--red, #e05c6a)' : kind === 'go' ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)'
-  return {
-    width: '100%', minHeight: 52, borderRadius: 10, border: 'none', background: bg,
-    color: disabled ? 'var(--text-muted, #6b6d82)' : '#fff', fontSize: 16, fontWeight: 700,
-    cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-mono, monospace)',
-    letterSpacing: '0.02em', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
-  }
+  const bg = disabled ? 'var(--bg-input, #252731)' : kind === 'danger' ? 'var(--red, #e05c6a)' : kind === 'ot' ? '#5b8def' : kind === 'go' ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)'
+  return { width: '100%', minHeight: 52, borderRadius: 10, border: 'none', background: bg, color: disabled ? 'var(--text-muted, #6b6d82)' : '#fff', fontSize: 16, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.02em', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }
 }
 const linkBtn = { background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 4 }
 
-// ── profile card / row ──────────────────────────────────────────────────────
 function PCard({ title, children }) {
   return (
-    <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: '2px 14px 8px' }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '10px 0 4px' }}>{title}</div>
+    <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 14, padding: '2px 16px 10px' }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.12em', padding: '12px 0 4px' }}>{title}</div>
       {children}
     </div>
   )
 }
 function PRow({ label, children }) {
   return (
-    <div style={{ display: 'flex', gap: 12, padding: '8px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
-      <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', minWidth: 100, flexShrink: 0 }}>{label}</span>
+    <div style={{ display: 'flex', gap: 12, padding: '9px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
+      <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', minWidth: 104, flexShrink: 0 }}>{label}</span>
       <span style={{ fontSize: 13, color: 'var(--text, #e8e8f0)', flex: 1, wordBreak: 'break-word' }}>{children || '—'}</span>
     </div>
   )
 }
 
-// ── portal bottom nav ───────────────────────────────────────────────────────
 const PORTAL_TABS = [{ key: 'time', label: 'Time', icon: '⏱' }, { key: 'profile', label: 'Profile', icon: '☰' }, { key: 'payroll', label: 'Payroll', icon: '₹' }]
 function PortalNav({ tab, onTab }) {
   return (
@@ -79,25 +93,42 @@ function PortalNav({ tab, onTab }) {
   )
 }
 
+// avatar with optional upload affordance
+function AvatarBig({ name, url, onPick, busy }) {
+  const color = avatarColor(name)
+  return (
+    <button type="button" onClick={onPick} disabled={busy} style={{ position: 'relative', width: 96, height: 96, borderRadius: '50%', border: 'none', padding: 0, cursor: busy ? 'wait' : 'pointer', background: 'none', flexShrink: 0 }}>
+      {url ? (
+        <img src={url} alt="" style={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', border: `2px solid ${color}` }} />
+      ) : (
+        <div style={{ width: 96, height: 96, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: color + '22', color, fontWeight: 700, fontSize: 32, fontFamily: 'var(--font-mono, monospace)', border: `2px solid ${color}` }}>{initials(name)}</div>
+      )}
+      <span style={{ position: 'absolute', right: 2, bottom: 2, width: 28, height: 28, borderRadius: '50%', background: 'var(--accent, #c8963e)', border: '2px solid var(--bg, #16171f)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>{busy ? '…' : '📷'}</span>
+    </button>
+  )
+}
+
 export default function Attend() {
   const [step, setStep] = useState(() => { try { return localStorage.getItem(TOKEN_KEY) ? 'resume' : 'email' } catch { return 'email' } })
   const [initialToken] = useState(() => { try { return localStorage.getItem(TOKEN_KEY) || '' } catch { return '' } })
   const tokenRef = useRef(initialToken)
+  const fileRef = useRef(null)
 
   const [email, setEmail] = useState('')
   const [vendor, setVendor] = useState(null)
-  const [sites, setSites] = useState([])
-  const [site, setSite] = useState('')
+  const [pid, setPid] = useState('')
+  const [kind, setKind] = useState('regular')
   const [geo, setGeo] = useState(null)
   const [geoErr, setGeoErr] = useState('')
   const [geoBusy, setGeoBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [confirm, setConfirm] = useState(null)
-  // portal
   const [tab, setTab] = useState('time')
   const [profile, setProfile] = useState(null)
   const [history, setHistory] = useState(null)
+  const [avatarBusy, setAvatarBusy] = useState(false)
+  const [avatarErr, setAvatarErr] = useState('')
 
   const captureLocation = useCallback(async () => {
     setGeoErr(''); setGeoBusy(true)
@@ -110,16 +141,16 @@ export default function Attend() {
     setHistory(error ? [] : (data || []))
   }, [])
 
+  const loadProfile = useCallback(async () => {
+    const { data, error } = await supabase.rpc('attend_profile', { p_token: tokenRef.current })
+    if (!error && data) setProfile(Array.isArray(data) ? data[0] : data)
+  }, [])
+
   const enterPortal = useCallback(async (v) => {
     setVendor(v); setTab('time'); setStep('portal')
-    const s = await supabase.rpc('attend_sites'); setSites(s.data || [])
-    loadHistory()
-    const p = await supabase.rpc('attend_profile', { p_token: tokenRef.current })
-    if (!p.error && p.data) setProfile(Array.isArray(p.data) ? p.data[0] : p.data)
-    captureLocation()
-  }, [captureLocation, loadHistory])
+    loadHistory(); loadProfile(); captureLocation()
+  }, [captureLocation, loadHistory, loadProfile])
 
-  // resume a stored session on load
   useEffect(() => {
     if (step !== 'resume') return
     let alive = true
@@ -147,37 +178,57 @@ export default function Attend() {
     enterPortal(v)
   }
 
+  // open in-progress punch for a kind (history is newest-first)
+  const lastOf = (k) => (history || []).find(h => (h.kind || 'regular') === k)
+  const openReg = (() => { const l = lastOf('regular'); return l && l.punch_type === 'in' ? l : null })()
+  const openOt = (() => { const l = lastOf('overtime'); return l && l.punch_type === 'in' ? l : null })()
+  const activeOpen = kind === 'regular' ? openReg : openOt
+  const onClock = !!activeOpen
+
   async function punch(type) {
     setErr(''); setConfirm(null)
-    if (type === 'in' && !site) { setErr('Select the site you are working at.'); return }
+    if (type === 'in' && !pid.trim()) { setErr('Enter the site / property ID you are working at.'); return }
     setBusy(true)
     let g = geo
     if (!g) { try { g = await getPosition(); setGeo(g) } catch (e) { setGeoErr(e.message) } }
     const { data, error } = await supabase.rpc('attend_punch', {
-      p_token: tokenRef.current, p_type: type,
-      p_pid: type === 'in' ? site : (site || null),
+      p_token: tokenRef.current, p_type: type, p_kind: kind,
+      p_pid: type === 'in' ? pid.trim() : (pid.trim() || null),
       p_lat: g ? g.lat : null, p_lng: g ? g.lng : null, p_accuracy: g ? g.accuracy : null,
     })
     setBusy(false)
     if (error) { setErr(error.message); return }
     const r = Array.isArray(data) ? data[0] : data
     setConfirm(r)
-    setVendor(prev => ({ ...prev, checked_in: r.punch_type === 'in', last_punch_at: r.punched_at }))
+    if (type === 'out') setPid('')
     loadHistory()
+  }
+
+  async function onAvatarFile(e) {
+    const file = e.target.files && e.target.files[0]
+    e.target.value = ''
+    if (!file) return
+    setAvatarErr(''); setAvatarBusy(true)
+    try {
+      const webp = await compressToWebp(file)
+      const path = `av/${crypto.randomUUID()}.webp`
+      const { error: upErr } = await supabase.storage.from('vendor-avatars').upload(path, webp, { contentType: 'image/webp' })
+      if (upErr) throw upErr
+      const { error } = await supabase.rpc('attend_set_avatar', { p_token: tokenRef.current, p_path: path })
+      if (error) throw error
+      setProfile(p => ({ ...(p || {}), avatar_path: path }))
+    } catch (e2) { setAvatarErr(e2.message || 'Could not upload the photo.') }
+    setAvatarBusy(false)
   }
 
   function signOut() {
     try { localStorage.removeItem(TOKEN_KEY) } catch { /* noop */ }
     tokenRef.current = ''
-    setVendor(null); setProfile(null); setHistory(null); setEmail(''); setSite(''); setConfirm(null); setErr(''); setStep('email')
+    setVendor(null); setProfile(null); setHistory(null); setEmail(''); setPid(''); setConfirm(null); setErr(''); setStep('email')
   }
 
-  // ── resume (loading) ────────────────────────────────────────────────────────
-  if (step === 'resume') {
-    return <Shell><div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Restoring your session…</div></Shell>
-  }
+  if (step === 'resume') return <Shell><div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Restoring your session…</div></Shell>
 
-  // ── email step ──────────────────────────────────────────────────────────────
   if (step === 'email') {
     return (
       <Shell>
@@ -185,25 +236,27 @@ export default function Attend() {
           <div style={{ fontSize: 18, fontWeight: 700 }}>Vendor sign in</div>
           <div style={{ fontSize: 13, color: 'var(--text-muted, #6b6d82)', marginTop: 3, lineHeight: 1.5 }}>Enter the email you gave at onboarding to sign in.</div>
         </div>
-        <Field label="Email">
-          <Input value={email} onChange={setEmail} placeholder="you@example.com" type="email" inputMode="email" autoCorrect="off" />
-        </Field>
+        <Field label="Email"><Input value={email} onChange={setEmail} placeholder="you@example.com" type="email" inputMode="email" autoCorrect="off" /></Field>
         {err && <RedStrip title="Couldn’t sign in">{err}</RedStrip>}
         <button type="button" onClick={login} disabled={busy} style={bigBtn('primary', busy)}>{busy ? 'Signing in…' : 'Sign in →'}</button>
       </Shell>
     )
   }
 
-
   // ── portal ──────────────────────────────────────────────────────────────────
-  const checkedIn = vendor && vendor.checked_in
+  const isOt = kind === 'overtime'
+  const days = groupHistory(history)
+  const headerAvatar = profile && avatarUrl(profile.avatar_path)
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', flexDirection: 'column', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', minHeight: 56, flexShrink: 0, paddingTop: 'env(safe-area-inset-top)', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
+      <input ref={fileRef} type="file" accept="image/*" onChange={onAvatarFile} style={{ display: 'none' }} />
+      <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', minHeight: 56, flexShrink: 0, paddingTop: 'env(safe-area-inset-top)', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
         <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent, #c8963e)', letterSpacing: '0.04em', fontFamily: 'var(--font-mono, monospace)' }}>FLENT</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vendor.full_name}</div>
-        </div>
+        {headerAvatar
+          ? <img src={headerAvatar} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border, #2e3040)' }} />
+          : <span style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor(vendor.full_name) + '22', color: avatarColor(vendor.full_name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)' }}>{initials(vendor.full_name)}</span>}
+        <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vendor.full_name}</div></div>
         <button type="button" onClick={signOut} style={linkBtn}>Sign out</button>
       </header>
 
@@ -212,18 +265,23 @@ export default function Attend() {
 
           {/* ── TIME ─────────────────────────────────────────────────────── */}
           {tab === 'time' && <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: checkedIn ? 'rgba(61,186,122,0.10)' : 'var(--bg-input, #252731)', border: `1px solid ${checkedIn ? 'rgba(61,186,122,0.35)' : 'var(--border, #2e3040)'}` }}>
-              <span style={{ width: 8, height: 8, borderRadius: 4, background: checkedIn ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }} />
-              <span style={{ fontSize: 13, color: checkedIn ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{checkedIn ? `On site since ${fmtTime(vendor.last_punch_at)}` : 'Not checked in'}</span>
+            <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 10 }}>
+              {[{ k: 'regular', l: 'Regular' }, { k: 'overtime', l: 'Overtime' }].map(o => {
+                const on = kind === o.k
+                const c = o.k === 'overtime' ? '#5b8def' : 'var(--accent, #c8963e)'
+                return <button key={o.k} type="button" onClick={() => { setKind(o.k); setConfirm(null); setErr('') }} style={{ flex: 1, padding: '9px 8px', fontSize: 13, fontWeight: on ? 700 : 500, border: 'none', borderRadius: 8, cursor: 'pointer', background: on ? 'var(--bg-input, #252731)' : 'transparent', color: on ? c : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', boxShadow: on ? `inset 0 0 0 1px ${c}55` : 'none' }}>{o.l}</button>
+              })}
             </div>
 
-            {!checkedIn && (
-              <Field label="Which site are you at?">
-                <select value={site} onChange={e => setSite(e.target.value)} style={{ width: '100%', padding: '11px 14px', fontSize: 16, minHeight: 46, color: site ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, outline: 'none', fontFamily: 'inherit' }}>
-                  <option value="">Select a site…</option>
-                  {sites.map(s => <option key={s.pid} value={s.pid}>{s.label} ({s.pid})</option>)}
-                </select>
-              </Field>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 10, background: onClock ? (isOt ? 'rgba(91,141,239,0.10)' : 'rgba(61,186,122,0.10)') : 'var(--bg-input, #252731)', border: `1px solid ${onClock ? (isOt ? 'rgba(91,141,239,0.35)' : 'rgba(61,186,122,0.35)') : 'var(--border, #2e3040)'}` }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: onClock ? (isOt ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)' }} />
+              <span style={{ fontSize: 13, color: onClock ? (isOt ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>
+                {onClock ? `${isOt ? 'Overtime' : 'On site'} since ${fmtTime(activeOpen.punched_at)}${activeOpen.pid ? ` · ${activeOpen.pid}` : ''}` : (isOt ? 'No overtime running' : 'Not checked in')}
+              </span>
+            </div>
+
+            {!onClock && (
+              <Field label="Site / property ID"><Input value={pid} onChange={setPid} placeholder="Type the site's PID" autoCapitalize="characters" autoCorrect="off" /></Field>
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10 }}>
@@ -235,23 +293,40 @@ export default function Attend() {
             {confirm && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 10 }}>
                 <span style={{ fontSize: 18 }}>✓</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>{confirm.punch_type === 'in' ? 'Checked in' : 'Checked out'} at {fmtTime(confirm.punched_at)}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>{(confirm.kind === 'overtime' ? 'Overtime ' : '')}{confirm.punch_type === 'in' ? 'started' : 'ended'} at {fmtTime(confirm.punched_at)}</span>
               </div>
             )}
             {err && <RedStrip title="Couldn’t record">{err}</RedStrip>}
-            <button type="button" onClick={() => punch(checkedIn ? 'out' : 'in')} disabled={busy} style={bigBtn(checkedIn ? 'danger' : 'go', busy)}>{busy ? 'Recording…' : checkedIn ? 'Check out →' : 'Check in →'}</button>
+            <button type="button" onClick={() => punch(onClock ? 'out' : 'in')} disabled={busy} style={bigBtn(onClock ? 'danger' : (isOt ? 'ot' : 'go'), busy)}>
+              {busy ? 'Recording…' : onClock ? (isOt ? 'End overtime →' : 'Check out →') : (isOt ? 'Start overtime →' : 'Check in →')}
+            </button>
 
-            <PCard title="Recent">
+            <PCard title="Attendance history">
               {history == null ? (
                 <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>
-              ) : history.length === 0 ? (
-                <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No punches yet.</div>
-              ) : history.map((h, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
-                  <span style={{ width: 7, height: 7, borderRadius: 4, background: h.punch_type === 'in' ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: h.punch_type === 'in' ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', minWidth: 34 }}>{h.punch_type === 'in' ? 'IN' : 'OUT'}</span>
-                  <span style={{ flex: 1, fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDate(h.punched_at)} · {fmtTime(h.punched_at)}</span>
-                  {h.pid && <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{h.pid}</span>}
+              ) : days.length === 0 ? (
+                <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No attendance yet.</div>
+              ) : days.map((d, i) => (
+                <div key={i} style={{ borderTop: '1px solid var(--border, #2e3040)', padding: '10px 0 4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDate(d.date)}</span>
+                    <span style={{ display: 'flex', gap: 8 }}>
+                      <span style={{ fontSize: 11, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDuration(d.regularMs)}</span>
+                      {d.otMs > 0 && <span style={{ fontSize: 11, color: '#5b8def', fontFamily: 'var(--font-mono, monospace)' }}>+OT {fmtDuration(d.otMs)}</span>}
+                    </span>
+                  </div>
+                  {d.punches.map((h, j) => {
+                    const ot = (h.kind || 'regular') === 'overtime'
+                    const inn = h.punch_type === 'in'
+                    return (
+                      <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: 3, background: inn ? (ot ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 11, fontWeight: 600, color: inn ? (ot ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', minWidth: 30 }}>{inn ? 'IN' : 'OUT'}</span>
+                        {ot && <span style={{ fontSize: 9, color: '#5b8def', border: '1px solid #5b8def55', borderRadius: 4, padding: '0 4px', fontFamily: 'var(--font-mono, monospace)' }}>OT</span>}
+                        <span style={{ flex: 1, fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtTime(h.punched_at)}{h.pid ? ` · ${h.pid}` : ''}</span>
+                      </div>
+                    )
+                  })}
                 </div>
               ))}
             </PCard>
@@ -259,18 +334,25 @@ export default function Attend() {
 
           {/* ── PROFILE ──────────────────────────────────────────────────── */}
           {tab === 'profile' && (profile ? <>
-            <PCard title="You">
-              <PRow label="Name">{profile.full_name}</PRow>
-              <PRow label="Trade">{profile.trade}</PRow>
-              <PRow label="POD">{profile.pod}</PRow>
-              <PRow label="Vendor code">{profile.vendor_code}</PRow>
-              <PRow label="Joined">{profile.date_of_joining ? fmtDate(profile.date_of_joining) : '—'}</PRow>
-            </PCard>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '10px 0 4px' }}>
+              <AvatarBig name={profile.full_name} url={avatarUrl(profile.avatar_path)} onPick={() => fileRef.current && fileRef.current.click()} busy={avatarBusy} />
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 700 }}>{profile.full_name}</div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.28)', borderRadius: 12, padding: '2px 10px', fontFamily: 'var(--font-mono, monospace)' }}>{profile.trade}</span>
+                  {profile.vendor_code && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.28)', borderRadius: 12, padding: '2px 10px', fontFamily: 'var(--font-mono, monospace)' }}>{profile.vendor_code}</span>}
+                  {profile.pod && <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: '2px 10px', fontFamily: 'var(--font-mono, monospace)' }}>{profile.pod}</span>}
+                </div>
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Tap the photo to {profile.avatar_path ? 'change' : 'add'} it</span>
+              {avatarErr && <RedStrip title="Photo">{avatarErr}</RedStrip>}
+            </div>
             <PCard title="Contact">
               <PRow label="Phone">{profile.phone}</PRow>
               <PRow label="Alt phone">{profile.alt_phone}</PRow>
               <PRow label="Email">{profile.email}</PRow>
               <PRow label="Address">{[profile.address_line, profile.city, profile.pincode].filter(Boolean).join(', ')}</PRow>
+              <PRow label="Joined">{profile.date_of_joining ? fmtDate(profile.date_of_joining) : '—'}</PRow>
             </PCard>
             <PCard title="Payout">
               <PRow label="Account name">{profile.bank_account_name}</PRow>
