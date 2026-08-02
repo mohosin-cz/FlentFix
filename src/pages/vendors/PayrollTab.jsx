@@ -78,7 +78,7 @@ export default function PayrollTab() {
         <button type="button" onClick={() => { setPeriod(null); setPayouts(null); loadPeriods() }} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 0 }}>‹ All months</button>
         <div style={{ padding: '14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ flex: 1, fontSize: 16, fontWeight: 700 }}>{monthLabel(period.period_month)}</div>
+            <div style={{ flex: 1, fontSize: 16, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{monthLabel(period.period_month)}</div>
             <span style={{ fontSize: 10, fontWeight: 700, color: period.status === 'paid' ? 'var(--green, #3dba7a)' : 'var(--amber, #c8963e)', border: `1px solid ${period.status === 'paid' ? 'var(--green, #3dba7a)' : 'var(--amber, #c8963e)'}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{period.status}</span>
           </div>
           <div style={{ display: 'flex', gap: 20, marginTop: 12, fontFamily: 'var(--font-mono, monospace)' }}>
@@ -128,7 +128,7 @@ export default function PayrollTab() {
               return (
                 <button key={p.id} type="button" onClick={() => openPeriod(p)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', padding: '14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, cursor: 'pointer' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 15, fontWeight: 600 }}>{monthLabel(p.period_month)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{monthLabel(p.period_month)}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 3 }}>{(p.payouts || []).length} vendors · {money(total)}</div>
                   </div>
                   <span style={{ fontSize: 10, fontWeight: 700, color: p.status === 'paid' ? 'var(--green, #3dba7a)' : 'var(--amber, #c8963e)', border: `1px solid ${p.status === 'paid' ? 'var(--green, #3dba7a)' : 'var(--amber, #c8963e)'}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{p.status}</span>
