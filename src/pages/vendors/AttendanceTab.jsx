@@ -5,15 +5,20 @@ import { attendUrl, fmtTime, fmtDuration, todayStr } from '../../utils/vendorHub
 
 // ── summarise one vendor's punches for the day ──────────────────────────────
 function summarize(list) {
-  let open = null, worked = 0, firstIn = null, lastOut = null
+  const ms = { regular: 0, overtime: 0 }
+  const open = { regular: null, overtime: null }
+  let firstIn = null, lastOut = null
   for (const p of list) {
-    if (p.punch_type === 'in') { if (!firstIn) firstIn = p; if (open == null) open = new Date(p.punched_at).getTime() }
-    else { lastOut = p; if (open != null) { worked += new Date(p.punched_at).getTime() - open; open = null } }
+    const k = p.kind || 'regular'
+    if (p.punch_type === 'in') { if (!firstIn) firstIn = p; if (open[k] == null) open[k] = new Date(p.punched_at).getTime() }
+    else { lastOut = p; if (open[k] != null) { ms[k] += new Date(p.punched_at).getTime() - open[k]; open[k] = null } }
   }
+  const now = Date.now()
+  const regMs = ms.regular + (open.regular != null ? now - open.regular : 0)
+  const otMs = ms.overtime + (open.overtime != null ? now - open.overtime : 0)
+  const anyOpen = open.regular != null || open.overtime != null
   const last = list[list.length - 1]
-  const status = last.punch_type === 'in' ? 'on_site' : 'checked_out'
-  const workedMs = open != null ? worked + (Date.now() - open) : worked
-  return { firstIn, lastOut, status, workedMs, site: (firstIn && firstIn.pid) || last.pid || null }
+  return { firstIn, lastOut, status: anyOpen ? 'on_site' : 'checked_out', regMs, otMs, site: (firstIn && firstIn.pid) || last.pid || null }
 }
 
 function Tile({ label, value, color }) {
@@ -42,7 +47,7 @@ function AttendRow({ s, siteLabel }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
         <span style={{ fontSize: 10, fontWeight: 700, color, border: `1px solid ${color}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>{on ? 'On site' : 'Checked out'}</span>
-        <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDuration(s.workedMs)}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDuration(s.regMs)}{s.otMs > 0 ? <span style={{ color: '#5b8def' }}> · OT {fmtDuration(s.otMs)}</span> : ''}</span>
       </div>
     </div>
   )
