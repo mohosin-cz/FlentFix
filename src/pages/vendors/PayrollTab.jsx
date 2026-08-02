@@ -51,9 +51,9 @@ function Sheet({ title, onClose, children }) {
 }
 function NumField({ label, value, onChange, prefix, readOnly }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1 }}>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1, minWidth: 0 }}>
       <span style={lbl}>{label}</span>
-      <div style={{ display: 'flex', alignItems: 'center', ...inp, padding: 0, paddingLeft: 12, opacity: readOnly ? 0.6 : 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', ...inp, padding: 0, paddingLeft: 12, opacity: readOnly ? 0.6 : 1, minWidth: 0 }}>
         {prefix && <span style={{ color: 'var(--text-muted, #6b6d82)' }}>{prefix}</span>}
         <input type="number" inputMode="decimal" value={value} disabled={readOnly} onChange={e => onChange && onChange(e.target.value)}
           style={{ flex: 1, minWidth: 0, padding: '9px 12px 9px 4px', border: 'none', background: 'none', color: 'var(--text, #e8e8f0)', fontSize: 16, outline: 'none', fontFamily: 'inherit' }} />
