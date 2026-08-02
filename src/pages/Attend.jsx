@@ -252,13 +252,16 @@ export default function Attend() {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', flexDirection: 'column', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}>
       <input ref={fileRef} type="file" accept="image/*" onChange={onAvatarFile} style={{ display: 'none' }} />
-      <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', minHeight: 56, flexShrink: 0, paddingTop: 'env(safe-area-inset-top)', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 16px', minHeight: 56, flexShrink: 0, paddingTop: 'env(safe-area-inset-top)', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
         <FlentWordmark variant="light" height={18} />
-        {headerAvatar
-          ? <img src={headerAvatar} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border, #2e3040)' }} />
-          : <span style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor(vendor.full_name) + '22', color: avatarColor(vendor.full_name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)' }}>{initials(vendor.full_name)}</span>}
-        <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vendor.full_name}</div></div>
-        <button type="button" onClick={signOut} style={linkBtn}>Sign out</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button type="button" onClick={() => setTab('profile')} aria-label="Profile" style={{ padding: 0, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', WebkitTapHighlightColor: 'transparent' }}>
+            {headerAvatar
+              ? <img src={headerAvatar} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border, #2e3040)' }} />
+              : <span style={{ width: 30, height: 30, borderRadius: '50%', background: avatarColor(vendor.full_name) + '22', color: avatarColor(vendor.full_name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)' }}>{initials(vendor.full_name)}</span>}
+          </button>
+          <button type="button" onClick={signOut} style={linkBtn}>Sign out</button>
+        </div>
       </header>
 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
