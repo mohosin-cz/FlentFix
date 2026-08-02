@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { fmtDate, initials, avatarColor } from '../../utils/vendorHub'
 
-const TRADES = ['Runner', 'Electrician', 'Carpenter', 'Plumber', 'Cleaner', 'Other']
 const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
 const avatarUrl = (p) => { if (!p) return null; try { return supabase.storage.from('vendor-avatars').getPublicUrl(p).data.publicUrl } catch { return null } }
 
@@ -95,6 +94,9 @@ export default function PayrollTab() {
           </div>
           {run.status === 'draft' && (
             <button type="button" onClick={async () => { await supabase.rpc('payroll_finalize', { p_run_id: run.id }); setRun({ ...run, status: 'finalized' }) }} style={{ ...primary(false), marginTop: 12 }}>Finalize run</button>
+          )}
+          {run.status === 'draft' && (
+            <button type="button" onClick={async () => { if (!window.confirm('Delete this draft run and all its lines?')) return; await supabase.from('payroll_run').delete().eq('id', run.id); setRun(null); setItems(null); loadRuns() }} style={{ marginTop: 8, width: '100%', padding: '8px', background: 'none', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, color: 'var(--red, #e05c6a)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Delete run</button>
           )}
         </div>
 
@@ -192,17 +194,23 @@ function NewRunSheet({ onClose, onCreated }) {
 function SettingsSheet({ onClose }) {
   const [s, setS] = useState(null)
   const [rates, setRates] = useState({})
+  const [trades, setTrades] = useState([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [saved, setSaved] = useState(false)
   useEffect(() => {
     (async () => {
-      const [sRes, rRes] = await Promise.all([
+      const [sRes, rRes, vRes] = await Promise.all([
         supabase.from('payroll_settings').select('*').eq('id', 1).single(),
         supabase.from('payroll_trade_rate').select('*'),
+        supabase.from('vendors').select('trade').eq('status', 'approved'),
       ])
       setS(sRes.data || {})
       const m = {}; for (const r of rRes.data || []) m[r.trade] = r.monthly_rate; setRates(m)
+      const set = new Set()
+      for (const v of vRes.data || []) if (v.trade) set.add(v.trade)   // trades that actually exist
+      for (const r of rRes.data || []) if (r.trade) set.add(r.trade)   // + any already-rated trade
+      setTrades([...set].sort())
     })()
   }, [])
   async function save() {
@@ -212,7 +220,7 @@ function SettingsSheet({ onClose }) {
       pf_percent: Number(s.pf_percent), esi_percent: Number(s.esi_percent), tds_percent: Number(s.tds_percent),
     }).eq('id', 1)
     if (!error) {
-      const rows = TRADES.map(t => ({ trade: t, monthly_rate: Number(rates[t] || 0) }))
+      const rows = trades.map(t => ({ trade: t, monthly_rate: Number(rates[t] || 0) }))
       const { error: rErr } = await supabase.from('payroll_trade_rate').upsert(rows)
       if (rErr) setErr(rErr.message); else setSaved(true)
     } else setErr(error.message)
@@ -223,7 +231,8 @@ function SettingsSheet({ onClose }) {
   return (
     <Sheet title="Rates & settings" onClose={onClose}>
       <span style={lbl}>Monthly rate per trade</span>
-      {TRADES.map(t => (
+      {trades.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No approved vendors yet.</div>}
+      {trades.map(t => (
         <NumField key={t} label={t} prefix="₹" value={rates[t] ?? ''} onChange={v => setRates(p => ({ ...p, [t]: v }))} />
       ))}
       <div style={{ height: 1, background: 'var(--border, #2e3040)', margin: '4px 0' }} />
