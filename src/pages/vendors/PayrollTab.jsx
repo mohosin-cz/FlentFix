@@ -5,7 +5,13 @@ import { initials, avatarColor } from '../../utils/vendorHub'
 const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
 const monthLabel = (d) => d ? new Date(d).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : ''
 const avatarUrl = (p) => { if (!p) return null; try { return supabase.storage.from('vendor-avatars').getPublicUrl(p).data.publicUrl } catch { return null } }
-const totalOf = (f) => Number(f.fixed_pay || 0) + Number(f.allowance || 0) + Number(f.ot_amount || 0) - Number(f.advance_recovered || 0)
+// Pro-rated on a 30-day month. per-day = salary/30; earned = per-day × days
+// worked (blank ⇒ full 30); OT = per-day × OT days (1 OT day = 1 day's pay).
+const perDayOf = (f) => Number(f.fixed_pay || 0) / 30
+const daysWorkedOf = (f) => (f.days_worked === '' || f.days_worked == null) ? 30 : Number(f.days_worked)
+const earnedOf = (f) => Math.round(perDayOf(f) * daysWorkedOf(f))
+const otAmtOf = (f) => Math.round(perDayOf(f) * Number(f.ot_days || 0))
+const totalOf = (f) => earnedOf(f) + Number(f.allowance || 0) + otAmtOf(f) - Number(f.advance_recovered || 0)
 
 const CSV_COLS = ['beneficiary_name', 'team', 'cost_centre', 'fixed_pay', 'allowance', 'days_worked', 'ot_days', 'ot_amount', 'advance_given', 'advance_recovered', 'total_payout', 'upi_id', 'bank_account_name', 'bank_account_no', 'bank_ifsc', 'utr']
 function downloadCsv(period, rows) {
@@ -90,7 +96,7 @@ export default function PayrollTab() {
         <div style={{ padding: '14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ flex: 1, fontSize: 16, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{monthLabel(period.period_month)}</div>
-            <span style={{ fontSize: 10, fontWeight: 700, color: period.status === 'paid' ? 'var(--green, #3dba7a)' : 'var(--amber, #c8963e)', border: `1px solid ${period.status === 'paid' ? 'var(--green, #3dba7a)' : 'var(--amber, #c8963e)'}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{period.status}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: period.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)', border: `1px solid ${period.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)'}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{period.status}</span>
           </div>
           <div style={{ display: 'flex', gap: 20, marginTop: 12, fontFamily: 'var(--font-mono, monospace)' }}>
             <div><div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent, #c8963e)' }}>{money(total)}</div><div style={lbl}>total payout</div></div>
@@ -99,7 +105,7 @@ export default function PayrollTab() {
           <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
             <button type="button" onClick={() => downloadCsv(period, payouts || [])} style={actBtn}>⤓ Download CSV</button>
             {period.status === 'draft' && <button type="button" onClick={async () => { await supabase.rpc('payroll_fill_month', { p_period_id: period.id }); openPeriod(period) }} style={actBtn}>↻ Regenerate</button>}
-            {period.status === 'draft' && <button type="button" onClick={async () => { await supabase.from('vendor_payroll_periods').update({ status: 'paid', locked_at: new Date().toISOString() }).eq('id', period.id); setPeriod({ ...period, status: 'paid' }) }} style={{ ...actBtn, color: 'var(--green, #3dba7a)', borderColor: 'var(--green, #3dba7a)' }}>✓ Mark paid</button>}
+            {period.status === 'draft' && <button type="button" onClick={async () => { await supabase.from('vendor_payroll_periods').update({ status: 'final', locked_at: new Date().toISOString() }).eq('id', period.id); setPeriod({ ...period, status: 'final' }) }} style={{ ...actBtn, color: 'var(--green, #3dba7a)', borderColor: 'var(--green, #3dba7a)' }}>✓ Mark as final</button>}
             {period.status === 'draft' && <button type="button" onClick={async () => { if (!window.confirm('Delete this draft month and its lines?')) return; await supabase.from('vendor_payouts').delete().eq('period_id', period.id); await supabase.from('vendor_payroll_periods').delete().eq('id', period.id); setPeriod(null); setPayouts(null); loadPeriods() }} style={{ ...actBtn, color: 'var(--red, #e05c6a)' }}>Delete</button>}
           </div>
         </div>
@@ -148,7 +154,7 @@ export default function PayrollTab() {
                     <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{monthLabel(p.period_month)}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 3 }}>{(p.payouts || []).length} vendors · {money(total)}</div>
                   </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: p.status === 'paid' ? 'var(--green, #3dba7a)' : 'var(--amber, #c8963e)', border: `1px solid ${p.status === 'paid' ? 'var(--green, #3dba7a)' : 'var(--amber, #c8963e)'}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{p.status}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: p.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)', border: `1px solid ${p.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)'}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{p.status}</span>
                 </button>
               )
             })}
@@ -227,18 +233,18 @@ function RatesSheet({ onClose }) {
 
 // ── edit one payout ───────────────────────────────────────────────────────────
 function PayoutEditSheet({ row, onClose, onSaved }) {
-  const [f, setF] = useState({ fixed_pay: row.fixed_pay || 0, allowance: row.allowance || 0, days_worked: row.days_worked ?? '', ot_days: row.ot_days || 0, ot_amount: row.ot_amount || 0, advance_given: row.advance_given || 0, advance_recovered: row.advance_recovered || 0, utr: row.utr || '', comments: row.comments || '' })
+  const [f, setF] = useState({ fixed_pay: row.fixed_pay || 0, allowance: row.allowance || 0, days_worked: row.days_worked ?? 30, ot_days: row.ot_days || 0, advance_given: row.advance_given || 0, advance_recovered: row.advance_recovered || 0, utr: row.utr || '', comments: row.comments || '' })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const set = (k) => (v) => setF(p => ({ ...p, [k]: v }))
-  const total = totalOf(f)
+  const perDay = Math.round(perDayOf(f)), dw = daysWorkedOf(f), earned = earnedOf(f), otAmt = otAmtOf(f), total = totalOf(f)
   const name = (row.vendor && row.vendor.full_name) || row.beneficiary_name || 'Payout'
   async function save() {
     setBusy(true); setErr('')
     const patch = {
       fixed_pay: Number(f.fixed_pay || 0), allowance: Number(f.allowance || 0),
       days_worked: f.days_worked === '' ? null : Number(f.days_worked),
-      ot_days: Number(f.ot_days || 0), ot_amount: Number(f.ot_amount || 0),
+      ot_days: Number(f.ot_days || 0), ot_amount: otAmt,
       advance_given: Number(f.advance_given || 0), advance_recovered: Number(f.advance_recovered || 0),
       total_payout: total, utr: f.utr.trim() || null, comments: f.comments.trim() || null,
     }
@@ -247,21 +253,28 @@ function PayoutEditSheet({ row, onClose, onSaved }) {
     if (error) { setErr(error.message); return }
     onSaved()
   }
+  const brkRow = { display: 'flex', justifyContent: 'space-between' }
   return (
     <Sheet title={name} onClose={onClose}>
       {(row.team || row.cost_centre) && <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{[row.team, row.cost_centre].filter(Boolean).join(' · ')}</div>}
       <div style={{ display: 'flex', gap: 8 }}>
-        <NumField label="Fixed pay" prefix="₹" value={f.fixed_pay} onChange={set('fixed_pay')} />
-        <NumField label="Allowance" prefix="₹" value={f.allowance} onChange={set('allowance')} />
+        <NumField label="Monthly salary" prefix="₹" value={f.fixed_pay} onChange={set('fixed_pay')} />
+        <NumField label="Days worked / 30" value={f.days_worked} onChange={set('days_worked')} />
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
-        <NumField label="Days worked" value={f.days_worked} onChange={set('days_worked')} />
         <NumField label="OT days" value={f.ot_days} onChange={set('ot_days')} />
-        <NumField label="OT amount" prefix="₹" value={f.ot_amount} onChange={set('ot_amount')} />
+        <NumField label="Allowance" prefix="₹" value={f.allowance} onChange={set('allowance')} />
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         <NumField label="Advance given" prefix="₹" value={f.advance_given} onChange={set('advance_given')} />
         <NumField label="Advance recovered" prefix="₹" value={f.advance_recovered} onChange={set('advance_recovered')} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '11px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, fontFamily: 'var(--font-mono, monospace)', fontSize: 12, color: 'var(--text-muted, #6b6d82)' }}>
+        <div style={brkRow}><span>Per day (÷30)</span><span>{money(perDay)}</span></div>
+        <div style={brkRow}><span>Earned · {dw} {dw === 1 ? 'day' : 'days'}</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(earned)}</span></div>
+        <div style={brkRow}><span>Overtime · {Number(f.ot_days || 0)} × 1 day</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(otAmt)}</span></div>
+        {Number(f.allowance) > 0 && <div style={brkRow}><span>Allowance</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(Number(f.allowance))}</span></div>}
+        {Number(f.advance_recovered) > 0 && <div style={brkRow}><span>Advance recovered</span><span style={{ color: 'var(--red, #e05c6a)' }}>− {money(Number(f.advance_recovered))}</span></div>}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'rgba(200,150,62,0.08)', border: '1px solid rgba(200,150,62,0.25)', borderRadius: 10 }}>
         <span style={{ ...lbl, fontSize: 11 }}>Total payout</span>

@@ -1,14 +1,18 @@
--- Fill/regenerate a month's payouts by carrying each approved vendor's most
--- recent payout forward (salary, team, cost-centre, bank/upi) and layering
--- fresh attendance (days worked + OT) on top. Idempotent: clears the period's
--- lines first, so it can regenerate a draft month. Repo source of truth.
+-- Fill/regenerate a month's payouts by carrying each approved vendor's monthly
+-- salary forward (from their most recent payout / rate), pro-rated on a 30-day
+-- basis, plus overtime from attendance. Idempotent: clears the period's lines
+-- first, so it can regenerate a draft month. Repo source of truth.
+--
+-- Model: per_day = salary / 30. earned = per_day × days_worked (default 30 =
+-- full month; staff reduce for absentees on review). OT = per_day × ot_days
+-- (1 OT day = 1 day's pay). total = earned + allowance + OT − advances.
 create or replace function public.payroll_fill_month(p_period_id uuid)
 returns int
 language plpgsql security invoker set search_path = public
 as $$
 declare
   per record; rec record; last record;
-  v_present int; v_otdays int; v_fixed numeric; v_otamt numeric;
+  v_otdays int; v_fixed numeric; v_otamt numeric; v_earned numeric;
   p_start date; p_end date; n int := 0;
 begin
   select * into per from public.vendor_payroll_periods where id = p_period_id;
@@ -25,16 +29,18 @@ begin
      where p.vendor_id = rec.id and p.period_id <> p_period_id
      order by pp.period_month desc limit 1;
 
+    -- monthly salary (base), carried forward
     v_fixed := coalesce(rec.monthly_rate, last.fixed_pay,
                         (select monthly_rate from public.payroll_trade_rate where trade = rec.trade), 0);
 
-    select count(distinct (punched_at at time zone 'Asia/Kolkata')::date),
-           count(distinct (punched_at at time zone 'Asia/Kolkata')::date) filter (where kind = 'overtime')
-      into v_present, v_otdays
+    -- OT days from attendance (distinct dates with an overtime session)
+    select count(distinct (punched_at at time zone 'Asia/Kolkata')::date) filter (where kind = 'overtime')
+      into v_otdays
       from public.vendor_attendance
      where vendor_id = rec.id and (punched_at at time zone 'Asia/Kolkata')::date between p_start and p_end;
 
-    v_otamt := case when per.days_in_month > 0 then round(coalesce(v_otdays,0) * v_fixed / per.days_in_month) else 0 end;
+    v_otamt  := round(coalesce(v_otdays,0) * v_fixed / 30);   -- 1 OT day = 1 day's pay
+    v_earned := round(v_fixed / 30 * 30);                     -- full month (days_worked = 30 default)
 
     insert into public.vendor_payouts(
       period_id, vendor_id, beneficiary_name, team, cost_centre, upi_id,
@@ -50,8 +56,8 @@ begin
       coalesce(last.bank_account_name, rec.bank_account_name),
       coalesce(last.bank_account_no, rec.bank_account_no),
       coalesce(last.bank_ifsc, rec.bank_ifsc),
-      v_fixed, 0, coalesce(v_present,0), coalesce(v_otdays,0), v_otamt,
-      0, 0, v_fixed + v_otamt, 'generated'
+      v_fixed, 0, 30, coalesce(v_otdays,0), v_otamt,
+      0, 0, v_earned + v_otamt, 'generated'
     );
     n := n + 1;
   end loop;
