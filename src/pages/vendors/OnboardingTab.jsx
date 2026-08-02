@@ -101,6 +101,14 @@ function CandidatesSheet({ candidates, photos, onPick, onClose }) {
   )
 }
 
+// ── filter chip ─────────────────────────────────────────────────────────────
+function FilterChip({ label, active, onClick }) {
+  return (
+    <button type="button" onClick={onClick}
+      style={{ padding: '6px 12px', fontSize: 12, fontWeight: active ? 700 : 500, borderRadius: 16, whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0, border: `1px solid ${active ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, background: active ? 'rgba(200,150,62,0.12)' : 'var(--bg-input, #252731)', color: active ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', WebkitTapHighlightColor: 'transparent' }}>{label}</button>
+  )
+}
+
 export default function OnboardingTab() {
   const [rows, setRows] = useState(null)          // onboarded (approved) vendors
   const [candidates, setCandidates] = useState([])
@@ -111,6 +119,8 @@ export default function OnboardingTab() {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(null)  // vendor for detail sheet
   const [showCandidates, setShowCandidates] = useState(false)
+  const [tradeFilter, setTradeFilter] = useState('all')
+  const [podFilter, setPodFilter] = useState('all')
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -134,7 +144,16 @@ export default function OnboardingTab() {
   useEffect(() => { load() }, [load])
 
   const q = query.trim().toLowerCase()
-  const list = (rows || []).filter(v => !q || [v.full_name, v.vendor_code, v.trade, v.phone, v.pod, v.city].some(f => (f || '').toLowerCase().includes(q)))
+  const tradeOptions = ['all', ...Array.from(new Set((rows || []).map(v => v.trade).filter(Boolean))).sort()]
+  const podsPresent = new Set((rows || []).map(v => v.pod || 'Unassigned'))
+  const podOptions = ['all', ...['OG', 'Alpha', 'Unassigned'].filter(p => podsPresent.has(p))]
+  const list = (rows || []).filter(v => {
+    if (q && ![v.full_name, v.vendor_code, v.trade, v.phone, v.pod, v.city].some(f => (f || '').toLowerCase().includes(q))) return false
+    if (tradeFilter !== 'all' && v.trade !== tradeFilter) return false
+    if (podFilter !== 'all' && (v.pod || 'Unassigned') !== podFilter) return false
+    return true
+  })
+  const filtered = list.length !== (rows || []).length
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -161,10 +180,20 @@ export default function OnboardingTab() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, code, trade, phone…"
                 style={{ flex: 1, padding: '10px 14px', fontSize: 16, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, outline: 'none', fontFamily: 'inherit' }} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>{rows.length} vendor{rows.length === 1 ? '' : 's'}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>{filtered ? `${list.length} of ${rows.length}` : `${rows.length} vendor${rows.length === 1 ? '' : 's'}`}</span>
             </div>
+
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2, WebkitOverflowScrolling: 'touch' }}>
+              {tradeOptions.map(t => <FilterChip key={t} label={t === 'all' ? 'All trades' : t} active={tradeFilter === t} onClick={() => setTradeFilter(t)} />)}
+            </div>
+            {podOptions.length > 2 && (
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2, WebkitOverflowScrolling: 'touch' }}>
+                {podOptions.map(p => <FilterChip key={p} label={p === 'all' ? 'All PODs' : p} active={podFilter === p} onClick={() => setPodFilter(p)} />)}
+              </div>
+            )}
+
             {list.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No match for “{query}”.</div>
+              <div style={{ padding: '24px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No vendors match your filters.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {list.map(v => <VendorTile key={v.id} v={v} url={photoOf(v, photos)} properties={stats[v.id]} onOpen={setSelected} />)}
