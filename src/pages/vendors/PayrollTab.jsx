@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { initials, avatarColor } from '../../utils/vendorHub'
 
@@ -62,6 +62,15 @@ function NumField({ label, value, onChange, prefix, readOnly }) {
   )
 }
 
+function TextField({ label, value, onChange, placeholder }) {
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1, minWidth: 0 }}>
+      <span style={lbl}>{label}</span>
+      <input value={value || ''} onChange={e => onChange && onChange(e.target.value)} placeholder={placeholder} style={inp} />
+    </label>
+  )
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 export default function PayrollTab() {
   const [periods, setPeriods] = useState(null)
@@ -72,6 +81,7 @@ export default function PayrollTab() {
   const [rowsLoading, setRowsLoading] = useState(false)
   const [sheet, setSheet] = useState('')          // 'newperiod' | 'rates' | ''
   const [actErr, setActErr] = useState('')        // month action errors (finalize/delete)
+  const [reviewing, setReviewing] = useState(false)
 
   const loadPeriods = useCallback(async () => {
     setLoading(true); setError('')
@@ -107,7 +117,8 @@ export default function PayrollTab() {
                 <button type="button" onClick={() => downloadCsv(period, payouts || [])} style={actBtn}>⤓ CSV</button>
                 <button type="button" onClick={async () => { setActErr(''); const { error: rErr } = await supabase.rpc('payroll_fill_month', { p_period_id: period.id }); if (rErr) { setActErr(rErr.message); return } openPeriod(period) }} style={actBtn}>↻ Regenerate</button>
                 <button type="button" onClick={async () => { if (!window.confirm('Delete this draft month and its lines?')) return; await supabase.from('vendor_payouts').delete().eq('period_id', period.id); await supabase.from('vendor_payroll_periods').delete().eq('id', period.id); setPeriod(null); setPayouts(null); loadPeriods() }} style={{ ...actBtn, color: 'var(--red, #e05c6a)' }}>Delete</button>
-                <button type="button" onClick={async () => { const at = new Date().toISOString(); const { error: mErr } = await supabase.from('vendor_payroll_periods').update({ status: 'locked', locked_at: at }).eq('id', period.id); if (mErr) { setActErr(mErr.message); return } setActErr(''); setPeriod({ ...period, status: 'locked', locked_at: at }) }} style={{ ...actBtn, marginLeft: 'auto', color: '#fff', background: 'var(--green, #3dba7a)', border: 'none', fontWeight: 700 }}>✓ Mark as final →</button>
+                <button type="button" onClick={async () => { const at = new Date().toISOString(); const { error: mErr } = await supabase.from('vendor_payroll_periods').update({ status: 'locked', locked_at: at }).eq('id', period.id); if (mErr) { setActErr(mErr.message); return } setActErr(''); setPeriod({ ...period, status: 'locked', locked_at: at }) }} style={{ ...actBtn, color: 'var(--green, #3dba7a)', borderColor: 'var(--green, #3dba7a)' }}>✓ Mark final</button>
+                <button type="button" onClick={() => setReviewing(true)} style={{ ...actBtn, marginLeft: 'auto', color: '#fff', background: 'var(--accent, #c8963e)', border: 'none', fontWeight: 700 }}>▸ Review &amp; finalize</button>
               </div>
             : <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap', alignItems: 'center', padding: '10px 12px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.30)', borderRadius: 10 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>✓ Finalized{period.locked_at ? ` · ${new Date(period.locked_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}</span>
@@ -118,6 +129,7 @@ export default function PayrollTab() {
         </div>
         {rowsLoading ? <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>
           : <ReviewTable key={period.id} period={period} rows={payouts || []} onReload={() => openPeriod(period)} />}
+        {reviewing && <ReviewFlow period={period} rows={payouts || []} onClose={() => { setReviewing(false); openPeriod(period) }} />}
       </div>
     )
   }
@@ -317,6 +329,141 @@ function ReviewTable({ period, rows: initialRows, onReload }) {
         ? <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Finalized — reopen the month above to edit.</div>
         : <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.5 }}>Pro-rated: earned = salary ÷ 30 × days · OT = salary ÷ 30 × OT days. Edit any cell, add/remove people, then Save changes.</div>}
       {addOpen && <AddPersonSheet existingVendorIds={new Set(rows.map(r => r.vendor_id).filter(Boolean))} onAdd={(newRows) => setRows(rs => [...rs, ...newRows])} onClose={() => setAddOpen(false)} />}
+    </div>
+  )
+}
+
+// ── swipeable card review (blurred backdrop, approve each, then finalize) ─────
+function ReviewFlow({ period, rows: initialRows, onClose }) {
+  const [rows, setRows] = useState(() => (initialRows || []).map(r => ({ ...r, days_worked: r.days_worked ?? 30 })))
+  const [idx, setIdx] = useState(0)
+  const [approved, setApproved] = useState(() => new Set())
+  const [phase, setPhase] = useState('review')   // review | done | final
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const touchX = useRef(null)
+  const total = rows.length
+  const cur = rows[idx]
+
+  const go = useCallback((d) => setIdx(i => Math.max(0, Math.min(total - 1, i + d))), [total])
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'ArrowRight') go(1); else if (e.key === 'ArrowLeft') go(-1); else if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [go, onClose])
+
+  const upd = (patch) => setRows(rs => rs.map((r, i) => i === idx ? { ...r, ...patch } : r))
+  const grand = rows.reduce((a, r) => a + totalOf(r), 0)
+
+  function approveCurrent() {
+    const nextSet = new Set(approved); nextSet.add(cur.id); setApproved(nextSet)
+    if (nextSet.size >= total) { setPhase('done'); return }
+    for (let k = 1; k <= total; k++) { const cand = (idx + k) % total; if (!nextSet.has(rows[cand].id)) { setIdx(cand); break } }
+  }
+
+  async function submitFinal() {
+    setBusy(true); setErr('')
+    try {
+      for (const r of rows) {
+        if (String(r.id).startsWith('new-')) continue
+        const patch = {
+          beneficiary_name: (r.beneficiary_name || '').trim() || null, upi_id: r.upi_id || null,
+          bank_account_name: r.bank_account_name || null, bank_account_no: r.bank_account_no || null, bank_ifsc: r.bank_ifsc || null,
+          fixed_pay: Number(r.fixed_pay || 0), allowance: Number(r.allowance || 0),
+          days_worked: (r.days_worked === '' || r.days_worked == null) ? null : Number(r.days_worked),
+          ot_days: Number(r.ot_days || 0), ot_amount: otAmtOf(r),
+          advance_recovered: Number(r.advance_recovered || 0), total_payout: totalOf(r),
+        }
+        const { error } = await supabase.from('vendor_payouts').update(patch).eq('id', r.id); if (error) throw error
+      }
+      const at = new Date().toISOString()
+      const { error: pErr } = await supabase.from('vendor_payroll_periods').update({ status: 'locked', locked_at: at }).eq('id', period.id); if (pErr) throw pErr
+      setPhase('final')
+    } catch (e) { setErr(e.message || String(e)) }
+    setBusy(false)
+  }
+
+  const muted = 'var(--text-muted, #6b6d82)', mono = 'var(--font-mono, monospace)'
+  const overlay = { position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(8,9,13,0.55)', backdropFilter: 'blur(7px)', WebkitBackdropFilter: 'blur(7px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto' }
+  const cardStyle = { animation: 'cardIn .25s ease', width: '100%', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 18, padding: 18, display: 'flex', flexDirection: 'column', gap: 11, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }
+  const navBtn = { padding: '11px 14px', fontSize: 14, fontWeight: 600, borderRadius: 9, cursor: 'pointer', fontFamily: mono, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)' }
+  const approveBtn = { flex: 1, padding: '11px 14px', fontSize: 14, fontWeight: 700, borderRadius: 9, cursor: 'pointer', fontFamily: mono, border: 'none', background: 'var(--green, #3dba7a)', color: '#fff' }
+  const closeBtn = { width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: '#fff', cursor: 'pointer', fontSize: 13 }
+  const brkRow = { display: 'flex', justifyContent: 'space-between' }
+
+  return (
+    <div style={overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <style>{`@keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}`}</style>
+      <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: mono }}>Review · {monthLabel(period.period_month)}</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.72)', fontFamily: mono }}>{approved.size} / {total} approved</div>
+          <button type="button" onClick={onClose} style={closeBtn}>✕</button>
+        </div>
+        <div style={{ height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${total ? Math.round(approved.size / total * 100) : 0}%`, background: 'var(--green, #3dba7a)', transition: 'width .2s' }} />
+        </div>
+
+        {phase === 'review' && cur && (
+          <div key={idx} style={cardStyle} onTouchStart={e => { touchX.current = e.touches[0].clientX }} onTouchEnd={e => { const dx = e.changedTouches[0].clientX - (touchX.current ?? 0); if (dx < -50) go(1); else if (dx > 50) go(-1) }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Ava name={cur.beneficiary_name || '—'} size={44} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <input value={cur.beneficiary_name || ''} onChange={e => upd({ beneficiary_name: e.target.value })} placeholder="Name" style={{ ...inp, fontWeight: 700, padding: '7px 10px' }} />
+                {cur.team && <div style={{ fontSize: 11, color: muted, fontFamily: mono, marginTop: 4 }}>{cur.team}</div>}
+              </div>
+              <div style={{ fontSize: 11, color: approved.has(cur.id) ? 'var(--green, #3dba7a)' : muted, fontFamily: mono, whiteSpace: 'nowrap', fontWeight: 700 }}>{approved.has(cur.id) ? '✓ ' : ''}{idx + 1}/{total}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <NumField label="Monthly salary" prefix="₹" value={cur.fixed_pay} onChange={v => upd({ fixed_pay: v })} />
+              <NumField label="Days / 30" value={cur.days_worked} onChange={v => upd({ days_worked: v })} />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <NumField label="OT days" value={cur.ot_days} onChange={v => upd({ ot_days: v })} />
+              <NumField label="Allowance" prefix="₹" value={cur.allowance} onChange={v => upd({ allowance: v })} />
+              <NumField label="Advance rec." prefix="₹" value={cur.advance_recovered} onChange={v => upd({ advance_recovered: v })} />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <TextField label="Bank A/C" value={cur.bank_account_no} onChange={v => upd({ bank_account_no: v })} placeholder="account no" />
+              <TextField label="IFSC" value={cur.bank_ifsc} onChange={v => upd({ bank_ifsc: v })} placeholder="IFSC" />
+            </div>
+            <TextField label="UPI ID" value={cur.upi_id} onChange={v => upd({ upi_id: v })} placeholder="name@bank" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '11px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, fontFamily: mono, fontSize: 12, color: muted }}>
+              <div style={brkRow}><span>Per day (÷30)</span><span>{money(Math.round(perDayOf(cur)))}</span></div>
+              <div style={brkRow}><span>Earned · {daysWorkedOf(cur)} days</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(earnedOf(cur))}</span></div>
+              <div style={brkRow}><span>Overtime · {Number(cur.ot_days || 0)} × 1 day</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(otAmtOf(cur))}</span></div>
+              {Number(cur.advance_recovered) > 0 && <div style={brkRow}><span>Advance recovered</span><span style={{ color: 'var(--red, #e05c6a)' }}>− {money(Number(cur.advance_recovered))}</span></div>}
+              <div style={{ ...brkRow, borderTop: '1px solid var(--border, #2e3040)', paddingTop: 7 }}><span style={{ color: 'var(--text, #e8e8f0)', fontWeight: 700 }}>Total payout</span><span style={{ color: 'var(--accent, #c8963e)', fontWeight: 700, fontSize: 15 }}>{money(totalOf(cur))}</span></div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button type="button" onClick={() => go(-1)} disabled={idx === 0} style={{ ...navBtn, opacity: idx === 0 ? 0.4 : 1 }}>‹</button>
+              <button type="button" onClick={approveCurrent} style={approveBtn}>{approved.has(cur.id) ? '✓ Approved · next' : '✓ Approve'}</button>
+              <button type="button" onClick={() => go(1)} disabled={idx === total - 1} style={{ ...navBtn, opacity: idx === total - 1 ? 0.4 : 1 }}>›</button>
+            </div>
+          </div>
+        )}
+
+        {phase === 'done' && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: mono }}>✓ All {total} approved</div>
+            <div style={{ fontSize: 13, color: muted, lineHeight: 1.5 }}>Grand total <b style={{ color: 'var(--accent, #c8963e)' }}>{money(grand)}</b>. Submit to save all changes and finalize the month — then you can export.</div>
+            {err && <Err>{err}</Err>}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={() => { setPhase('review'); setIdx(0) }} style={navBtn}>‹ Back</button>
+              <button type="button" onClick={submitFinal} disabled={busy} style={{ ...approveBtn, background: 'var(--accent, #c8963e)' }}>{busy ? 'Submitting…' : 'Submit & finalize →'}</button>
+            </div>
+          </div>
+        )}
+
+        {phase === 'final' && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: mono }}>✓ Finalized</div>
+            <div style={{ fontSize: 13, color: muted }}>{monthLabel(period.period_month)} · {total} vendors · {money(grand)}</div>
+            <button type="button" onClick={() => downloadCsv({ ...period, status: 'locked' }, rows)} style={{ ...approveBtn, background: 'var(--accent, #c8963e)' }}>⤓ Download CSV</button>
+            <button type="button" onClick={onClose} style={navBtn}>Close</button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
