@@ -71,7 +71,6 @@ export default function PayrollTab() {
   const [payouts, setPayouts] = useState(null)
   const [rowsLoading, setRowsLoading] = useState(false)
   const [sheet, setSheet] = useState('')          // 'newperiod' | 'rates' | ''
-  const [editP, setEditP] = useState(null)
   const [actErr, setActErr] = useState('')        // month action errors (finalize/delete)
 
   const loadPeriods = useCallback(async () => {
@@ -118,23 +117,7 @@ export default function PayrollTab() {
           {actErr && <div style={{ marginTop: 10 }}><Err>{actErr}</Err></div>}
         </div>
         {rowsLoading ? <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>
-          : (payouts || []).map(r => {
-            const name = (r.vendor && r.vendor.full_name) || r.beneficiary_name || '—'
-            return (
-              <button key={r.id} type="button" onClick={() => setEditP(r)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', padding: '12px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, cursor: 'pointer' }}>
-                <Ava name={name} path={r.vendor && r.vendor.avatar_path} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 3 }}>{r.team || r.cost_centre || ''}{Number(r.ot_amount) > 0 ? ` · OT ${money(r.ot_amount)}` : ''}{Number(r.advance_recovered) > 0 ? ` · adv ${money(r.advance_recovered)}` : ''}</div>
-                </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{money(r.total_payout)}</div>
-                  {r.utr && <div style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 2 }}>{r.utr}</div>}
-                </div>
-              </button>
-            )
-          })}
-        {editP && <PayoutEditSheet row={editP} onClose={() => setEditP(null)} onSaved={() => { setEditP(null); openPeriod(period) }} />}
+          : <ReviewTable key={period.id} period={period} rows={payouts || []} onReload={() => openPeriod(period)} />}
       </div>
     )
   }
@@ -239,59 +222,134 @@ function RatesSheet({ onClose }) {
   )
 }
 
-// ── edit one payout ───────────────────────────────────────────────────────────
-function PayoutEditSheet({ row, onClose, onSaved }) {
-  const [f, setF] = useState({ fixed_pay: row.fixed_pay || 0, allowance: row.allowance || 0, days_worked: row.days_worked ?? 30, ot_days: row.ot_days || 0, advance_given: row.advance_given || 0, advance_recovered: row.advance_recovered || 0, utr: row.utr || '', comments: row.comments || '' })
+// ── editable review table for one month ──────────────────────────────────────
+const num = (v) => String(v).replace(/[^\d.]/g, '')
+
+function ReviewTable({ period, rows: initialRows, onReload }) {
+  const locked = period.status !== 'draft'
+  const [rows, setRows] = useState(() => (initialRows || []).map(r => ({ ...r, days_worked: r.days_worked ?? 30 })))
+  const [dirty, setDirty] = useState(() => new Set())
+  const [delIds, setDelIds] = useState(() => [])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const set = (k) => (v) => setF(p => ({ ...p, [k]: v }))
-  const perDay = Math.round(perDayOf(f)), dw = daysWorkedOf(f), earned = earnedOf(f), otAmt = otAmtOf(f), total = totalOf(f)
-  const name = (row.vendor && row.vendor.full_name) || row.beneficiary_name || 'Payout'
-  async function save() {
-    setBusy(true); setErr('')
-    const patch = {
-      fixed_pay: Number(f.fixed_pay || 0), allowance: Number(f.allowance || 0),
-      days_worked: f.days_worked === '' ? null : Number(f.days_worked),
-      ot_days: Number(f.ot_days || 0), ot_amount: otAmt,
-      advance_given: Number(f.advance_given || 0), advance_recovered: Number(f.advance_recovered || 0),
-      total_payout: total, utr: f.utr.trim() || null, comments: f.comments.trim() || null,
-    }
-    const { error } = await supabase.from('vendor_payouts').update(patch).eq('id', row.id)
-    setBusy(false)
-    if (error) { setErr(error.message); return }
-    onSaved()
+  const [addOpen, setAddOpen] = useState(false)
+
+  const upd = (id, patch) => {
+    setRows(rs => rs.map(r => r.id === id ? { ...r, ...patch } : r))
+    if (!String(id).startsWith('new-')) setDirty(d => { const n = new Set(d); n.add(id); return n })
   }
-  const brkRow = { display: 'flex', justifyContent: 'space-between' }
+  const removeRow = (id) => {
+    setRows(rs => rs.filter(r => r.id !== id))
+    if (!String(id).startsWith('new-')) setDelIds(d => [...d, id])
+  }
+  const totalRow = (r) => locked ? Number(r.total_payout || 0) : totalOf(r)
+  const grand = rows.reduce((a, r) => a + totalRow(r), 0)
+  const hasChanges = dirty.size > 0 || delIds.length > 0 || rows.some(r => String(r.id).startsWith('new-'))
+
+  async function saveAll() {
+    setBusy(true); setErr('')
+    try {
+      for (const id of delIds) { const { error } = await supabase.from('vendor_payouts').delete().eq('id', id); if (error) throw error }
+      for (const r of rows) {
+        const patch = {
+          beneficiary_name: (r.beneficiary_name || '').trim() || null, team: r.team || null,
+          upi_id: r.upi_id || null, bank_account_name: r.bank_account_name || null,
+          bank_account_no: r.bank_account_no || null, bank_ifsc: r.bank_ifsc || null,
+          fixed_pay: Number(r.fixed_pay || 0), allowance: Number(r.allowance || 0),
+          days_worked: (r.days_worked === '' || r.days_worked == null) ? null : Number(r.days_worked),
+          ot_days: Number(r.ot_days || 0), ot_amount: otAmtOf(r),
+          advance_recovered: Number(r.advance_recovered || 0), total_payout: totalOf(r),
+        }
+        if (String(r.id).startsWith('new-')) {
+          const { error } = await supabase.from('vendor_payouts').insert({ period_id: period.id, vendor_id: r.vendor_id || null, ...patch }); if (error) throw error
+        } else if (dirty.has(r.id)) {
+          const { error } = await supabase.from('vendor_payouts').update(patch).eq('id', r.id); if (error) throw error
+        }
+      }
+      onReload()
+    } catch (e) { setErr(e.message || String(e)); setBusy(false) }
+  }
+
+  const th = { fontSize: 9, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'var(--font-mono, monospace)', textAlign: 'right', padding: '10px 8px', whiteSpace: 'nowrap' }
+  const thL = { ...th, textAlign: 'left' }
+  const td = { borderBottom: '1px solid var(--border, #2e3040)', padding: 0 }
+  const cellIn = (w, left) => ({ width: w, minWidth: w, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', fontSize: 13, padding: '9px 8px', textAlign: left ? 'left' : 'right' })
+
   return (
-    <Sheet title={name} onClose={onClose}>
-      {(row.team || row.cost_centre) && <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{[row.team, row.cost_centre].filter(Boolean).join(' · ')}</div>}
-      <div style={{ display: 'flex', gap: 8 }}>
-        <NumField label="Monthly salary" prefix="₹" value={f.fixed_pay} onChange={set('fixed_pay')} />
-        <NumField label="Days worked / 30" value={f.days_worked} onChange={set('days_worked')} />
-      </div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <NumField label="OT days" value={f.ot_days} onChange={set('ot_days')} />
-        <NumField label="Allowance" prefix="₹" value={f.allowance} onChange={set('allowance')} />
-      </div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <NumField label="Advance given" prefix="₹" value={f.advance_given} onChange={set('advance_given')} />
-        <NumField label="Advance recovered" prefix="₹" value={f.advance_recovered} onChange={set('advance_recovered')} />
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '11px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, fontFamily: 'var(--font-mono, monospace)', fontSize: 12, color: 'var(--text-muted, #6b6d82)' }}>
-        <div style={brkRow}><span>Per day (÷30)</span><span>{money(perDay)}</span></div>
-        <div style={brkRow}><span>Earned · {dw} {dw === 1 ? 'day' : 'days'}</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(earned)}</span></div>
-        <div style={brkRow}><span>Overtime · {Number(f.ot_days || 0)} × 1 day</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(otAmt)}</span></div>
-        {Number(f.allowance) > 0 && <div style={brkRow}><span>Allowance</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(Number(f.allowance))}</span></div>}
-        {Number(f.advance_recovered) > 0 && <div style={brkRow}><span>Advance recovered</span><span style={{ color: 'var(--red, #e05c6a)' }}>− {money(Number(f.advance_recovered))}</span></div>}
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'rgba(200,150,62,0.08)', border: '1px solid rgba(200,150,62,0.25)', borderRadius: 10 }}>
-        <span style={{ ...lbl, fontSize: 11 }}>Total payout</span>
-        <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>{money(total)}</span>
-      </div>
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={lbl}>UTR / payment ref</span><input value={f.utr} onChange={e => set('utr')(e.target.value)} style={inp} placeholder="bank reference" /></label>
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={lbl}>Comments</span><input value={f.comments} onChange={e => set('comments')(e.target.value)} style={inp} /></label>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {!locked && <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button type="button" onClick={() => setAddOpen(true)} style={actBtn}>+ Add person</button>
+        <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{rows.length} vendors · edit any cell inline</span>
+        {hasChanges && <button type="button" onClick={saveAll} disabled={busy} style={{ ...actBtn, marginLeft: 'auto', color: '#fff', background: 'var(--accent, #c8963e)', border: 'none', fontWeight: 700 }}>{busy ? 'Saving…' : '✓ Save changes'}</button>}
+      </div>}
       {err && <Err>{err}</Err>}
-      <button type="button" onClick={save} disabled={busy} style={primary(busy)}>{busy ? 'Saving…' : 'Save'}</button>
+      <div style={{ overflowX: 'auto', border: '1px solid var(--border, #2e3040)', borderRadius: 12, background: 'var(--bg-panel, #1e2028)' }}>
+        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 900 }}>
+          <thead><tr>
+            <th style={thL}>Beneficiary</th><th style={th}>Salary</th><th style={th}>Days/30</th><th style={th}>OT&nbsp;d</th><th style={th}>Allow.</th><th style={th}>Adv&nbsp;rec.</th><th style={th}>Total</th><th style={thL}>Bank A/C</th><th style={thL}>IFSC</th><th style={thL}>UPI</th>{!locked && <th style={th}></th>}
+          </tr></thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.id}>
+                <td style={td}><input value={r.beneficiary_name || ''} readOnly={locked} onChange={e => upd(r.id, { beneficiary_name: e.target.value })} placeholder="Name" style={cellIn(160, true)} /></td>
+                <td style={td}><input value={r.fixed_pay ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { fixed_pay: num(e.target.value) })} style={cellIn(92)} /></td>
+                <td style={td}><input value={r.days_worked ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { days_worked: num(e.target.value) })} style={cellIn(58)} /></td>
+                <td style={td}><input value={r.ot_days ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { ot_days: num(e.target.value) })} style={cellIn(52)} /></td>
+                <td style={td}><input value={r.allowance ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { allowance: num(e.target.value) })} style={cellIn(80)} /></td>
+                <td style={td}><input value={r.advance_recovered ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { advance_recovered: num(e.target.value) })} style={cellIn(80)} /></td>
+                <td style={{ ...td, textAlign: 'right', padding: '9px 8px', fontFamily: 'var(--font-mono, monospace)', fontSize: 13, fontWeight: 700, color: 'var(--accent, #c8963e)', whiteSpace: 'nowrap' }}>{money(totalRow(r))}</td>
+                <td style={td}><input value={r.bank_account_no || ''} readOnly={locked} onChange={e => upd(r.id, { bank_account_no: e.target.value })} placeholder="—" style={cellIn(140, true)} /></td>
+                <td style={td}><input value={r.bank_ifsc || ''} readOnly={locked} onChange={e => upd(r.id, { bank_ifsc: e.target.value })} placeholder="—" style={cellIn(110, true)} /></td>
+                <td style={td}><input value={r.upi_id || ''} readOnly={locked} onChange={e => upd(r.id, { upi_id: e.target.value })} placeholder="—" style={cellIn(130, true)} /></td>
+                {!locked && <td style={td}><button type="button" title="Remove" onClick={() => removeRow(r.id)} style={{ background: 'none', border: 'none', color: 'var(--red, #e05c6a)', cursor: 'pointer', fontSize: 14, padding: '6px 10px' }}>✕</button></td>}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot><tr>
+            <td style={{ padding: '11px 8px', fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--text-muted, #6b6d82)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Grand total</td>
+            <td colSpan={5}></td>
+            <td style={{ padding: '11px 8px', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)', fontSize: 15, fontWeight: 700, color: 'var(--accent, #c8963e)', whiteSpace: 'nowrap' }}>{money(grand)}</td>
+            <td colSpan={locked ? 3 : 4}></td>
+          </tr></tfoot>
+        </table>
+      </div>
+      {locked
+        ? <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Finalized — reopen the month above to edit.</div>
+        : <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.5 }}>Pro-rated: earned = salary ÷ 30 × days · OT = salary ÷ 30 × OT days. Edit any cell, add/remove people, then Save changes.</div>}
+      {addOpen && <AddPersonSheet existingVendorIds={new Set(rows.map(r => r.vendor_id).filter(Boolean))} onAdd={(newRows) => setRows(rs => [...rs, ...newRows])} onClose={() => setAddOpen(false)} />}
+    </div>
+  )
+}
+
+const mkRowId = () => 'new-' + Date.now() + '-' + Math.round(Math.random() * 1e6)
+const vendorToRow = (v) => ({ id: mkRowId(), vendor_id: v.id, beneficiary_name: v.full_name, team: v.pod, fixed_pay: Number(v.monthly_rate || 0), allowance: 0, days_worked: 30, ot_days: 0, ot_amount: 0, advance_recovered: 0, upi_id: v.upi_id, bank_account_name: v.bank_account_name, bank_account_no: v.bank_account_no, bank_ifsc: v.bank_ifsc })
+const blankRow = () => ({ id: mkRowId(), vendor_id: null, beneficiary_name: '', team: '', fixed_pay: 0, allowance: 0, days_worked: 30, ot_days: 0, ot_amount: 0, advance_recovered: 0, upi_id: '', bank_account_name: '', bank_account_no: '', bank_ifsc: '' })
+
+function AddPersonSheet({ existingVendorIds, onAdd, onClose }) {
+  const [vendors, setVendors] = useState(null)
+  const [q, setQ] = useState('')
+  useEffect(() => {
+    supabase.from('vendors').select('id,full_name,pod,trade,monthly_rate,upi_id,bank_account_name,bank_account_no,bank_ifsc').eq('status', 'approved').order('full_name')
+      .then(({ data }) => setVendors(data || []))
+  }, [])
+  const list = (vendors || []).filter(v => !existingVendorIds.has(v.id) && (v.full_name || '').toLowerCase().includes(q.toLowerCase()))
+  return (
+    <Sheet title="Add person" onClose={onClose}>
+      <button type="button" onClick={() => { onAdd([blankRow()]); onClose() }} style={{ ...actBtn, width: '100%', padding: '10px' }}>+ Blank row (manual entry)</button>
+      <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search approved vendors" style={inp} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
+        {vendors === null ? <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', padding: 8 }}>Loading…</div>
+          : list.length === 0 ? <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', padding: 8 }}>No approved vendors left to add.</div>
+          : list.map(v => (
+            <button key={v.id} type="button" onClick={() => { onAdd([vendorToRow(v)]); onClose() }} style={{ display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, cursor: 'pointer' }}>
+              <Ava name={v.full_name} size={30} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{v.full_name}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{v.trade || v.pod || ''}{v.monthly_rate ? ` · ${money(v.monthly_rate)}` : ''}</div>
+              </div>
+            </button>
+          ))}
+      </div>
     </Sheet>
   )
 }
