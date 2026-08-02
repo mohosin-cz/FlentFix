@@ -7,6 +7,7 @@ import {
   isPhone, isPincode, isEmail, isIFSC, isPAN, isUPI, isLast4,
   uploadVendorDoc,
 } from '../utils/vendorOnboard'
+import FlentWordmark from '../components/FlentWordmark'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // All sub-components are defined at MODULE SCOPE (never inside the render body)
@@ -673,7 +674,7 @@ function Shell({ children }) {
         background: 'var(--bg-panel, #1e2028)',
         borderBottom: '1px solid var(--border, #2e3040)',
       }}>
-        <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent, #c8963e)', letterSpacing: '0.04em', fontFamily: 'var(--font-mono, monospace)' }}>FLENT</span>
+        <FlentWordmark variant="light" height={18} />
         <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>vendor onboarding</span>
       </header>
       {children}
