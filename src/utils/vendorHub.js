@@ -7,6 +7,48 @@ export function onboardUrl() {
   return `${window.location.origin}/onboard`
 }
 
+// The public vendor attendance (punch) URL.
+export function attendUrl() {
+  return `${window.location.origin}/attend`
+}
+
+// getCurrentPosition wrapped in a promise, with friendly permission errors.
+export function getPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) { reject(new Error('Location is not supported on this device.')); return }
+    navigator.geolocation.getCurrentPosition(
+      p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }),
+      err => {
+        if (err.code === 1) reject(new Error('Location permission is blocked. Tap the lock / ⓘ icon by the address → Location → Allow, then retry.'))
+        else if (err.code === 2) reject(new Error('Location is unavailable — move to open sky and retry.'))
+        else if (err.code === 3) reject(new Error('Getting location timed out — retry.'))
+        else reject(new Error(err.message || 'Could not get location.'))
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+    )
+  })
+}
+
+export function fmtTime(d) {
+  if (!d) return '—'
+  return new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+}
+
+// Duration in ms → "3h 20m" / "45m".
+export function fmtDuration(ms) {
+  if (ms == null || ms < 0) return '—'
+  const mins = Math.floor(ms / 60000)
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return h ? `${h}h ${m}m` : `${m}m`
+}
+
+// Today's date as yyyy-mm-dd in the local timezone (for <input type=date>).
+export function todayStr() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 // Signed URL for a single private vendor-docs object. Short TTL. NEVER build a
 // public URL for this bucket — it is private and must stay private. Throws on
 // failure so the caller can surface a real error.

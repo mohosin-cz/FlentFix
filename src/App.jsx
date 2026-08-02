@@ -37,6 +37,7 @@ import Flentfit from './pages/Flentfit'
 import SOPs from './pages/SOPs'
 import SOPSetup from './pages/SOPSetup'
 import Onboard from './pages/Onboard'
+import Attend from './pages/Attend'
 import VendorHub from './pages/VendorHub'
 
 function migrateLocalNotes() {
@@ -199,6 +200,7 @@ export default function App() {
             }
           />
           <Route path="/onboard" element={<Onboard />} />
+          <Route path="/attend" element={<Attend />} />
           <Route path="/vendors" element={<ProtectedRoute><VendorHub /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
