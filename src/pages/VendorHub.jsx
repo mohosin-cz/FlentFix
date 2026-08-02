@@ -5,13 +5,14 @@ import { onboardUrl } from '../utils/vendorHub'
 import ShareSheet from '../components/vendor/ShareSheet'
 import OnboardingTab from './vendors/OnboardingTab'
 import AttendanceTab from './vendors/AttendanceTab'
+import PayrollTab from './vendors/PayrollTab'
 
 // Tab registry — new tabs slot in here with their own component; the shell does
 // not need to change.
 const TABS = [
   { key: 'onboarding', label: 'Onboarding', Comp: OnboardingTab },
   { key: 'attendance', label: 'Attendance', Comp: AttendanceTab },
-  { key: 'payroll',    label: 'Payroll',    Comp: null },
+  { key: 'payroll',    label: 'Payroll',    Comp: PayrollTab },
   { key: 'exit',       label: 'Exit',       Comp: null },
 ]
 
