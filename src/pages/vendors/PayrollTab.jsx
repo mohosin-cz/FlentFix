@@ -103,12 +103,18 @@ export default function PayrollTab() {
             <div><div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent, #c8963e)' }}>{money(total)}</div><div style={lbl}>total payout</div></div>
             <div><div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{(payouts || []).length}</div><div style={lbl}>vendors</div></div>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-            <button type="button" onClick={() => downloadCsv(period, payouts || [])} style={actBtn}>⤓ Download CSV</button>
-            {period.status === 'draft' && <button type="button" onClick={async () => { await supabase.rpc('payroll_fill_month', { p_period_id: period.id }); openPeriod(period) }} style={actBtn}>↻ Regenerate</button>}
-            {period.status === 'draft' && <button type="button" onClick={async () => { const { error: mErr } = await supabase.from('vendor_payroll_periods').update({ status: 'locked', locked_at: new Date().toISOString() }).eq('id', period.id); if (mErr) { setActErr(mErr.message); return } setActErr(''); setPeriod({ ...period, status: 'locked' }) }} style={{ ...actBtn, color: 'var(--green, #3dba7a)', borderColor: 'var(--green, #3dba7a)' }}>✓ Mark as final</button>}
-            {period.status === 'draft' && <button type="button" onClick={async () => { if (!window.confirm('Delete this draft month and its lines?')) return; await supabase.from('vendor_payouts').delete().eq('period_id', period.id); await supabase.from('vendor_payroll_periods').delete().eq('id', period.id); setPeriod(null); setPayouts(null); loadPeriods() }} style={{ ...actBtn, color: 'var(--red, #e05c6a)' }}>Delete</button>}
-          </div>
+          {period.status === 'draft'
+            ? <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button type="button" onClick={() => downloadCsv(period, payouts || [])} style={actBtn}>⤓ CSV</button>
+                <button type="button" onClick={async () => { setActErr(''); const { error: rErr } = await supabase.rpc('payroll_fill_month', { p_period_id: period.id }); if (rErr) { setActErr(rErr.message); return } openPeriod(period) }} style={actBtn}>↻ Regenerate</button>
+                <button type="button" onClick={async () => { if (!window.confirm('Delete this draft month and its lines?')) return; await supabase.from('vendor_payouts').delete().eq('period_id', period.id); await supabase.from('vendor_payroll_periods').delete().eq('id', period.id); setPeriod(null); setPayouts(null); loadPeriods() }} style={{ ...actBtn, color: 'var(--red, #e05c6a)' }}>Delete</button>
+                <button type="button" onClick={async () => { const at = new Date().toISOString(); const { error: mErr } = await supabase.from('vendor_payroll_periods').update({ status: 'locked', locked_at: at }).eq('id', period.id); if (mErr) { setActErr(mErr.message); return } setActErr(''); setPeriod({ ...period, status: 'locked', locked_at: at }) }} style={{ ...actBtn, marginLeft: 'auto', color: '#fff', background: 'var(--green, #3dba7a)', border: 'none', fontWeight: 700 }}>✓ Mark as final →</button>
+              </div>
+            : <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap', alignItems: 'center', padding: '10px 12px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.30)', borderRadius: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>✓ Finalized{period.locked_at ? ` · ${new Date(period.locked_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}</span>
+                <button type="button" onClick={async () => { setActErr(''); const { error: uErr } = await supabase.from('vendor_payroll_periods').update({ status: 'draft', locked_at: null }).eq('id', period.id); if (uErr) { setActErr(uErr.message); return } setPeriod({ ...period, status: 'draft', locked_at: null }) }} style={{ ...actBtn, fontSize: 11 }}>Reopen</button>
+                <button type="button" onClick={() => downloadCsv(period, payouts || [])} style={{ ...actBtn, marginLeft: 'auto', color: '#fff', background: 'var(--accent, #c8963e)', border: 'none', fontWeight: 700 }}>⤓ Download CSV</button>
+              </div>}
           {actErr && <div style={{ marginTop: 10 }}><Err>{actErr}</Err></div>}
         </div>
         {rowsLoading ? <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>
