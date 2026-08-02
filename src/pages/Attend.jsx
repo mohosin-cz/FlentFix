@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { Field, Input } from '../components/ui'
 import { getPosition, fmtTime } from '../utils/vendorHub'
+
+const TOKEN_KEY = 'flent_attend_token'
 
 // All sub-components at module scope (stable identity → no Android keyboard drop).
 
@@ -30,10 +32,24 @@ function RedStrip({ title, children }) {
   )
 }
 
+function bigBtn(kind, disabled) {
+  const bg = disabled ? 'var(--bg-input, #252731)' : kind === 'danger' ? 'var(--red, #e05c6a)' : kind === 'go' ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)'
+  return {
+    width: '100%', minHeight: 52, borderRadius: 10, border: 'none',
+    background: bg, color: disabled ? 'var(--text-muted, #6b6d82)' : '#fff',
+    fontSize: 16, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer',
+    fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.02em',
+    WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
+  }
+}
+
 export default function Attend() {
-  const [step, setStep] = useState('id')
+  const [step, setStep] = useState(() => {
+    try { return localStorage.getItem(TOKEN_KEY) ? 'resume' : 'email' } catch { return 'email' }
+  })
+  const [token, setToken] = useState(() => { try { return localStorage.getItem(TOKEN_KEY) || '' } catch { return '' } })
+  const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
-  const [phone, setPhone] = useState('')
   const [vendor, setVendor] = useState(null)
   const [sites, setSites] = useState([])
   const [site, setSite] = useState('')
@@ -44,26 +60,56 @@ export default function Attend() {
   const [err, setErr] = useState('')
   const [confirm, setConfirm] = useState(null)
 
-  async function captureLocation() {
+  const captureLocation = useCallback(async () => {
     setGeoErr(''); setGeoBusy(true)
     try { setGeo(await getPosition()) } catch (e) { setGeoErr(e.message) }
     setGeoBusy(false)
+  }, [])
+
+  const enterPunch = useCallback(async (v) => {
+    setVendor(v); setStep('punch')
+    const { data } = await supabase.rpc('attend_sites')
+    setSites(data || [])
+    captureLocation()
+  }, [captureLocation])
+
+  // resume a stored session on load
+  useEffect(() => {
+    if (step !== 'resume') return
+    let alive = true
+    ;(async () => {
+      const { data, error } = await supabase.rpc('attend_session_info', { p_token: token })
+      if (!alive) return
+      const v = Array.isArray(data) ? data[0] : data
+      if (error || !v) { try { localStorage.removeItem(TOKEN_KEY) } catch { /* noop */ } setToken(''); setStep('email'); return }
+      enterPunch(v)
+    })()
+    return () => { alive = false }
+  }, [step, token, enterPunch])
+
+  async function sendCode() {
+    setErr('')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setErr('Enter a valid email address.'); return }
+    setBusy(true)
+    const { data, error } = await supabase.functions.invoke('attend-request-otp', { body: { email: email.trim() } })
+    setBusy(false)
+    if (error) { setErr('Could not reach the server. Check your connection and try again.'); return }
+    if (!data || !data.ok) { setErr((data && data.error) || 'Could not send the code.'); return }
+    setCode(''); setStep('otp')
   }
 
-  async function identify() {
+  async function verifyCode() {
     setErr('')
-    if (!code.trim() || !phone.trim()) { setErr('Enter your vendor code and phone number.'); return }
+    if (!/^\d{6}$/.test(code.trim())) { setErr('Enter the 6-digit code from your email.'); return }
     setBusy(true)
-    const { data, error } = await supabase.rpc('attend_lookup', { p_code: code, p_phone: phone })
-    if (error) { setErr(error.message); setBusy(false); return }
-    const v = Array.isArray(data) ? data[0] : data
-    if (!v) { setErr('No approved vendor found for that code and phone.'); setBusy(false); return }
-    setVendor(v)
-    const { data: s } = await supabase.rpc('attend_sites')
-    setSites(s || [])
-    setStep('punch')
+    const { data, error } = await supabase.rpc('attend_verify_otp', { p_email: email.trim(), p_code: code.trim() })
     setBusy(false)
-    captureLocation()
+    if (error) { setErr(error.message); return }
+    const v = Array.isArray(data) ? data[0] : data
+    if (!v || !v.token) { setErr('Verification failed — request a new code.'); return }
+    try { localStorage.setItem(TOKEN_KEY, v.token) } catch { /* noop */ }
+    setToken(v.token)
+    enterPunch(v)
   }
 
   async function punch(type) {
@@ -73,38 +119,66 @@ export default function Attend() {
     let g = geo
     if (!g) { try { g = await getPosition(); setGeo(g) } catch (e) { setGeoErr(e.message) } }
     const { data, error } = await supabase.rpc('attend_punch', {
-      p_code: code, p_phone: phone, p_type: type,
+      p_token: token, p_type: type,
       p_pid: type === 'in' ? site : (site || null),
       p_lat: g ? g.lat : null, p_lng: g ? g.lng : null, p_accuracy: g ? g.accuracy : null,
     })
-    if (error) { setErr(error.message); setBusy(false); return }
+    setBusy(false)
+    if (error) { setErr(error.message); return }
     const r = Array.isArray(data) ? data[0] : data
     setConfirm(r)
     setVendor(prev => ({ ...prev, checked_in: r.punch_type === 'in', last_punch_at: r.punched_at }))
-    setBusy(false)
   }
 
-  // ── identity step ──────────────────────────────────────────────────────────
-  if (step === 'id') {
+  function startOver() {
+    try { localStorage.removeItem(TOKEN_KEY) } catch { /* noop */ }
+    setToken(''); setVendor(null); setEmail(''); setCode(''); setSite(''); setConfirm(null); setErr(''); setStep('email')
+  }
+
+  // ── resume (loading) ────────────────────────────────────────────────────────
+  if (step === 'resume') {
+    return <Shell><div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Restoring your session…</div></Shell>
+  }
+
+  // ── email step ──────────────────────────────────────────────────────────────
+  if (step === 'email') {
     return (
       <Shell>
         <div>
           <div style={{ fontSize: 18, fontWeight: 700 }}>Mark your attendance</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted, #6b6d82)', marginTop: 3, lineHeight: 1.5 }}>Enter your vendor code and phone to check in or out.</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted, #6b6d82)', marginTop: 3, lineHeight: 1.5 }}>Enter your registered email — we’ll send you a code to sign in.</div>
         </div>
-        <Field label="Vendor code">
-          <Input value={code} onChange={setCode} placeholder="e.g. ELE-0042" autoCapitalize="characters" autoCorrect="off" />
+        <Field label="Email">
+          <Input value={email} onChange={setEmail} placeholder="you@example.com" type="email" inputMode="email" autoCorrect="off" />
         </Field>
-        <Field label="Phone">
-          <Input value={phone} onChange={setPhone} placeholder="10-digit mobile" type="tel" inputMode="numeric" maxLength={10} />
-        </Field>
-        {err && <RedStrip title="Couldn’t verify">{err}</RedStrip>}
-        <button type="button" onClick={identify} disabled={busy} style={bigBtn(true, busy)}>{busy ? 'Checking…' : 'Continue →'}</button>
+        {err && <RedStrip title="Couldn’t send code">{err}</RedStrip>}
+        <button type="button" onClick={sendCode} disabled={busy} style={bigBtn('primary', busy)}>{busy ? 'Sending…' : 'Send code →'}</button>
       </Shell>
     )
   }
 
-  // ── punch step ─────────────────────────────────────────────────────────────
+  // ── otp step ────────────────────────────────────────────────────────────────
+  if (step === 'otp') {
+    return (
+      <Shell>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>Enter your code</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted, #6b6d82)', marginTop: 3, lineHeight: 1.5 }}>We sent a 6-digit code to <span style={{ color: 'var(--text-dim, #9394a8)' }}>{email.trim()}</span>. It expires in 10 minutes.</div>
+        </div>
+        <Field label="6-digit code">
+          <Input value={code} onChange={setCode} placeholder="123456" type="tel" inputMode="numeric" maxLength={6} />
+        </Field>
+        {err && <RedStrip title="Couldn’t verify">{err}</RedStrip>}
+        <button type="button" onClick={verifyCode} disabled={busy} style={bigBtn('go', busy)}>{busy ? 'Verifying…' : 'Verify →'}</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <button type="button" onClick={sendCode} disabled={busy} style={linkBtn}>Resend code</button>
+          <button type="button" onClick={() => { setStep('email'); setErr('') }} style={linkBtn}>Change email</button>
+        </div>
+      </Shell>
+    )
+  }
+
+  // ── punch step ──────────────────────────────────────────────────────────────
   const checkedIn = vendor && vendor.checked_in
   return (
     <Shell>
@@ -112,7 +186,6 @@ export default function Attend() {
         <div style={{ fontSize: 17, fontWeight: 700 }}>{vendor.full_name}</div>
         <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.28)', borderRadius: 6, padding: '1px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{vendor.trade}</span>
-          <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{code.toUpperCase()}</span>
           {vendor.pod && <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{vendor.pod}</span>}
         </div>
       </div>
@@ -133,7 +206,6 @@ export default function Attend() {
         </Field>
       )}
 
-      {/* location */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10 }}>
         <span style={{ fontSize: 15 }}>📍</span>
         <span style={{ flex: 1, fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>
@@ -154,22 +226,13 @@ export default function Attend() {
 
       {err && <RedStrip title="Couldn’t record">{err}</RedStrip>}
 
-      <button type="button" onClick={() => punch(checkedIn ? 'out' : 'in')} disabled={busy} style={bigBtn(!checkedIn, busy, checkedIn)}>
+      <button type="button" onClick={() => punch(checkedIn ? 'out' : 'in')} disabled={busy} style={bigBtn(checkedIn ? 'danger' : 'go', busy)}>
         {busy ? 'Recording…' : checkedIn ? 'Check out →' : 'Check in →'}
       </button>
 
-      <button type="button" onClick={() => { setStep('id'); setVendor(null); setCode(''); setPhone(''); setSite(''); setConfirm(''); setErr('') }} style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 4 }}>Not you? Start over</button>
+      <button type="button" onClick={startOver} style={{ ...linkBtn, alignSelf: 'center' }}>Not you? Sign out</button>
     </Shell>
   )
 }
 
-function bigBtn(primary, disabled, danger) {
-  const bg = disabled ? 'var(--bg-input, #252731)' : danger ? 'var(--red, #e05c6a)' : primary ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)'
-  return {
-    width: '100%', minHeight: 52, borderRadius: 10, border: 'none',
-    background: bg, color: disabled ? 'var(--text-muted, #6b6d82)' : '#fff',
-    fontSize: 16, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer',
-    fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.02em',
-    WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
-  }
-}
+const linkBtn = { background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 4 }
