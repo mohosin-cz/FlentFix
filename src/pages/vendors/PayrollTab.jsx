@@ -152,23 +152,30 @@ function NewPeriodSheet({ onClose, onCreated }) {
     setErr(''); setBusy(true)
     const [y, m] = month.split('-').map(Number)
     const days = new Date(y, m, 0).getDate()
-    const { data: per, error } = await supabase.from('vendor_payroll_periods').insert({ period_month: `${month}-01`, days_in_month: days, status: 'draft' }).select().single()
+    const start = `${month}-01`
+    const end = `${y}-${String(m).padStart(2, '0')}-${String(days).padStart(2, '0')}`
+    const { data: per, error } = await supabase.from('vendor_payroll_periods').insert({ period_month: start, days_in_month: days, status: 'draft' }).select().single()
     if (error) { setErr(error.message); setBusy(false); return }
-    const [vRes, rRes] = await Promise.all([
+    const [vRes, rRes, sRes] = await Promise.all([
       supabase.from('vendors').select('id,full_name,trade,pod,monthly_rate,upi_id,bank_account_name,bank_account_no,bank_ifsc').eq('status', 'approved'),
       supabase.from('payroll_trade_rate').select('*'),
+      supabase.rpc('payout_month_stats', { p_start: start, p_end: end }),
     ])
     const rateMap = {}; for (const r of rRes.data || []) rateMap[r.trade] = r.monthly_rate
+    const statMap = {}; for (const s of sRes.data || []) statMap[s.vendor_id] = s
     const rows = (vRes.data || []).map(v => {
       const fixed = Number(v.monthly_rate ?? rateMap[v.trade] ?? 0)
-      return { period_id: per.id, vendor_id: v.id, beneficiary_name: v.full_name, team: v.pod, fixed_pay: fixed, allowance: 0, ot_days: 0, ot_amount: 0, advance_given: 0, advance_recovered: 0, total_payout: fixed, upi_id: v.upi_id, bank_account_name: v.bank_account_name, bank_account_no: v.bank_account_no, bank_ifsc: v.bank_ifsc, source: 'generated' }
+      const st = statMap[v.id] || {}
+      const otDays = Number(st.ot_days || 0)
+      const otAmount = days > 0 ? Math.round(otDays * (fixed / days)) : 0   // 1 OT day = 1 day's pay
+      return { period_id: per.id, vendor_id: v.id, beneficiary_name: v.full_name, team: v.pod, fixed_pay: fixed, allowance: 0, days_worked: st.present_days ?? null, ot_days: otDays, ot_amount: otAmount, advance_given: 0, advance_recovered: 0, total_payout: fixed + otAmount, upi_id: v.upi_id, bank_account_name: v.bank_account_name, bank_account_no: v.bank_account_no, bank_ifsc: v.bank_ifsc, source: 'generated' }
     })
     if (rows.length) { const { error: iErr } = await supabase.from('vendor_payouts').insert(rows); if (iErr) { setErr(iErr.message); setBusy(false); return } }
     setBusy(false); onCreated(per)
   }
   return (
     <Sheet title="New payroll month" onClose={onClose}>
-      <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>Creates a draft month with a line per approved vendor — fixed pay from their rate. Fill in OT, allowance, advances, then mark it paid.</div>
+      <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>Creates a draft month, auto-filled per approved vendor: fixed pay from their rate, days worked + overtime from attendance, and their bank/UPI details. Review, tweak, then mark it paid.</div>
       <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={lbl}>Month</span><input type="month" value={month} onChange={e => setMonth(e.target.value)} style={inp} /></label>
       {err && <Err>{err}</Err>}
       <button type="button" onClick={create} disabled={busy} style={primary(busy)}>{busy ? 'Creating…' : 'Create month'}</button>
