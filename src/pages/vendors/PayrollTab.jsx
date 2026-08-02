@@ -72,6 +72,7 @@ export default function PayrollTab() {
   const [rowsLoading, setRowsLoading] = useState(false)
   const [sheet, setSheet] = useState('')          // 'newperiod' | 'rates' | ''
   const [editP, setEditP] = useState(null)
+  const [actErr, setActErr] = useState('')        // month action errors (finalize/delete)
 
   const loadPeriods = useCallback(async () => {
     setLoading(true); setError('')
@@ -82,7 +83,7 @@ export default function PayrollTab() {
   useEffect(() => { loadPeriods() }, [loadPeriods])
 
   const openPeriod = useCallback(async (p) => {
-    setPeriod(p); setPayouts(null); setRowsLoading(true)
+    setPeriod(p); setPayouts(null); setRowsLoading(true); setActErr('')
     const { data } = await supabase.from('vendor_payouts').select('*, vendor:vendors(full_name,avatar_path)').eq('period_id', p.id).order('total_payout', { ascending: false, nullsFirst: false })
     setPayouts(data || []); setRowsLoading(false)
   }, [])
@@ -96,7 +97,7 @@ export default function PayrollTab() {
         <div style={{ padding: '14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ flex: 1, fontSize: 16, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{monthLabel(period.period_month)}</div>
-            <span style={{ fontSize: 10, fontWeight: 700, color: period.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)', border: `1px solid ${period.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)'}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{period.status}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: period.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)', border: `1px solid ${period.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)'}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{period.status === 'locked' ? 'final' : period.status}</span>
           </div>
           <div style={{ display: 'flex', gap: 20, marginTop: 12, fontFamily: 'var(--font-mono, monospace)' }}>
             <div><div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent, #c8963e)' }}>{money(total)}</div><div style={lbl}>total payout</div></div>
@@ -105,9 +106,10 @@ export default function PayrollTab() {
           <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
             <button type="button" onClick={() => downloadCsv(period, payouts || [])} style={actBtn}>⤓ Download CSV</button>
             {period.status === 'draft' && <button type="button" onClick={async () => { await supabase.rpc('payroll_fill_month', { p_period_id: period.id }); openPeriod(period) }} style={actBtn}>↻ Regenerate</button>}
-            {period.status === 'draft' && <button type="button" onClick={async () => { await supabase.from('vendor_payroll_periods').update({ status: 'final', locked_at: new Date().toISOString() }).eq('id', period.id); setPeriod({ ...period, status: 'final' }) }} style={{ ...actBtn, color: 'var(--green, #3dba7a)', borderColor: 'var(--green, #3dba7a)' }}>✓ Mark as final</button>}
+            {period.status === 'draft' && <button type="button" onClick={async () => { const { error: mErr } = await supabase.from('vendor_payroll_periods').update({ status: 'locked', locked_at: new Date().toISOString() }).eq('id', period.id); if (mErr) { setActErr(mErr.message); return } setActErr(''); setPeriod({ ...period, status: 'locked' }) }} style={{ ...actBtn, color: 'var(--green, #3dba7a)', borderColor: 'var(--green, #3dba7a)' }}>✓ Mark as final</button>}
             {period.status === 'draft' && <button type="button" onClick={async () => { if (!window.confirm('Delete this draft month and its lines?')) return; await supabase.from('vendor_payouts').delete().eq('period_id', period.id); await supabase.from('vendor_payroll_periods').delete().eq('id', period.id); setPeriod(null); setPayouts(null); loadPeriods() }} style={{ ...actBtn, color: 'var(--red, #e05c6a)' }}>Delete</button>}
           </div>
+          {actErr && <div style={{ marginTop: 10 }}><Err>{actErr}</Err></div>}
         </div>
         {rowsLoading ? <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>
           : (payouts || []).map(r => {
@@ -154,7 +156,7 @@ export default function PayrollTab() {
                     <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{monthLabel(p.period_month)}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 3 }}>{(p.payouts || []).length} vendors · {money(total)}</div>
                   </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: p.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)', border: `1px solid ${p.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)'}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{p.status}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: p.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)', border: `1px solid ${p.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)'}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{p.status === 'locked' ? 'final' : p.status}</span>
                 </button>
               )
             })}
