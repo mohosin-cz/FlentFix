@@ -85,7 +85,6 @@ export default function Attend() {
   const tokenRef = useRef(initialToken)
 
   const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
   const [vendor, setVendor] = useState(null)
   const [sites, setSites] = useState([])
   const [site, setSite] = useState('')
@@ -134,26 +133,15 @@ export default function Attend() {
     return () => { alive = false }
   }, [step, enterPortal])
 
-  async function sendCode() {
+  async function login() {
     setErr('')
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setErr('Enter a valid email address.'); return }
     setBusy(true)
-    const { data, error } = await supabase.functions.invoke('attend-request-otp', { body: { email: email.trim() } })
-    setBusy(false)
-    if (error) { setErr('Could not reach the server. Check your connection and try again.'); return }
-    if (!data || !data.ok) { setErr((data && data.error) || 'Could not send the code.'); return }
-    setCode(''); setStep('otp')
-  }
-
-  async function verifyCode() {
-    setErr('')
-    if (!/^\d{6}$/.test(code.trim())) { setErr('Enter the 6-digit code from your email.'); return }
-    setBusy(true)
-    const { data, error } = await supabase.rpc('attend_verify_otp', { p_email: email.trim(), p_code: code.trim() })
+    const { data, error } = await supabase.rpc('attend_login', { p_email: email.trim() })
     setBusy(false)
     if (error) { setErr(error.message); return }
     const v = Array.isArray(data) ? data[0] : data
-    if (!v || !v.token) { setErr('Verification failed — request a new code.'); return }
+    if (!v || !v.token) { setErr('Could not sign in — check the email and try again.'); return }
     try { localStorage.setItem(TOKEN_KEY, v.token) } catch { /* noop */ }
     tokenRef.current = v.token
     enterPortal(v)
@@ -181,7 +169,7 @@ export default function Attend() {
   function signOut() {
     try { localStorage.removeItem(TOKEN_KEY) } catch { /* noop */ }
     tokenRef.current = ''
-    setVendor(null); setProfile(null); setHistory(null); setEmail(''); setCode(''); setSite(''); setConfirm(null); setErr(''); setStep('email')
+    setVendor(null); setProfile(null); setHistory(null); setEmail(''); setSite(''); setConfirm(null); setErr(''); setStep('email')
   }
 
   // ── resume (loading) ────────────────────────────────────────────────────────
@@ -195,37 +183,17 @@ export default function Attend() {
       <Shell>
         <div>
           <div style={{ fontSize: 18, fontWeight: 700 }}>Vendor sign in</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted, #6b6d82)', marginTop: 3, lineHeight: 1.5 }}>Enter the email you gave at onboarding — we’ll send you a code.</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted, #6b6d82)', marginTop: 3, lineHeight: 1.5 }}>Enter the email you gave at onboarding to sign in.</div>
         </div>
         <Field label="Email">
           <Input value={email} onChange={setEmail} placeholder="you@example.com" type="email" inputMode="email" autoCorrect="off" />
         </Field>
-        {err && <RedStrip title="Couldn’t send code">{err}</RedStrip>}
-        <button type="button" onClick={sendCode} disabled={busy} style={bigBtn('primary', busy)}>{busy ? 'Sending…' : 'Send code →'}</button>
+        {err && <RedStrip title="Couldn’t sign in">{err}</RedStrip>}
+        <button type="button" onClick={login} disabled={busy} style={bigBtn('primary', busy)}>{busy ? 'Signing in…' : 'Sign in →'}</button>
       </Shell>
     )
   }
 
-  // ── otp step ────────────────────────────────────────────────────────────────
-  if (step === 'otp') {
-    return (
-      <Shell>
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>Enter your code</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted, #6b6d82)', marginTop: 3, lineHeight: 1.5 }}>We sent a 6-digit code to <span style={{ color: 'var(--text-dim, #9394a8)' }}>{email.trim()}</span>. It expires in 10 minutes.</div>
-        </div>
-        <Field label="6-digit code">
-          <Input value={code} onChange={setCode} placeholder="123456" type="tel" inputMode="numeric" maxLength={6} />
-        </Field>
-        {err && <RedStrip title="Couldn’t verify">{err}</RedStrip>}
-        <button type="button" onClick={verifyCode} disabled={busy} style={bigBtn('go', busy)}>{busy ? 'Verifying…' : 'Verify →'}</button>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <button type="button" onClick={sendCode} disabled={busy} style={linkBtn}>Resend code</button>
-          <button type="button" onClick={() => { setStep('email'); setErr('') }} style={linkBtn}>Change email</button>
-        </div>
-      </Shell>
-    )
-  }
 
   // ── portal ──────────────────────────────────────────────────────────────────
   const checkedIn = vendor && vendor.checked_in
