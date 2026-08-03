@@ -11,6 +11,23 @@ const avatarUrl = (path) => {
   try { return supabase.storage.from('vendor-avatars').getPublicUrl(path).data.publicUrl } catch { return null }
 }
 
+// light + quick selfie: downscale on a canvas → small JPEG (no worker, no webp).
+async function selfieBlob(file) {
+  const url = URL.createObjectURL(file)
+  try {
+    const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('Could not read the photo')); im.src = url })
+    const max = 720
+    let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height
+    if (w > h && w > max) { h = Math.round(h * max / w); w = max }
+    else if (h >= w && h > max) { w = Math.round(w * max / h); h = max }
+    const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+    const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.7))
+    if (!blob) throw new Error('Could not process the photo')
+    return blob
+  } finally { URL.revokeObjectURL(url) }
+}
+
 // group punches into days, pairing in/out per kind → { date, regularMs, otMs, punches[] }
 function groupHistory(list) {
   const byDay = {}
@@ -296,11 +313,11 @@ export default function Attend() {
     if (!g) { try { g = await getPosition(); setGeo(g) } catch (e) { setGeoErr(e.message) } }
     let selfiePath = null
     try {
-      const webp = await compressToWebp(selfieFile)
-      selfiePath = `selfies/${crypto.randomUUID()}.webp`
-      const { error: upErr } = await supabase.storage.from('vendor-avatars').upload(selfiePath, webp, { contentType: 'image/webp' })
+      const blob = await selfieBlob(selfieFile)
+      selfiePath = `selfies/${crypto.randomUUID()}.jpg`
+      const { error: upErr } = await supabase.storage.from('vendor-avatars').upload(selfiePath, blob, { contentType: 'image/jpeg' })
       if (upErr) throw upErr
-    } catch { setBusy(false); setErr('Could not save the selfie — please try again.'); return }
+    } catch (e) { setBusy(false); setErr('Selfie upload failed: ' + (e && e.message ? e.message : 'try again')); return }
     const { data, error } = await supabase.rpc('attend_punch', {
       p_token: tokenRef.current, p_type: type, p_kind: kind,
       p_pid: type === 'in' ? pid.trim() : (pid.trim() || null),
