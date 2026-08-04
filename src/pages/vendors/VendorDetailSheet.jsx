@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { PillGroup, BtnPrimary } from '../../components/ui'
+import { BtnPrimary } from '../../components/ui'
 import {
   POD_OPTIONS, signedDocUrl, fmtDate, fmtDateTime, relTime,
   maskAccount, initials, avatarColor, isAdmin,
@@ -9,9 +9,22 @@ import { useAuth } from '../../contexts/AuthContext'
 import { isEmail } from '../../utils/vendorOnboard'
 
 const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
-// Suggestions, not a closed list — staff can type a new one.
+// Suggestions, not closed lists — staff can type a new one.
 const COST_CENTRES = ['OPX-FIX', 'OPX-CX']
 const TEAMS = ['Setup Ops', 'CX']
+const TRADES = ['Carpenter', 'Cleaner', 'Electrician', 'General Help', 'Painter', 'Plumber', 'Supervisor']
+const ACCOMMODATION = ['Vendor HQ-1', 'Vendor HQ-2', 'VHQ-2', 'N/A']
+
+const digits = (v) => (v || '').replace(/\D/g, '')
+const required = (label) => (v) => v.trim() ? null : `${label} can't be empty.`
+const phoneRule = (v) => !v ? null : (digits(v).length === 10 ? null : 'Phone should be 10 digits.')
+const rules = {
+  phone: (v) => v.trim() ? phoneRule(v) : "Phone can't be empty.",
+  altPhone: phoneRule,
+  pincode: (v) => !v || /^\d{6}$/.test(v) ? null : 'Pincode should be 6 digits.',
+  pan: (v) => !v || /^[A-Za-z]{5}\d{4}[A-Za-z]$/.test(v) ? null : 'PAN looks wrong (e.g. ABCDE1234F).',
+  aadhaar4: (v) => !v || /^\d{4}$/.test(v) ? null : 'Enter just the last 4 digits.',
+}
 
 // ── inline-editable row ─────────────────────────────────────────────────────
 // Staff fix what the vendor typed (email for attendance OTP) and add what the
@@ -69,6 +82,43 @@ function EditRow({ label, value, onSave, placeholder, type = 'text', inputMode, 
           </span>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── POD picker ──────────────────────────────────────────────────────────────
+// The three built-ins plus every POD already in use, so a name typed once is
+// one tap for the next vendor rather than being retyped.
+function PodPicker({ value, options, onChange, disabled }) {
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState('')
+  const chip = (on) => `tct tct-raised${on ? ' is-on' : ''}`
+  const chipStyle = { padding: '8px 13px', fontSize: 12.5, borderRadius: 16, flexShrink: 0 }
+
+  function commit() {
+    const n = name.trim()
+    if (!n) { setAdding(false); return }
+    onChange(n)
+    setName(''); setAdding(false)
+  }
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+      {options.map(p => (
+        <button key={p} type="button" disabled={disabled} onClick={() => onChange(p)}
+          aria-pressed={value === p} className={chip(value === p)} style={chipStyle}>{p}</button>
+      ))}
+      {adding ? (
+        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+          <input value={name} onChange={e => setName(e.target.value)} autoFocus placeholder="POD name"
+            onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setAdding(false); setName('') } }}
+            style={{ width: 130, padding: '7px 10px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--accent, #c8963e)', borderRadius: 16, outline: 'none', fontFamily: 'inherit' }} />
+          <button type="button" onClick={commit} style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 6, padding: '6px 11px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>add</button>
+          <button type="button" onClick={() => { setAdding(false); setName('') }} style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 6, padding: '6px 9px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>cancel</button>
+        </span>
+      ) : (
+        <button type="button" disabled={disabled} onClick={() => setAdding(true)} className="tct tct-raised"
+          style={{ ...chipStyle, color: 'var(--accent, #c8963e)' }}>+ New POD</button>
+      )}
     </div>
   )
 }
@@ -148,7 +198,7 @@ function LocationCard({ lat, lng, accuracy, at }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpdated }) {
+export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpdated, knownPods = [] }) {
   const [row, setRow] = useState(vendor)
   const [docs, setDocs] = useState({})
   const [revealAcct, setRevealAcct] = useState(false)
@@ -161,6 +211,15 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
   const { session } = useAuth()
   const admin = isAdmin(session?.user?.email)
   const removed = row.status === 'exited'
+
+  // built-ins + every POD in use + whatever this vendor already has, so a custom
+  // name survives a reopen instead of vanishing back into "+ New POD"
+  const podOptions = Array.from(new Set([
+    ...POD_OPTIONS.filter(p => p !== 'Unassigned'),
+    ...knownPods,
+    ...(row.pod ? [row.pod] : []),
+    'Unassigned',
+  ]))
 
   async function removeVendor() {
     setBusy('remove'); setErr('')
@@ -288,11 +347,24 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
 
         {/* body */}
         <div style={{ overflowY: 'auto', padding: '14px 18px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Card title="Identity">
+            <EditRow label="Full name" value={row.full_name} onSave={saveField('full_name', { validate: required('Name') })} placeholder="As on the Aadhaar" />
+            <EditRow label="Trade" value={row.trade} onSave={saveField('trade', { validate: required('Trade') })} suggestions={TRADES} placeholder="e.g. Cleaner" />
+            <EditRow label="Date of birth" value={row.date_of_birth} onSave={saveField('date_of_birth')} type="date" display={fmtDate} />
+            <EditRow label="Joined" value={row.date_of_joining} onSave={saveField('date_of_joining')} type="date" display={fmtDate} />
+            <EditRow label="Father" value={row.father_name} onSave={saveField('father_name')} />
+            <EditRow label="Mother" value={row.mother_name} onSave={saveField('mother_name')} />
+          </Card>
+
           <Card title="Contact">
-            <Row label="Phone">{row.phone}</Row>
-            <Row label="Alt phone">{row.alt_phone}</Row>
+            <EditRow label="Phone" value={row.phone} onSave={saveField('phone', { validate: rules.phone })} inputMode="tel" placeholder="10-digit mobile" />
+            <EditRow label="Alt phone" value={row.alt_phone} onSave={saveField('alt_phone', { validate: rules.altPhone })} inputMode="tel" />
+            <EditRow label="Guardian" value={row.guardian_phone} onSave={saveField('guardian_phone', { validate: rules.altPhone })} inputMode="tel" />
             <EditRow label="Email" value={row.email} onSave={saveEmail} type="email" placeholder="name@example.com" />
-            <Row label="Address">{[row.address_line, row.city, row.pincode].filter(Boolean).join(', ') || '—'}</Row>
+            <EditRow label="Address" value={row.address_line} onSave={saveField('address_line')} placeholder="House, street, area" />
+            <EditRow label="City" value={row.city} onSave={saveField('city')} />
+            <EditRow label="Pincode" value={row.pincode} onSave={saveField('pincode', { validate: rules.pincode })} inputMode="numeric" />
+            <EditRow label="Permanent" value={row.permanent_address} onSave={saveField('permanent_address')} placeholder="Home-town address" />
           </Card>
 
           {/* Payout setup — the commercial terms the public form never asks for.
@@ -312,6 +384,8 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
               placeholder="e.g. OPX-FIX" suggestions={COST_CENTRES} />
             <EditRow label="Team" value={row.team} onSave={saveField('team')}
               placeholder="e.g. Setup Ops" suggestions={TEAMS} />
+            <EditRow label="Accommodation" value={row.flent_accommodation} onSave={saveField('flent_accommodation')}
+              placeholder="e.g. Vendor HQ-1" suggestions={ACCOMMODATION} />
           </Card>
 
           <Card title="Payment method">
@@ -335,14 +409,21 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
           </Card>
 
           <Card title="Identity documents">
-            <Row label="Aadhaar">{row.aadhaar_last4 ? `•••• •••• ${row.aadhaar_last4}` : '—'}</Row>
-            <Row label="PAN">{row.pan_number}</Row>
-            <Row label="Licence">{row.dl_number ? `${row.dl_number}${row.dl_expiry ? ` · exp ${fmtDate(row.dl_expiry)}` : ''}` : '—'}</Row>
+            <EditRow label="Aadhaar" value={row.aadhaar_last4} onSave={saveField('aadhaar_last4', { validate: rules.aadhaar4 })}
+              inputMode="numeric" placeholder="Last 4 digits only" display={v => `•••• •••• ${v}`} />
+            <EditRow label="PAN" value={row.pan_number} onSave={saveField('pan_number', { parse: v => v.toUpperCase() || null, validate: rules.pan })}
+              placeholder="ABCDE1234F" />
+            <EditRow label="Licence" value={row.dl_number} onSave={saveField('dl_number')} placeholder="DL number" />
+            <EditRow label="DL expiry" value={row.dl_expiry} onSave={saveField('dl_expiry')} type="date" display={fmtDate} />
             <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
               <DocThumb label="Aadhaar" doc={docs.aadhaar} />
               <DocThumb label="PAN" doc={docs.pan} />
               <DocThumb label="Licence" doc={docs.dl} />
             </div>
+          </Card>
+
+          <Card title="Notes">
+            <EditRow label="Notes" value={row.notes} onSave={saveField('notes')} placeholder="Anything the team should know" addLabel="add" />
           </Card>
 
           <Card title="Live capture">
@@ -386,7 +467,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>POD</span>
-                <PillGroup options={POD_OPTIONS} value={row.pod || 'Unassigned'} onChange={assignPod} />
+                <PodPicker options={podOptions} value={row.pod || 'Unassigned'} onChange={assignPod} disabled={busy === 'pod'} />
               </div>
               {done && <BtnPrimary onClick={onOnboarded}>Done</BtnPrimary>}
 
@@ -420,7 +501,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Assign POD (optional)</span>
-                <PillGroup options={POD_OPTIONS} value={row.pod || 'Unassigned'} onChange={assignPod} />
+                <PodPicker options={podOptions} value={row.pod || 'Unassigned'} onChange={assignPod} disabled={busy === 'pod'} />
               </div>
               {!row.monthly_rate && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.32)', borderRadius: 9 }}>

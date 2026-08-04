@@ -206,6 +206,11 @@ export default function OnboardingTab() {
   })
   const filtered = list.length !== source.length
 
+  // every POD in use anywhere, so a custom name is reusable once created
+  const knownPods = Array.from(new Set(
+    [...(rows || []), ...removed, ...candidates].map(v => v.pod).filter(Boolean)
+  )).sort()
+
   // switching roster resets the filters, which describe the list you just left
   const switchView = (next) => { setShowRemoved(next); setTradeFilter('all'); setPodFilter('all') }
 
@@ -288,6 +293,7 @@ export default function OnboardingTab() {
         <VendorDetailSheet
           key={selected.id}
           vendor={selected}
+          knownPods={knownPods}
           onClose={() => setSelected(null)}
           onOnboarded={() => { setSelected(null); load() }}
           onUpdated={load}
