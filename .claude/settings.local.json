@@ -4,7 +4,32 @@
       "Bash(npm install:*)",
       "Bash(/Users/mohosinchoudhury/Documents/flentfix/src/App.jsx:*)",
       "Bash(/Users/mohosinchoudhury/Documents/flentfix/vite.config.js:*)",
-      "Bash(/Users/mohosinchoudhury/Documents/flentfix/index.html:*)"
+      "Bash(/Users/mohosinchoudhury/Documents/flentfix/index.html:*)",
+      "Bash(npx eslint *)",
+      "Bash(npx vercel *)",
+      "Bash(git rev-list *)",
+      "Bash(git fetch *)",
+      "Bash(git ls-remote *)",
+      "Bash(git pull *)",
+      "Bash(grep -vE \":0$\")",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "Bash(pkill -f \"vite\")",
+      "Bash(gh auth *)",
+      "Bash(git merge *)",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "Bash(node -e \"console.log\\('qrcode version', require\\('./node_modules/qrcode/package.json'\\).version\\)\")",
+      "Bash(npm audit *)",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{try{const a=JSON.parse\\(d\\);const names=Object.keys\\(a.vulnerabilities||{}\\);console.log\\('vuln pkgs:',names.join\\(', '\\)||'none'\\);const q=names.filter\\(n=>/qr|dijkstra|pngjs|yargs|ansi/.test\\(n\\)\\);console.log\\('qrcode-related:',q.join\\(', '\\)||'none'\\)}catch\\(e\\){console.log\\('parse err',e.message\\)}}\\)\")",
+      "Bash(pkill -f vite)",
+      "Skill(artifact-design)",
+      "Artifact",
+      "WebSearch",
+      "mcp__claude_ai_Supabase__deploy_edge_function",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
+      "Bash(lsof -ti:5173)",
+      "Bash(brew upgrade *)",
+      "Bash(claude --version)",
+      "mcp__claude_ai_Supabase__list_projects"
     ]
   }
 }

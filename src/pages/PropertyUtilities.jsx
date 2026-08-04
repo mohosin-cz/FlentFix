@@ -20,6 +20,20 @@ function Toast({ msg, onClose }) {
   return <div style={{ position: 'fixed', bottom: 84, left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, padding: '11px 18px', fontSize: 13, color: 'var(--text, #e8e8f0)', fontFamily: SANS, zIndex: 300, whiteSpace: 'nowrap', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>{msg}</div>
 }
 
+function CopyBtn({ value }) {
+  const [done, setDone] = useState(false)
+  useEffect(() => { if (!done) return; const t = setTimeout(() => setDone(false), 1400); return () => clearTimeout(t) }, [done])
+  async function copy() {
+    try { await navigator.clipboard.writeText(String(value)) } catch { return }
+    setDone(true)
+  }
+  return (
+    <button onClick={copy} title="Copy" style={{ flexShrink: 0, padding: '3px 8px', background: 'transparent', border: '1px solid var(--border, #2e3040)', borderRadius: 6, fontSize: 10.5, fontWeight: 700, color: done ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: MONO }}>
+      {done ? '✓' : 'copy'}
+    </button>
+  )
+}
+
 const inputStyle = { background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 9, padding: '11px 13px', fontSize: 15, color: 'var(--text, #e8e8f0)', fontFamily: SANS, outline: 'none', width: '100%', boxSizing: 'border-box' }
 const labelStyle = { fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 6, display: 'block' }
 function Labeled({ label, children, span }) {
@@ -41,7 +55,7 @@ function Sheet({ title, subtitle, onClose, children }) {
 }
 
 // ── add / edit ───────────────────────────────────────────────────────────────
-const BLANK = { utility_type: 'wifi', custom_type: '', provider: '', plan_type: '', account_number: '', start_date: '', billing_amount: '', billing_cycle: 'Monthly', status: 'active', notes: '' }
+const BLANK = { utility_type: 'wifi', custom_type: '', provider: '', plan_type: '', account_number: '', password: '', start_date: '', billing_amount: '', billing_cycle: 'Monthly', status: 'active', notes: '' }
 
 function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
   const [form, setForm] = useState(() => ({ ...BLANK, ...(record || {}), billing_amount: record?.billing_amount ?? '', start_date: record?.start_date || '' }))
@@ -61,7 +75,7 @@ function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
       pid, utility_type: form.utility_type,
       custom_type: form.utility_type === 'other' ? form.custom_type.trim() : null,
       provider: form.provider.trim() || null, plan_type: form.plan_type.trim() || null,
-      account_number: form.account_number.trim() || null, start_date: form.start_date || null,
+      account_number: form.account_number.trim() || null, password: form.password.trim() || null, start_date: form.start_date || null,
       billing_amount: form.billing_amount === '' ? null : Number(form.billing_amount),
       billing_cycle: form.billing_cycle || null, status: form.status,
       notes: form.notes.trim() || null, updated_at: new Date().toISOString(),
@@ -96,7 +110,8 @@ function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Labeled label="Provider"><input style={inputStyle} value={form.provider} onChange={e => set('provider', e.target.value)} placeholder="ACT, DrinkPrime…" /></Labeled>
         <Labeled label="Plan"><input style={inputStyle} value={form.plan_type} onChange={e => set('plan_type', e.target.value)} placeholder="150 Mbps / rental…" /></Labeled>
-        <Labeled label="Account / consumer no." span><input style={inputStyle} value={form.account_number} onChange={e => set('account_number', e.target.value)} placeholder="Account number" /></Labeled>
+        <Labeled label="Account / consumer no."><input style={inputStyle} value={form.account_number} onChange={e => set('account_number', e.target.value)} placeholder="Account number" /></Labeled>
+        <Labeled label="Password"><input style={inputStyle} value={form.password} onChange={e => set('password', e.target.value)} placeholder="Account / portal password" /></Labeled>
         <Labeled label="Installation / start date"><input style={inputStyle} type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} /></Labeled>
         <Labeled label="Amount (₹)"><input style={inputStyle} type="number" inputMode="decimal" value={form.billing_amount} onChange={e => set('billing_amount', e.target.value)} placeholder="0" /></Labeled>
         <Labeled label="Billing cycle"><select style={inputStyle} value={form.billing_cycle} onChange={e => set('billing_cycle', e.target.value)}>{BILLING_CYCLES.map(c => <option key={c} value={c}>{c}</option>)}</select></Labeled>
@@ -190,10 +205,11 @@ function UtilityCard({ u, onRecharge, onEdit, onDelete }) {
   const color = typeColor(u)
   const di = dueInfo(u)
   const details = [
-    u.account_number && ['Account', u.account_number],
-    u.billing_amount != null && ['Amount', `${money(u.billing_amount)}${u.billing_cycle ? ' · ' + u.billing_cycle : ''}`],
-    ['Installed', u.start_date ? fmtDate(u.start_date) : '—'],
-    u.last_recharged_on && ['Last recharged', fmtDate(u.last_recharged_on)],
+    u.account_number && { k: 'Account', v: u.account_number, copy: true },
+    u.password && { k: 'Password', v: u.password, copy: true },
+    u.billing_amount != null && { k: 'Amount', v: `${money(u.billing_amount)}${u.billing_cycle ? ' · ' + u.billing_cycle : ''}` },
+    { k: 'Installed', v: u.start_date ? fmtDate(u.start_date) : '—' },
+    u.last_recharged_on && { k: 'Last recharged', v: fmtDate(u.last_recharged_on) },
   ].filter(Boolean)
 
   return (
@@ -222,11 +238,12 @@ function UtilityCard({ u, onRecharge, onEdit, onDelete }) {
       )}
 
       {details.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '5px 14px' }}>
-          {details.map(([k, v]) => (
-            <div key={k} style={{ display: 'contents' }}>
-              <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{k}</span>
-              <span style={{ fontSize: 12.5, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, wordBreak: 'break-word' }}>{v}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {details.map(d => (
+            <div key={d.k} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, minWidth: 92, flexShrink: 0 }}>{d.k}</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text, #e8e8f0)', fontFamily: MONO, wordBreak: 'break-word' }}>{d.v}</span>
+              {d.copy && <CopyBtn value={d.v} />}
             </div>
           ))}
         </div>
