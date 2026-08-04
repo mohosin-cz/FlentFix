@@ -206,6 +206,9 @@ export default function OnboardingTab() {
   })
   const filtered = list.length !== source.length
 
+  // switching roster resets the filters, which describe the list you just left
+  const switchView = (next) => { setShowRemoved(next); setTradeFilter('all'); setPodFilter('all') }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <Nudge count={candidates.length} onReview={() => setShowCandidates(true)} />
@@ -220,15 +223,6 @@ export default function OnboardingTab() {
 
       {loading && !error && <div style={{ padding: '28px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>}
 
-      {/* Admin only: the removed roster lives behind this, so nothing disappears
-          without a way back to it. */}
-      {!loading && !error && admin && (removed.length > 0 || showRemoved) && (
-        <div style={{ display: 'flex', gap: 8 }}>
-          <FilterChip label={`On roll · ${(rows || []).length}`} active={!showRemoved} onClick={() => { setShowRemoved(false); setTradeFilter('all'); setPodFilter('all') }} />
-          <FilterChip label={`Removed · ${removed.length}`} active={showRemoved} onClick={() => { setShowRemoved(true); setTradeFilter('all'); setPodFilter('all') }} />
-        </div>
-      )}
-
       {!loading && !error && rows && (
         source.length === 0 ? (
           <div style={{ padding: '44px 20px', textAlign: 'center', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 12 }}>
@@ -237,13 +231,29 @@ export default function OnboardingTab() {
               {showRemoved ? 'Vendors you take off the roster will be listed here, and can be put back.'
                 : candidates.length ? 'Review the new applications above to onboard your first vendor.' : 'Onboarded vendors will appear here.'}
             </div>
+            {/* the toggle lives in the filter row, which this branch replaces —
+                without this you would be stranded in an empty removed roster */}
+            {showRemoved && (
+              <button type="button" onClick={() => switchView(false)}
+                style={{ marginTop: 14, padding: '7px 13px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                ‹ Back to on roll
+              </button>
+            )}
           </div>
         ) : (
           <>
-            {/* One row: trades take the space they need, search sits at the end.
-                Wraps below the chips on narrow screens rather than crushing them. */}
+            {/* One row for everything: the on-roll/removed toggle, the trades,
+                and search. Wraps rather than crushing on narrow screens. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2, WebkitOverflowScrolling: 'touch', flex: '1 1 240px', minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2, WebkitOverflowScrolling: 'touch', flex: '1 1 240px', minWidth: 0, alignItems: 'center' }}>
+                {/* Admin only — nothing disappears without a way back to it */}
+                {admin && (removed.length > 0 || showRemoved) && (
+                  <>
+                    <FilterChip label={`On roll · ${(rows || []).length}`} active={!showRemoved} onClick={() => switchView(false)} />
+                    <FilterChip label={`Removed · ${removed.length}`} active={showRemoved} onClick={() => switchView(true)} />
+                    <span aria-hidden="true" style={{ flexShrink: 0, width: 1, height: 20, background: 'var(--border, #2e3040)', margin: '0 2px' }} />
+                  </>
+                )}
                 {tradeOptions.map(t => <FilterChip key={t} label={t === 'all' ? 'All trades' : t} active={tradeFilter === t} onClick={() => setTradeFilter(t)} />)}
               </div>
               <SearchBox value={query} onChange={setQuery} count={list.length} total={source.length} filtered={filtered} />
