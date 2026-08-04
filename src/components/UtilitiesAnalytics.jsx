@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { monthlyCost, typeIcon, typeLabel, typeColor } from '../utils/propertyUtils'
+import { monthlyCost, typeIcon, typeLabel, typeColor, fmtDate } from '../utils/propertyUtils'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
 const MONO = 'var(--font-mono, monospace)'
@@ -29,7 +29,27 @@ function analyze(rows) {
   const cycles = {}
   for (const r of rows) { const c = r.billing_cycle || '—'; cycles[c] = (cycles[c] || 0) + 1 }
 
+  // deployment by installation month (start_date)
+  const dep = {}
+  for (const r of rows) if (r.start_date) { const ym = r.start_date.slice(0, 7); dep[ym] = (dep[ym] || 0) + 1 }
+  const now = new Date()
+  const depWindow = []
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    depWindow.push({ ym, count: dep[ym] || 0, label: d.toLocaleDateString('en-IN', { month: 'short' }), year: d.getMonth() === 0 || i === 11 ? `'${String(d.getFullYear()).slice(2)}` : '' })
+  }
+  const winStart = depWindow[0].ym
+  const depEarlier = Object.entries(dep).filter(([ym]) => ym < winStart).reduce((a, [, c]) => a + c, 0)
+  const thisYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const recent = rows.filter(r => r.start_date).sort((a, b) => b.start_date.localeCompare(a.start_date)).slice(0, 5)
+
   return {
+    depWindow, depEarlier,
+    deployedTotal: Object.values(dep).reduce((a, b) => a + b, 0),
+    deployedThisMonth: dep[thisYM] || 0,
+    missingStart: rows.filter(r => !r.start_date).length,
+    recent,
     count: rows.length, props, monthly,
     typeList, providers,
     cycles: Object.entries(cycles).sort((a, b) => b[1] - a[1]),
@@ -65,6 +85,7 @@ export default function UtilitiesAnalytics({ rows, onType, onDue }) {
   const a = useMemo(() => analyze(rows), [rows])
   const maxTypeSpend = Math.max(1, ...a.typeList.map(t => t.monthly))
   const maxProv = Math.max(1, ...a.providers.map(p => p.count))
+  const maxDep = Math.max(1, ...a.depWindow.map(d => d.count))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -110,6 +131,44 @@ export default function UtilitiesAnalytics({ rows, onType, onDue }) {
             ))}
           </div>
         )}
+      </Card>
+
+      {/* Deployment */}
+      <Card title="Deployment · by install date">
+        <div style={{ display: 'flex', gap: 6 }}>
+          <MiniStat label="Deployed" value={a.deployedTotal} color="var(--text, #e8e8f0)" />
+          <MiniStat label="This month" value={a.deployedThisMonth} color={a.deployedThisMonth ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)'} />
+          <MiniStat label="No date" value={a.missingStart} color={a.missingStart ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)'} />
+        </div>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 62 }}>
+            {a.depWindow.map(d => (
+              <div key={d.ym} title={`${d.label} ${d.year || ''}: ${d.count}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%', gap: 2 }}>
+                {d.count > 0 && <span style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{d.count}</span>}
+                <div style={{ width: '100%', height: `${d.count / maxDep * 100}%`, minHeight: d.count > 0 ? 4 : 2, background: d.count > 0 ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)', borderRadius: '3px 3px 0 0' }} />
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 3, marginTop: 5 }}>
+            {a.depWindow.map(d => <div key={d.ym} style={{ flex: 1, textAlign: 'center', fontSize: 8, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, overflow: 'hidden', whiteSpace: 'nowrap' }}>{d.label}</div>)}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 6 }}>
+            last 12 months{a.depEarlier > 0 ? ` · +${a.depEarlier} installed earlier` : ''}
+          </div>
+        </div>
+        {a.recent.length > 0 && <>
+          <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Recent installs</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, borderRadius: 9, overflow: 'hidden', border: '1px solid var(--border, #2e3040)' }}>
+            {a.recent.map(r => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 11px', background: 'var(--bg-input, #252731)' }}>
+                <span style={{ fontSize: 14 }}>{typeIcon(r)}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: MONO }}>PID {r.pid}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{shortType(r.utility_type, typeLabel(r))}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: MONO }}>{fmtDate(r.start_date)}</span>
+              </div>
+            ))}
+          </div>
+        </>}
       </Card>
 
       {/* Portfolio */}

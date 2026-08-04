@@ -97,7 +97,7 @@ function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
         <Labeled label="Provider"><input style={inputStyle} value={form.provider} onChange={e => set('provider', e.target.value)} placeholder="ACT, DrinkPrime…" /></Labeled>
         <Labeled label="Plan"><input style={inputStyle} value={form.plan_type} onChange={e => set('plan_type', e.target.value)} placeholder="150 Mbps / rental…" /></Labeled>
         <Labeled label="Account / consumer no." span><input style={inputStyle} value={form.account_number} onChange={e => set('account_number', e.target.value)} placeholder="Account number" /></Labeled>
-        <Labeled label="Start / last recharge date"><input style={inputStyle} type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} /></Labeled>
+        <Labeled label="Installation / start date"><input style={inputStyle} type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} /></Labeled>
         <Labeled label="Amount (₹)"><input style={inputStyle} type="number" inputMode="decimal" value={form.billing_amount} onChange={e => set('billing_amount', e.target.value)} placeholder="0" /></Labeled>
         <Labeled label="Billing cycle"><select style={inputStyle} value={form.billing_cycle} onChange={e => set('billing_cycle', e.target.value)}>{BILLING_CYCLES.map(c => <option key={c} value={c}>{c}</option>)}</select></Labeled>
         <Labeled label="Status"><select style={inputStyle} value={form.status} onChange={e => set('status', e.target.value)}>{STATUSES.map(st => <option key={st.key} value={st.key}>{st.label}</option>)}</select></Labeled>
