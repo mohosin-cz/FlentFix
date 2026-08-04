@@ -254,6 +254,7 @@ function DropItem({ icon, label, onClick, danger }) {
 const NAV_ITEMS = [
   { label: 'Inspect',    path: '/inspections/new' },
   { label: 'Properties', path: '/properties' },
+  { label: 'Utilities',  path: '/utilities' },
   { label: 'Inventory',  path: '/inventory' },
   { label: 'Rate Card',  path: '/inventory/public-rc' },
   { label: 'SOPs',       path: '/sops' },
@@ -262,6 +263,7 @@ const NAV_ITEMS = [
 
 const QUICK_ACTIONS = [
   { icon: '+', label: 'New Inspection', path: '/inspections/new' },
+  { icon: '⚡', label: 'Utilities',      path: '/utilities' },
   { icon: '↗', label: 'Log Usage',      path: '/inventory/usage' },
   { icon: '₹', label: 'Rate Card',      path: '/inventory/public-rc' },
   { icon: '⚙', label: 'SOPs',           path: '/sops' },

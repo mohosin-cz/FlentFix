@@ -5,38 +5,7 @@ import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import LogoSpinner from '../components/LogoSpinner'
 
-// ── Config ───────────────────────────────────────────────────────────────────
-const UTILITY_TYPES = [
-  { key: 'wifi',           label: 'WiFi / Broadband',   icon: '📶' },
-  { key: 'water_purifier', label: 'Water Purifier (RO)', icon: '💧' },
-  { key: 'dth',            label: 'DTH / Cable TV',      icon: '📺' },
-  { key: 'gas',            label: 'Piped Gas / LPG',     icon: '🔥' },
-  { key: 'electricity',    label: 'Electricity',         icon: '⚡' },
-  { key: 'maintenance',    label: 'Society Maintenance', icon: '🏢' },
-  { key: 'other',          label: 'Other',               icon: '🔌' },
-]
-const TYPE_MAP = Object.fromEntries(UTILITY_TYPES.map(t => [t.key, t]))
-
-const BILLING_CYCLES = ['Monthly', 'Quarterly', 'Half-yearly', 'Yearly', 'One-time']
-const STATUSES = [
-  { key: 'active',    label: 'Active',    color: 'var(--green, #3dba7a)' },
-  { key: 'paused',    label: 'Paused',    color: 'var(--accent, #c8963e)' },
-  { key: 'cancelled', label: 'Cancelled', color: 'var(--text-muted, #6b6d82)' },
-]
-const STATUS_MAP = Object.fromEntries(STATUSES.map(st => [st.key, st]))
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function fmtDate(str) {
-  if (!str) return '—'
-  return new Date(str).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-function typeLabel(u) {
-  if (u.utility_type === 'other') return u.custom_type?.trim() || 'Other'
-  return TYPE_MAP[u.utility_type]?.label || u.utility_type
-}
-function typeIcon(u) {
-  return TYPE_MAP[u.utility_type]?.icon || '🔌'
-}
+import { UTILITY_TYPES, BILLING_CYCLES, STATUSES, STATUS_MAP, fmtDate, typeLabel, typeIcon, dueInfo } from '../utils/propertyUtils'
 
 function Toast({ msg, onClose }) {
   useEffect(() => { const t = setTimeout(onClose, 2500); return () => clearTimeout(t) }, [onClose])
@@ -255,6 +224,18 @@ function UtilityCard({ u, onEdit, onDelete }) {
         </div>
       </div>
 
+      {(() => {
+        const di = dueInfo(u)
+        if (!di) return null
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, padding: '9px 12px', borderRadius: 8, background: di.tone === 'ok' ? 'var(--bg-input, #252731)' : `${di.color}18`, border: `1px solid ${di.tone === 'ok' ? 'var(--border, #2e3040)' : di.color + '55'}` }}>
+            <span style={{ fontSize: 14 }}>{di.tone === 'due' ? '🔔' : '🗓'}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: di.color, fontFamily: 'var(--font-mono, monospace)' }}>{di.label}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDate(di.date)}</span>
+          </div>
+        )
+      })()}
+
       {rows.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', marginTop: 12 }}>
           {rows.map(([k, v]) => (
@@ -414,7 +395,7 @@ export default function PropertyUtilities() {
 
               {utilities.length === 0 ? (
                 <div style={{ padding: '28px 16px', border: '1px dashed rgba(200,150,62,0.2)', borderRadius: 10, fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textAlign: 'center', lineHeight: 1.7 }}>
-                  No utilities logged yet.<br />Add WiFi, water purifier, DTH and other recurring services.
+                  No utilities logged yet.<br />Add WiFi, water purifier, gas, electricity and maintenance — the system tracks the next recharge for each.
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
