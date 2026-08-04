@@ -71,7 +71,7 @@ export default function VendorHub() {
       </header>
 
       <div style={{ position: 'sticky', top: 'calc(env(safe-area-inset-top) + 56px)', zIndex: 90 }}>
-        <TabBar tabs={TABS.map(t => t.label)} active={tab} onChange={setTab} />
+        <TabBar tabs={TABS.map(t => t.label)} active={tab} onChange={setTab} variant="nav" />
       </div>
 
       <div style={{ flex: 1, padding: '16px', paddingBottom: 'calc(80px + env(safe-area-inset-bottom))' }}>
