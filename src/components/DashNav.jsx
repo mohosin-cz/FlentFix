@@ -29,8 +29,11 @@ const CSS = `
               inset 0 -1px 0 rgba(255,255,255,.03);
 }
 .pnav-item {
-  font: 600 12px/1 'Space Grotesk', 'Poppins', sans-serif;
-  letter-spacing: .05em;
+  font: 500 12.5px/1 'Space Grotesk', 'Poppins', sans-serif;
+  letter-spacing: .03em;
+  /* light-on-dark renders heavy without this — 600 read as muddy at 12px */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   color: var(--text-dim, #9394a8);
   padding: 10px 14px;
   background: transparent;
@@ -70,6 +73,7 @@ const CSS = `
 }
 /* active route stays recessed with a lit gold floor */
 .pnav-item[aria-current="page"] {
+  font-weight: 600;
   color: var(--accent, #c8963e);
   background: var(--bg-input, #252731);
   box-shadow: inset 0 2px 5px rgba(0,0,0,.65), inset 0 -2px 0 var(--accent, #c8963e);
