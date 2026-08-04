@@ -106,6 +106,42 @@ function CandidatesSheet({ candidates, photos, onPick, onClose }) {
   )
 }
 
+// ── search box ──────────────────────────────────────────────────────────────
+// Sits at the end of the trade-filter row, so the count rides inside the field
+// rather than adding a third thing competing for that row.
+function SearchBox({ value, onChange, count, total, filtered }) {
+  const [focused, setFocused] = useState(false)
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 7, flex: '0 1 250px', minWidth: 176, height: 34,
+      padding: '0 8px 0 10px', background: 'var(--bg-input, #252731)', borderRadius: 9,
+      border: `1px solid ${focused ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`,
+      transition: 'border-color 0.15s',
+    }}>
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
+        <circle cx="7" cy="7" r="4.5" stroke="var(--text-muted, #6b6d82)" strokeWidth="1.6" />
+        <path d="M10.5 10.5L14 14" stroke="var(--text-muted, #6b6d82)" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+      <input
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onKeyDown={e => { if (e.key === 'Escape' && value) onChange('') }}
+        placeholder="Search vendors…"
+        aria-label="Search vendors by name, code, trade or phone"
+        style={{ flex: 1, minWidth: 0, padding: '7px 0', border: 'none', background: 'none', outline: 'none', color: 'var(--text, #e8e8f0)', fontSize: 13, fontFamily: 'inherit' }} />
+      {value && (
+        <button type="button" onClick={() => onChange('')} title="Clear search" aria-label="Clear search"
+          style={{ flexShrink: 0, width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 15, lineHeight: 1, cursor: 'pointer' }}>×</button>
+      )}
+      <span style={{ flexShrink: 0, fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', paddingLeft: 2, borderLeft: '1px solid var(--border, #2e3040)', paddingInlineStart: 7 }}>
+        {filtered ? `${count}/${total}` : total}
+      </span>
+    </div>
+  )
+}
+
 // ── filter chip ─────────────────────────────────────────────────────────────
 function FilterChip({ label, active, onClick }) {
   return (
@@ -183,14 +219,13 @@ export default function OnboardingTab() {
           </div>
         ) : (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, code, trade, phone…"
-                style={{ flex: 1, padding: '10px 14px', fontSize: 16, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, outline: 'none', fontFamily: 'inherit' }} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>{filtered ? `${list.length} of ${rows.length}` : `${rows.length} vendor${rows.length === 1 ? '' : 's'}`}</span>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2, WebkitOverflowScrolling: 'touch' }}>
-              {tradeOptions.map(t => <FilterChip key={t} label={t === 'all' ? 'All trades' : t} active={tradeFilter === t} onClick={() => setTradeFilter(t)} />)}
+            {/* One row: trades take the space they need, search sits at the end.
+                Wraps below the chips on narrow screens rather than crushing them. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2, WebkitOverflowScrolling: 'touch', flex: '1 1 240px', minWidth: 0 }}>
+                {tradeOptions.map(t => <FilterChip key={t} label={t === 'all' ? 'All trades' : t} active={tradeFilter === t} onClick={() => setTradeFilter(t)} />)}
+              </div>
+              <SearchBox value={query} onChange={setQuery} count={list.length} total={rows.length} filtered={filtered} />
             </div>
             {podOptions.length > 2 && (
               <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2, WebkitOverflowScrolling: 'touch' }}>
