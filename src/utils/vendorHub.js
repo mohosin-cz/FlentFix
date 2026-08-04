@@ -2,6 +2,11 @@
 
 export const POD_OPTIONS = ['OG', 'Alpha', 'Unassigned']
 
+// Removing a vendor is admin-only. This hides the control; the real gate is in
+// remove_vendor()/restore_vendor(), which check the caller's JWT server-side.
+export const ADMIN_EMAIL = 'mohosin@flent.in'
+export const isAdmin = (email) => (email || '').trim().toLowerCase() === ADMIN_EMAIL
+
 // The public onboarding URL (the ONLY place the app surfaces this link).
 export function onboardUrl() {
   return `${window.location.origin}/onboard`

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
-import { signedDocUrls, fmtDate, relTime, initials, avatarColor } from '../../utils/vendorHub'
+import { signedDocUrls, fmtDate, relTime, initials, avatarColor, isAdmin } from '../../utils/vendorHub'
+import { useAuth } from '../../contexts/AuthContext'
 import VendorDetailSheet from './VendorDetailSheet'
 
 const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })
@@ -163,21 +164,27 @@ export default function OnboardingTab() {
   const [showCandidates, setShowCandidates] = useState(false)
   const [tradeFilter, setTradeFilter] = useState('all')
   const [podFilter, setPodFilter] = useState('all')
+  const [removed, setRemoved] = useState([])
+  const [showRemoved, setShowRemoved] = useState(false)
+
+  const { session } = useAuth()
+  const admin = isAdmin(session?.user?.email)
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
-    const [onbRes, candRes, statsRes] = await Promise.all([
+    const [onbRes, candRes, exitRes, statsRes] = await Promise.all([
       supabase.from('vendors').select('*').eq('status', 'approved').order('reviewed_at', { ascending: false, nullsFirst: false }),
       supabase.from('vendors').select('*').eq('status', 'submitted').order('submitted_at', { ascending: false }),
+      supabase.from('vendors').select('*').eq('status', 'exited').order('exited_at', { ascending: false, nullsFirst: false }),
       supabase.rpc('vendor_stats'),
     ])
     const e = onbRes.error || candRes.error
     if (e) { setError(e.message); setRows(null) }
     else {
-      setRows(onbRes.data); setCandidates(candRes.data || [])
+      setRows(onbRes.data); setCandidates(candRes.data || []); setRemoved(exitRes.data || [])
       const sm = {}; for (const r of statsRes.data || []) sm[r.vendor_id] = r.properties_done
       setStats(sm)
-      const map = await signedDocUrls(supabase, [...(onbRes.data || []), ...(candRes.data || [])].map(v => v.live_photo_path), 300)
+      const map = await signedDocUrls(supabase, [...(onbRes.data || []), ...(candRes.data || []), ...(exitRes.data || [])].map(v => v.live_photo_path), 300)
       setPhotos(map)
     }
     setLoading(false)
@@ -186,16 +193,18 @@ export default function OnboardingTab() {
   useEffect(() => { load() }, [load])
 
   const q = query.trim().toLowerCase()
-  const tradeOptions = ['all', ...Array.from(new Set((rows || []).map(v => v.trade).filter(Boolean))).sort()]
-  const podsPresent = new Set((rows || []).map(v => v.pod || 'Unassigned'))
+  // one list, two sources — removed vendors are only reachable by the admin
+  const source = showRemoved ? removed : (rows || [])
+  const tradeOptions = ['all', ...Array.from(new Set(source.map(v => v.trade).filter(Boolean))).sort()]
+  const podsPresent = new Set(source.map(v => v.pod || 'Unassigned'))
   const podOptions = ['all', ...['OG', 'Alpha', 'Unassigned'].filter(p => podsPresent.has(p))]
-  const list = (rows || []).filter(v => {
+  const list = source.filter(v => {
     if (q && ![v.full_name, v.vendor_code, v.trade, v.phone, v.pod, v.city].some(f => (f || '').toLowerCase().includes(q))) return false
     if (tradeFilter !== 'all' && v.trade !== tradeFilter) return false
     if (podFilter !== 'all' && (v.pod || 'Unassigned') !== podFilter) return false
     return true
   })
-  const filtered = list.length !== (rows || []).length
+  const filtered = list.length !== source.length
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -211,11 +220,23 @@ export default function OnboardingTab() {
 
       {loading && !error && <div style={{ padding: '28px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>}
 
+      {/* Admin only: the removed roster lives behind this, so nothing disappears
+          without a way back to it. */}
+      {!loading && !error && admin && (removed.length > 0 || showRemoved) && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <FilterChip label={`On roll · ${(rows || []).length}`} active={!showRemoved} onClick={() => { setShowRemoved(false); setTradeFilter('all'); setPodFilter('all') }} />
+          <FilterChip label={`Removed · ${removed.length}`} active={showRemoved} onClick={() => { setShowRemoved(true); setTradeFilter('all'); setPodFilter('all') }} />
+        </div>
+      )}
+
       {!loading && !error && rows && (
-        rows.length === 0 ? (
+        source.length === 0 ? (
           <div style={{ padding: '44px 20px', textAlign: 'center', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 12 }}>
-            <div style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', fontWeight: 600 }}>No vendors onboarded yet</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', marginTop: 4 }}>{candidates.length ? 'Review the new applications above to onboard your first vendor.' : 'Onboarded vendors will appear here.'}</div>
+            <div style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', fontWeight: 600 }}>{showRemoved ? 'Nobody has been removed' : 'No vendors onboarded yet'}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', marginTop: 4 }}>
+              {showRemoved ? 'Vendors you take off the roster will be listed here, and can be put back.'
+                : candidates.length ? 'Review the new applications above to onboard your first vendor.' : 'Onboarded vendors will appear here.'}
+            </div>
           </div>
         ) : (
           <>
@@ -225,7 +246,7 @@ export default function OnboardingTab() {
               <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2, WebkitOverflowScrolling: 'touch', flex: '1 1 240px', minWidth: 0 }}>
                 {tradeOptions.map(t => <FilterChip key={t} label={t === 'all' ? 'All trades' : t} active={tradeFilter === t} onClick={() => setTradeFilter(t)} />)}
               </div>
-              <SearchBox value={query} onChange={setQuery} count={list.length} total={rows.length} filtered={filtered} />
+              <SearchBox value={query} onChange={setQuery} count={list.length} total={source.length} filtered={filtered} />
             </div>
             {podOptions.length > 2 && (
               <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2, WebkitOverflowScrolling: 'touch' }}>
