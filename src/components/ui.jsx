@@ -556,10 +556,16 @@ export function Divider({ label }) {
 }
 
 // ── Tab bar ───────────────────────────────────────────────────────────────────
-export function TabBar({ tabs, active, onChange, counts }) {
+// variant 'fill' (default) splits the width evenly — right for the inspection
+// flows, where the tabs are a fixed set of stages. 'nav' sizes each tab to its
+// label so the row reads like the Home header nav.
+export function TabBar({ tabs, active, onChange, counts, variant = 'fill' }) {
+  const nav = variant === 'nav'
   return (
     <div style={{
       display: 'flex',
+      gap: nav ? 2 : 0,
+      padding: nav ? '5px 12px' : 0,
       background: 'var(--bg-panel, #1e2028)',
       borderBottom: '1px solid var(--border, #2e3040)',
       position: 'sticky', top: 'calc(env(safe-area-inset-top) + 56px)', zIndex: 90,
@@ -573,9 +579,14 @@ export function TabBar({ tabs, active, onChange, counts }) {
           aria-selected={active === i}
           className="tct tct-bare"
           style={{
-            flex: 1, minWidth: 72, padding: '11px 8px', minHeight: 44,
+            flex: nav ? '0 0 auto' : 1,
+            minWidth: nav ? 0 : 72,
+            padding: nav ? '10px 16px' : '11px 8px',
+            minHeight: nav ? 0 : 44,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
-            borderRadius: 0,
+            borderRadius: nav ? 8 : 0,
+            // only in nav: fill-variant labels are meant to wrap inside their tab
+            whiteSpace: nav ? 'nowrap' : undefined,
           }}
         >
           <span style={{ fontSize: 12.5 }}>{tab}</span>
