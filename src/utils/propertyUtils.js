@@ -1,0 +1,61 @@
+// Shared config + "next recharge due" logic for property utilities.
+// DTH/Cable intentionally removed.
+export const UTILITY_TYPES = [
+  { key: 'wifi',           label: 'WiFi / Broadband',    icon: '📶' },
+  { key: 'water_purifier', label: 'Water Purifier (RO)', icon: '💧' },
+  { key: 'gas',            label: 'Piped Gas / LPG',     icon: '🔥' },
+  { key: 'electricity',    label: 'Electricity',         icon: '⚡' },
+  { key: 'maintenance',    label: 'Society Maintenance', icon: '🏢' },
+  { key: 'other',          label: 'Other',               icon: '🔌' },
+]
+export const TYPE_MAP = Object.fromEntries(UTILITY_TYPES.map(t => [t.key, t]))
+
+export const BILLING_CYCLES = ['Monthly', 'Quarterly', 'Half-yearly', 'Yearly', 'One-time']
+export const CYCLE_MONTHS = { Monthly: 1, Quarterly: 3, 'Half-yearly': 6, Yearly: 12 }
+
+export const STATUSES = [
+  { key: 'active',    label: 'Active',    color: 'var(--green, #3dba7a)' },
+  { key: 'paused',    label: 'Paused',    color: 'var(--accent, #c8963e)' },
+  { key: 'cancelled', label: 'Cancelled', color: 'var(--text-muted, #6b6d82)' },
+]
+export const STATUS_MAP = Object.fromEntries(STATUSES.map(st => [st.key, st]))
+
+export function fmtDate(str) {
+  if (!str) return '—'
+  return new Date(str).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+export function typeLabel(u) {
+  if (u.utility_type === 'other') return (u.custom_type || '').trim() || 'Other'
+  return TYPE_MAP[u.utility_type]?.label || u.utility_type
+}
+export function typeIcon(u) {
+  return TYPE_MAP[u.utility_type]?.icon || '🔌'
+}
+
+// next recurrence of start_date on/after today for the given cycle (null if n/a)
+export function nextDueDate(startStr, cycle) {
+  const m = CYCLE_MONTHS[cycle]
+  if (!startStr || !m) return null
+  const start = new Date(startStr + 'T00:00:00')
+  if (isNaN(start)) return null
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const d = new Date(start)
+  let guard = 0
+  while (d < today && guard < 1200) { d.setMonth(d.getMonth() + m); guard++ }
+  return d
+}
+
+// human-facing due status; returns null when there's nothing to schedule
+export function dueInfo(u) {
+  if (!u || u.status !== 'active') return null
+  const d = nextDueDate(u.start_date, u.billing_cycle)
+  if (!d) return null
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const days = Math.round((d.getTime() - today.getTime()) / 86400000)
+  let color, label, tone
+  if (days <= 0) { color = 'var(--red, #e05c6a)'; label = 'Recharge due today'; tone = 'due' }
+  else if (days === 1) { color = 'var(--red, #e05c6a)'; label = 'Recharge tomorrow'; tone = 'due' }
+  else if (days <= 5) { color = 'var(--accent, #c8963e)'; label = `Recharge in ${days} days`; tone = 'soon' }
+  else { color = 'var(--green, #3dba7a)'; label = `Recharge in ${days} days`; tone = 'ok' }
+  return { date: d, days, label, color, tone }
+}

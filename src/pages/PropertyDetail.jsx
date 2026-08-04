@@ -57,7 +57,7 @@ const TILES = [
   {
     key: 'utilities',
     title: 'Utilities & Access',
-    sub: 'Subscriptions · lockbox',
+    sub: 'Recharges · lockbox',
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
         <path d="M9 2v6M15 2v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
