@@ -20,7 +20,18 @@ function Toast({ msg, onClose }) {
   return <div style={{ position: 'fixed', bottom: 84, left: '50%', transform: 'translateX(-50%)', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, padding: '11px 18px', fontSize: 13, color: 'var(--text, #e8e8f0)', fontFamily: SANS, zIndex: 300, whiteSpace: 'nowrap', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>{msg}</div>
 }
 
-function CopyBtn({ value }) {
+const CopyIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+)
+const CheckIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+)
+
+function CopyBtn({ value, label = 'Copy' }) {
   const [done, setDone] = useState(false)
   useEffect(() => { if (!done) return; const t = setTimeout(() => setDone(false), 1400); return () => clearTimeout(t) }, [done])
   async function copy() {
@@ -28,8 +39,8 @@ function CopyBtn({ value }) {
     setDone(true)
   }
   return (
-    <button onClick={copy} title="Copy" style={{ flexShrink: 0, padding: '3px 8px', background: 'transparent', border: '1px solid var(--border, #2e3040)', borderRadius: 6, fontSize: 10.5, fontWeight: 700, color: done ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontFamily: MONO }}>
-      {done ? '✓' : 'copy'}
+    <button onClick={copy} title={label} aria-label={label} style={{ flexShrink: 0, alignSelf: 'center', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: done ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)', cursor: 'pointer' }}>
+      {done ? <CheckIcon /> : <CopyIcon />}
     </button>
   )
 }
@@ -214,10 +225,14 @@ function UtilityCard({ u, onRecharge, onEdit, onDelete }) {
   const st = STATUS_MAP[u.status] || STATUS_MAP.active
   const color = typeColor(u)
   const di = dueInfo(u)
+  // account / network / password travel together — one copy button hands over all three
+  const creds = [
+    u.account_number && { k: 'Account', v: u.account_number },
+    u.ssid && { k: 'Network', v: u.ssid },
+    (u.password || u.wifi_password) && { k: 'Password', v: u.password || u.wifi_password },
+  ].filter(Boolean)
+  const credText = creds.map(c => `${c.k}: ${c.v}`).join('\n')
   const details = [
-    u.account_number && { k: 'Account', v: u.account_number, copy: true },
-    u.ssid && { k: 'Network', v: u.ssid, copy: true },
-    (u.password || u.wifi_password) && { k: 'Password', v: u.password || u.wifi_password, copy: true },
     u.billing_amount != null && { k: 'Amount', v: `${money(u.billing_amount)}${u.billing_cycle ? ' · ' + u.billing_cycle : ''}` },
     { k: 'Installed', v: u.start_date ? fmtDate(u.start_date) : '—' },
     u.last_recharged_on && { k: 'Last recharged', v: fmtDate(u.last_recharged_on) },
@@ -248,13 +263,26 @@ function UtilityCard({ u, onRecharge, onEdit, onDelete }) {
         </div>
       )}
 
+      {creds.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'stretch', gap: 10, padding: '11px 12px', borderRadius: 10, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)' }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {creds.map(c => (
+              <div key={c.k} style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, minWidth: 68, flexShrink: 0 }}>{c.k}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text, #e8e8f0)', fontFamily: MONO, wordBreak: 'break-word' }}>{c.v}</span>
+              </div>
+            ))}
+          </div>
+          <CopyBtn value={credText} label={`Copy ${creds.map(c => c.k.toLowerCase()).join(', ')}`} />
+        </div>
+      )}
+
       {details.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {details.map(d => (
             <div key={d.k} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, minWidth: 92, flexShrink: 0 }}>{d.k}</span>
               <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--text, #e8e8f0)', fontFamily: MONO, wordBreak: 'break-word' }}>{d.v}</span>
-              {d.copy && <CopyBtn value={d.v} />}
             </div>
           ))}
         </div>
