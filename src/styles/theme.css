@@ -179,6 +179,40 @@ input[type="range"]::-moz-range-thumb {
   .tct:active { transform: none; }
 }
 
+/* ─── Universal hover feedback ────────────────────────────────────────────── */
+/* Everything clickable answers the cursor. Deliberately expressed as filter and
+   transform, never colour: this app is styled inline, and inline styles beat a
+   stylesheet — but nothing sets filter/transform inline, so this layers cleanly
+   over every component without knowing its palette.
+
+   .tct opts out (it has its own plateau), as do disabled controls and touch
+   devices, where a hover state would stick after a tap. */
+button, [role="button"], a[href], summary { cursor: pointer; }
+
+button, [role="button"], a[href] {
+  transition: filter .15s ease, transform .1s ease;
+}
+button:not(:disabled):not([aria-disabled="true"]):not(.tct):hover,
+[role="button"]:not([aria-disabled="true"]):not(.tct):hover,
+a[href]:not(.tct):hover {
+  filter: brightness(1.14);
+}
+button:not(:disabled):not([aria-disabled="true"]):not(.tct):active,
+[role="button"]:not([aria-disabled="true"]):not(.tct):active,
+a[href]:not(.tct):active {
+  filter: brightness(.97);
+  transform: translateY(1px);
+}
+
+/* a tap leaves :hover stuck on touch screens — don't paint it there */
+@media (hover: none) {
+  button:hover, [role="button"]:hover, a[href]:hover { filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  button, [role="button"], a[href] { transition: filter .15s ease; }
+  button:active, [role="button"]:active, a[href]:active { transform: none; }
+}
+
 /* ─── Scrollbar ───────────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
