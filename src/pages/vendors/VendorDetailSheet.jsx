@@ -3,8 +3,9 @@ import { supabase } from '../../lib/supabase'
 import { PillGroup, BtnPrimary } from '../../components/ui'
 import {
   POD_OPTIONS, signedDocUrl, fmtDate, fmtDateTime, relTime,
-  maskAccount, initials, avatarColor,
+  maskAccount, initials, avatarColor, isAdmin,
 } from '../../utils/vendorHub'
+import { useAuth } from '../../contexts/AuthContext'
 import { isEmail } from '../../utils/vendorOnboard'
 
 const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
@@ -151,9 +152,33 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
   const [row, setRow] = useState(vendor)
   const [docs, setDocs] = useState({})
   const [revealAcct, setRevealAcct] = useState(false)
-  const [busy, setBusy] = useState('')       // 'pod' | 'onboard' | ''
+  const [busy, setBusy] = useState('')       // 'pod' | 'onboard' | 'remove' | ''
   const [err, setErr] = useState('')
   const [done, setDone] = useState(null)     // assigned vendor_code after onboarding
+  const [confirming, setConfirming] = useState(false)
+  const [reason, setReason] = useState('')
+
+  const { session } = useAuth()
+  const admin = isAdmin(session?.user?.email)
+  const removed = row.status === 'exited'
+
+  async function removeVendor() {
+    setBusy('remove'); setErr('')
+    const { data, error } = await supabase.rpc('remove_vendor', { p_vendor_id: row.id, p_reason: reason })
+    setBusy('')
+    if (error) { setErr(error.message); return }
+    setRow(data); setConfirming(false); setReason('')
+    onUpdated && onUpdated()
+  }
+
+  async function restoreVendor() {
+    setBusy('remove'); setErr('')
+    const { data, error } = await supabase.rpc('restore_vendor', { p_vendor_id: row.id })
+    setBusy('')
+    if (error) { setErr(error.message); return }
+    setRow(data)
+    onUpdated && onUpdated()
+  }
 
   // Mounted with key={vendor.id} → fresh instance per candidate, no reset effect.
 
@@ -253,6 +278,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.28)', borderRadius: 6, padding: '1px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{row.trade}</span>
               {row.vendor_code && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.28)', borderRadius: 6, padding: '1px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{row.vendor_code}</span>}
+              {removed && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #e05c6a)', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.35)', borderRadius: 6, padding: '1px 8px', fontFamily: 'var(--font-mono, monospace)' }}>REMOVED</span>}
               {row.pod && <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{row.pod}</span>}
               <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{relTime(row.submitted_at)}</span>
             </div>
@@ -328,7 +354,28 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
         <div style={{ borderTop: '1px solid var(--border, #2e3040)', padding: '12px 18px', paddingBottom: 'max(14px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--bg-panel, #1e2028)' }}>
           {err && <ErrStrip>{err}</ErrStrip>}
 
-          {onboardedCode ? (
+          {removed ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.35)', borderRadius: 10 }}>
+                <span style={{ fontSize: 20 }}>⦸</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>Removed from on-roll{row.exited_at ? ` · ${fmtDate(row.exited_at)}` : ''}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-word' }}>
+                    {row.exited_by || '—'}{row.exit_reason ? ` · ${row.exit_reason}` : ''}
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.5 }}>
+                History is kept — attendance, payouts and documents are untouched. Payroll no longer generates a line.
+              </div>
+              {admin && (
+                <button type="button" onClick={restoreVendor} disabled={busy === 'remove'}
+                  style={{ width: '100%', minHeight: 46, borderRadius: 10, border: '1px solid var(--green, #3dba7a)', background: 'rgba(61,186,122,0.10)', color: 'var(--green, #3dba7a)', fontSize: 14, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                  {busy === 'remove' ? 'Restoring…' : 'Put back on roll'}
+                </button>
+              )}
+            </>
+          ) : onboardedCode ? (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 10 }}>
                 <span style={{ fontSize: 20 }}>✓</span>
@@ -342,6 +389,32 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
                 <PillGroup options={POD_OPTIONS} value={row.pod || 'Unassigned'} onChange={assignPod} />
               </div>
               {done && <BtnPrimary onClick={onOnboarded}>Done</BtnPrimary>}
+
+              {admin && !done && (confirming ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: '12px 13px', background: 'rgba(224,92,106,0.07)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 10 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>Remove {row.full_name.split(' ')[0]} from the on-roll list?</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5, fontFamily: 'var(--font-mono, monospace)' }}>
+                    They stop appearing on the roster and payroll stops generating a line for them. Nothing is deleted, and you can put them back.
+                  </div>
+                  <input value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason (optional) — e.g. left the company"
+                    style={{ padding: '8px 10px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, outline: 'none', fontFamily: 'inherit' }} />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" onClick={removeVendor} disabled={busy === 'remove'}
+                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', background: 'var(--red, #e05c6a)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                      {busy === 'remove' ? 'Removing…' : 'Yes, remove'}
+                    </button>
+                    <button type="button" onClick={() => { setConfirming(false); setReason(''); setErr('') }}
+                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setConfirming(true)}
+                  style={{ alignSelf: 'flex-start', padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--red, #e05c6a)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                  Remove from on-roll
+                </button>
+              ))}
             </>
           ) : (
             <>
