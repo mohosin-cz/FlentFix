@@ -1,14 +1,17 @@
 // Shared config + "next recharge due" logic for property utilities.
 // DTH/Cable intentionally removed.
 export const UTILITY_TYPES = [
-  { key: 'wifi',           label: 'WiFi / Broadband',    icon: '📶' },
-  { key: 'water_purifier', label: 'Water Purifier (RO)', icon: '💧' },
-  { key: 'gas',            label: 'Piped Gas / LPG',     icon: '🔥' },
-  { key: 'electricity',    label: 'Electricity',         icon: '⚡' },
-  { key: 'maintenance',    label: 'Society Maintenance', icon: '🏢' },
-  { key: 'other',          label: 'Other',               icon: '🔌' },
+  { key: 'wifi',           label: 'WiFi / Broadband',    icon: '📶', color: '#5b8def' },
+  { key: 'water_purifier', label: 'Water Purifier (RO)', icon: '💧', color: '#38bdf8' },
+  { key: 'gas',            label: 'Piped Gas / LPG',     icon: '🔥', color: '#f97316' },
+  { key: 'electricity',    label: 'Electricity',         icon: '⚡', color: '#eab308' },
+  { key: 'maintenance',    label: 'Society Maintenance', icon: '🏢', color: '#a78bfa' },
+  { key: 'other',          label: 'Other',               icon: '🔌', color: '#8b8d98' },
 ]
 export const TYPE_MAP = Object.fromEntries(UTILITY_TYPES.map(t => [t.key, t]))
+// Types offered in the Add picker (gas/electricity/maintenance still DISPLAY for
+// imported rows, but aren't selectable for new entries).
+export const ADD_TYPES = UTILITY_TYPES.filter(t => ['wifi', 'water_purifier', 'other'].includes(t.key))
 
 export const BILLING_CYCLES = ['Monthly', 'Bi-monthly', 'Quarterly', 'Half-yearly', 'Yearly', 'One-time']
 export const CYCLE_MONTHS = { Monthly: 1, 'Bi-monthly': 2, Quarterly: 3, 'Half-yearly': 6, Yearly: 12 }
@@ -35,24 +38,29 @@ export function typeLabel(u) {
 export function typeIcon(u) {
   return TYPE_MAP[u.utility_type]?.icon || '🔌'
 }
+export function typeColor(u) {
+  return TYPE_MAP[u.utility_type]?.color || '#8b8d98'
+}
 
-// next recurrence of start_date on/after today for the given cycle (null if n/a)
-export function nextDueDate(startStr, cycle) {
+// A utility is valid for one billing cycle from its base date (last recharge, or
+// start date if never recharged). Next recharge = base + one cycle, rolled
+// forward to the current cycle if several have elapsed. null when not schedulable.
+export function nextDueDate(baseStr, cycle) {
   const m = CYCLE_MONTHS[cycle]
-  if (!startStr || !m) return null
-  const start = new Date(startStr + 'T00:00:00')
-  if (isNaN(start)) return null
+  if (!baseStr || !m) return null
+  const base = new Date(baseStr + 'T00:00:00')
+  if (isNaN(base)) return null
   const today = new Date(); today.setHours(0, 0, 0, 0)
-  const d = new Date(start)
+  const d = new Date(base); d.setMonth(d.getMonth() + m)
   let guard = 0
-  while (d < today && guard < 1200) { d.setMonth(d.getMonth() + m); guard++ }
+  while (d < today && guard < 2400) { d.setMonth(d.getMonth() + m); guard++ }
   return d
 }
 
 // human-facing due status; returns null when there's nothing to schedule
 export function dueInfo(u) {
   if (!u || !LIVE_STATUSES.has(u.status)) return null
-  const d = nextDueDate(u.start_date, u.billing_cycle)
+  const d = nextDueDate(u.last_recharged_on || u.start_date, u.billing_cycle)
   if (!d) return null
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const days = Math.round((d.getTime() - today.getTime()) / 86400000)
