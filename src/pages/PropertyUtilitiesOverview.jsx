@@ -16,7 +16,7 @@ export default function PropertyUtilitiesOverview() {
   const fetchData = useCallback(async () => {
     setError(null)
     const [{ data: utils, error: uErr }, { data: props }] = await Promise.all([
-      supabase.from('property_utilities').select('*').eq('status', 'active'),
+      supabase.from('property_utilities').select('*').in('status', ['active', 'unknown']),
       supabase.from('properties').select('pid, name, address'),
     ])
     if (uErr) { setError(uErr.message); setLoading(false); return }

@@ -10,15 +10,19 @@ export const UTILITY_TYPES = [
 ]
 export const TYPE_MAP = Object.fromEntries(UTILITY_TYPES.map(t => [t.key, t]))
 
-export const BILLING_CYCLES = ['Monthly', 'Quarterly', 'Half-yearly', 'Yearly', 'One-time']
-export const CYCLE_MONTHS = { Monthly: 1, Quarterly: 3, 'Half-yearly': 6, Yearly: 12 }
+export const BILLING_CYCLES = ['Monthly', 'Bi-monthly', 'Quarterly', 'Half-yearly', 'Yearly', 'One-time']
+export const CYCLE_MONTHS = { Monthly: 1, 'Bi-monthly': 2, Quarterly: 3, 'Half-yearly': 6, Yearly: 12 }
 
 export const STATUSES = [
-  { key: 'active',    label: 'Active',    color: 'var(--green, #3dba7a)' },
-  { key: 'paused',    label: 'Paused',    color: 'var(--accent, #c8963e)' },
-  { key: 'cancelled', label: 'Cancelled', color: 'var(--text-muted, #6b6d82)' },
+  { key: 'active',     label: 'Active',     color: 'var(--green, #3dba7a)' },
+  { key: 'paused',     label: 'Paused',     color: 'var(--accent, #c8963e)' },
+  { key: 'cancelled',  label: 'Cancelled',  color: 'var(--text-muted, #6b6d82)' },
+  { key: 'unknown',    label: 'Unknown',    color: 'var(--accent, #c8963e)' },
+  { key: 'superseded', label: 'Superseded', color: 'var(--text-muted, #6b6d82)' },
 ]
 export const STATUS_MAP = Object.fromEntries(STATUSES.map(st => [st.key, st]))
+// statuses that count as "live" — they get a recharge countdown + show in the overview
+export const LIVE_STATUSES = new Set(['active', 'unknown'])
 
 export function fmtDate(str) {
   if (!str) return '—'
@@ -47,7 +51,7 @@ export function nextDueDate(startStr, cycle) {
 
 // human-facing due status; returns null when there's nothing to schedule
 export function dueInfo(u) {
-  if (!u || u.status !== 'active') return null
+  if (!u || !LIVE_STATUSES.has(u.status)) return null
   const d = nextDueDate(u.start_date, u.billing_cycle)
   if (!d) return null
   const today = new Date(); today.setHours(0, 0, 0, 0)
