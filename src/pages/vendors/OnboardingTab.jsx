@@ -165,26 +165,28 @@ export default function OnboardingTab() {
   const [tradeFilter, setTradeFilter] = useState('all')
   const [podFilter, setPodFilter] = useState('all')
   const [removed, setRemoved] = useState([])
-  const [showRemoved, setShowRemoved] = useState(false)
+  const [archived, setArchived] = useState([])
+  const [view, setView] = useState('onroll')   // 'onroll' | 'archived' | 'removed'
 
   const { session } = useAuth()
   const admin = isAdmin(session?.user?.email)
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
-    const [onbRes, candRes, exitRes, statsRes] = await Promise.all([
+    const [onbRes, candRes, exitRes, archRes, statsRes] = await Promise.all([
       supabase.from('vendors').select('*').eq('status', 'approved').order('reviewed_at', { ascending: false, nullsFirst: false }),
       supabase.from('vendors').select('*').eq('status', 'submitted').order('submitted_at', { ascending: false }),
       supabase.from('vendors').select('*').eq('status', 'exited').order('exited_at', { ascending: false, nullsFirst: false }),
+      supabase.from('vendors').select('*').eq('status', 'archived').order('archived_at', { ascending: false, nullsFirst: false }),
       supabase.rpc('vendor_stats'),
     ])
     const e = onbRes.error || candRes.error
     if (e) { setError(e.message); setRows(null) }
     else {
-      setRows(onbRes.data); setCandidates(candRes.data || []); setRemoved(exitRes.data || [])
+      setRows(onbRes.data); setCandidates(candRes.data || []); setRemoved(exitRes.data || []); setArchived(archRes.data || [])
       const sm = {}; for (const r of statsRes.data || []) sm[r.vendor_id] = r.properties_done
       setStats(sm)
-      const map = await signedDocUrls(supabase, [...(onbRes.data || []), ...(candRes.data || []), ...(exitRes.data || [])].map(v => v.live_photo_path), 300)
+      const map = await signedDocUrls(supabase, [...(onbRes.data || []), ...(candRes.data || []), ...(exitRes.data || []), ...(archRes.data || [])].map(v => v.live_photo_path), 300)
       setPhotos(map)
     }
     setLoading(false)
@@ -194,7 +196,7 @@ export default function OnboardingTab() {
 
   const q = query.trim().toLowerCase()
   // one list, two sources — removed vendors are only reachable by the admin
-  const source = showRemoved ? removed : (rows || [])
+  const source = view === 'removed' ? removed : view === 'archived' ? archived : (rows || [])
   const tradeOptions = ['all', ...Array.from(new Set(source.map(v => v.trade).filter(Boolean))).sort()]
   const podsPresent = new Set(source.map(v => v.pod || 'Unassigned'))
   const podOptions = ['all', ...['OG', 'Alpha', 'Unassigned'].filter(p => podsPresent.has(p))]
@@ -208,11 +210,11 @@ export default function OnboardingTab() {
 
   // every POD in use anywhere, so a custom name is reusable once created
   const knownPods = Array.from(new Set(
-    [...(rows || []), ...removed, ...candidates].map(v => v.pod).filter(Boolean)
+    [...(rows || []), ...removed, ...archived, ...candidates].map(v => v.pod).filter(Boolean)
   )).sort()
 
   // switching roster resets the filters, which describe the list you just left
-  const switchView = (next) => { setShowRemoved(next); setTradeFilter('all'); setPodFilter('all') }
+  const switchView = (next) => { setView(next); setTradeFilter('all'); setPodFilter('all') }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -231,15 +233,16 @@ export default function OnboardingTab() {
       {!loading && !error && rows && (
         source.length === 0 ? (
           <div style={{ padding: '44px 20px', textAlign: 'center', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 12 }}>
-            <div style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', fontWeight: 600 }}>{showRemoved ? 'Nobody has been removed' : 'No vendors onboarded yet'}</div>
+            <div style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', fontWeight: 600 }}>{view === 'removed' ? 'Nobody has been removed' : view === 'archived' ? 'Nobody is archived' : 'No vendors onboarded yet'}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', marginTop: 4 }}>
-              {showRemoved ? 'Vendors you take off the roster will be listed here, and can be put back.'
+              {view === 'removed' ? 'Vendors you take off the roster will be listed here, and can be put back.'
+                : view === 'archived' ? 'Vendors parked while they are away will be listed here, and can be returned to the roster.'
                 : candidates.length ? 'Review the new applications above to onboard your first vendor.' : 'Onboarded vendors will appear here.'}
             </div>
             {/* the toggle lives in the filter row, which this branch replaces —
                 without this you would be stranded in an empty removed roster */}
-            {showRemoved && (
-              <button type="button" onClick={() => switchView(false)}
+            {view !== 'onroll' && (
+              <button type="button" onClick={() => switchView('onroll')}
                 style={{ marginTop: 14, padding: '7px 13px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                 ‹ Back to on roll
               </button>
@@ -252,10 +255,11 @@ export default function OnboardingTab() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2, WebkitOverflowScrolling: 'touch', flex: '1 1 240px', minWidth: 0, alignItems: 'center' }}>
                 {/* Admin only — nothing disappears without a way back to it */}
-                {admin && (removed.length > 0 || showRemoved) && (
+                {(archived.length > 0 || (admin && removed.length > 0) || view !== 'onroll') && (
                   <>
-                    <FilterChip label={`On roll · ${(rows || []).length}`} active={!showRemoved} onClick={() => switchView(false)} />
-                    <FilterChip label={`Removed · ${removed.length}`} active={showRemoved} onClick={() => switchView(true)} />
+                    <FilterChip label={`On roll · ${(rows || []).length}`} active={view === 'onroll'} onClick={() => switchView('onroll')} />
+                    <FilterChip label={`Archived · ${archived.length}`} active={view === 'archived'} onClick={() => switchView('archived')} />
+                    {admin && <FilterChip label={`Removed · ${removed.length}`} active={view === 'removed'} onClick={() => switchView('removed')} />}
                     <span aria-hidden="true" style={{ flexShrink: 0, width: 1, height: 20, background: 'var(--border, #2e3040)', margin: '0 2px' }} />
                   </>
                 )}

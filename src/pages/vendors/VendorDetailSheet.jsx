@@ -205,12 +205,13 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
   const [busy, setBusy] = useState('')       // 'pod' | 'onboard' | 'remove' | ''
   const [err, setErr] = useState('')
   const [done, setDone] = useState(null)     // assigned vendor_code after onboarding
-  const [confirming, setConfirming] = useState(false)
+  const [pending, setPending] = useState('')   // '' | 'archive' | 'remove'
   const [reason, setReason] = useState('')
 
   const { session } = useAuth()
   const admin = isAdmin(session?.user?.email)
-  const removed = row.status === 'exited'
+  const removed  = row.status === 'exited'
+  const archived = row.status === 'archived'
 
   // built-ins + every POD in use + whatever this vendor already has, so a custom
   // name survives a reopen instead of vanishing back into "+ New POD"
@@ -226,7 +227,25 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
     const { data, error } = await supabase.rpc('remove_vendor', { p_vendor_id: row.id, p_reason: reason })
     setBusy('')
     if (error) { setErr(error.message); return }
-    setRow(data); setConfirming(false); setReason('')
+    setRow(data); setPending(''); setReason('')
+    onUpdated && onUpdated()
+  }
+
+  async function archiveVendor() {
+    setBusy('remove'); setErr('')
+    const { data, error } = await supabase.rpc('archive_vendor', { p_vendor_id: row.id, p_reason: reason })
+    setBusy('')
+    if (error) { setErr(error.message); return }
+    setRow(data); setPending(''); setReason('')
+    onUpdated && onUpdated()
+  }
+
+  async function unarchiveVendor() {
+    setBusy('remove'); setErr('')
+    const { data, error } = await supabase.rpc('unarchive_vendor', { p_vendor_id: row.id })
+    setBusy('')
+    if (error) { setErr(error.message); return }
+    setRow(data)
     onUpdated && onUpdated()
   }
 
@@ -435,7 +454,26 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
         <div style={{ borderTop: '1px solid var(--border, #2e3040)', padding: '12px 18px', paddingBottom: 'max(14px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--bg-panel, #1e2028)' }}>
           {err && <ErrStrip>{err}</ErrStrip>}
 
-          {removed ? (
+          {archived ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 10 }}>
+                <span style={{ fontSize: 20 }}>🗄</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent, #c8963e)' }}>Archived{row.archived_at ? ` · ${fmtDate(row.archived_at)}` : ''}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-word' }}>
+                    {row.archived_by || '—'}{row.archive_reason ? ` · ${row.archive_reason}` : ''}
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.5 }}>
+                Still on the books, just not active — payroll skips them while archived. Bring them back any time.
+              </div>
+              <button type="button" onClick={unarchiveVendor} disabled={busy === 'remove'}
+                style={{ width: '100%', minHeight: 46, borderRadius: 10, border: '1px solid var(--green, #3dba7a)', background: 'rgba(61,186,122,0.10)', color: 'var(--green, #3dba7a)', fontSize: 14, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                {busy === 'remove' ? 'Returning…' : 'Return to roster'}
+              </button>
+            </>
+          ) : removed ? (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.35)', borderRadius: 10 }}>
                 <span style={{ fontSize: 20 }}>⦸</span>
@@ -471,30 +509,47 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
               </div>
               {done && <BtnPrimary onClick={onOnboarded}>Done</BtnPrimary>}
 
-              {admin && !done && (confirming ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: '12px 13px', background: 'rgba(224,92,106,0.07)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 10 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>Remove {row.full_name.split(' ')[0]} from the on-roll list?</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5, fontFamily: 'var(--font-mono, monospace)' }}>
-                    They stop appearing on the roster and payroll stops generating a line for them. Nothing is deleted, and you can put them back.
+              {!done && (pending ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: '12px 13px', borderRadius: 10,
+                  background: pending === 'remove' ? 'rgba(224,92,106,0.07)' : 'rgba(200,150,62,0.07)',
+                  border: `1px solid ${pending === 'remove' ? 'rgba(224,92,106,0.30)' : 'rgba(200,150,62,0.32)'}` }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: pending === 'remove' ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)' }}>
+                    {pending === 'remove'
+                      ? `Remove ${row.full_name.split(' ')[0]} from the on-roll list?`
+                      : `Archive ${row.full_name.split(' ')[0]}?`}
                   </div>
-                  <input value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason (optional) — e.g. left the company"
+                  <div style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5, fontFamily: 'var(--font-mono, monospace)' }}>
+                    {pending === 'remove'
+                      ? 'For someone who has left. They come off the roster and payroll stops generating a line. Nothing is deleted, and you can put them back.'
+                      : 'For someone still employed but not currently working — long leave, seasonal, between sites. They come off the roster and payroll skips them until you bring them back.'}
+                  </div>
+                  <input value={reason} onChange={e => setReason(e.target.value)}
+                    placeholder={pending === 'remove' ? 'Reason (optional) — e.g. left the company' : 'Reason (optional) — e.g. on long leave'}
                     style={{ padding: '8px 10px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, outline: 'none', fontFamily: 'inherit' }} />
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="button" onClick={removeVendor} disabled={busy === 'remove'}
-                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', background: 'var(--red, #e05c6a)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
-                      {busy === 'remove' ? 'Removing…' : 'Yes, remove'}
+                    <button type="button" onClick={pending === 'remove' ? removeVendor : archiveVendor} disabled={busy === 'remove'}
+                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', background: pending === 'remove' ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                      {busy === 'remove' ? 'Working…' : pending === 'remove' ? 'Yes, remove' : 'Yes, archive'}
                     </button>
-                    <button type="button" onClick={() => { setConfirming(false); setReason(''); setErr('') }}
+                    <button type="button" onClick={() => { setPending(''); setReason(''); setErr('') }}
                       style={{ flex: 1, minHeight: 42, borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                       Cancel
                     </button>
                   </div>
                 </div>
               ) : (
-                <button type="button" onClick={() => setConfirming(true)}
-                  style={{ alignSelf: 'flex-start', padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--red, #e05c6a)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
-                  Remove from on-roll
-                </button>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => setPending('archive')}
+                    style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                    🗄 Archive
+                  </button>
+                  {admin && (
+                    <button type="button" onClick={() => setPending('remove')}
+                      style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--red, #e05c6a)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                      Remove from on-roll
+                    </button>
+                  )}
+                </div>
               ))}
             </>
           ) : (
