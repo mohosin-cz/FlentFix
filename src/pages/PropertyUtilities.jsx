@@ -55,10 +55,18 @@ function Sheet({ title, subtitle, onClose, children }) {
 }
 
 // ── add / edit ───────────────────────────────────────────────────────────────
-const BLANK = { utility_type: 'wifi', custom_type: '', provider: '', plan_type: '', account_number: '', password: '', start_date: '', billing_amount: '', billing_cycle: 'Monthly', status: 'active', notes: '' }
+const BLANK = { utility_type: 'wifi', custom_type: '', provider: '', plan_type: '', account_number: '', ssid: '', password: '', start_date: '', billing_amount: '', billing_cycle: 'Monthly', status: 'active', notes: '' }
+
+// a saved record carries nulls for empty text columns — coerce them back to ''
+// so the inputs stay controlled and .trim() on save can't throw
+const toForm = (record) => {
+  const f = { ...BLANK, ...(record || {}) }
+  for (const k of Object.keys(BLANK)) if (typeof BLANK[k] === 'string' && f[k] == null) f[k] = ''
+  return { ...f, billing_amount: record?.billing_amount ?? '', start_date: record?.start_date || '' }
+}
 
 function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
-  const [form, setForm] = useState(() => ({ ...BLANK, ...(record || {}), billing_amount: record?.billing_amount ?? '', start_date: record?.start_date || '' }))
+  const [form, setForm] = useState(() => toForm(record))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const isEdit = !!record?.id
@@ -75,7 +83,8 @@ function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
       pid, utility_type: form.utility_type,
       custom_type: form.utility_type === 'other' ? form.custom_type.trim() : null,
       provider: form.provider.trim() || null, plan_type: form.plan_type.trim() || null,
-      account_number: form.account_number.trim() || null, password: form.password.trim() || null, start_date: form.start_date || null,
+      account_number: form.account_number.trim() || null, start_date: form.start_date || null,
+      ssid: form.ssid.trim() || null, password: form.password.trim() || null,
       billing_amount: form.billing_amount === '' ? null : Number(form.billing_amount),
       billing_cycle: form.billing_cycle || null, status: form.status,
       notes: form.notes.trim() || null, updated_at: new Date().toISOString(),
@@ -111,7 +120,8 @@ function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
         <Labeled label="Provider"><input style={inputStyle} value={form.provider} onChange={e => set('provider', e.target.value)} placeholder="ACT, DrinkPrime…" /></Labeled>
         <Labeled label="Plan"><input style={inputStyle} value={form.plan_type} onChange={e => set('plan_type', e.target.value)} placeholder="150 Mbps / rental…" /></Labeled>
         <Labeled label="Account / consumer no."><input style={inputStyle} value={form.account_number} onChange={e => set('account_number', e.target.value)} placeholder="Account number" /></Labeled>
-        <Labeled label="Password"><input style={inputStyle} value={form.password} onChange={e => set('password', e.target.value)} placeholder="Account / portal password" /></Labeled>
+        {form.utility_type === 'wifi' && <Labeled label="Network (SSID)"><input style={inputStyle} value={form.ssid} onChange={e => set('ssid', e.target.value)} placeholder="Flent_304" /></Labeled>}
+        <Labeled label="Password" span={form.utility_type !== 'wifi'}><input style={inputStyle} value={form.password} onChange={e => set('password', e.target.value)} placeholder="WiFi / portal password" /></Labeled>
         <Labeled label="Installation / start date"><input style={inputStyle} type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} /></Labeled>
         <Labeled label="Amount (₹)"><input style={inputStyle} type="number" inputMode="decimal" value={form.billing_amount} onChange={e => set('billing_amount', e.target.value)} placeholder="0" /></Labeled>
         <Labeled label="Billing cycle"><select style={inputStyle} value={form.billing_cycle} onChange={e => set('billing_cycle', e.target.value)}>{BILLING_CYCLES.map(c => <option key={c} value={c}>{c}</option>)}</select></Labeled>
@@ -206,7 +216,8 @@ function UtilityCard({ u, onRecharge, onEdit, onDelete }) {
   const di = dueInfo(u)
   const details = [
     u.account_number && { k: 'Account', v: u.account_number, copy: true },
-    u.password && { k: 'Password', v: u.password, copy: true },
+    u.ssid && { k: 'Network', v: u.ssid, copy: true },
+    (u.password || u.wifi_password) && { k: 'Password', v: u.password || u.wifi_password, copy: true },
     u.billing_amount != null && { k: 'Amount', v: `${money(u.billing_amount)}${u.billing_cycle ? ' · ' + u.billing_cycle : ''}` },
     { k: 'Installed', v: u.start_date ? fmtDate(u.start_date) : '—' },
     u.last_recharged_on && { k: 'Last recharged', v: fmtDate(u.last_recharged_on) },
@@ -265,11 +276,6 @@ export default function PropertyUtilities() {
   const [userEmail, setUserEmail] = useState(null)
   const [toast, setToast] = useState('')
 
-  const [lockbox, setLockbox] = useState('')
-  const [accessNotes, setAccessNotes] = useState('')
-  const [accessDirty, setAccessDirty] = useState(false)
-  const [savingAccess, setSavingAccess] = useState(false)
-
   const [formRecord, setFormRecord] = useState(undefined) // undefined closed, null new, obj edit
   const [rechargeTarget, setRechargeTarget] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -278,29 +284,15 @@ export default function PropertyUtilities() {
   const fetchData = useCallback(async () => {
     setError(null)
     supabase.auth.getUser().then(({ data: { user } }) => setUserEmail(user?.email || null))
-    const [{ data: utils, error: uErr }, { data: acc }] = await Promise.all([
-      supabase.from('property_utilities').select('*').eq('pid', pid).order('created_at', { ascending: true }),
-      supabase.from('property_access').select('lockbox_code, access_notes').eq('pid', pid).maybeSingle(),
-    ])
+    const { data: utils, error: uErr } = await supabase
+      .from('property_utilities').select('*').eq('pid', pid).order('created_at', { ascending: true })
     if (uErr) { setError(uErr.message); setLoading(false); return }
     setUtilities(utils || [])
-    setLockbox(acc?.lockbox_code || '')
-    setAccessNotes(acc?.access_notes || '')
-    setAccessDirty(false)
     setLoading(false)
   }, [pid])
 
   const { pullDistance, isRefreshing } = usePullToRefresh(fetchData)
   useEffect(() => { fetchData() }, [fetchData])
-
-  async function saveAccess() {
-    if (savingAccess) return
-    setSavingAccess(true)
-    const { error: err } = await supabase.from('property_access').upsert({ pid, lockbox_code: lockbox.trim() || null, access_notes: accessNotes.trim() || null, updated_by: userEmail || null, updated_at: new Date().toISOString() }, { onConflict: 'pid' })
-    setSavingAccess(false)
-    if (err) { setToast('Save failed: ' + err.message); return }
-    setAccessDirty(false); setToast('Access saved')
-  }
 
   async function confirmDelete() {
     if (!deleteTarget || deleting) return
@@ -343,16 +335,6 @@ export default function PropertyUtilities() {
             <div style={{ padding: 16, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 10, fontSize: 13, color: '#f87171', fontFamily: MONO }}>Couldn’t load: {error}</div>
           ) : (
             <>
-              {/* Access */}
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, letterSpacing: '0.09em', textTransform: 'uppercase', marginBottom: 11 }}>Access</div>
-              <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderLeft: '3px solid var(--accent, #c8963e)', borderRadius: 12, padding: 16, marginBottom: 28, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div><label style={labelStyle}>🔒 Lockbox code</label>
-                  <input style={{ ...inputStyle, fontFamily: MONO, letterSpacing: '0.2em', fontSize: 19, fontWeight: 700 }} value={lockbox} onChange={e => { setLockbox(e.target.value); setAccessDirty(true) }} placeholder="––––" inputMode="numeric" /></div>
-                <div><label style={labelStyle}>Access notes</label>
-                  <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 56 }} value={accessNotes} onChange={e => { setAccessNotes(e.target.value); setAccessDirty(true) }} placeholder="Gate code, key location, guard contact, parking…" /></div>
-                {accessDirty && <button onClick={saveAccess} disabled={savingAccess} style={{ padding: '11px 0', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, color: '#1a1206', cursor: 'pointer', fontFamily: SANS }}>{savingAccess ? 'Saving…' : 'Save access'}</button>}
-              </div>
-
               {/* Utilities */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, letterSpacing: '0.09em', textTransform: 'uppercase' }}>Utilities &amp; recharges</span>
