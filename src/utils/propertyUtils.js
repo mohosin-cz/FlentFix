@@ -3,15 +3,10 @@
 export const UTILITY_TYPES = [
   { key: 'wifi',           label: 'WiFi / Broadband',    icon: '📶', color: '#5b8def' },
   { key: 'water_purifier', label: 'Water Purifier (RO)', icon: '💧', color: '#38bdf8' },
-  { key: 'gas',            label: 'Piped Gas / LPG',     icon: '🔥', color: '#f97316' },
-  { key: 'electricity',    label: 'Electricity',         icon: '⚡', color: '#eab308' },
-  { key: 'maintenance',    label: 'Society Maintenance', icon: '🏢', color: '#a78bfa' },
   { key: 'other',          label: 'Other',               icon: '🔌', color: '#8b8d98' },
 ]
 export const TYPE_MAP = Object.fromEntries(UTILITY_TYPES.map(t => [t.key, t]))
-// Types offered in the Add picker (gas/electricity/maintenance still DISPLAY for
-// imported rows, but aren't selectable for new entries).
-export const ADD_TYPES = UTILITY_TYPES.filter(t => ['wifi', 'water_purifier', 'other'].includes(t.key))
+export const ADD_TYPES = UTILITY_TYPES
 
 export const BILLING_CYCLES = ['Monthly', 'Bi-monthly', 'Quarterly', 'Half-yearly', 'Yearly', 'One-time']
 export const CYCLE_MONTHS = { Monthly: 1, 'Bi-monthly': 2, Quarterly: 3, 'Half-yearly': 6, Yearly: 12 }
@@ -63,6 +58,28 @@ export function monthlyCost(u) {
   const m = CYCLE_MONTHS[u.billing_cycle]
   if (!m) return 0
   return Number(u.billing_amount) / m
+}
+
+export function monthLabel(ym) {
+  const [y, m] = ym.split('-').map(Number)
+  return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+}
+
+// per-month deployment cohorts keyed on install (start_date), newest first
+export function deploymentsByMonth(rows) {
+  const map = {}
+  for (const r of rows) {
+    if (!r.start_date) continue
+    const ym = r.start_date.slice(0, 7)
+    const g = map[ym] || (map[ym] = { ym, deploys: 0, props: new Set(), wifi: 0, water: 0, other: 0, spend: 0 })
+    g.deploys++
+    g.props.add(r.pid)
+    if (r.utility_type === 'wifi') g.wifi++
+    else if (r.utility_type === 'water_purifier') g.water++
+    else g.other++
+    g.spend += monthlyCost(r)
+  }
+  return Object.values(map).map(g => ({ ...g, properties: g.props.size })).sort((a, b) => b.ym.localeCompare(a.ym))
 }
 
 // bucket a utility by recharge urgency: 'due' (<=7d) | 'month' (<=31d) | 'later' | 'none'
