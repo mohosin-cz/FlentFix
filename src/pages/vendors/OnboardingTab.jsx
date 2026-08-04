@@ -144,11 +144,14 @@ function SearchBox({ value, onChange, count, total, filtered }) {
 }
 
 // ── filter chip ─────────────────────────────────────────────────────────────
+// Same treatment as the Home header nav: bare at rest, hover raises a plateau
+// and goes gold, the chosen one stays recessed under a lit gold floor. Padding
+// is a touch tighter than the nav's so the row stays compact next to search.
 function FilterChip({ label, active, onClick }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={active}
-      className={`tct tct-raised${active ? ' is-on' : ''}`}
-      style={{ padding: '7px 13px', fontSize: 12, borderRadius: 16, whiteSpace: 'nowrap', flexShrink: 0 }}>{label}</button>
+      className={`tct tct-bare${active ? ' is-on' : ''}`}
+      style={{ padding: '10px 16px', fontSize: 12.5, lineHeight: 1, whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center' }}>{label}</button>
   )
 }
 
