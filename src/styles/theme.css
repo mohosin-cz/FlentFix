@@ -179,6 +179,20 @@ input[type="range"]::-moz-range-thumb {
   .tct:active { transform: none; }
 }
 
+/* ─── Page titles ─────────────────────────────────────────────────────────── */
+/* A title can't be pressed, so the tactile equivalent is engraving: cut into the
+   header rather than sitting on it. Same 180deg light source as .tct — shadow
+   along the top edge, a thin light catch underneath. */
+.pulse-title {
+  font-family: var(--font-nav);
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-shadow: 0 -1px 1px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.06);
+}
+
 /* ─── Universal hover feedback ────────────────────────────────────────────── */
 /* Everything clickable answers the cursor. Deliberately expressed as filter and
    transform, never colour: this app is styled inline, and inline styles beat a
