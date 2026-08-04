@@ -7,36 +7,64 @@ import {
 } from '../../utils/vendorHub'
 import { isEmail } from '../../utils/vendorOnboard'
 
-// ── editable email row (staff can add/fix email — needed for attendance OTP) ─
-function EmailRow({ value, onSave }) {
+const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
+// Suggestions, not a closed list — staff can type a new one.
+const COST_CENTRES = ['OPX-FIX', 'OPX-CX']
+const TEAMS = ['Setup Ops', 'CX']
+
+// ── inline-editable row ─────────────────────────────────────────────────────
+// Staff fix what the vendor typed (email for attendance OTP) and add what the
+// public form deliberately never asks for (rate, cost centre, team) — see the
+// Payout setup card. `display` renders the saved value; `children` may add a
+// control next to it (the account-number reveal).
+let editRowSeq = 0
+function EditRow({ label, value, onSave, placeholder, type = 'text', inputMode, suggestions, display, children, addLabel = 'add' }) {
   const [editing, setEditing] = useState(false)
-  const [input, setInput] = useState(value || '')
+  const [input, setInput] = useState(value == null ? '' : String(value))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [listId] = useState(() => `er-${++editRowSeq}`)
+
   async function save() {
     setBusy(true); setErr('')
     const e = await onSave(input)
     setBusy(false)
     if (e) setErr(e); else setEditing(false)
   }
+  const filled = value != null && value !== ''
+
   return (
     <div style={{ display: 'flex', gap: 12, padding: '8px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
-      <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', minWidth: 96, flexShrink: 0, paddingTop: 1 }}>Email</span>
-      <div style={{ flex: 1 }}>
+      <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', minWidth: 96, flexShrink: 0, paddingTop: 1 }}>{label}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
         {editing ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ display: 'flex', gap: 6 }}>
-              <input value={input} onChange={e => setInput(e.target.value)} placeholder="name@example.com" type="email" inputMode="email" autoCapitalize="off" autoCorrect="off"
+              <input
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setEditing(false); setErr(''); setInput(value == null ? '' : String(value)) } }}
+                placeholder={placeholder}
+                type={type}
+                inputMode={inputMode || (type === 'number' ? 'decimal' : type === 'email' ? 'email' : undefined)}
+                autoCapitalize={type === 'email' ? 'off' : undefined}
+                autoCorrect={type === 'email' ? 'off' : undefined}
+                list={suggestions ? listId : undefined}
+                autoFocus
                 style={{ flex: 1, minWidth: 0, padding: '7px 10px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, outline: 'none', fontFamily: 'inherit' }} />
+              {suggestions && <datalist id={listId}>{suggestions.map(s => <option key={s} value={s} />)}</datalist>}
               <button type="button" onClick={save} disabled={busy} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: '#fff', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 6, padding: '0 12px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{busy ? '…' : 'save'}</button>
-              <button type="button" onClick={() => { setEditing(false); setErr(''); setInput(value || '') }} style={{ flexShrink: 0, fontSize: 11, color: 'var(--text-muted, #6b6d82)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 6, padding: '0 10px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>cancel</button>
+              <button type="button" onClick={() => { setEditing(false); setErr(''); setInput(value == null ? '' : String(value)) }} style={{ flexShrink: 0, fontSize: 11, color: 'var(--text-muted, #6b6d82)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 6, padding: '0 10px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>cancel</button>
             </div>
             {err && <span style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>{err}</span>}
           </div>
         ) : (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 13, color: value ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', wordBreak: 'break-word' }}>{value || 'Not provided'}</span>
-            <button type="button" onClick={() => { setInput(value || ''); setEditing(true) }} style={{ fontSize: 10, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{value ? 'edit' : 'add'}</button>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, color: filled ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', wordBreak: 'break-word' }}>
+              {filled ? (display ? display(value) : value) : 'Not provided'}
+            </span>
+            {children}
+            <button type="button" onClick={() => { setInput(value == null ? '' : String(value)); setEditing(true) }} style={{ fontSize: 10, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{filled ? 'edit' : addLabel}</button>
           </span>
         )}
       </div>
@@ -168,15 +196,42 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
   // already onboarded (opened from the roster) or just onboarded this session
   const onboardedCode = done || (row.status === 'approved' ? row.vendor_code : null)
 
-  async function saveEmail(next) {
-    const e = (next || '').trim().toLowerCase()
-    if (!isEmail(e)) return 'Enter a valid email address.'
-    const { error } = await supabase.from('vendors').update({ email: e }).eq('id', row.id)
+  // One writer for every inline edit. `parse` turns the raw input into the
+  // column value (null clears it); `validate` returns an error string or null.
+  const saveField = (field, { parse, validate } = {}) => async (next) => {
+    const raw = (next ?? '').trim()
+    const msg = validate ? validate(raw) : null
+    if (msg) return msg
+    const value = parse ? parse(raw) : (raw || null)
+    const { error } = await supabase.from('vendors').update({ [field]: value }).eq('id', row.id)
     if (error) return error.message
-    setRow(r => ({ ...r, email: e }))
+    setRow(r => ({ ...r, [field]: value }))
     onUpdated && onUpdated()
     return null
   }
+
+  const saveEmail = saveField('email', {
+    parse: v => v.toLowerCase(),
+    validate: v => isEmail(v.toLowerCase()) ? null : 'Enter a valid email address.',
+  })
+  // Kept as a text input on purpose: a number input silently yields '' for
+  // "₹19,500", which would read as "clear the rate" instead of an error.
+  const cleanAmount = v => (v || '').replace(/[₹,\s]/g, '')
+  const saveRate = saveField('monthly_rate', {
+    parse: v => cleanAmount(v) === '' ? null : Number(cleanAmount(v)),
+    validate: v => {
+      const c = cleanAmount(v)
+      if (c === '') return null                       // clearing is allowed
+      if (!/^\d+(\.\d+)?$/.test(c)) return 'Enter a number, e.g. 22000.'
+      if (Number(c) <= 0) return 'Rate must be more than 0.'
+      if (Number(c) > 1000000) return 'That looks too high — check the figure.'
+      return null
+    },
+  })
+  const saveIfsc = saveField('bank_ifsc', {
+    parse: v => v.toUpperCase(),
+    validate: v => (!v || /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(v)) ? null : 'IFSC looks wrong (e.g. HDFC0001234).',
+  })
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
@@ -210,24 +265,47 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
           <Card title="Contact">
             <Row label="Phone">{row.phone}</Row>
             <Row label="Alt phone">{row.alt_phone}</Row>
-            <EmailRow value={row.email} onSave={saveEmail} />
+            <EditRow label="Email" value={row.email} onSave={saveEmail} type="email" placeholder="name@example.com" />
             <Row label="Address">{[row.address_line, row.city, row.pincode].filter(Boolean).join(', ') || '—'}</Row>
           </Card>
 
-          <Card title="Payout">
-            {hasBank && <>
-              <Row label="Acct name">{row.bank_account_name}</Row>
-              <Row label="Account no.">
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>{revealAcct ? (row.bank_account_no || '—') : maskAccount(row.bank_account_no)}</span>
-                  {row.bank_account_no && (
-                    <button type="button" onClick={() => setRevealAcct(v => !v)} style={{ fontSize: 10, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{revealAcct ? 'hide' : 'reveal'}</button>
-                  )}
+          {/* Payout setup — the commercial terms the public form never asks for.
+              Set here at verification, otherwise payroll has nothing to compute. */}
+          <Card title="Payout setup">
+            {!row.monthly_rate && (
+              <div style={{ display: 'flex', gap: 9, padding: '9px 11px', marginTop: 6, background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.32)', borderRadius: 8 }}>
+                <span style={{ fontSize: 13, lineHeight: 1.3 }}>⚠</span>
+                <span style={{ fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.5 }}>
+                  No monthly rate — {row.full_name.split(' ')[0]} will be generated into payroll at ₹0 until one is set.
                 </span>
-              </Row>
-              <Row label="IFSC">{row.bank_ifsc}</Row>
-            </>}
-            <Row label="UPI ID">{row.upi_id}</Row>
+              </div>
+            )}
+            <EditRow label="Monthly rate" value={row.monthly_rate} onSave={saveRate} inputMode="decimal"
+              placeholder="e.g. 22000" addLabel="set" display={v => `${money(v)} / month`} />
+            <EditRow label="Cost centre" value={row.cost_centre} onSave={saveField('cost_centre')}
+              placeholder="e.g. OPX-FIX" suggestions={COST_CENTRES} />
+            <EditRow label="Team" value={row.team} onSave={saveField('team')}
+              placeholder="e.g. Setup Ops" suggestions={TEAMS} />
+          </Card>
+
+          <Card title="Payment method">
+            {!hasBank && !row.upi_id && (
+              <div style={{ display: 'flex', gap: 9, padding: '9px 11px', marginTop: 6, background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8 }}>
+                <span style={{ fontSize: 13, lineHeight: 1.3 }}>⚠</span>
+                <span style={{ fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.5 }}>
+                  Neither bank details nor UPI — there is no way to pay this vendor.
+                </span>
+              </div>
+            )}
+            <EditRow label="Acct name" value={row.bank_account_name} onSave={saveField('bank_account_name')} placeholder="As printed on the passbook" />
+            <EditRow label="Account no." value={row.bank_account_no} onSave={saveField('bank_account_no')} placeholder="Account number"
+              display={v => revealAcct ? v : maskAccount(v)}>
+              {row.bank_account_no && (
+                <button type="button" onClick={() => setRevealAcct(v => !v)} style={{ fontSize: 10, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{revealAcct ? 'hide' : 'reveal'}</button>
+              )}
+            </EditRow>
+            <EditRow label="IFSC" value={row.bank_ifsc} onSave={saveIfsc} placeholder="HDFC0001234" />
+            <EditRow label="UPI ID" value={row.upi_id} onSave={saveField('upi_id')} placeholder="name@bank" />
           </Card>
 
           <Card title="Identity documents">
@@ -271,6 +349,14 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
                 <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Assign POD (optional)</span>
                 <PillGroup options={POD_OPTIONS} value={row.pod || 'Unassigned'} onChange={assignPod} />
               </div>
+              {!row.monthly_rate && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.32)', borderRadius: 9 }}>
+                  <span style={{ fontSize: 15 }}>⚠</span>
+                  <span style={{ flex: 1, fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.45 }}>
+                    No monthly rate set — payroll will generate ₹0 for this vendor.
+                  </span>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={onboard}

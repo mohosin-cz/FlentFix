@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabase'
 import { signedDocUrls, fmtDate, relTime, initials, avatarColor } from '../../utils/vendorHub'
 import VendorDetailSheet from './VendorDetailSheet'
 
+const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })
+
 const avatarUrl = (path) => {
   if (!path) return null
   try { return supabase.storage.from('vendor-avatars').getPublicUrl(path).data.publicUrl } catch { return null }
@@ -50,7 +52,10 @@ function VendorTile({ v, url, properties, onOpen }) {
       </div>
       <div style={{ display: 'flex', gap: 10, paddingTop: 10, borderTop: '1px solid var(--border, #2e3040)' }}>
         <Stat label="Properties" value={properties != null ? properties : 0} />
-        <Stat label="Payout" value="—" color="var(--text-muted, #6b6d82)" />
+        <Stat
+          label={v.monthly_rate ? 'Rate / month' : 'Rate — not set'}
+          value={v.monthly_rate ? money(v.monthly_rate) : '₹0'}
+          color={v.monthly_rate ? 'var(--text, #e8e8f0)' : 'var(--accent, #c8963e)'} />
         <Stat label="Joined" value={v.date_of_joining ? fmtDate(v.date_of_joining) : '—'} color="var(--text-dim, #9394a8)" />
       </div>
     </button>
