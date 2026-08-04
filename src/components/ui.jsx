@@ -228,16 +228,11 @@ export function PillGroup({ options, value, onChange, multi = false }) {
           <button
             key={v}
             onClick={() => toggle(v)}
+            aria-pressed={active}
+            className={`tct tct-raised${active ? ' is-on' : ''}`}
             style={{
-              padding: '10px 14px', fontSize: 13, fontWeight: active ? 600 : 400,
-              borderRadius: 4, minHeight: 44,
-              border: `1px solid ${active ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`,
-              background: active ? 'rgba(200,150,62,0.12)' : 'var(--bg-input, #252731)',
-              color: active ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)',
-              transition: 'all 0.15s', cursor: 'pointer',
-              WebkitTapHighlightColor: 'transparent',
-              touchAction: 'manipulation',
-              fontFamily: 'inherit',
+              padding: '10px 14px', fontSize: 13, minHeight: 44,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             }}
           >{label}</button>
         )
@@ -574,20 +569,16 @@ export function TabBar({ tabs, active, onChange, counts }) {
         <button
           key={tab}
           onClick={() => onChange(i)}
+          role="tab"
+          aria-selected={active === i}
+          className="tct tct-bare"
           style={{
             flex: 1, minWidth: 72, padding: '11px 8px', minHeight: 44,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
-            background: 'none', border: 'none',
-            borderBottom: `2px solid ${active === i ? 'var(--accent, #c8963e)' : 'transparent'}`,
-            cursor: 'pointer', transition: 'all 0.15s',
-            color: active === i ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)',
-            WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
+            borderRadius: 0,
           }}
         >
-          <span style={{
-            fontSize: 12, fontWeight: active === i ? 700 : 400,
-            fontFamily: 'inherit',
-          }}>{tab}</span>
+          <span style={{ fontSize: 12.5 }}>{tab}</span>
           {counts && (
             <span style={{
               fontSize: 9, fontWeight: 600,
