@@ -57,7 +57,7 @@ export default function VendorHub() {
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="pulse-title" style={{ fontSize: 15.5 }}>Vendor management</div>
+          <div className="pulse-title" style={{ fontSize: 15.5 }}>Vendor Management</div>
         </div>
         <button onClick={() => setShowReq(true)} title="Profile edit requests" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, padding: '8px 11px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-dim, #9394a8)', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)' }}>
           <span style={{ fontSize: 14 }}>🔔</span>
