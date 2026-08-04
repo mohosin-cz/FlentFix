@@ -556,16 +556,16 @@ export function Divider({ label }) {
 }
 
 // ── Tab bar ───────────────────────────────────────────────────────────────────
-// variant 'fill' (default) splits the width evenly — right for the inspection
-// flows, where the tabs are a fixed set of stages. 'nav' sizes each tab to its
-// label so the row reads like the Home header nav.
+// Both variants split the width evenly. 'nav' adds the Home header treatment —
+// gaps, rounded corners and breathing room — so each tab reads as its own
+// button rather than a full-bleed slab, while still spanning the bar.
 export function TabBar({ tabs, active, onChange, counts, variant = 'fill' }) {
   const nav = variant === 'nav'
   return (
     <div style={{
       display: 'flex',
-      gap: nav ? 2 : 0,
-      padding: nav ? '5px 12px' : 0,
+      gap: nav ? 6 : 0,
+      padding: nav ? '6px 12px' : 0,
       background: 'var(--bg-panel, #1e2028)',
       borderBottom: '1px solid var(--border, #2e3040)',
       position: 'sticky', top: 'calc(env(safe-area-inset-top) + 56px)', zIndex: 90,
@@ -579,9 +579,9 @@ export function TabBar({ tabs, active, onChange, counts, variant = 'fill' }) {
           aria-selected={active === i}
           className="tct tct-bare"
           style={{
-            flex: nav ? '0 0 auto' : 1,
+            flex: 1,
             minWidth: nav ? 0 : 72,
-            padding: nav ? '10px 16px' : '11px 8px',
+            padding: nav ? '10px 12px' : '11px 8px',
             minHeight: nav ? 0 : 44,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
             borderRadius: nav ? 8 : 0,
