@@ -57,6 +57,23 @@ export function nextDueDate(baseStr, cycle) {
   return d
 }
 
+// monthly-equivalent cost of a live utility (0 for one-time / no amount / inactive)
+export function monthlyCost(u) {
+  if (!u || !LIVE_STATUSES.has(u.status) || u.billing_amount == null) return 0
+  const m = CYCLE_MONTHS[u.billing_cycle]
+  if (!m) return 0
+  return Number(u.billing_amount) / m
+}
+
+// bucket a utility by recharge urgency: 'due' (<=7d) | 'month' (<=31d) | 'later' | 'none'
+export function dueBucket(u) {
+  const di = dueInfo(u)
+  if (!di) return 'none'
+  if (di.days <= 7) return 'due'
+  if (di.days <= 31) return 'month'
+  return 'later'
+}
+
 // human-facing due status; returns null when there's nothing to schedule
 export function dueInfo(u) {
   if (!u || !LIVE_STATUSES.has(u.status)) return null
