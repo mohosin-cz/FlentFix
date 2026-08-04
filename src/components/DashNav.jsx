@@ -12,23 +12,27 @@ const NAV_ITEMS = [
   { label: 'Vendor management', path: '/vendors' },
 ]
 
+/* Milled into the header panel: the bar is the page background recessed into
+   --bg-panel, items are plateaus cut from it. Palette is the app's own
+   tokens — gold accent, --border hairlines — so it reads as part of Pulse. */
 const CSS = `
 .pnav {
   flex-wrap: wrap;
   gap: 0;
   align-items: center;
-  margin-left: 28px;
-  background: #14161B;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.05),
-              inset 0 -2px 6px rgba(0,0,0,.6);
+  margin-left: 24px;
+  background: var(--bg, #16171f);
+  border: 1px solid var(--border, #2e3040);
+  border-radius: 10px;
+  padding: 5px;
+  box-shadow: inset 0 1px 0 rgba(0,0,0,.5),
+              inset 0 -1px 0 rgba(255,255,255,.03);
 }
 .pnav-item {
-  font: 600 12.5px/1 'Space Grotesk', sans-serif;
-  letter-spacing: .06em;
-  color: #A8B0BE;
-  padding: 13px 18px;
+  font: 600 12px/1 'Space Grotesk', 'Poppins', sans-serif;
+  letter-spacing: .05em;
+  color: var(--text-dim, #9394a8);
+  padding: 10px 14px;
   background: transparent;
   border: 0;
   border-radius: 6px;
@@ -46,31 +50,32 @@ const CSS = `
   content: "";
   position: absolute;
   right: 0;
-  top: 26%;
-  height: 48%;
+  top: 28%;
+  height: 44%;
   width: 1px;
-  background: linear-gradient(180deg, transparent, rgba(255,255,255,.09), transparent);
+  background: linear-gradient(180deg, transparent, var(--border, #2e3040), transparent);
 }
 .pnav-item:last-child::after { display: none; }
+/* hover lifts the plateau out of the block */
 .pnav-item:hover {
-  color: #F0F4FA;
-  background: rgba(29,33,40,.58);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.09), 0 2px 5px rgba(0,0,0,.45);
+  color: var(--text, #e8e8f0);
+  background: var(--bg-panel, #1e2028);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 2px 4px rgba(0,0,0,.45);
 }
 /* the press cuts a recess into the block */
 .pnav-item:active {
   transform: translateY(1px);
-  background: #101318;
-  box-shadow: inset 0 3px 7px rgba(0,0,0,.8), inset 0 -1px 0 rgba(255,255,255,.05);
+  background: #121319;
+  box-shadow: inset 0 3px 6px rgba(0,0,0,.75), inset 0 -1px 0 rgba(255,255,255,.04);
 }
-/* active route stays recessed with a lit floor */
+/* active route stays recessed with a lit gold floor */
 .pnav-item[aria-current="page"] {
-  color: #F0F4FA;
-  background: #1B2028;
-  box-shadow: inset 0 2px 6px rgba(0,0,0,.75), inset 0 -2px 0 #5FD3A6;
+  color: var(--accent, #c8963e);
+  background: var(--bg-input, #252731);
+  box-shadow: inset 0 2px 5px rgba(0,0,0,.65), inset 0 -2px 0 var(--accent, #c8963e);
 }
 .pnav-item:focus-visible {
-  outline: 2px solid #5FD3A6;
+  outline: 2px solid var(--accent, #c8963e);
   outline-offset: -3px;
 }
 @media (prefers-reduced-motion: reduce) {
