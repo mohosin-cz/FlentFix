@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import LogoSpinner from '../components/LogoSpinner'
+import DashNav from '../components/DashNav'
 
 // ─── Pulse dot-matrix logo ─────────────────────────────────────────────────────
 const PulseLogo = () => (
@@ -250,17 +251,7 @@ function DropItem({ icon, label, onClick, danger }) {
   )
 }
 
-// ─── Nav & quick-action config ─────────────────────────────────────────────────
-const NAV_ITEMS = [
-  { label: 'Inspect',    path: '/inspections/new' },
-  { label: 'Properties', path: '/properties' },
-  { label: 'Utilities',  path: '/utilities' },
-  { label: 'Inventory',  path: '/inventory' },
-  { label: 'Rate Card',  path: '/inventory/public-rc' },
-  { label: 'SOPs',       path: '/sops' },
-  { label: 'Vendor Management', path: '/vendors' },
-]
-
+// ─── Quick-action config ───────────────────────────────────────────────────────
 const QUICK_ACTIONS = [
   { icon: '+', label: 'New Inspection', path: '/inspections/new' },
   { icon: '⚡', label: 'Utilities',      path: '/utilities' },
@@ -274,7 +265,6 @@ const FEED_COLORS = { inspection: '#c8963e', purchase: '#3dba7a', property: '#6b
 // ─── Dashboard ─────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { session } = useAuth()
 
   const email = session?.user?.email ?? ''
@@ -290,8 +280,6 @@ export default function Dashboard() {
   const [loading,         setLoading]         = useState(true)
   const [loadError,       setLoadError]       = useState(null)
   const [showTest,        setShowTest]        = useState(false)
-
-  const isActive = path => path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)
 
   async function logout() {
     await supabase.auth.signOut()
@@ -433,7 +421,6 @@ export default function Dashboard() {
         }
         .prop-card:hover { border-color: var(--accent, #c8963e) !important; }
         .feed-item:hover { background: var(--bg-input, #252731) !important; }
-        .nav-btn:hover   { color: var(--accent, #c8963e) !important; background: rgba(200,150,62,0.06) !important; }
         .qa-btn:hover    { border-color: var(--accent, #c8963e) !important; color: var(--accent, #c8963e) !important; }
       `}</style>
 
@@ -443,25 +430,7 @@ export default function Dashboard() {
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
             <PulseLogo />
           </button>
-          <nav className="dash-nav" style={{ display: 'none', alignItems: 'center', gap: 2, marginLeft: 28 }}>
-            {NAV_ITEMS.map(item => (
-              <button
-                key={item.path}
-                className="nav-btn"
-                onClick={() => navigate(item.path)}
-                style={{
-                  padding: '6px 14px', fontSize: 12,
-                  letterSpacing: '0.06em',
-                  color:      isActive(item.path) ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)',
-                  background: isActive(item.path) ? 'rgba(200,150,62,0.08)' : 'transparent',
-                  borderRadius: 6, cursor: 'pointer',
-                  fontFamily: 'var(--font-mono, monospace)',
-                  textTransform: 'uppercase', border: 'none',
-                  transition: 'color 0.15s, background 0.15s',
-                }}
-              >{item.label}</button>
-            ))}
-          </nav>
+          <DashNav />
         </div>
         <ProfileDropdown name={name} email={email} onLogout={logout} />
       </header>
