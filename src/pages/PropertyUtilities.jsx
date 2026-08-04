@@ -192,6 +192,7 @@ function UtilityCard({ u, onRecharge, onEdit, onDelete }) {
   const details = [
     u.account_number && ['Account', u.account_number],
     u.billing_amount != null && ['Amount', `${money(u.billing_amount)}${u.billing_cycle ? ' · ' + u.billing_cycle : ''}`],
+    ['Installed', u.start_date ? fmtDate(u.start_date) : '—'],
     u.last_recharged_on && ['Last recharged', fmtDate(u.last_recharged_on)],
   ].filter(Boolean)
 
