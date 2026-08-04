@@ -109,8 +109,9 @@ function CandidatesSheet({ candidates, photos, onPick, onClose }) {
 // ── filter chip ─────────────────────────────────────────────────────────────
 function FilterChip({ label, active, onClick }) {
   return (
-    <button type="button" onClick={onClick}
-      style={{ padding: '6px 12px', fontSize: 12, fontWeight: active ? 700 : 500, borderRadius: 16, whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0, border: `1px solid ${active ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, background: active ? 'rgba(200,150,62,0.12)' : 'var(--bg-input, #252731)', color: active ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', WebkitTapHighlightColor: 'transparent' }}>{label}</button>
+    <button type="button" onClick={onClick} aria-pressed={active}
+      className={`tct tct-raised${active ? ' is-on' : ''}`}
+      style={{ padding: '7px 13px', fontSize: 12, borderRadius: 16, whiteSpace: 'nowrap', flexShrink: 0 }}>{label}</button>
   )
 }
 

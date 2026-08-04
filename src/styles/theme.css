@@ -17,6 +17,7 @@
   --white:        #ffffff;
   --font-sans:    'Poppins', sans-serif;
   --font-mono:    'JetBrains Mono', 'Fira Mono', monospace;
+  --font-nav:     'Urbanist', 'Poppins', sans-serif;
   --radius:       8px;
   --radius-sm:    4px;
   --shadow-xs:    0 1px 3px rgba(0,0,0,0.35);
@@ -104,6 +105,78 @@ input[type="range"]::-moz-range-thumb {
   background: var(--accent);
   border: 2px solid var(--bg-panel);
   cursor: pointer;
+}
+
+/* ─── Tactile controls ────────────────────────────────────────────────────── */
+/* Buttons that pick something — nav links, tabs, filter chips, option pills.
+   No container frames them; each item carries the depth itself. Hover raises a
+   plateau off the surface, press cuts a recess into it, and the chosen item
+   stays recessed under a lit gold floor. One light source throughout: 180deg,
+   light at the top, dark at the bottom.
+
+   .tct        typography + depth. Layout stays with the call site so this
+               composes onto whatever flex/grid the control already uses.
+   .tct-bare   transparent at rest — for items on a panel that reads as the
+               control's own background (the Home header nav).
+   .tct-raised keeps a resting surface and border — for items on the page
+               background, which would otherwise float with nothing to sit on.
+   .is-on      the chosen item. aria-current/aria-selected do the same thing,
+               so real links and tabs need no extra class. */
+.tct {
+  font-family: var(--font-nav);
+  font-weight: 500;
+  letter-spacing: .03em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--text-dim);
+  border: 0;
+  border-radius: 8px;
+  position: relative;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: color .16s, background .16s, box-shadow .12s, transform .1s;
+}
+.tct-bare   { background: transparent; }
+.tct-raised { background: var(--bg-input); box-shadow: inset 0 0 0 1px var(--border); }
+
+.tct:hover {
+  color: var(--accent);
+  background: var(--bg-input);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 2px 6px rgba(0,0,0,.5);
+}
+.tct-raised:hover {
+  box-shadow: inset 0 0 0 1px var(--border), inset 0 1px 0 rgba(255,255,255,.07), 0 2px 6px rgba(0,0,0,.5);
+}
+.tct:active {
+  transform: translateY(1px);
+  background: #14151c;
+  box-shadow: inset 0 3px 6px rgba(0,0,0,.75), inset 0 -1px 0 rgba(255,255,255,.04);
+}
+.tct[aria-current="page"],
+.tct[aria-selected="true"],
+.tct.is-on {
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--bg);
+  box-shadow: inset 0 2px 5px rgba(0,0,0,.6), inset 0 -2px 0 var(--accent);
+}
+.tct:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+
+/* hairline score between items in a dense row */
+.tct-scored > .tct::after {
+  content: "";
+  position: absolute;
+  right: 0; top: 28%;
+  height: 44%; width: 1px;
+  background: linear-gradient(180deg, transparent, var(--border), transparent);
+}
+.tct-scored > .tct:last-child::after { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tct { transition: color .16s, background .16s; }
+  .tct:active { transform: none; }
 }
 
 /* ─── Scrollbar ───────────────────────────────────────────────────────────── */
