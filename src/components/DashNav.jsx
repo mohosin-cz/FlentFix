@@ -12,33 +12,28 @@ const NAV_ITEMS = [
   { label: 'Vendor management', path: '/vendors' },
 ]
 
-/* Milled into the header panel: the bar is the page background recessed into
-   --bg-panel, items are plateaus cut from it. Palette is the app's own
-   tokens — gold accent, --border hairlines — so it reads as part of Pulse. */
+/* No container by design — a bordered bar read as an object pasted onto the
+   header. The items sit directly on --bg-panel like the logo and avatar do,
+   and carry the tactility themselves: hover raises a plateau, press cuts in,
+   the active route stays recessed under a lit gold floor. */
 const CSS = `
 .pnav {
   flex-wrap: wrap;
   gap: 0;
   align-items: center;
-  margin-left: 24px;
-  background: var(--bg, #16171f);
-  border: 1px solid var(--border, #2e3040);
-  border-radius: 10px;
-  padding: 5px;
-  box-shadow: inset 0 1px 0 rgba(0,0,0,.5),
-              inset 0 -1px 0 rgba(255,255,255,.03);
+  margin-left: 20px;
 }
 .pnav-item {
-  font: 500 12.5px/1 'Space Grotesk', 'Poppins', sans-serif;
+  font: 500 12.5px/1 'Urbanist', 'Poppins', sans-serif;
   letter-spacing: .03em;
   /* light-on-dark renders heavy without this — 600 read as muddy at 12px */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: var(--text-dim, #9394a8);
-  padding: 10px 14px;
+  padding: 12px 18px;
   background: transparent;
   border: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -59,24 +54,24 @@ const CSS = `
   background: linear-gradient(180deg, transparent, var(--border, #2e3040), transparent);
 }
 .pnav-item:last-child::after { display: none; }
-/* hover lifts the plateau out of the block */
+/* hover lifts the plateau clear of the header and goes gold */
 .pnav-item:hover {
-  color: var(--text, #e8e8f0);
-  background: var(--bg-panel, #1e2028);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 2px 4px rgba(0,0,0,.45);
+  color: var(--accent, #c8963e);
+  background: var(--bg-input, #252731);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 2px 6px rgba(0,0,0,.5);
 }
-/* the press cuts a recess into the block */
+/* the press cuts a recess into the header */
 .pnav-item:active {
   transform: translateY(1px);
-  background: #121319;
+  background: #14151c;
   box-shadow: inset 0 3px 6px rgba(0,0,0,.75), inset 0 -1px 0 rgba(255,255,255,.04);
 }
 /* active route stays recessed with a lit gold floor */
 .pnav-item[aria-current="page"] {
   font-weight: 600;
   color: var(--accent, #c8963e);
-  background: var(--bg-input, #252731);
-  box-shadow: inset 0 2px 5px rgba(0,0,0,.65), inset 0 -2px 0 var(--accent, #c8963e);
+  background: var(--bg, #16171f);
+  box-shadow: inset 0 2px 5px rgba(0,0,0,.6), inset 0 -2px 0 var(--accent, #c8963e);
 }
 .pnav-item:focus-visible {
   outline: 2px solid var(--accent, #c8963e);
