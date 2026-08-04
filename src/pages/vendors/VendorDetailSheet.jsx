@@ -24,61 +24,102 @@ const rules = {
   pincode: (v) => !v || /^\d{6}$/.test(v) ? null : 'Pincode should be 6 digits.',
   pan: (v) => !v || /^[A-Za-z]{5}\d{4}[A-Za-z]$/.test(v) ? null : 'PAN looks wrong (e.g. ABCDE1234F).',
   aadhaar4: (v) => !v || /^\d{4}$/.test(v) ? null : 'Enter just the last 4 digits.',
+  ifsc: (v) => !v || /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(v) ? null : 'IFSC looks wrong (e.g. HDFC0001234).',
 }
 
-// ── inline-editable row ─────────────────────────────────────────────────────
-// Staff fix what the vendor typed (email for attendance OTP) and add what the
-// public form deliberately never asks for (rate, cost centre, team) — see the
-// Payout setup card. `display` renders the saved value; `children` may add a
-// control next to it (the account-number reveal).
-let editRowSeq = 0
-function EditRow({ label, value, onSave, placeholder, type = 'text', inputMode, suggestions, display, children, addLabel = 'add' }) {
-  const [editing, setEditing] = useState(false)
-  const [input, setInput] = useState(value == null ? '' : String(value))
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-  const [listId] = useState(() => `er-${++editRowSeq}`)
+const cleanAmount = (v) => (v || '').replace(/[₹,\s]/g, '')
+const rateRule = (v) => {
+  const c = cleanAmount(v)
+  if (c === '') return null
+  if (!/^\d+(\.\d+)?$/.test(c)) return 'Enter a number, e.g. 22000.'
+  if (Number(c) <= 0) return 'Rate must be more than 0.'
+  if (Number(c) > 1000000) return 'That looks too high — check the figure.'
+  return null
+}
 
-  async function save() {
-    setBusy(true); setErr('')
-    const e = await onSave(input)
-    setBusy(false)
-    if (e) setErr(e); else setEditing(false)
-  }
+// The whole record, declared once. Rendering, validation, the draft and the
+// saved patch all read from this, so a new column is one entry here.
+const SECTIONS = [
+  { title: 'Identity', fields: [
+    { name: 'full_name', label: 'Full name', placeholder: 'As on the Aadhaar', validate: required('Name') },
+    { name: 'trade', label: 'Trade', suggestions: TRADES, placeholder: 'e.g. Cleaner', validate: required('Trade') },
+    { name: 'date_of_birth', label: 'Date of birth', type: 'date', display: fmtDate },
+    { name: 'date_of_joining', label: 'Joined', type: 'date', display: fmtDate },
+    { name: 'father_name', label: 'Father' },
+    { name: 'mother_name', label: 'Mother' },
+  ] },
+  { title: 'Contact', fields: [
+    { name: 'phone', label: 'Phone', inputMode: 'tel', placeholder: '10-digit mobile', validate: rules.phone },
+    { name: 'alt_phone', label: 'Alt phone', inputMode: 'tel', validate: rules.altPhone },
+    { name: 'guardian_phone', label: 'Guardian', inputMode: 'tel', validate: rules.altPhone },
+    { name: 'email', label: 'Email', type: 'email', placeholder: 'name@example.com',
+      parse: v => v.toLowerCase() || null,
+      validate: v => !v || isEmail(v.toLowerCase()) ? null : 'Enter a valid email address.' },
+    { name: 'address_line', label: 'Address', placeholder: 'House, street, area' },
+    { name: 'city', label: 'City' },
+    { name: 'pincode', label: 'Pincode', inputMode: 'numeric', validate: rules.pincode },
+    { name: 'permanent_address', label: 'Permanent', placeholder: 'Home-town address' },
+  ] },
+  { title: 'Payout setup', kind: 'payout', fields: [
+    { name: 'monthly_rate', label: 'Monthly rate', inputMode: 'decimal', placeholder: 'e.g. 22000',
+      display: v => `${money(v)} / month`,
+      parse: v => cleanAmount(v) === '' ? null : Number(cleanAmount(v)), validate: rateRule },
+    { name: 'cost_centre', label: 'Cost centre', suggestions: COST_CENTRES, placeholder: 'e.g. OPX-FIX' },
+    { name: 'team', label: 'Team', suggestions: TEAMS, placeholder: 'e.g. Setup Ops' },
+    { name: 'flent_accommodation', label: 'Accommodation', suggestions: ACCOMMODATION, placeholder: 'e.g. Vendor HQ-1' },
+  ] },
+  { title: 'Payment method', kind: 'payment', fields: [
+    { name: 'bank_account_name', label: 'Acct name', placeholder: 'As printed on the passbook' },
+    { name: 'bank_account_no', label: 'Account no.', placeholder: 'Account number', secret: true },
+    { name: 'bank_ifsc', label: 'IFSC', placeholder: 'HDFC0001234',
+      parse: v => v.toUpperCase() || null, validate: rules.ifsc },
+    { name: 'upi_id', label: 'UPI ID', placeholder: 'name@bank' },
+  ] },
+  { title: 'Identity documents', kind: 'docs', fields: [
+    { name: 'aadhaar_last4', label: 'Aadhaar', inputMode: 'numeric', placeholder: 'Last 4 digits only',
+      display: v => `•••• •••• ${v}`, validate: rules.aadhaar4 },
+    { name: 'pan_number', label: 'PAN', placeholder: 'ABCDE1234F',
+      parse: v => v.toUpperCase() || null, validate: rules.pan },
+    { name: 'dl_number', label: 'Licence', placeholder: 'DL number' },
+    { name: 'dl_expiry', label: 'DL expiry', type: 'date', display: fmtDate },
+  ] },
+  { title: 'Notes', fields: [
+    { name: 'notes', label: 'Notes', placeholder: 'Anything the team should know' },
+  ] },
+]
+const ALL_FIELDS = SECTIONS.flatMap(s => s.fields)
+
+// ── one row of the record ───────────────────────────────────────────────────
+// Read-only until the card as a whole is put into edit mode, so the sheet stays
+// readable and a whole record is saved in one write.
+function Field({ f, value, editing, draft, error, onChange, children }) {
   const filled = value != null && value !== ''
-
   return (
     <div style={{ display: 'flex', gap: 12, padding: '8px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
-      <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', minWidth: 96, flexShrink: 0, paddingTop: 1 }}>{label}</span>
+      <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', minWidth: 96, flexShrink: 0, paddingTop: editing ? 9 : 1 }}>{f.label}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         {editing ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setEditing(false); setErr(''); setInput(value == null ? '' : String(value)) } }}
-                placeholder={placeholder}
-                type={type}
-                inputMode={inputMode || (type === 'number' ? 'decimal' : type === 'email' ? 'email' : undefined)}
-                autoCapitalize={type === 'email' ? 'off' : undefined}
-                autoCorrect={type === 'email' ? 'off' : undefined}
-                list={suggestions ? listId : undefined}
-                autoFocus
-                style={{ flex: 1, minWidth: 0, padding: '7px 10px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, outline: 'none', fontFamily: 'inherit' }} />
-              {suggestions && <datalist id={listId}>{suggestions.map(s => <option key={s} value={s} />)}</datalist>}
-              <button type="button" onClick={save} disabled={busy} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: '#fff', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 6, padding: '0 12px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{busy ? '…' : 'save'}</button>
-              <button type="button" onClick={() => { setEditing(false); setErr(''); setInput(value == null ? '' : String(value)) }} style={{ flexShrink: 0, fontSize: 11, color: 'var(--text-muted, #6b6d82)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 6, padding: '0 10px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>cancel</button>
-            </div>
-            {err && <span style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>{err}</span>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <input
+              value={draft}
+              onChange={e => onChange(f.name, e.target.value)}
+              placeholder={f.placeholder}
+              type={f.type || 'text'}
+              inputMode={f.inputMode}
+              list={f.suggestions ? `dl-${f.name}` : undefined}
+              autoCapitalize={f.type === 'email' ? 'off' : undefined}
+              autoCorrect={f.type === 'email' ? 'off' : undefined}
+              style={{ width: '100%', padding: '8px 10px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', borderRadius: 7, outline: 'none', fontFamily: 'inherit',
+                border: `1px solid ${error ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}` }} />
+            {f.suggestions && <datalist id={`dl-${f.name}`}>{f.suggestions.map(o => <option key={o} value={o} />)}</datalist>}
+            {error && <span style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>{error}</span>}
           </div>
         ) : (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13, color: filled ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', wordBreak: 'break-word' }}>
-              {filled ? (display ? display(value) : value) : 'Not provided'}
+              {filled ? (f.display ? f.display(value) : value) : 'Not provided'}
             </span>
             {children}
-            <button type="button" onClick={() => { setInput(value == null ? '' : String(value)); setEditing(true) }} style={{ fontSize: 10, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{filled ? 'edit' : addLabel}</button>
           </span>
         )}
       </div>
@@ -128,6 +169,17 @@ function ErrStrip({ children }) {
   return (
     <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-word' }}>
       ⚠ {children}
+    </div>
+  )
+}
+
+// ── inline warning strip ────────────────────────────────────────────────────
+function Warn({ tone, children }) {
+  const c = tone === 'red' ? '224,92,106' : '200,150,62'
+  return (
+    <div style={{ display: 'flex', gap: 9, padding: '9px 11px', marginTop: 6, background: `rgba(${c},0.10)`, border: `1px solid rgba(${c},0.32)`, borderRadius: 8 }}>
+      <span style={{ fontSize: 13, lineHeight: 1.3 }}>⚠</span>
+      <span style={{ fontSize: 11.5, color: tone === 'red' ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.5 }}>{children}</span>
     </div>
   )
 }
@@ -207,6 +259,9 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
   const [done, setDone] = useState(null)     // assigned vendor_code after onboarding
   const [pending, setPending] = useState('')   // '' | 'archive' | 'remove'
   const [reason, setReason] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({})
+  const [errors, setErrors] = useState({})
 
   const { session } = useAuth()
   const admin = isAdmin(session?.user?.email)
@@ -299,42 +354,42 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
   // already onboarded (opened from the roster) or just onboarded this session
   const onboardedCode = done || (row.status === 'approved' ? row.vendor_code : null)
 
-  // One writer for every inline edit. `parse` turns the raw input into the
-  // column value (null clears it); `validate` returns an error string or null.
-  const saveField = (field, { parse, validate } = {}) => async (next) => {
-    const raw = (next ?? '').trim()
-    const msg = validate ? validate(raw) : null
-    if (msg) return msg
-    const value = parse ? parse(raw) : (raw || null)
-    const { error } = await supabase.from('vendors').update({ [field]: value }).eq('id', row.id)
-    if (error) return error.message
-    setRow(r => ({ ...r, [field]: value }))
-    onUpdated && onUpdated()
-    return null
+  const toDraft = (r) => Object.fromEntries(ALL_FIELDS.map(f => [f.name, r[f.name] == null ? '' : String(r[f.name])]))
+
+  function startEdit() { setDraft(toDraft(row)); setErrors({}); setErr(''); setEditing(true) }
+  function cancelEdit() { setEditing(false); setDraft({}); setErrors({}); setErr('') }
+  const onDraftChange = (name, v) => {
+    setDraft(d => ({ ...d, [name]: v }))
+    setErrors(e => e[name] ? { ...e, [name]: null } : e)   // clear as they fix it
   }
 
-  const saveEmail = saveField('email', {
-    parse: v => v.toLowerCase(),
-    validate: v => isEmail(v.toLowerCase()) ? null : 'Enter a valid email address.',
-  })
-  // Kept as a text input on purpose: a number input silently yields '' for
-  // "₹19,500", which would read as "clear the rate" instead of an error.
-  const cleanAmount = v => (v || '').replace(/[₹,\s]/g, '')
-  const saveRate = saveField('monthly_rate', {
-    parse: v => cleanAmount(v) === '' ? null : Number(cleanAmount(v)),
-    validate: v => {
-      const c = cleanAmount(v)
-      if (c === '') return null                       // clearing is allowed
-      if (!/^\d+(\.\d+)?$/.test(c)) return 'Enter a number, e.g. 22000.'
-      if (Number(c) <= 0) return 'Rate must be more than 0.'
-      if (Number(c) > 1000000) return 'That looks too high — check the figure.'
-      return null
-    },
-  })
-  const saveIfsc = saveField('bank_ifsc', {
-    parse: v => v.toUpperCase(),
-    validate: v => (!v || /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(v)) ? null : 'IFSC looks wrong (e.g. HDFC0001234).',
-  })
+  // Validate everything, then write only what actually changed — one round trip
+  // for the whole card instead of one per field.
+  async function saveAll() {
+    const errs = {}
+    for (const f of ALL_FIELDS) {
+      const msg = f.validate ? f.validate((draft[f.name] ?? '').trim()) : null
+      if (msg) errs[f.name] = msg
+    }
+    if (Object.keys(errs).length) { setErrors(errs); setErr('Some fields need fixing.'); return }
+
+    const patch = {}
+    for (const f of ALL_FIELDS) {
+      const raw = (draft[f.name] ?? '').trim()
+      const next = f.parse ? f.parse(raw) : (raw || null)
+      const cur = row[f.name] ?? null
+      if (String(next ?? '') !== String(cur ?? '')) patch[f.name] = next
+    }
+    if (!Object.keys(patch).length) { cancelEdit(); return }
+
+    setBusy('save'); setErr('')
+    const { error } = await supabase.from('vendors').update(patch).eq('id', row.id)
+    setBusy('')
+    if (error) { setErr(error.message); return }
+    setRow(r => ({ ...r, ...patch }))
+    setEditing(false); setDraft({}); setErrors({})
+    onUpdated && onUpdated()
+  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
@@ -361,89 +416,62 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
               <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{relTime(row.submitted_at)}</span>
             </div>
           </div>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 24, cursor: 'pointer', lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+          {editing ? (
+            <div style={{ display: 'flex', gap: 7, flexShrink: 0 }}>
+              <button type="button" onClick={saveAll} disabled={busy === 'save'}
+                style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--accent, #c8963e)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: busy === 'save' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                {busy === 'save' ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" onClick={cancelEdit}
+                style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <>
+              <button type="button" onClick={startEdit}
+                style={{ flexShrink: 0, padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                ✎ Edit
+              </button>
+              <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 24, cursor: 'pointer', lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+            </>
+          )}
         </div>
 
         {/* body */}
         <div style={{ overflowY: 'auto', padding: '14px 18px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Card title="Identity">
-            <EditRow label="Full name" value={row.full_name} onSave={saveField('full_name', { validate: required('Name') })} placeholder="As on the Aadhaar" />
-            <EditRow label="Trade" value={row.trade} onSave={saveField('trade', { validate: required('Trade') })} suggestions={TRADES} placeholder="e.g. Cleaner" />
-            <EditRow label="Date of birth" value={row.date_of_birth} onSave={saveField('date_of_birth')} type="date" display={fmtDate} />
-            <EditRow label="Joined" value={row.date_of_joining} onSave={saveField('date_of_joining')} type="date" display={fmtDate} />
-            <EditRow label="Father" value={row.father_name} onSave={saveField('father_name')} />
-            <EditRow label="Mother" value={row.mother_name} onSave={saveField('mother_name')} />
-          </Card>
-
-          <Card title="Contact">
-            <EditRow label="Phone" value={row.phone} onSave={saveField('phone', { validate: rules.phone })} inputMode="tel" placeholder="10-digit mobile" />
-            <EditRow label="Alt phone" value={row.alt_phone} onSave={saveField('alt_phone', { validate: rules.altPhone })} inputMode="tel" />
-            <EditRow label="Guardian" value={row.guardian_phone} onSave={saveField('guardian_phone', { validate: rules.altPhone })} inputMode="tel" />
-            <EditRow label="Email" value={row.email} onSave={saveEmail} type="email" placeholder="name@example.com" />
-            <EditRow label="Address" value={row.address_line} onSave={saveField('address_line')} placeholder="House, street, area" />
-            <EditRow label="City" value={row.city} onSave={saveField('city')} />
-            <EditRow label="Pincode" value={row.pincode} onSave={saveField('pincode', { validate: rules.pincode })} inputMode="numeric" />
-            <EditRow label="Permanent" value={row.permanent_address} onSave={saveField('permanent_address')} placeholder="Home-town address" />
-          </Card>
-
-          {/* Payout setup — the commercial terms the public form never asks for.
-              Set here at verification, otherwise payroll has nothing to compute. */}
-          <Card title="Payout setup">
-            {!row.monthly_rate && (
-              <div style={{ display: 'flex', gap: 9, padding: '9px 11px', marginTop: 6, background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.32)', borderRadius: 8 }}>
-                <span style={{ fontSize: 13, lineHeight: 1.3 }}>⚠</span>
-                <span style={{ fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.5 }}>
-                  No monthly rate — {row.full_name.split(' ')[0]} will be generated into payroll at ₹0 until one is set.
-                </span>
-              </div>
-            )}
-            <EditRow label="Monthly rate" value={row.monthly_rate} onSave={saveRate} inputMode="decimal"
-              placeholder="e.g. 22000" addLabel="set" display={v => `${money(v)} / month`} />
-            <EditRow label="Cost centre" value={row.cost_centre} onSave={saveField('cost_centre')}
-              placeholder="e.g. OPX-FIX" suggestions={COST_CENTRES} />
-            <EditRow label="Team" value={row.team} onSave={saveField('team')}
-              placeholder="e.g. Setup Ops" suggestions={TEAMS} />
-            <EditRow label="Accommodation" value={row.flent_accommodation} onSave={saveField('flent_accommodation')}
-              placeholder="e.g. Vendor HQ-1" suggestions={ACCOMMODATION} />
-          </Card>
-
-          <Card title="Payment method">
-            {!hasBank && !row.upi_id && (
-              <div style={{ display: 'flex', gap: 9, padding: '9px 11px', marginTop: 6, background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8 }}>
-                <span style={{ fontSize: 13, lineHeight: 1.3 }}>⚠</span>
-                <span style={{ fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.5 }}>
-                  Neither bank details nor UPI — there is no way to pay this vendor.
-                </span>
-              </div>
-            )}
-            <EditRow label="Acct name" value={row.bank_account_name} onSave={saveField('bank_account_name')} placeholder="As printed on the passbook" />
-            <EditRow label="Account no." value={row.bank_account_no} onSave={saveField('bank_account_no')} placeholder="Account number"
-              display={v => revealAcct ? v : maskAccount(v)}>
-              {row.bank_account_no && (
-                <button type="button" onClick={() => setRevealAcct(v => !v)} style={{ fontSize: 10, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{revealAcct ? 'hide' : 'reveal'}</button>
+          {SECTIONS.map(sec => (
+            <Card key={sec.title} title={sec.title}>
+              {sec.kind === 'payout' && !row.monthly_rate && (
+                <Warn tone="amber">No monthly rate — {row.full_name.split(' ')[0]} will be generated into payroll at ₹0 until one is set.</Warn>
               )}
-            </EditRow>
-            <EditRow label="IFSC" value={row.bank_ifsc} onSave={saveIfsc} placeholder="HDFC0001234" />
-            <EditRow label="UPI ID" value={row.upi_id} onSave={saveField('upi_id')} placeholder="name@bank" />
-          </Card>
-
-          <Card title="Identity documents">
-            <EditRow label="Aadhaar" value={row.aadhaar_last4} onSave={saveField('aadhaar_last4', { validate: rules.aadhaar4 })}
-              inputMode="numeric" placeholder="Last 4 digits only" display={v => `•••• •••• ${v}`} />
-            <EditRow label="PAN" value={row.pan_number} onSave={saveField('pan_number', { parse: v => v.toUpperCase() || null, validate: rules.pan })}
-              placeholder="ABCDE1234F" />
-            <EditRow label="Licence" value={row.dl_number} onSave={saveField('dl_number')} placeholder="DL number" />
-            <EditRow label="DL expiry" value={row.dl_expiry} onSave={saveField('dl_expiry')} type="date" display={fmtDate} />
-            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-              <DocThumb label="Aadhaar" doc={docs.aadhaar} />
-              <DocThumb label="PAN" doc={docs.pan} />
-              <DocThumb label="Licence" doc={docs.dl} />
-            </div>
-          </Card>
-
-          <Card title="Notes">
-            <EditRow label="Notes" value={row.notes} onSave={saveField('notes')} placeholder="Anything the team should know" addLabel="add" />
-          </Card>
+              {sec.kind === 'payment' && !hasBank && !row.upi_id && (
+                <Warn tone="red">Neither bank details nor UPI — there is no way to pay this vendor.</Warn>
+              )}
+              {sec.fields.map(f => (
+                <Field
+                  key={f.name}
+                  f={f}
+                  value={f.secret && !revealAcct && !editing ? maskAccount(row[f.name]) : row[f.name]}
+                  editing={editing}
+                  draft={draft[f.name] ?? ''}
+                  error={errors[f.name]}
+                  onChange={onDraftChange}
+                >
+                  {f.secret && !editing && row[f.name] && (
+                    <button type="button" onClick={() => setRevealAcct(v => !v)} style={{ fontSize: 10, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{revealAcct ? 'hide' : 'reveal'}</button>
+                  )}
+                </Field>
+              ))}
+              {sec.kind === 'docs' && (
+                <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                  <DocThumb label="Aadhaar" doc={docs.aadhaar} />
+                  <DocThumb label="PAN" doc={docs.pan} />
+                  <DocThumb label="Licence" doc={docs.dl} />
+                </div>
+              )}
+            </Card>
+          ))}
 
           <Card title="Live capture">
             <LocationCard lat={row.capture_lat} lng={row.capture_lng} accuracy={row.capture_accuracy} at={row.capture_at} />
@@ -451,7 +479,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
         </div>
 
         {/* footer: assign POD + onboard */}
-        <div style={{ borderTop: '1px solid var(--border, #2e3040)', padding: '12px 18px', paddingBottom: 'max(14px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--bg-panel, #1e2028)' }}>
+        <div style={{ borderTop: '1px solid var(--border, #2e3040)', padding: '12px 18px', paddingBottom: 'max(14px, env(safe-area-inset-bottom))', flexShrink: 0, display: editing ? 'none' : 'flex', flexDirection: 'column', gap: 12, background: 'var(--bg-panel, #1e2028)' }}>
           {err && <ErrStrip>{err}</ErrStrip>}
 
           {archived ? (
