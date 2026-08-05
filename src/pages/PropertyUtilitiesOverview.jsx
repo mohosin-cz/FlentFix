@@ -173,7 +173,6 @@ export default function PropertyUtilitiesOverview() {
               {/* KPIs */}
               <div style={{ display: 'grid', gridTemplateColumns: phone ? '1fr 1fr' : 'repeat(auto-fit, minmax(108px, 1fr))', gap: 10, marginBottom: 16 }}>
                 <Kpi label={`${lastMonth.label} installs · ${lastMonth.count}`} value={`${money(lastMonth.monthlyAdded)} /mo`} color="var(--accent, #c8963e)" />
-                <Kpi label="Running / mo" value={money(kpi.monthly)} color="var(--text-dim, #9394a8)" />
                 <Kpi label="Per year" value={money(kpi.monthly * 12)} color="var(--text-dim, #9394a8)" />
                 <Kpi label="Active" value={kpi.active} color="var(--text, #e8e8f0)" />
                 <Kpi label="Properties" value={kpi.props} color="var(--text, #e8e8f0)" />
