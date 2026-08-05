@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
-import { signedDocUrls, fmtDate, relTime, initials, avatarColor, isAdmin } from '../../utils/vendorHub'
+import { signedDocUrls, fmtDate, fmtDateShort, relTime, initials, avatarColor, isAdmin } from '../../utils/vendorHub'
 import { useAuth } from '../../contexts/AuthContext'
+import { useIsMobile } from '../../hooks/useIsMobile'
 import VendorDetailSheet from './VendorDetailSheet'
 
 const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })
@@ -31,7 +32,7 @@ function Stat({ label, value, color }) {
 }
 
 // ── onboarded vendor tile (rich) ────────────────────────────────────────────
-function VendorTile({ v, url, properties, onOpen }) {
+function VendorTile({ v, url, properties, onOpen, phone }) {
   return (
     <button type="button" onClick={() => onOpen(v)}
       style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', textAlign: 'left', padding: '14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', transition: 'border-color 0.15s' }}
@@ -48,7 +49,8 @@ function VendorTile({ v, url, properties, onOpen }) {
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>{v.vendor_code || '—'}</div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 2 }}>{v.reviewed_at ? `onboarded ${fmtDate(v.reviewed_at)}` : ''}</div>
+          {/* the onboarding date costs ~120px the name needs on a phone */}
+          {!phone && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 2 }}>{v.reviewed_at ? `onboarded ${fmtDate(v.reviewed_at)}` : ''}</div>}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 10, paddingTop: 10, borderTop: '1px solid var(--border, #2e3040)' }}>
@@ -57,7 +59,7 @@ function VendorTile({ v, url, properties, onOpen }) {
           label={v.monthly_rate ? 'Rate / month' : 'Rate — not set'}
           value={v.monthly_rate ? money(v.monthly_rate) : '₹0'}
           color={v.monthly_rate ? 'var(--text, #e8e8f0)' : 'var(--accent, #c8963e)'} />
-        <Stat label="Joined" value={v.date_of_joining ? fmtDate(v.date_of_joining) : '—'} color="var(--text-dim, #9394a8)" />
+        <Stat label="Joined" value={v.date_of_joining ? (phone ? fmtDateShort(v.date_of_joining) : fmtDate(v.date_of_joining)) : '—'} color="var(--text-dim, #9394a8)" />
       </div>
     </button>
   )
@@ -173,6 +175,7 @@ export default function OnboardingTab() {
 
   const { session } = useAuth()
   const admin = isAdmin(session?.user?.email)
+  const phone = useIsMobile(640)
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -280,7 +283,7 @@ export default function OnboardingTab() {
               <div style={{ padding: '24px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No vendors match your filters.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {list.map(v => <VendorTile key={v.id} v={v} url={photoOf(v, photos)} properties={stats[v.id]} onOpen={setSelected} />)}
+                {list.map(v => <VendorTile key={v.id} v={v} url={photoOf(v, photos)} properties={stats[v.id]} onOpen={setSelected} phone={phone} />)}
               </div>
             )}
           </>
