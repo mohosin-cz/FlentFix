@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { monthlyCost, typeLabel, typeColor } from '../utils/propertyUtils'
+import { monthlyCost, spendInMonth, typeLabel, typeColor } from '../utils/propertyUtils'
 import UtilityIcon from './UtilityIcon'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
@@ -7,27 +7,14 @@ const MONO = 'var(--font-mono, monospace)'
 const money = (n) => '₹' + Math.round(Number(n || 0)).toLocaleString('en-IN')
 const shortType = (k, label) => ({ water_purifier: 'Water', wifi: 'WiFi', maintenance: 'Maintenance' }[k] || label)
 
-// Last month's spend is an accrual, not a payment log: property_utility_recharges
-// is empty and last_recharged_on is unset on every row, so there is no record of
-// money actually leaving. What we can say honestly is what was running last
-// month — every utility live before this month started, at its monthly cost.
-// Anything installed this month is excluded, since it cost nothing last month.
-function lastMonthWindow() {
-  const now = new Date()
-  const firstOfThis = new Date(now.getFullYear(), now.getMonth(), 1)
-  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  return {
-    firstOfThisISO: `${firstOfThis.getFullYear()}-${String(firstOfThis.getMonth() + 1).padStart(2, '0')}-01`,
-    label: prev.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
-  }
-}
-
 function analyze(rows) {
   const monthly = rows.reduce((a, r) => a + monthlyCost(r), 0)
-  const { firstOfThisISO, label: lastMonthLabel } = lastMonthWindow()
-  const liveLastMonth = rows.filter(r => !r.start_date || r.start_date < firstOfThisISO)
-  const lastMonth = liveLastMonth.reduce((a, r) => a + monthlyCost(r), 0)
-  const startedThisMonth = rows.length - liveLastMonth.length
+
+  // what was actually billed last calendar month
+  const now = new Date()
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const last = spendInMonth(rows, prev.getFullYear(), prev.getMonth())
+  const lastMonthLabel = prev.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
   const props = new Set(rows.map(r => r.pid)).size
 
   const byType = {}
@@ -36,7 +23,9 @@ function analyze(rows) {
     ;(byType[k] = byType[k] || { key: k, count: 0, monthly: 0 })
     byType[k].count++; byType[k].monthly += monthlyCost(r)
   }
-  const typeList = Object.values(byType).sort((a, b) => b.monthly - a.monthly || b.count - a.count)
+  const typeList = Object.values(byType)
+    .map(t => ({ ...t, spend: (last.byType[t.key] || {}).spend || 0, paid: (last.byType[t.key] || {}).count || 0 }))
+    .sort((a, b) => b.spend - a.spend || b.count - a.count)
 
   const byProv = {}
   for (const r of rows) {
@@ -51,7 +40,7 @@ function analyze(rows) {
 
   return {
     count: rows.length, props, monthly,
-    lastMonth, lastMonthLabel, startedThisMonth,
+    last, lastMonthLabel,
     typeList, providers,
     cycles: Object.entries(cycles).sort((a, b) => b[1] - a[1]),
     dueToday: rows.filter(r => r.due && r.due.days <= 0).length,
@@ -84,7 +73,7 @@ function MiniStat({ label, value, color }) {
 
 export default function UtilitiesAnalytics({ rows, onType, onDue }) {
   const a = useMemo(() => analyze(rows), [rows])
-  const maxTypeSpend = Math.max(1, ...a.typeList.map(t => t.monthly))
+  const maxTypeSpend = Math.max(1, ...a.typeList.map(t => t.spend))
   const maxProv = Math.max(1, ...a.providers.map(p => p.count))
 
   return (
@@ -95,9 +84,9 @@ export default function UtilitiesAnalytics({ rows, onType, onDue }) {
       <Card title="Spend">
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 27, fontWeight: 800, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.1 }}>{money(a.lastMonth)}</div>
+            <div style={{ fontSize: 27, fontWeight: 800, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.1 }}>{money(a.last.total)}</div>
             <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>
-              {a.lastMonthLabel} · last month
+              {a.lastMonthLabel} spend
             </div>
           </div>
           <div style={{ marginLeft: 'auto', textAlign: 'right', flexShrink: 0 }}>
@@ -107,21 +96,20 @@ export default function UtilitiesAnalytics({ rows, onType, onDue }) {
             <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>PER YEAR</div>
           </div>
         </div>
-        {a.startedThisMonth > 0 && (
-          <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.5, marginTop: -4 }}>
-            {a.startedThisMonth} installed this month, so not in last month's total.
-          </div>
-        )}
+        <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.5, marginTop: -4 }}>
+          {a.last.payments} recharge{a.last.payments === 1 ? '' : 's'} fell due that month
+          {a.last.undated > 0 ? ` · ${a.last.undated} with no date or amount not counted` : ''}
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 2 }}>
           {a.typeList.map(t => (
             <button key={t.key} onClick={() => onType && onType(t.key)} style={{ display: 'flex', flexDirection: 'column', gap: 5, background: 'none', border: 'none', padding: 0, cursor: onType ? 'pointer' : 'default', textAlign: 'left' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontFamily: MONO }}>
                 <UtilityIcon type={t.key} size={14} />
                 <span style={{ color: 'var(--text-dim, #9394a8)' }}>{shortType(t.key, typeLabel({ utility_type: t.key }))}</span>
-                <span style={{ color: 'var(--text-muted, #6b6d82)' }}>· {t.count}</span>
-                <span style={{ marginLeft: 'auto', fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{money(t.monthly)}</span>
+                <span style={{ color: 'var(--text-muted, #6b6d82)' }}>· {t.paid} paid</span>
+                <span style={{ marginLeft: 'auto', fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{money(t.spend)}</span>
               </div>
-              <div style={{ height: 5, borderRadius: 3, background: 'var(--bg-input, #252731)', overflow: 'hidden' }}><div style={{ height: '100%', width: `${Math.max(3, t.monthly / maxTypeSpend * 100)}%`, background: typeColor({ utility_type: t.key }), borderRadius: 3 }} /></div>
+              <div style={{ height: 5, borderRadius: 3, background: 'var(--bg-input, #252731)', overflow: 'hidden' }}><div style={{ height: '100%', width: `${Math.max(3, t.spend / maxTypeSpend * 100)}%`, background: typeColor({ utility_type: t.key }), borderRadius: 3 }} /></div>
             </button>
           ))}
         </div>
