@@ -83,12 +83,22 @@ export default function UtilitiesAnalytics({ rows, onType, onDue }) {
       {/* Spend */}
       <Card title="Spend">
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 27, fontWeight: 800, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.1 }}>{money(a.last.total)}</div>
-            <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>
-              {a.lastMonthLabel} spend
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{a.lastMonthLabel}</div>
+
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 7 }}>
+              <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent, #c8963e)', fontFamily: MONO }}>{money(a.last.installs.monthlyAdded)}</span>
+              <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>/mo · {a.last.installs.count} new</span>
             </div>
+            <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 1 }}>New installs</div>
+
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 11 }}>
+              <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--text, #e8e8f0)', fontFamily: MONO }}>{money(a.last.recharges.paid)}</span>
+              <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>· {a.last.recharges.count} renewed</span>
+            </div>
+            <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 1 }}>Recharges</div>
           </div>
+
           <div style={{ marginLeft: 'auto', textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-dim, #9394a8)', fontFamily: MONO }}>{money(a.monthly)}</div>
             <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>RUNNING NOW /MO</div>
@@ -96,17 +106,18 @@ export default function UtilitiesAnalytics({ rows, onType, onDue }) {
             <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>PER YEAR</div>
           </div>
         </div>
-        <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.5, marginTop: -4 }}>
-          {a.last.payments} recharge{a.last.payments === 1 ? '' : 's'} fell due that month
-          {a.last.undated > 0 ? ` · ${a.last.undated} with no date or amount not counted` : ''}
-        </div>
+        {a.last.undated > 0 && (
+          <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.5, marginTop: -4 }}>
+            {a.last.undated} with no date or amount not counted
+          </div>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 2 }}>
           {a.typeList.map(t => (
             <button key={t.key} onClick={() => onType && onType(t.key)} style={{ display: 'flex', flexDirection: 'column', gap: 5, background: 'none', border: 'none', padding: 0, cursor: onType ? 'pointer' : 'default', textAlign: 'left' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontFamily: MONO }}>
                 <UtilityIcon type={t.key} size={14} />
                 <span style={{ color: 'var(--text-dim, #9394a8)' }}>{shortType(t.key, typeLabel({ utility_type: t.key }))}</span>
-                <span style={{ color: 'var(--text-muted, #6b6d82)' }}>· {t.paid} paid</span>
+                <span style={{ color: 'var(--text-muted, #6b6d82)' }}>· {t.paid}</span>
                 <span style={{ marginLeft: 'auto', fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{money(t.spend)}</span>
               </div>
               <div style={{ height: 5, borderRadius: 3, background: 'var(--bg-input, #252731)', overflow: 'hidden' }}><div style={{ height: '100%', width: `${Math.max(3, t.spend / maxTypeSpend * 100)}%`, background: typeColor({ utility_type: t.key }), borderRadius: 3 }} /></div>

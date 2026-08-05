@@ -49,14 +49,19 @@ export function nextDueDate(baseStr, cycle) {
   return d
 }
 
-// Money actually billed in a calendar month. A utility is paid in full on its
-// base date (last recharge, else install) and again every cycle after, so a
-// payment lands in a month when the gap from the base is a whole number of
-// cycles. This is real outgoings — unlike monthlyCost below, which spreads a
-// yearly bill across twelve months and never matches any single month.
+// A calendar month's utility spend, split the way the team reads it:
+//   installs   — utilities that went live that month (first payment)
+//   recharges  — utilities already running whose renewal fell that month
+// A utility pays its full billing_amount on its base date and again every cycle
+// after, so a renewal lands in a month when the gap from the base is a whole
+// number of cycles. `monthlyAdded` is the run-rate the new installs added,
+// which is what the By-month tab reports.
 export function spendInMonth(rows, year, monthIdx) {
-  let total = 0, payments = 0, undated = 0
+  const installs = { count: 0, paid: 0, monthlyAdded: 0 }
+  const recharges = { count: 0, paid: 0 }
   const byType = {}
+  let undated = 0
+
   for (const u of rows || []) {
     if (!u || !LIVE_STATUSES.has(u.status)) continue
     const cyc = CYCLE_MONTHS[u.billing_cycle]
@@ -64,15 +69,25 @@ export function spendInMonth(rows, year, monthIdx) {
     if (!cyc || !baseStr || u.billing_amount == null) { undated++; continue }
     const base = new Date(baseStr + 'T00:00:00')
     if (isNaN(base)) { undated++; continue }
-    const diff = (year - base.getFullYear()) * 12 + (monthIdx - base.getMonth())
-    if (diff < 0 || diff % cyc !== 0) continue
+
     const amt = Number(u.billing_amount)
-    total += amt; payments++
+    const isInstall = !!u.start_date &&
+      new Date(u.start_date + 'T00:00:00').getFullYear() === year &&
+      new Date(u.start_date + 'T00:00:00').getMonth() === monthIdx
+    const diff = (year - base.getFullYear()) * 12 + (monthIdx - base.getMonth())
+    const renewed = diff > 0 && diff % cyc === 0
+
+    if (isInstall) {
+      installs.count++; installs.paid += amt; installs.monthlyAdded += amt / cyc
+    } else if (renewed) {
+      recharges.count++; recharges.paid += amt
+    } else continue
+
     const k = u.utility_type
     ;(byType[k] = byType[k] || { key: k, count: 0, spend: 0 })
     byType[k].count++; byType[k].spend += amt
   }
-  return { total, payments, undated, byType }
+  return { installs, recharges, undated, byType, total: installs.paid + recharges.paid }
 }
 
 // monthly-equivalent cost of a live utility (0 for one-time / no amount / inactive)
