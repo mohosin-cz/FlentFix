@@ -7,7 +7,7 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import LogoSpinner from '../components/LogoSpinner'
 import UtilitiesAnalytics from '../components/UtilitiesAnalytics'
 import UtilitiesByMonth from '../components/UtilitiesByMonth'
-import { UTILITY_TYPES, typeLabel, typeColor, dueInfo, dueBucket, monthlyCost, spendInMonth } from '../utils/propertyUtils'
+import { UTILITY_TYPES, typeLabel, typeColor, dueInfo, dueBucket, monthlyCost, installsInMonth } from '../utils/propertyUtils'
 import UtilityIcon from '../components/UtilityIcon'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
@@ -65,8 +65,8 @@ export default function PropertyUtilitiesOverview() {
   const lastMonth = useMemo(() => {
     const now = new Date()
     const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    return { ...spendInMonth(rows, prev.getFullYear(), prev.getMonth()),
-             label: prev.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) }
+    return { ...installsInMonth(rows, prev.getFullYear(), prev.getMonth()),
+             label: prev.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) }
   }, [rows])
 
   const kpi = useMemo(() => {
@@ -172,22 +172,9 @@ export default function PropertyUtilitiesOverview() {
             <>
               {/* KPIs */}
               <div style={{ display: 'grid', gridTemplateColumns: phone ? '1fr 1fr' : 'repeat(auto-fit, minmax(108px, 1fr))', gap: 10, marginBottom: 16 }}>
-                <div style={{ gridColumn: phone ? '1 / -1' : 'span 2', minWidth: 0, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: '12px 14px' }}>
-                  <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{lastMonth.label} spend</div>
-                  <div style={{ display: 'flex', gap: 18, marginTop: 8, flexWrap: 'wrap' }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent, #c8963e)', fontFamily: MONO, whiteSpace: 'nowrap' }}>
-                        {money(lastMonth.installs.monthlyAdded)}<span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted, #6b6d82)' }}> /mo</span>
-                      </div>
-                      <div style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>New installs · {lastMonth.installs.count}</div>
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text, #e8e8f0)', fontFamily: MONO, whiteSpace: 'nowrap' }}>{money(lastMonth.recharges.paid)}</div>
-                      <div style={{ fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>Recharges · {lastMonth.recharges.count}</div>
-                    </div>
-                  </div>
-                </div>
+                <Kpi label={`${lastMonth.label} installs · ${lastMonth.count}`} value={`${money(lastMonth.monthlyAdded)} /mo`} color="var(--accent, #c8963e)" />
                 <Kpi label="Running / mo" value={money(kpi.monthly)} color="var(--text-dim, #9394a8)" />
+                <Kpi label="Per year" value={money(kpi.monthly * 12)} color="var(--text-dim, #9394a8)" />
                 <Kpi label="Active" value={kpi.active} color="var(--text, #e8e8f0)" />
                 <Kpi label="Properties" value={kpi.props} color="var(--text, #e8e8f0)" />
                 <Kpi label="New" sub="this mo" value={kpi.thisMonth} color="var(--green, #3dba7a)" span={phone} />
