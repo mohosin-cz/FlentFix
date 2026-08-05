@@ -343,7 +343,7 @@ export default function PayrollAnalytics() {
 
             {/* composition */}
             <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1fr 1fr', gap: 14 }}>
-              <Card title="What the pay was made of" sub="earned + overtime">
+              <Card title="What the pay was made of" sub="gross, before advance adjustment">
                 <Legend items={[{ label: 'Earned', color: S1 }, { label: 'Overtime', color: S2 }]} />
                 <Columns rows={a.months.map(m => ({ label: m.label, axis: m.axis, earned: m.earned, ot: m.ot }))}
                   series={[{ key: 'earned', label: 'Earned', color: S1 }, { key: 'ot', label: 'Overtime', color: S2 }]}
@@ -360,17 +360,25 @@ export default function PayrollAnalytics() {
               </Card>
             </div>
 
-            {/* advances */}
-            <Card title="Advances" sub="given vs recovered">
-              <Legend items={[{ label: 'Given', color: S2 }, { label: 'Recovered', color: S3 }]} />
-              <Columns rows={a.months.map(m => ({ label: m.label, axis: m.axis, given: m.advGiven, rec: m.advRec }))}
-                series={[{ key: 'given', label: 'Given', color: S2 }, { key: 'rec', label: 'Recovered', color: S3 }]}
-                height={phone ? 130 : 160} labelLast={false} />
-              <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.5 }}>
+            {/* advances — a deduction from salary, not a second income stream */}
+            <Card title="Advance adjusted in salary" sub="reduces that month's take-home">
+              <Columns rows={a.months.map(m => ({ label: m.label, axis: m.axis, adj: m.advRec, note: m.advGiven ? `${money(m.advGiven)} advanced this month` : undefined }))}
+                series={[{ key: 'adj', label: 'Adjusted', color: S3 }]}
+                height={phone ? 130 : 160} />
+              <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.6 }}>
                 {(() => {
-                  const g = a.months.reduce((s, m) => s + m.advGiven, 0)
-                  const r = a.months.reduce((s, m) => s + m.advRec, 0)
-                  return `${money(g)} advanced, ${money(r)} recovered — ${g - r > 0 ? `${money(g - r)} still outstanding` : `${money(r - g)} recovered beyond what this table records as given`}.`
+                  const given = a.months.reduce((s2, m) => s2 + m.advGiven, 0)
+                  const adj = a.months.reduce((s2, m) => s2 + m.advRec, 0)
+                  const givenMonths = a.months.filter(m => m.advGiven).map(m => m.label)
+                  return (
+                    <>
+                      The payout above is already net of this — an advance comes off the salary it is adjusted against.
+                      <br />
+                      {money(given)} advanced{givenMonths.length ? ` (${givenMonths.join(', ')})` : ''} · {money(adj)} adjusted back.
+                      {adj > given && ` ${money(adj - given)} more has been adjusted than these records show was given, so some advances pre-date them.`}
+                      {given > adj && ` ${money(given - adj)} still to be adjusted.`}
+                    </>
+                  )
                 })()}
               </div>
             </Card>
