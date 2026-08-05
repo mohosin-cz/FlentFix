@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useNavigate } from 'react-router-dom'
 import { initials, avatarColor } from '../../utils/vendorHub'
 
 const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
@@ -73,6 +74,7 @@ function TextField({ label, value, onChange, placeholder }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function PayrollTab() {
+  const navigate = useNavigate()
   const [periods, setPeriods] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -139,7 +141,8 @@ export default function PayrollTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <button type="button" onClick={() => setSheet('newperiod')} style={{ padding: '9px 16px', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ New month</button>
-        <button type="button" onClick={() => setSheet('rates')} style={{ marginLeft: 'auto', padding: '9px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-dim, #9394a8)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Rates</button>
+        <button type="button" onClick={() => navigate('/vendors/payroll/analytics')} style={{ marginLeft: 'auto', padding: '9px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--accent, #c8963e)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Analytics →</button>
+        <button type="button" onClick={() => setSheet('rates')} style={{ padding: '9px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-dim, #9394a8)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Rates</button>
       </div>
       {error && <Err>{error}</Err>}
       {loading && !error && <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>}
