@@ -15,7 +15,12 @@
   --amber:        #c8963e;
   --red:          #e05c6a;
   --white:        #ffffff;
-  --font-sans:    'Poppins', sans-serif;
+  /* Urbanist app-wide, the face the Home header nav introduced. Poppins stays
+     as the fallback and is what the customer-facing estimate and invoice
+     documents pin themselves to — those set their own fonts and are not
+     meant to follow the app. */
+  --font-sans:    'Urbanist', 'Poppins', sans-serif;
+  --font-doc:     'Poppins', sans-serif;
   --font-mono:    'JetBrains Mono', 'Fira Mono', monospace;
   --font-nav:     'Urbanist', 'Poppins', sans-serif;
   --radius:       8px;
