@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { monthlyCost, spendInMonth, typeLabel, typeColor } from '../utils/propertyUtils'
+import { monthlyCost, typeLabel, typeColor } from '../utils/propertyUtils'
 import UtilityIcon from './UtilityIcon'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
@@ -9,12 +9,6 @@ const shortType = (k, label) => ({ water_purifier: 'Water', wifi: 'WiFi', mainte
 
 function analyze(rows) {
   const monthly = rows.reduce((a, r) => a + monthlyCost(r), 0)
-
-  // what was actually billed last calendar month
-  const now = new Date()
-  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const last = spendInMonth(rows, prev.getFullYear(), prev.getMonth())
-  const lastMonthLabel = prev.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
   const props = new Set(rows.map(r => r.pid)).size
 
   const byType = {}
@@ -23,9 +17,7 @@ function analyze(rows) {
     ;(byType[k] = byType[k] || { key: k, count: 0, monthly: 0 })
     byType[k].count++; byType[k].monthly += monthlyCost(r)
   }
-  const typeList = Object.values(byType)
-    .map(t => ({ ...t, spend: (last.byType[t.key] || {}).spend || 0, paid: (last.byType[t.key] || {}).count || 0 }))
-    .sort((a, b) => b.spend - a.spend || b.count - a.count)
+  const typeList = Object.values(byType).sort((a, b) => b.monthly - a.monthly || b.count - a.count)
 
   const byProv = {}
   for (const r of rows) {
@@ -40,7 +32,6 @@ function analyze(rows) {
 
   return {
     count: rows.length, props, monthly,
-    last, lastMonthLabel,
     typeList, providers,
     cycles: Object.entries(cycles).sort((a, b) => b[1] - a[1]),
     dueToday: rows.filter(r => r.due && r.due.days <= 0).length,
@@ -73,7 +64,7 @@ function MiniStat({ label, value, color }) {
 
 export default function UtilitiesAnalytics({ rows, onType, onDue }) {
   const a = useMemo(() => analyze(rows), [rows])
-  const maxTypeSpend = Math.max(1, ...a.typeList.map(t => t.spend))
+  const maxTypeSpend = Math.max(1, ...a.typeList.map(t => t.monthly))
   const maxProv = Math.max(1, ...a.providers.map(p => p.count))
 
   return (
@@ -82,45 +73,20 @@ export default function UtilitiesAnalytics({ rows, onType, onDue }) {
 
       {/* Spend */}
       <Card title="Spend">
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{a.lastMonthLabel}</div>
-
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 7 }}>
-              <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent, #c8963e)', fontFamily: MONO }}>{money(a.last.installs.monthlyAdded)}</span>
-              <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>/mo · {a.last.installs.count} new</span>
-            </div>
-            <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 1 }}>New installs</div>
-
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 11 }}>
-              <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--text, #e8e8f0)', fontFamily: MONO }}>{money(a.last.recharges.paid)}</span>
-              <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>· {a.last.recharges.count} renewed</span>
-            </div>
-            <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 1 }}>Recharges</div>
-          </div>
-
-          <div style={{ marginLeft: 'auto', textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-dim, #9394a8)', fontFamily: MONO }}>{money(a.monthly)}</div>
-            <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>RUNNING NOW /MO</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, marginTop: 6 }}>{money(a.monthly * 12)}</div>
-            <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>PER YEAR</div>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <div><span style={{ fontSize: 27, fontWeight: 800, color: 'var(--accent, #c8963e)', fontFamily: MONO }}>{money(a.monthly)}</span><span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}> /mo</span></div>
+          <div style={{ marginLeft: 'auto', textAlign: 'right' }}><div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-dim, #9394a8)', fontFamily: MONO }}>{money(a.monthly * 12)}</div><div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>PER YEAR</div></div>
         </div>
-        {a.last.undated > 0 && (
-          <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.5, marginTop: -4 }}>
-            {a.last.undated} with no date or amount not counted
-          </div>
-        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 2 }}>
           {a.typeList.map(t => (
             <button key={t.key} onClick={() => onType && onType(t.key)} style={{ display: 'flex', flexDirection: 'column', gap: 5, background: 'none', border: 'none', padding: 0, cursor: onType ? 'pointer' : 'default', textAlign: 'left' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontFamily: MONO }}>
                 <UtilityIcon type={t.key} size={14} />
                 <span style={{ color: 'var(--text-dim, #9394a8)' }}>{shortType(t.key, typeLabel({ utility_type: t.key }))}</span>
-                <span style={{ color: 'var(--text-muted, #6b6d82)' }}>· {t.paid}</span>
-                <span style={{ marginLeft: 'auto', fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{money(t.spend)}</span>
+                <span style={{ color: 'var(--text-muted, #6b6d82)' }}>· {t.count}</span>
+                <span style={{ marginLeft: 'auto', fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{money(t.monthly)}</span>
               </div>
-              <div style={{ height: 5, borderRadius: 3, background: 'var(--bg-input, #252731)', overflow: 'hidden' }}><div style={{ height: '100%', width: `${Math.max(3, t.spend / maxTypeSpend * 100)}%`, background: typeColor({ utility_type: t.key }), borderRadius: 3 }} /></div>
+              <div style={{ height: 5, borderRadius: 3, background: 'var(--bg-input, #252731)', overflow: 'hidden' }}><div style={{ height: '100%', width: `${Math.max(3, t.monthly / maxTypeSpend * 100)}%`, background: typeColor({ utility_type: t.key }), borderRadius: 3 }} /></div>
             </button>
           ))}
         </div>
