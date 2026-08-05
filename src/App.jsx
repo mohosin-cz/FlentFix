@@ -40,6 +40,7 @@ import SOPSetup from './pages/SOPSetup'
 import Onboard from './pages/Onboard'
 import Attend from './pages/Attend'
 import VendorHub from './pages/VendorHub'
+import PayrollAnalytics from './pages/vendors/PayrollAnalytics'
 
 function migrateLocalNotes() {
   if (localStorage.getItem('_flent_notes_migrated')) return
@@ -204,6 +205,7 @@ export default function App() {
           <Route path="/onboard" element={<Onboard />} />
           <Route path="/attend" element={<Attend />} />
           <Route path="/vendors" element={<ProtectedRoute><VendorHub /></ProtectedRoute>} />
+          <Route path="/vendors/payroll/analytics" element={<ProtectedRoute><PayrollAnalytics /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <FloatingNav />
