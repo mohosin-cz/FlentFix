@@ -5,9 +5,10 @@ import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import LogoSpinner from '../components/LogoSpinner'
+import UtilityIcon from '../components/UtilityIcon'
 import {
   ADD_TYPES, TYPE_MAP, BILLING_CYCLES, STATUSES, STATUS_MAP,
-  fmtDate, typeLabel, typeIcon, typeColor, dueInfo,
+  fmtDate, typeLabel, typeColor, dueInfo,
 } from '../utils/propertyUtils'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
@@ -120,7 +121,7 @@ function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
               <button key={t.key} onClick={() => set('utility_type', t.key)} aria-pressed={on}
                 className={`tct tct-bare${on ? ' is-on' : ''}`}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 14px', fontSize: 12.5, lineHeight: 1 }}>
-                <span>{t.icon}</span>{t.label}
+                <UtilityIcon type={t.key} size={15} />{t.label}
               </button>
             )
           })}
@@ -187,7 +188,7 @@ function RechargeSheet({ utility, userEmail, onClose, onSaved }) {
         <Labeled label="Note" span><input style={inputStyle} value={note} onChange={e => setNote(e.target.value)} placeholder="Optional — reference, next-due tweak…" /></Labeled>
       </div>
       {error && <div style={{ fontSize: 12, color: '#f87171', fontFamily: MONO, padding: '9px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: 8 }}>{error}</div>}
-      <button onClick={save} disabled={saving} style={{ padding: '12px 0', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, color: '#062012', cursor: 'pointer', fontFamily: SANS, opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving…' : '✓ Log recharge'}</button>
+      <button onClick={save} disabled={saving} style={{ padding: '12px 0', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, color: '#062012', cursor: 'pointer', fontFamily: SANS, opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving…' : 'Log recharge'}</button>
 
       <div>
         <label style={labelStyle}>History</label>
@@ -246,7 +247,7 @@ function UtilityCard({ u, onRecharge, onEdit, onDelete }) {
   return (
     <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 14, padding: 15, display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ width: 42, height: 42, borderRadius: 11, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, background: `${color}22`, border: `1px solid ${color}44` }}>{typeIcon(u)}</div>
+        <div style={{ width: 42, height: 42, borderRadius: 11, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, background: `${color}22`, border: `1px solid ${color}44`, color }}><UtilityIcon type={u.utility_type} size={21} /></div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 15.5, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: SANS }}>{typeLabel(u)}</span>
@@ -255,14 +256,17 @@ function UtilityCard({ u, onRecharge, onEdit, onDelete }) {
           {(u.provider || u.plan_type) && <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[u.provider, u.plan_type].filter(Boolean).join(' · ')}</div>}
         </div>
         <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-          <button onClick={() => onEdit(u)} title="Edit" style={iconBtn}>✎</button>
-          <button onClick={() => onDelete(u)} title="Delete" style={{ ...iconBtn, color: '#f87171' }}>🗑</button>
+          <button onClick={() => onEdit(u)} title="Edit" aria-label="Edit" style={iconBtn}>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M11.2 2.3l2.5 2.5L5.5 13H3v-2.5z"/></svg>
+          </button>
+          <button onClick={() => onDelete(u)} title="Delete" aria-label="Delete" style={{ ...iconBtn, color: '#f87171' }}>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M2.8 4.3h10.4M6.4 4.3V2.9h3.2v1.4M4.2 4.3l.6 8.4h6.4l.6-8.4"/></svg>
+          </button>
         </div>
       </div>
 
       {di && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 13px', borderRadius: 10, background: di.tone === 'ok' ? 'var(--bg-input, #252731)' : `${di.color}18`, border: `1px solid ${di.tone === 'ok' ? 'var(--border, #2e3040)' : di.color + '55'}` }}>
-          <span style={{ fontSize: 15 }}>{di.tone === 'due' ? '🔔' : '🗓'}</span>
           <span style={{ fontSize: 13.5, fontWeight: 700, color: di.color, fontFamily: SANS }}>{di.label}</span>
           <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{fmtDate(di.date)}</span>
         </div>
@@ -294,7 +298,7 @@ function UtilityCard({ u, onRecharge, onEdit, onDelete }) {
       )}
       {u.notes && <div style={{ fontSize: 12.5, color: 'var(--text-muted, #6b6d82)', lineHeight: 1.5, whiteSpace: 'pre-wrap', fontFamily: SANS }}>{u.notes}</div>}
 
-      <button onClick={() => onRecharge(u)} style={{ padding: '10px 0', background: 'rgba(61,186,122,0.1)', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 9, fontSize: 13, fontWeight: 700, color: 'var(--green, #3dba7a)', cursor: 'pointer', fontFamily: SANS }}>↻ Log recharge</button>
+      <button onClick={() => onRecharge(u)} style={{ padding: '10px 0', background: 'rgba(61,186,122,0.1)', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 9, fontSize: 13, fontWeight: 700, color: 'var(--green, #3dba7a)', cursor: 'pointer', fontFamily: SANS }}>Log recharge</button>
     </div>
   )
 }

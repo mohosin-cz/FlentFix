@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { deploymentsByMonth, monthLabel, typeIcon, typeLabel, typeColor, monthlyCost, fmtDate } from '../utils/propertyUtils'
+import { deploymentsByMonth, monthLabel, typeLabel, typeColor, monthlyCost, fmtDate } from '../utils/propertyUtils'
+import UtilityIcon from './UtilityIcon'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
 const MONO = 'var(--font-mono, monospace)'
@@ -24,8 +25,8 @@ export default function UtilitiesByMonth({ rows, navigate }) {
         {/* header */}
         <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 10, alignItems: 'center', padding: '0 14px 10px' }}>
           <span style={th}>Month</span>
-          <span style={{ ...th, textAlign: 'center' }}>📶 WiFi</span>
-          <span style={{ ...th, textAlign: 'center' }}>💧 Water</span>
+          <span style={{ ...th, textAlign: 'center' }}>WiFi</span>
+          <span style={{ ...th, textAlign: 'center' }}>Water</span>
           <span style={{ ...th, textAlign: 'center' }}>Props</span>
           <span style={{ ...th, textAlign: 'right' }}>Spend/mo</span>
           <span />
@@ -56,7 +57,7 @@ export default function UtilitiesByMonth({ rows, navigate }) {
                   <div style={{ borderTop: '1px solid var(--border, #2e3040)', display: 'flex', flexDirection: 'column' }}>
                     {items.map(r => (
                       <button key={r.id} onClick={() => navigate(`/properties/${r.pid}/utilities`)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-input, #252731)', border: 'none', borderTop: '1px solid var(--border, #2e3040)', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
-                        <span style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, background: `${typeColor(r)}22`, border: `1px solid ${typeColor(r)}44` }}>{typeIcon(r)}</span>
+                        <span style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${typeColor(r)}22`, border: `1px solid ${typeColor(r)}44`, color: typeColor(r) }}><UtilityIcon type={r.utility_type} size={14} /></span>
                         <span style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--accent, #c8963e)', fontFamily: MONO, flexShrink: 0 }}>PID {r.pid}</span>
                         <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{typeLabel(r)}{r.provider ? ` · ${r.provider}` : ''}{r.prop && r.prop.name ? ` · ${r.prop.name}` : ''}</span>
                         <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, flexShrink: 0 }}>{fmtDate(r.start_date)}</span>
