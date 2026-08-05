@@ -7,7 +7,8 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import LogoSpinner from '../components/LogoSpinner'
 import UtilitiesAnalytics from '../components/UtilitiesAnalytics'
 import UtilitiesByMonth from '../components/UtilitiesByMonth'
-import { UTILITY_TYPES, typeLabel, typeIcon, typeColor, dueInfo, dueBucket, monthlyCost } from '../utils/propertyUtils'
+import { UTILITY_TYPES, typeLabel, typeColor, dueInfo, dueBucket, monthlyCost } from '../utils/propertyUtils'
+import UtilityIcon from '../components/UtilityIcon'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
 const MONO = 'var(--font-mono, monospace)'
@@ -16,7 +17,7 @@ const nowYM = () => { const d = new Date(); return `${d.getFullYear()}-${String(
 
 const DUE_FILTERS = [
   { key: 'all', label: 'All' },
-  { key: 'due', label: '⚠ Due ≤7d', color: 'var(--red, #e05c6a)' },
+  { key: 'due', label: 'Due ≤7d', color: 'var(--red, #e05c6a)' },
   { key: 'month', label: 'This month', color: 'var(--accent, #c8963e)' },
   { key: 'later', label: 'Later', color: 'var(--green, #3dba7a)' },
   { key: 'none', label: 'No date', color: 'var(--text-muted, #6b6d82)' },
@@ -93,18 +94,21 @@ export default function PropertyUtilitiesOverview() {
   const listView = (
     <div style={{ flex: 1, minWidth: 0 }}>
       {narrow && rows.length > 0 && (
-        <button onClick={() => setShowAnalytics(true)} style={{ width: '100%', marginBottom: 12, padding: '11px 0', background: 'rgba(200,150,62,0.1)', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 10, fontSize: 13.5, fontWeight: 700, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-nav)' }}>📊 Analytics &amp; spend</button>
+        <button onClick={() => setShowAnalytics(true)} style={{ width: '100%', marginBottom: 12, padding: '11px 0', background: 'rgba(200,150,62,0.1)', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 10, fontSize: 13.5, fontWeight: 700, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-nav)' }}>Analytics &amp; spend</button>
       )}
       <div style={{ position: 'relative', marginBottom: 12 }}>
-        <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--text-muted, #6b6d82)' }}>⌕</span>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)' }}>
+          <circle cx="7" cy="7" r="4.5" stroke="var(--text-muted, #6b6d82)" strokeWidth="1.6" />
+          <path d="M10.5 10.5L14 14" stroke="var(--text-muted, #6b6d82)" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search PID, property, provider, account…"
           style={{ width: '100%', boxSizing: 'border-box', padding: '11px 13px 11px 34px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, outline: 'none', fontFamily: SANS }} />
-        {q && <button onClick={() => setQ('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, borderRadius: 6, border: 'none', background: 'var(--bg-panel, #1e2028)', color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontSize: 13 }}>✕</button>}
+        {q && <button onClick={() => setQ('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, borderRadius: 6, border: 'none', background: 'var(--bg-panel, #1e2028)', color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontSize: 13 }}>×</button>}
       </div>
       {presentTypes.length > 1 && (
         <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 8, WebkitOverflowScrolling: 'touch' }}>
           <button onClick={() => setTypeF('all')} className={chipCls(typeF === 'all')} style={chipSty}>All types</button>
-          {presentTypes.map(t => <button key={t.key} onClick={() => setTypeF(t.key)} className={chipCls(typeF === t.key)} style={chipSty}><span>{t.icon}</span>{t.label}</button>)}
+          {presentTypes.map(t => <button key={t.key} onClick={() => setTypeF(t.key)} className={chipCls(typeF === t.key)} style={chipSty}><UtilityIcon type={t.key} size={14} />{t.label}</button>)}
         </div>
       )}
       <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 8, marginBottom: 12, WebkitOverflowScrolling: 'touch' }}>
@@ -119,7 +123,7 @@ export default function PropertyUtilitiesOverview() {
             const color = typeColor(r)
             return (
               <button key={r.id} onClick={() => navigate(`/properties/${r.pid}/utilities`)} style={s.row}>
-                <div style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, background: `${color}22`, border: `1px solid ${color}44` }}>{typeIcon(r)}</div>
+                <div style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, background: `${color}22`, border: `1px solid ${color}44`, color }}><UtilityIcon type={r.utility_type} size={18} /></div>
                 <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: SANS, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{typeLabel(r)}{r.provider && !phone ? <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b6d82)' }}> · {r.provider}</span> : null}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, overflow: 'hidden' }}>
@@ -197,7 +201,7 @@ export default function PropertyUtilitiesOverview() {
       {narrow && showAnalytics && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(8,9,13,0.6)', backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)', display: 'flex', alignItems: 'flex-end' }} onClick={e => { if (e.target === e.currentTarget) setShowAnalytics(false) }}>
           <div style={{ width: '100%', maxHeight: '90vh', overflowY: 'auto', background: 'var(--bg, #16171f)', borderTop: '1px solid var(--border, #2e3040)', borderRadius: '18px 18px 0 0', padding: '16px 18px 40px', position: 'relative' }}>
-            <button onClick={() => setShowAnalytics(false)} style={{ position: 'absolute', right: 18, top: 14, width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', cursor: 'pointer', zIndex: 1 }}>✕</button>
+            <button onClick={() => setShowAnalytics(false)} style={{ position: 'absolute', right: 18, top: 14, width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', cursor: 'pointer', zIndex: 1 }}>×</button>
             <UtilitiesAnalytics rows={rows} onType={(k) => { setTypeF(k); setShowAnalytics(false) }} onDue={(d) => { setDueF(d); setShowAnalytics(false) }} />
           </div>
         </div>

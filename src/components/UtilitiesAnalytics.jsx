@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { monthlyCost, typeIcon, typeLabel, typeColor } from '../utils/propertyUtils'
+import { monthlyCost, typeLabel, typeColor } from '../utils/propertyUtils'
+import UtilityIcon from './UtilityIcon'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
 const MONO = 'var(--font-mono, monospace)'
@@ -80,7 +81,7 @@ export default function UtilitiesAnalytics({ rows, onType, onDue }) {
           {a.typeList.map(t => (
             <button key={t.key} onClick={() => onType && onType(t.key)} style={{ display: 'flex', flexDirection: 'column', gap: 5, background: 'none', border: 'none', padding: 0, cursor: onType ? 'pointer' : 'default', textAlign: 'left' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontFamily: MONO }}>
-                <span>{typeIcon({ utility_type: t.key })}</span>
+                <UtilityIcon type={t.key} size={14} />
                 <span style={{ color: 'var(--text-dim, #9394a8)' }}>{shortType(t.key, typeLabel({ utility_type: t.key }))}</span>
                 <span style={{ color: 'var(--text-muted, #6b6d82)' }}>· {t.count}</span>
                 <span style={{ marginLeft: 'auto', fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{money(t.monthly)}</span>
@@ -102,7 +103,7 @@ export default function UtilitiesAnalytics({ rows, onType, onDue }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 2, borderRadius: 9, overflow: 'hidden', border: '1px solid var(--border, #2e3040)' }}>
             {a.upcoming.map(r => (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 11px', background: 'var(--bg-input, #252731)' }}>
-                <span style={{ fontSize: 14 }}>{typeIcon(r)}</span>
+                <UtilityIcon type={r.utility_type} size={14} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: MONO }}>PID {r.pid}</span>
                 <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shortType(r.utility_type, typeLabel(r))}</span>
                 <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: r.due.color, fontFamily: MONO, whiteSpace: 'nowrap' }}>{r.due.days <= 0 ? 'today' : r.due.days === 1 ? '1 day' : `${r.due.days} days`}</span>

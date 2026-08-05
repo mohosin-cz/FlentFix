@@ -1,9 +1,9 @@
 // Shared config + "next recharge due" logic for property utilities.
 // DTH/Cable intentionally removed.
 export const UTILITY_TYPES = [
-  { key: 'wifi',           label: 'WiFi / Broadband',    icon: '📶', color: '#5b8def' },
-  { key: 'water_purifier', label: 'Water Purifier (RO)', icon: '💧', color: '#38bdf8' },
-  { key: 'other',          label: 'Other',               icon: '🔌', color: '#8b8d98' },
+  { key: 'wifi',           label: 'WiFi / Broadband',    color: '#5b8def' },
+  { key: 'water_purifier', label: 'Water Purifier (RO)', color: '#38bdf8' },
+  { key: 'other',          label: 'Other',               color: '#8b8d98' },
 ]
 export const TYPE_MAP = Object.fromEntries(UTILITY_TYPES.map(t => [t.key, t]))
 export const ADD_TYPES = UTILITY_TYPES
@@ -29,9 +29,6 @@ export function fmtDate(str) {
 export function typeLabel(u) {
   if (u.utility_type === 'other') return (u.custom_type || '').trim() || 'Other'
   return TYPE_MAP[u.utility_type]?.label || u.utility_type
-}
-export function typeIcon(u) {
-  return TYPE_MAP[u.utility_type]?.icon || '🔌'
 }
 export function typeColor(u) {
   return TYPE_MAP[u.utility_type]?.color || '#8b8d98'
