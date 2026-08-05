@@ -104,6 +104,13 @@ export function fmtDate(d) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+// Compact form for phones — "01 Sep 25" instead of "01 Sept 2025", which wraps
+// inside a third of a 390px card.
+export function fmtDateShort(d) {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }).replace('Sept', 'Sep')
+}
+
 export function fmtDateTime(d) {
   if (!d) return '—'
   return new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })

@@ -22,9 +22,9 @@ const DUE_FILTERS = [
   { key: 'none', label: 'No date', color: 'var(--text-muted, #6b6d82)' },
 ]
 
-function Kpi({ label, value, color, sub }) {
+function Kpi({ label, value, color, sub, span }) {
   return (
-    <div style={{ flex: '1 1 108px', minWidth: 0, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: '12px 14px' }}>
+    <div style={{ minWidth: 0, gridColumn: span ? '1 / -1' : 'auto', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: '12px 14px' }}>
       <div style={{ fontSize: 20, fontWeight: 800, color, fontFamily: MONO, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
       <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>{label}{sub ? ` · ${sub}` : ''}</div>
     </div>
@@ -34,6 +34,7 @@ function Kpi({ label, value, color, sub }) {
 export default function PropertyUtilitiesOverview() {
   const navigate = useNavigate()
   const narrow = useIsMobile(980)
+  const phone = useIsMobile(640)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [rows, setRows] = useState([])
@@ -85,12 +86,14 @@ export default function PropertyUtilitiesOverview() {
     })
   }, [rows, q, typeF, dueF])
 
-  const chip = (on, color) => ({ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, fontSize: 12.5, cursor: 'pointer', fontFamily: SANS, whiteSpace: 'nowrap', background: on ? `${color || 'var(--accent, #c8963e)'}1e` : 'var(--bg-input, #252731)', border: `1px solid ${on ? (color || 'var(--accent, #c8963e)') : 'var(--border, #2e3040)'}`, color: on ? (color || 'var(--accent, #c8963e)') : 'var(--text-dim, #9394a8)', fontWeight: on ? 600 : 400 })
+  // Same treatment as the vendor filters and the Home nav — see .tct in theme.css
+  const chipCls = (on) => `tct tct-bare${on ? ' is-on' : ''}`
+  const chipSty = { flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '10px 14px', fontSize: 12.5, lineHeight: 1, whiteSpace: 'nowrap' }
 
   const listView = (
     <div style={{ flex: 1, minWidth: 0 }}>
       {narrow && rows.length > 0 && (
-        <button onClick={() => setShowAnalytics(true)} style={{ width: '100%', marginBottom: 12, padding: '11px 0', background: 'rgba(200,150,62,0.1)', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 10, fontSize: 13.5, fontWeight: 700, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: SANS }}>📊 Analytics &amp; spend</button>
+        <button onClick={() => setShowAnalytics(true)} style={{ width: '100%', marginBottom: 12, padding: '11px 0', background: 'rgba(200,150,62,0.1)', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 10, fontSize: 13.5, fontWeight: 700, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: 'var(--font-nav)' }}>📊 Analytics &amp; spend</button>
       )}
       <div style={{ position: 'relative', marginBottom: 12 }}>
         <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--text-muted, #6b6d82)' }}>⌕</span>
@@ -100,12 +103,12 @@ export default function PropertyUtilitiesOverview() {
       </div>
       {presentTypes.length > 1 && (
         <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 8, WebkitOverflowScrolling: 'touch' }}>
-          <button onClick={() => setTypeF('all')} style={chip(typeF === 'all')}>All types</button>
-          {presentTypes.map(t => <button key={t.key} onClick={() => setTypeF(t.key)} style={chip(typeF === t.key, t.color)}><span>{t.icon}</span>{t.label}</button>)}
+          <button onClick={() => setTypeF('all')} className={chipCls(typeF === 'all')} style={chipSty}>All types</button>
+          {presentTypes.map(t => <button key={t.key} onClick={() => setTypeF(t.key)} className={chipCls(typeF === t.key)} style={chipSty}><span>{t.icon}</span>{t.label}</button>)}
         </div>
       )}
       <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 8, marginBottom: 12, WebkitOverflowScrolling: 'touch' }}>
-        {DUE_FILTERS.map(f => <button key={f.key} onClick={() => setDueF(f.key)} style={chip(dueF === f.key, f.color)}>{f.label}</button>)}
+        {DUE_FILTERS.map(f => <button key={f.key} onClick={() => setDueF(f.key)} className={chipCls(dueF === f.key)} style={chipSty}>{f.label}</button>)}
       </div>
       <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginBottom: 10 }}>{filtered.length} of {rows.length}{(q || typeF !== 'all' || dueF !== 'all') ? ' · filtered' : ''}</div>
       {filtered.length === 0 ? (
@@ -118,9 +121,10 @@ export default function PropertyUtilitiesOverview() {
               <button key={r.id} onClick={() => navigate(`/properties/${r.pid}/utilities`)} style={s.row}>
                 <div style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, background: `${color}22`, border: `1px solid ${color}44` }}>{typeIcon(r)}</div>
                 <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: SANS, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{typeLabel(r)}{r.provider ? <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b6d82)' }}> · {r.provider}</span> : null}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: SANS, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{typeLabel(r)}{r.provider && !phone ? <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b6d82)' }}> · {r.provider}</span> : null}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, overflow: 'hidden' }}>
                     <span style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--accent, #c8963e)', fontFamily: MONO, background: 'rgba(200,150,62,0.12)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 5, padding: '1px 7px', flexShrink: 0 }}>PID {r.pid}</span>
+                    {phone && r.provider && <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, flexShrink: 0 }}>{r.provider}</span>}
                     {r.prop && r.prop.name && <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.prop.name}</span>}
                   </div>
                 </div>
@@ -143,10 +147,10 @@ export default function PropertyUtilitiesOverview() {
       <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
       <div style={s.page}>
         <header style={s.header}>
-          <button style={s.backBtn} onClick={() => navigate('/dashboard')}>
+          <button style={s.backBtn} onClick={() => navigate('/')}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
-          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: SANS }}>Utilities</span>
+          <span className="pulse-title" style={{ fontSize: 15.5 }}>Utilities</span>
           <div style={{ width: 36 }} />
         </header>
 
@@ -156,18 +160,20 @@ export default function PropertyUtilitiesOverview() {
           ) : (
             <>
               {/* KPIs */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: phone ? '1fr 1fr' : 'repeat(auto-fit, minmax(108px, 1fr))', gap: 10, marginBottom: 16 }}>
                 <Kpi label="Spend / mo" value={money(kpi.monthly)} color="var(--accent, #c8963e)" />
                 <Kpi label="Per year" value={money(kpi.monthly * 12)} color="var(--text-dim, #9394a8)" />
                 <Kpi label="Active" value={kpi.active} color="var(--text, #e8e8f0)" />
                 <Kpi label="Properties" value={kpi.props} color="var(--text, #e8e8f0)" />
-                <Kpi label="New" sub="this mo" value={kpi.thisMonth} color="var(--green, #3dba7a)" />
+                <Kpi label="New" sub="this mo" value={kpi.thisMonth} color="var(--green, #3dba7a)" span={phone} />
               </div>
 
               {/* Tabs */}
-              <div style={{ display: 'inline-flex', gap: 3, padding: 3, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, marginBottom: 16 }}>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
                 {[{ k: 'list', l: 'Utilities' }, { k: 'months', l: 'By month' }].map(t => (
-                  <button key={t.k} onClick={() => setTab(t.k)} style={{ padding: '8px 18px', fontSize: 13, fontWeight: tab === t.k ? 700 : 500, border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: SANS, background: tab === t.k ? 'var(--bg-input, #252731)' : 'transparent', color: tab === t.k ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', boxShadow: tab === t.k ? 'inset 0 0 0 1px var(--border, #2e3040)' : 'none' }}>{t.l}</button>
+                  <button key={t.k} onClick={() => setTab(t.k)} aria-pressed={tab === t.k}
+                    className={`tct tct-bare${tab === t.k ? ' is-on' : ''}`}
+                    style={{ padding: '10px 18px', fontSize: 12.5, lineHeight: 1, flex: narrow ? 1 : '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{t.l}</button>
                 ))}
               </div>
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import LogoSpinner from '../components/LogoSpinner'
 import {
@@ -77,6 +78,7 @@ const toForm = (record) => {
 }
 
 function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
+  const phone = useIsMobile(640)
   const [form, setForm] = useState(() => toForm(record))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -115,7 +117,9 @@ function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
           {picker.map(t => {
             const on = form.utility_type === t.key
             return (
-              <button key={t.key} onClick={() => set('utility_type', t.key)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 9, fontSize: 13, cursor: 'pointer', fontFamily: SANS, background: on ? `${t.color}1e` : 'var(--bg-input, #252731)', border: `1px solid ${on ? t.color : 'var(--border, #2e3040)'}`, color: on ? t.color : 'var(--text-dim, #9394a8)', fontWeight: on ? 600 : 400 }}>
+              <button key={t.key} onClick={() => set('utility_type', t.key)} aria-pressed={on}
+                className={`tct tct-bare${on ? ' is-on' : ''}`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 14px', fontSize: 12.5, lineHeight: 1 }}>
                 <span>{t.icon}</span>{t.label}
               </button>
             )
@@ -127,7 +131,7 @@ function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
         <Labeled label="Utility name"><input style={inputStyle} value={form.custom_type} onChange={e => set('custom_type', e.target.value)} placeholder="e.g. Newspaper, Milk delivery" autoFocus /></Labeled>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: phone ? '1fr' : '1fr 1fr', gap: 12 }}>
         <Labeled label="Provider"><input style={inputStyle} value={form.provider} onChange={e => set('provider', e.target.value)} placeholder="ACT, DrinkPrime…" /></Labeled>
         <Labeled label="Plan"><input style={inputStyle} value={form.plan_type} onChange={e => set('plan_type', e.target.value)} placeholder="150 Mbps / rental…" /></Labeled>
         <Labeled label="Account / consumer no."><input style={inputStyle} value={form.account_number} onChange={e => set('account_number', e.target.value)} placeholder="Account number" /></Labeled>
@@ -151,6 +155,7 @@ function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
 
 // ── log a recharge (+ history) ────────────────────────────────────────────────
 function RechargeSheet({ utility, userEmail, onClose, onSaved }) {
+  const phone = useIsMobile(640)
   const [history, setHistory] = useState(null)
   const [date, setDate] = useState(todayISO)
   const [amount, setAmount] = useState(utility.billing_amount ?? '')
@@ -176,7 +181,7 @@ function RechargeSheet({ utility, userEmail, onClose, onSaved }) {
 
   return (
     <Sheet title="Log a recharge" subtitle={`${typeLabel(utility)}${utility.provider ? ' · ' + utility.provider : ''}`} onClose={onClose}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: phone ? '1fr' : '1fr 1fr', gap: 12 }}>
         <Labeled label="Recharged on"><input style={inputStyle} type="date" max={todayISO()} value={date} onChange={e => setDate(e.target.value)} /></Labeled>
         <Labeled label="Amount (₹)"><input style={inputStyle} type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" /></Labeled>
         <Labeled label="Note" span><input style={inputStyle} value={note} onChange={e => setNote(e.target.value)} placeholder="Optional — reference, next-due tweak…" /></Labeled>

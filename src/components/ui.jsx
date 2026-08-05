@@ -1,5 +1,7 @@
 // ─── Shared UI primitives — Dark Terminal Theme ────────────────────────────
 
+import { useIsMobile } from '../hooks/useIsMobile'
+
 // ── Page shell ───────────────────────────────────────────────────────────────
 export function PageShell({ children }) {
   return (
@@ -561,6 +563,10 @@ export function Divider({ label }) {
 // button rather than a full-bleed slab, while still spanning the bar.
 export function TabBar({ tabs, active, onChange, counts, variant = 'fill' }) {
   const nav = variant === 'nav'
+  // On a phone an even split squashes long labels ("Onroll vendors") past their
+  // box; let them size to content and scroll the bar instead.
+  const narrow = useIsMobile(640)
+  const spread = !nav || !narrow
   return (
     <div style={{
       display: 'flex',
@@ -579,7 +585,7 @@ export function TabBar({ tabs, active, onChange, counts, variant = 'fill' }) {
           aria-selected={active === i}
           className="tct tct-bare"
           style={{
-            flex: 1,
+            flex: spread ? 1 : '0 0 auto',
             minWidth: nav ? 0 : 72,
             padding: nav ? '10px 12px' : '11px 8px',
             minHeight: nav ? 0 : 44,
