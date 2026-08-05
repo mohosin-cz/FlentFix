@@ -49,6 +49,32 @@ export function nextDueDate(baseStr, cycle) {
   return d
 }
 
+// Money actually billed in a calendar month. A utility is paid in full on its
+// base date (last recharge, else install) and again every cycle after, so a
+// payment lands in a month when the gap from the base is a whole number of
+// cycles. This is real outgoings — unlike monthlyCost below, which spreads a
+// yearly bill across twelve months and never matches any single month.
+export function spendInMonth(rows, year, monthIdx) {
+  let total = 0, payments = 0, undated = 0
+  const byType = {}
+  for (const u of rows || []) {
+    if (!u || !LIVE_STATUSES.has(u.status)) continue
+    const cyc = CYCLE_MONTHS[u.billing_cycle]
+    const baseStr = u.last_recharged_on || u.start_date
+    if (!cyc || !baseStr || u.billing_amount == null) { undated++; continue }
+    const base = new Date(baseStr + 'T00:00:00')
+    if (isNaN(base)) { undated++; continue }
+    const diff = (year - base.getFullYear()) * 12 + (monthIdx - base.getMonth())
+    if (diff < 0 || diff % cyc !== 0) continue
+    const amt = Number(u.billing_amount)
+    total += amt; payments++
+    const k = u.utility_type
+    ;(byType[k] = byType[k] || { key: k, count: 0, spend: 0 })
+    byType[k].count++; byType[k].spend += amt
+  }
+  return { total, payments, undated, byType }
+}
+
 // monthly-equivalent cost of a live utility (0 for one-time / no amount / inactive)
 export function monthlyCost(u) {
   if (!u || !LIVE_STATUSES.has(u.status) || u.billing_amount == null) return 0
