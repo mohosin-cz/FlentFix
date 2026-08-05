@@ -227,6 +227,24 @@ const CSS = `
   .drw-scrim{display:block}
   .board,.dash{margin-right:0!important}
 }
+/* Phone. The dashboard was a fixed 4-column grid that could not shrink below
+   516px, pushing the whole page 126px sideways; the item table already scrolls
+   inside .grp-body, so this is what was breaking it. The hint bar goes too —
+   it lists keyboard shortcuts on a device with no keyboard, and it sat on top
+   of the last row. */
+@media(max-width:640px){
+  .cmd{flex-wrap:wrap;height:auto;padding:9px 12px;gap:8px}
+  .dash{grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px}
+  .board{padding:12px 12px 28px}
+  .card{padding:10px 11px;gap:7px}
+  .big,.condnum{font-size:19px}
+  .flagrow{flex-wrap:wrap;justify-content:flex-start;gap:3px 12px}
+  .legend{gap:6px 10px}
+  .hint{display:none}
+}
+@media(max-width:380px){
+  .dash{grid-template-columns:1fr}
+}
 @keyframes lb-spin{to{transform:rotate(360deg)}}
 .qchip{border:none;cursor:pointer;padding:0 6px;border-radius:4px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.04em;margin-left:5px;height:17px;display:inline-flex;align-items:center;vertical-align:middle;line-height:1;white-space:nowrap}
 .qchip-open{background:rgba(240,160,80,.18);color:#f0a050}
