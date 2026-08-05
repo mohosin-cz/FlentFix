@@ -7,8 +7,27 @@ const MONO = 'var(--font-mono, monospace)'
 const money = (n) => '₹' + Math.round(Number(n || 0)).toLocaleString('en-IN')
 const shortType = (k, label) => ({ water_purifier: 'Water', wifi: 'WiFi', maintenance: 'Maintenance' }[k] || label)
 
+// Last month's spend is an accrual, not a payment log: property_utility_recharges
+// is empty and last_recharged_on is unset on every row, so there is no record of
+// money actually leaving. What we can say honestly is what was running last
+// month — every utility live before this month started, at its monthly cost.
+// Anything installed this month is excluded, since it cost nothing last month.
+function lastMonthWindow() {
+  const now = new Date()
+  const firstOfThis = new Date(now.getFullYear(), now.getMonth(), 1)
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  return {
+    firstOfThisISO: `${firstOfThis.getFullYear()}-${String(firstOfThis.getMonth() + 1).padStart(2, '0')}-01`,
+    label: prev.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
+  }
+}
+
 function analyze(rows) {
   const monthly = rows.reduce((a, r) => a + monthlyCost(r), 0)
+  const { firstOfThisISO, label: lastMonthLabel } = lastMonthWindow()
+  const liveLastMonth = rows.filter(r => !r.start_date || r.start_date < firstOfThisISO)
+  const lastMonth = liveLastMonth.reduce((a, r) => a + monthlyCost(r), 0)
+  const startedThisMonth = rows.length - liveLastMonth.length
   const props = new Set(rows.map(r => r.pid)).size
 
   const byType = {}
@@ -32,6 +51,7 @@ function analyze(rows) {
 
   return {
     count: rows.length, props, monthly,
+    lastMonth, lastMonthLabel, startedThisMonth,
     typeList, providers,
     cycles: Object.entries(cycles).sort((a, b) => b[1] - a[1]),
     dueToday: rows.filter(r => r.due && r.due.days <= 0).length,
@@ -73,10 +93,25 @@ export default function UtilitiesAnalytics({ rows, onType, onDue }) {
 
       {/* Spend */}
       <Card title="Spend">
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-          <div><span style={{ fontSize: 27, fontWeight: 800, color: 'var(--accent, #c8963e)', fontFamily: MONO }}>{money(a.monthly)}</span><span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}> /mo</span></div>
-          <div style={{ marginLeft: 'auto', textAlign: 'right' }}><div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-dim, #9394a8)', fontFamily: MONO }}>{money(a.monthly * 12)}</div><div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>PER YEAR</div></div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 27, fontWeight: 800, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.1 }}>{money(a.lastMonth)}</div>
+            <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>
+              {a.lastMonthLabel} · last month
+            </div>
+          </div>
+          <div style={{ marginLeft: 'auto', textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-dim, #9394a8)', fontFamily: MONO }}>{money(a.monthly)}</div>
+            <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>RUNNING NOW /MO</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, marginTop: 6 }}>{money(a.monthly * 12)}</div>
+            <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>PER YEAR</div>
+          </div>
         </div>
+        {a.startedThisMonth > 0 && (
+          <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.5, marginTop: -4 }}>
+            {a.startedThisMonth} installed this month, so not in last month's total.
+          </div>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 2 }}>
           {a.typeList.map(t => (
             <button key={t.key} onClick={() => onType && onType(t.key)} style={{ display: 'flex', flexDirection: 'column', gap: 5, background: 'none', border: 'none', padding: 0, cursor: onType ? 'pointer' : 'default', textAlign: 'left' }}>
