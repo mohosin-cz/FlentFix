@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, Component } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, Component } from 'react'
 import { HIGH_VALUE_VIDEO_THRESHOLD, validateProofVideo } from '../utils/proofVideo'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -108,6 +108,14 @@ const CSS = `
 .flagrow{display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
 .flagrow .clay{color:var(--clay)}
 .board{padding:16px 22px 80px;transition:margin-right .16s}
+.findbar{display:flex;align-items:center;gap:9px;margin-bottom:14px;padding:0 11px;height:38px;background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--muted)}
+.findbar:focus-within{border-color:var(--gold)}
+.findbar input{flex:1;min-width:0;background:none;border:none;outline:none;color:var(--ink);font-size:13px;font-family:var(--sans)}
+.findbar input::placeholder{color:var(--faint)}
+.findbar .cnt{font-family:var(--mono);font-size:10.5px;color:var(--muted);white-space:nowrap;flex-shrink:0}
+.findbar .clr{background:none;border:none;color:var(--muted);font-size:16px;line-height:1;cursor:pointer;padding:0 2px;flex-shrink:0}
+.findbar .clr:hover{color:var(--ink)}
+.nores{padding:26px 14px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted);border:1px dashed var(--line2);border-radius:7px;margin-bottom:16px}
 .grp{margin-bottom:16px;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--panel)}
 .ghead{display:flex;align-items:center;justify-content:space-between;padding:13px 13px;min-height:48px;border-bottom:1px solid var(--line);cursor:pointer;border-left:3px solid var(--muted);touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .ghead:hover{background:rgba(255,255,255,.02)}
@@ -226,6 +234,24 @@ const CSS = `
 @media(max-width:1100px){
   .drw-scrim{display:block}
   .board,.dash{margin-right:0!important}
+}
+/* Phone. The dashboard was a fixed 4-column grid that could not shrink below
+   516px, pushing the whole page 126px sideways; the item table already scrolls
+   inside .grp-body, so this is what was breaking it. The hint bar goes too —
+   it lists keyboard shortcuts on a device with no keyboard, and it sat on top
+   of the last row. */
+@media(max-width:640px){
+  .cmd{flex-wrap:wrap;height:auto;padding:9px 12px;gap:8px}
+  .dash{grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px}
+  .board{padding:12px 12px 28px}
+  .card{padding:10px 11px;gap:7px}
+  .big,.condnum{font-size:19px}
+  .flagrow{flex-wrap:wrap;justify-content:flex-start;gap:3px 12px}
+  .legend{gap:6px 10px}
+  .hint{display:none}
+}
+@media(max-width:380px){
+  .dash{grid-template-columns:1fr}
 }
 @keyframes lb-spin{to{transform:rotate(360deg)}}
 .qchip{border:none;cursor:pointer;padding:0 6px;border-radius:4px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.04em;margin-left:5px;height:17px;display:inline-flex;align-items:center;vertical-align:middle;line-height:1;white-space:nowrap}
@@ -1473,9 +1499,23 @@ function EstimateWorkbenchInner() {
 
   // ── Derived ───────────────────────────────────────────────────────────────────
 
+  const [query, setQuery] = useState('')
+
+  // Search across the fields someone would actually recall: what it is, where
+  // it is, what was found, what we plan to do, and the trade.
+  const needle = query.trim().toLowerCase()
+  const matchesQuery = useCallback((it) => {
+    if (!needle) return true
+    return [it.item_name, it.area, it.issue_description, it.action, it.trade]
+      .some(f => (f || '').toLowerCase().includes(needle))
+  }, [needle])
+
+  const totalCount = useMemo(() => items.filter(i => i.status !== 'removed').length, [items])
+  const matchCount = useMemo(() => items.filter(i => i.status !== 'removed' && matchesQuery(i)).length, [items, matchesQuery])
+
   const navigable = useMemo(() =>
-    items.filter(i => i.status !== 'removed').sort((a,b) => (a.sort_order||0)-(b.sort_order||0))
-  , [items])
+    items.filter(i => i.status !== 'removed' && matchesQuery(i)).sort((a,b) => (a.sort_order||0)-(b.sort_order||0))
+  , [items, matchesQuery])
 
   const drawerItem = useMemo(() =>
     pinnedId ? items.find(i => i.id === pinnedId) || null : null
@@ -1487,7 +1527,7 @@ function EstimateWorkbenchInner() {
 
   const tradeGroups = useMemo(() => {
     const map = {}
-    for (const item of items) {
+    for (const item of items.filter(matchesQuery)) {
       const t = item.trade || ''
       if (!map[t]) map[t] = []
       map[t].push(item)
@@ -1497,7 +1537,7 @@ function EstimateWorkbenchInner() {
       rows: [...rows].sort((a,b) => (a.sort_order||0)-(b.sort_order||0)),
       subtotal: rows.filter(i => !['removed','excluded'].includes(i.status) && i.cost_type==='priced').reduce((s,i) => s+itemTot(i), 0),
     }))
-  }, [items])
+  }, [items, matchesQuery])
 
   const panelOpen = pinnedId !== null
 
@@ -1694,6 +1734,26 @@ function EstimateWorkbenchInner() {
 
         {/* Board */}
         <main className="board">
+          <div className="findbar">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.6" />
+              <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape' && query) { e.stopPropagation(); setQuery('') } }}
+              placeholder="Find an item — name, area, finding, remedy, trade"
+              aria-label="Find an item"
+            />
+            {needle
+              ? <><span className="cnt">{matchCount} of {totalCount}</span>
+                  <button className="clr" onClick={() => setQuery('')} aria-label="Clear search">×</button></>
+              : <span className="cnt">{totalCount} items</span>}
+          </div>
+          {needle && matchCount === 0 && (
+            <div className="nores">Nothing matches “{query.trim()}”.</div>
+          )}
           {tradeGroups.map(({ trade, rows, subtotal }) => {
             const color = tc(trade)
             const isCollapsed = collapsed.has(trade)
@@ -1787,7 +1847,7 @@ function EstimateWorkbenchInner() {
                               else moveAcrossTrade(fId, dT)
                               dragRef.current = null; setDragOverId(null); setDragOverTrade(null)
                             }}>
-                            <div className="hnd" draggable
+                            <div className="hnd" draggable={!needle}
                               onDragStart={e => { e.stopPropagation(); dragRef.current = { itemId: item.id, trade: item.trade || '' }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', item.id) }}
                               onDragEnd={() => { dragRef.current = null; setDragOverId(null); setDragOverTrade(null) }}>⠿</div>
                             <div><ScoreChip score={score} /></div>
