@@ -213,15 +213,26 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
         .from('inspections').select('id, created_at').eq('pid', pid).order('created_at', { ascending: false })
       if (iErr) throw iErr
 
-      // the newest inspection that actually carries line items
+      // One query for every inspection's items, grouped here, rather than a
+      // probe per inspection in series.
       let active = null, rows = []
-      for (const insp of insps || []) {
-        const { data: probe, error: pErr } = await supabase
+      const inspIds = (insps || []).map(i => i.id)
+      if (inspIds.length) {
+        const { data: allRows, error: liErr } = await supabase
           .from('inspection_line_items')
-          .select('id, area, item_name, trade, issue_description, action, material_description, qty')
-          .eq('inspection_id', insp.id)
-        if (pErr) throw pErr
-        if (probe?.length) { active = insp; rows = probe; break }
+          .select('id, inspection_id, area, item_name, trade, issue_description, action, material_description, qty')
+          .in('inspection_id', inspIds)
+        if (liErr) throw liErr
+        const byInspection = new Map()
+        for (const r of allRows || []) {
+          if (!byInspection.has(r.inspection_id)) byInspection.set(r.inspection_id, [])
+          byInspection.get(r.inspection_id).push(r)
+        }
+        // insps is newest-first, so the first with any items is the active one
+        for (const insp of insps) {
+          const got = byInspection.get(insp.id)
+          if (got?.length) { active = insp; rows = got; break }
+        }
       }
       setInspectionId(active?.id || null)
 
@@ -293,11 +304,26 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
       }))
   }, [lineItems])
 
+  // Uniqueness is (pid, trade, inspection_id), so a property with two
+  // inspections can hold two work orders for the same trade. Keying on trade
+  // alone let one hide the other — invisible in the UI but still tripping the
+  // index, so creating produced a constraint error about an unseeable row.
   const orderByTrade = useMemo(() => {
     const m = {}
-    for (const w of orders) if (!m[w.trade]) m[w.trade] = w
+    for (const w of orders) {
+      if (w.inspection_id !== inspectionId) continue
+      const cur = m[w.trade]
+      if (!cur || new Date(w.created_at) > new Date(cur.created_at)) m[w.trade] = w
+    }
     return m
-  }, [orders])
+  }, [orders, inspectionId])
+
+  // Orders from an earlier inspection are still real and still occupy the
+  // index; say so rather than dropping them on the floor.
+  const strandedOrders = useMemo(
+    () => orders.filter(w => w.inspection_id !== inspectionId),
+    [orders, inspectionId],
+  )
 
   const setErrFor = (trade, msg) => setRowErr(p => ({ ...p, [trade]: msg }))
 
@@ -404,6 +430,13 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
           </span>
         )}
       </div>
+
+      {!loading && !error && strandedOrders.length > 0 && (
+        <div style={{ padding: '10px 12px', background: 'rgba(200,150,62,0.09)', border: '1px solid rgba(200,150,62,0.30)', borderRadius: 9, fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.55 }}>
+          {strandedOrders.length} work order{strandedOrders.length === 1 ? '' : 's'} on this property belong{strandedOrders.length === 1 ? 's' : ''} to an earlier inspection
+          {' '}({[...new Set(strandedOrders.map(w => tradeLabel(w.trade)))].join(', ')}) and {strandedOrders.length === 1 ? 'is' : 'are'} not shown below.
+        </div>
+      )}
 
       {loading && <div style={{ padding: '20px 0', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Loading…</div>}
 

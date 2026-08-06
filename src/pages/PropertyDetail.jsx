@@ -759,7 +759,7 @@ export default function PropertyDetail() {
               )
             })()}
 
-                        {/* Stage action buttons — desktop only (mobile shows in pipeline card) */}
+            {/* Stage action buttons — desktop only (mobile shows in pipeline card) */}
             {!isMobile && getStageActions().length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
                 {getStageActions().map(action => (
