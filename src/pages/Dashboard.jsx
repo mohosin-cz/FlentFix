@@ -260,6 +260,23 @@ const QUICK_ACTIONS = [
   { icon: '⚙', label: 'SOPs',           path: '/sops' },
 ]
 
+// A stat with a `to` is a way in, not just a number.
+function StatTile({ stat, onGo, pad, numStyle, labelStyle }) {
+  const inner = (
+    <>
+      <div style={numStyle}>{String(stat.n ?? '—')}</div>
+      <div style={labelStyle}>{stat.label}{stat.to ? ' →' : ''}</div>
+    </>
+  )
+  if (!stat.to) return <div style={{ padding: pad, background: 'var(--bg-panel, #1e2028)' }}>{inner}</div>
+  return (
+    <button type="button" onClick={() => onGo(stat.to)}
+      style={{ padding: pad, background: 'var(--bg-panel, #1e2028)', border: 'none', textAlign: 'left', width: '100%', cursor: 'pointer', font: 'inherit', color: 'inherit' }}>
+      {inner}
+    </button>
+  )
+}
+
 const FEED_COLORS = { inspection: '#c8963e', purchase: '#3dba7a', property: '#6b8de6' }
 
 // ─── Dashboard ─────────────────────────────────────────────────────────────────
@@ -275,7 +292,7 @@ export default function Dashboard() {
   const [latestEstByPid,  setLatestEstByPid]  = useState({})
   const [disputesByEstId, setDisputesByEstId] = useState({})
   const [draftMap,        setDraftMap]        = useState({})
-  const [stats,           setStats]           = useState({ inspMonth: '—', activeProps: '—', invValue: '—' })
+  const [stats,           setStats]           = useState({ inspMonth: '—', activeProps: '—', invValue: '—', openWorkOrders: '—' })
   const [activity,        setActivity]        = useState([])
   const [loading,         setLoading]         = useState(true)
   const [loadError,       setLoadError]       = useState(null)
@@ -339,10 +356,15 @@ export default function Dashboard() {
       const invRes        = await supabase.from('inventory_registry').select('total_amount')
       const invTotal      = (invRes.data || []).reduce((s, r) => s + (r.total_amount || 0), 0)
 
+      // anything not finished: issued, being worked, or waiting on us to verify
+      const woRes  = await supabase.from('work_orders').select('status')
+      const woOpen = (woRes.data || []).filter(w => w.status !== 'verified').length
+
       setStats({
         inspMonth:   inspThisMonth,
         activeProps: props.length,
         invValue:    invTotal ? `₹${invTotal.toLocaleString('en-IN')}` : '₹0',
+        openWorkOrders: woRes.error ? '—' : woOpen,
       })
 
       // Activity feed (parallel)
@@ -392,7 +414,7 @@ export default function Dashboard() {
   const STATS = [
     { n: stats.inspMonth,   label: 'Inspections this month' },
     { n: stats.activeProps, label: 'Active properties' },
-    { n: 0,                 label: 'Open work orders' },
+    { n: stats.openWorkOrders, label: 'Open work orders', to: '/work-order' },
     { n: stats.invValue,    label: 'Inventory value' },
   ]
 
@@ -443,10 +465,9 @@ export default function Dashboard() {
           {/* Mobile stats 2×2 */}
           <div className="mob-stats" style={{ display: 'none', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border, #2e3040)', borderRadius: 12, overflow: 'hidden', gridColumn: '1 / -1' }}>
             {STATS.map(stat => (
-              <div key={stat.label} style={{ padding: 16, background: 'var(--bg-panel, #1e2028)' }}>
-                <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{String(stat.n ?? '—')}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 4 }}>{stat.label}</div>
-              </div>
+              <StatTile key={stat.label} stat={stat} onGo={navigate} pad={16}
+                numStyle={{ fontSize: 28, fontWeight: 700, lineHeight: 1, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}
+                labelStyle={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 4 }} />
             ))}
           </div>
 
@@ -586,10 +607,8 @@ export default function Dashboard() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
                   {STATS.map(stat => (
-                    <div key={stat.label} style={{ padding: '14px 16px', background: 'var(--bg-panel, #1e2028)' }}>
-                      <div style={{ ...s.statNum, fontSize: 20 }}>{String(stat.n ?? '—')}</div>
-                      <div style={{ ...s.statLabel, marginTop: 4 }}>{stat.label}</div>
-                    </div>
+                    <StatTile key={stat.label} stat={stat} onGo={navigate} pad={'14px 16px'}
+                      numStyle={{ ...s.statNum, fontSize: 20 }} labelStyle={{ ...s.statLabel, marginTop: 4 }} />
                   ))}
                 </div>
               </div>

@@ -4,7 +4,9 @@ import { supabase } from '../lib/supabase'
 // "Not available" WITH a cost (install price) IS work and passes through.
 const OBSERVATION_RE = /^(functional|ok|working|fine|good|checked|n\/a|not\s+avail(able)?|no\s+issue|no\s+defect|no\s+problem|okay|no\s+defects?)$/i
 
-function belongsInEstimate(item) {
+// Exported so work orders scope to exactly what the estimate counts as work.
+// Two rules that must not drift apart.
+export function belongsInEstimate(item) {
   if (item.excluded_from_estimate === true) return false
   const hasCost = (parseFloat(item.material_cost) || 0) + (parseFloat(item.labour_cost) || 0) > 0
   if (hasCost) return true // "not available" WITH install cost IS work — include

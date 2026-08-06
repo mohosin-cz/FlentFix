@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
+import { belongsInEstimate } from '../../utils/generateEstimate'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
 const MONO = 'var(--font-mono, monospace)'
@@ -360,6 +361,7 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
   const [error, setError] = useState('')
   const [loaded, setLoaded] = useState(false)      // a successful read happened
   const [lineItems, setLineItems] = useState([])
+  const [observations, setObservations] = useState(0)
   const [inspectionId, setInspectionId] = useState(null)
   const [orders, setOrders] = useState([])
   const [vendors, setVendors] = useState([])
@@ -390,7 +392,7 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
       if (inspIds.length) {
         const { data: allRows, error: liErr } = await supabase
           .from('inspection_line_items')
-          .select('id, inspection_id, area, item_name, trade, issue_description, action, material_description, qty')
+          .select('id, inspection_id, area, item_name, trade, issue_description, action, material_description, qty, material_cost, labour_cost, excluded_from_estimate')
           .in('inspection_id', inspIds)
         if (liErr) throw liErr
         const byInspection = new Map()
@@ -419,7 +421,13 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
         if (m.is_proof_video || m.type === 'video') continue
         if (!firstPhoto[m.line_item_id]) firstPhoto[m.line_item_id] = m.url
       }
-      setLineItems(rows.map(r => ({ ...r, _photo: firstPhoto[r.id] || null })))
+      // Scope to what the estimate treats as work. An inspection records
+      // "Functional" and "Not available" as findings; sending those to a vendor
+      // buries the real jobs among them. Same rule as the estimate so the two
+      // never disagree — and it knows "Not available" WITH a cost is an install.
+      const withPhoto = rows.map(r => ({ ...r, _photo: firstPhoto[r.id] || null }))
+      setLineItems(withPhoto.filter(belongsInEstimate))
+      setObservations(withPhoto.length - withPhoto.filter(belongsInEstimate).length)
 
       const [{ data: wos, error: wErr }, { data: vends, error: vErr }, { data: acts, error: aErr }] = await Promise.all([
         supabase.from('work_orders').select('*, work_order_items(id, area, description, fix_type, material, quantity, status, sort_order, dispute_count, dispute_reason, vendor_note, verified_at, verified_by)')
@@ -487,6 +495,18 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
   // inspections can hold two work orders for the same trade. Keying on trade
   // alone let one hide the other — invisible in the UI but still tripping the
   // index, so creating produced a constraint error about an unseeable row.
+  // Filtering the source can empty a trade that already has a work order. The
+  // order still exists and still holds its snapshot, so keep a card for it
+  // rather than letting it disappear with the group.
+  const groupsWithOrders = useMemo(() => {
+    const seen = new Set(groups.map(g => g.trade))
+    const extra = orders
+      .filter(w => w.inspection_id === inspectionId && !seen.has(w.trade))
+      .map(w => ({ trade: w.trade, items: [] }))
+    return [...groups, ...extra].sort(
+      (a, b) => TRADE_ORDER.indexOf(a.trade) - TRADE_ORDER.indexOf(b.trade))
+  }, [groups, orders, inspectionId])
+
   const orderByTrade = useMemo(() => {
     const m = {}
     for (const w of orders) {
@@ -558,6 +578,13 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
         patch.status = 'assigned'
         patch.issued_at = new Date().toISOString()
         patch.issued_by = userEmail
+      } else if (!v && wo.status === 'assigned') {
+        // Taking the vendor off has to undo the issue too, or the card keeps
+        // reading ASSIGNED with nobody on it. Only from 'assigned' — once the
+        // vendor has started, un-picking them is not a state we can rewind.
+        patch.status = 'draft'
+        patch.issued_at = null
+        patch.issued_by = null
       }
       const { error: e } = await supabase.from('work_orders').update(patch).eq('id', wo.id)
       if (e) throw e
@@ -629,9 +656,10 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
     <section style={{ marginTop: heading ? 20 : 8, display: 'flex', flexDirection: 'column', gap: 11, fontFamily: SANS }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {heading && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, letterSpacing: '0.09em', textTransform: 'uppercase' }}>{heading}</span>}
-        {loaded && groups.length > 0 && (
+        {loaded && groupsWithOrders.length > 0 && (
           <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
-            {groups.length} trade{groups.length === 1 ? '' : 's'} · {lineItems.length} items
+            {groupsWithOrders.length} trade{groupsWithOrders.length === 1 ? '' : 's'} · {lineItems.length} items
+            {observations > 0 ? ` · ${observations} observation${observations === 1 ? '' : 's'} not sent` : ''}
           </span>
         )}
       </div>
@@ -647,7 +675,7 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
 
       {!loading && error && <ErrStrip onRetry={load}>Couldn’t load work orders: {error}</ErrStrip>}
 
-      {!loading && !error && loaded && groups.length === 0 && (
+      {!loading && !error && loaded && groupsWithOrders.length === 0 && (
         <div style={{ padding: '28px 18px', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 11, textAlign: 'center' }}>
           <div style={{ fontSize: 13, color: 'var(--text, #e8e8f0)', fontWeight: 600 }}>No inspection items to schedule</div>
           <div style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', marginTop: 4, fontFamily: MONO }}>
@@ -656,7 +684,7 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
         </div>
       )}
 
-      {!loading && !error && [...groups].sort((a, b) => {
+      {!loading && !error && [...groupsWithOrders].sort((a, b) => {
         const q = (g) => (orderByTrade[g.trade]?.items || []).some(i => i.status === 'vendor_closed') ? 0 : 1
         return q(a) - q(b)
       }).map(g => (
