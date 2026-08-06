@@ -23,6 +23,14 @@ export default function PropertyWorkOrders() {
           <div className="pulse-title" style={{ fontSize: 15.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Work orders</div>
           <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 1 }}>PID {pid}</div>
         </div>
+        <button onClick={() => navigate(`/properties/${pid}/work-orders/report`)}
+          title="Cost, time and vendors across every trade on this property"
+          style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 38, padding: '0 13px', borderRadius: 9, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: MONO, flexShrink: 0 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M3 3v18h18" /><path d="M7 15l4-5 4 3 5-7" />
+          </svg>
+          Report
+        </button>
       </header>
 
       <main style={{ flex: 1, width: '100%', maxWidth: 860, margin: '0 auto', padding: '4px 16px calc(90px + env(safe-area-inset-bottom))', boxSizing: 'border-box' }}>

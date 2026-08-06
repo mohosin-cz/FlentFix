@@ -29,6 +29,7 @@ import PublicRateCard from './pages/inventory/PublicRateCard'
 import PurchaseHistory from './pages/inventory/PurchaseHistory'
 import EstimateWorkspace from './pages/EstimateWorkspace'
 import PropertyWorkOrders from './pages/PropertyWorkOrders'
+import WorkOrderReport from './pages/WorkOrderReport'
 import VendorWorkOrder from './pages/VendorWorkOrder'
 import LandlordEstimate from './pages/LandlordEstimate'
 import TaxInvoice from './pages/TaxInvoice'
@@ -163,6 +164,7 @@ export default function App() {
           <Route path="/properties/:pid/utilities" element={<ProtectedRoute><PropertyUtilities /></ProtectedRoute>} />
           <Route path="/properties/:pid/raw" element={<ProtectedRoute><RawInspectionData /></ProtectedRoute>} />
           <Route path="/properties/:pid/work-orders" element={<ProtectedRoute><PropertyWorkOrders /></ProtectedRoute>} />
+          <Route path="/properties/:pid/work-orders/report" element={<ProtectedRoute><WorkOrderReport /></ProtectedRoute>} />
           <Route path="/properties/:pid/estimates" element={<ProtectedRoute><EstimateWorkspace /></ProtectedRoute>} />
           <Route path="/tax-invoice/:id" element={<ProtectedRoute><TaxInvoice /></ProtectedRoute>} />
           <Route path="/inspections/:inspectionId/raw" element={<ProtectedRoute><RawInspectionData /></ProtectedRoute>} />
