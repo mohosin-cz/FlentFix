@@ -1,20 +1,30 @@
 import imageCompression from 'browser-image-compression'
 import { supabase } from '../lib/supabase'
 
-// Shared vocabulary and parsing for property spend logging. Categories are
-// stored as free text so a new one never needs a migration; this list is what
-// the UI offers, ordered by how often setup actually spends on it.
-export const CATEGORIES = [
-  'Materials',
-  'Labour',
+// A payment has two independent axes, not one mixed list:
+//   kind   — what the money bought: material, labour, or both on one invoice
+//   trade  — what work it was for
+// Mixing them ("Materials" next to "Cleaning") makes both unanswerable: you
+// can no longer ask what the plumbing cost, or what went on materials overall.
+
+export const KINDS = ['Material', 'Labour', 'Both']
+
+// The vendor roster's own vocabulary, plus the non-trade heads that setup
+// still spends on. Stored as free text so a new one never needs a migration.
+export const TRADES = [
+  'Carpenter',
+  'Electrician',
+  'Plumber',
+  'Painter',
+  'Cleaner',
+  'Pest control',
+  'Civil / masonry',
   'Appliances',
   'Furniture',
-  'Cleaning',
-  'Pest control',
-  'Utilities',
-  'Society & deposits',
+  'Supervisor',
+  'General help',
   'Transport',
-  'Permits',
+  'Society & deposits',
   'Other',
 ]
 
@@ -98,6 +108,24 @@ function iso(y, m, d) {
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }
 
+// Sheets spell the kind a dozen ways. Anything unrecognised falls through to
+// the importer's default rather than silently becoming Material.
+export function normaliseKind(raw) {
+  const s = String(raw ?? '').trim().toLowerCase()
+  if (!s) return null
+  if (/^(both|mixed|material\s*\+\s*labour|labour\s*\+\s*material|m\s*&\s*l)/.test(s)) return 'Both'
+  if (/^(lab|labour|labor|work|workmanship|service|wages)/.test(s)) return 'Labour'
+  if (/^(mat|material|materials|goods|supply|supplies|purchase)/.test(s)) return 'Material'
+  return null
+}
+
+export function normaliseTrade(raw) {
+  const s = String(raw ?? '').trim()
+  if (!s) return null
+  const hit = TRADES.find(t => t.toLowerCase() === s.toLowerCase())
+  return hit || s          // keep whatever they wrote; the list is only a suggestion
+}
+
 // A CSV parser that survives quoted fields containing commas, newlines and
 // escaped quotes — which is most real exports. Returns rows of raw strings.
 export function parseCSV(text) {
@@ -136,31 +164,39 @@ export function parseCSV(text) {
 const FIELD_HINTS = {
   paid_on: ['date', 'paid on', 'paid_on', 'payment date', 'txn date', 'day'],
   amount: ['amount', 'total', 'paid', 'value', 'sum', 'amt'],
-  category: ['category', 'type', 'head', 'expense type'],
-  payee_name: ['vendor', 'payee', 'paid to', 'supplier', 'shop', 'name', 'party'],
-  material_cost: ['material', 'material cost', 'materials'],
-  labour_cost: ['labour', 'labor', 'labour cost', 'labor cost'],
+  kind: ['kind', 'type', 'material or labour', 'expense type', 'head'],
+  trade: ['trade', 'category', 'work', 'service', 'department'],
+  description: ['description', 'particulars', 'details', 'item', 'work done', 'for'],
+  payee_name: ['vendor', 'payee', 'paid to', 'supplier', 'shop', 'party'],
+  material_cost: ['material cost', 'material amount', 'material', 'materials'],
+  labour_cost: ['labour cost', 'labor cost', 'labour amount', 'labour', 'labor'],
   method: ['method', 'mode', 'payment mode', 'paid via'],
-  reference: ['reference', 'ref', 'txn', 'transaction', 'utr', 'cheque'],
-  note: ['note', 'notes', 'remark', 'remarks', 'description', 'details'],
-  pid: ['pid', 'property', 'property id', 'flat'],
+  reference: ['reference', 'ref', 'txn', 'transaction', 'utr', 'cheque', 'invoice no', 'bill no'],
+  note: ['note', 'notes', 'remark', 'remarks', 'comment'],
 }
 
 export function guessMapping(headers) {
   const map = {}
   const used = new Set()
-  for (const [field, hints] of Object.entries(FIELD_HINTS)) {
-    const idx = headers.findIndex((h, i) => {
-      if (used.has(i)) return false
-      const clean = String(h || '').trim().toLowerCase()
-      return hints.some(hint => clean === hint) || hints.some(hint => clean.includes(hint))
-    })
-    if (idx >= 0) { map[field] = idx; used.add(idx) }
+  // exact matches first, so "Material cost" does not get claimed by the looser
+  // "material" hint belonging to a different field
+  for (const pass of ['exact', 'loose']) {
+    for (const [field, hints] of Object.entries(FIELD_HINTS)) {
+      if (map[field] != null) continue
+      const idx = headers.findIndex((h, i) => {
+        if (used.has(i)) return false
+        const clean = String(h || '').trim().toLowerCase()
+        return pass === 'exact'
+          ? hints.some(hint => clean === hint)
+          : hints.some(hint => clean.includes(hint))
+      })
+      if (idx >= 0) { map[field] = idx; used.add(idx) }
+    }
   }
   return map
 }
 
-// Bills are receipts photographed on a phone. Compress images; leave PDFs alone.
+// Invoices are photographed on a phone. Compress images; leave PDFs alone.
 export async function uploadBill(file, pid) {
   let toUpload = file
   if (file.type?.startsWith('image/')) {
@@ -170,7 +206,7 @@ export async function uploadBill(file, pid) {
         fileType: 'image/webp', initialQuality: 0.82,
       })
     } catch {
-      toUpload = file            // a bill that uploads large beats one that doesn't upload
+      toUpload = file            // an invoice that uploads large beats one that doesn't upload
     }
   }
   const ext = toUpload.type === 'image/webp' ? 'webp' : (file.name.split('.').pop() || 'bin')

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useIsMobile'
 import PaymentSheet from '../components/property/PaymentSheet'
-import { CATEGORIES, inr, fmtDayShort, billUrl } from '../utils/payments'
+import { TRADES, KINDS, inr, fmtDayShort, billUrl } from '../utils/payments'
 
 // Everything spent on a property during setup, and what it adds up to.
 
@@ -95,7 +95,8 @@ export default function PropertyPayments() {
   const [payees, setPayees] = useState([])
   const [estimate, setEstimate] = useState(0)
   const [sheet, setSheet] = useState(null)      // { editing } | {}
-  const [cat, setCat] = useState('all')
+  const [trade, setTrade] = useState('all')
+  const [kind, setKind] = useState('all')
   const [q, setQ] = useState('')
   const [toast, setToast] = useState(null)
 
@@ -143,14 +144,14 @@ export default function PropertyPayments() {
     const total = rows.reduce((n, r) => n + Number(r.amount || 0), 0)
     const material = rows.reduce((n, r) => n + Number(r.material_cost || 0), 0)
     const labour = rows.reduce((n, r) => n + Number(r.labour_cost || 0), 0)
-    const byCategory = Object.values(rows.reduce((m, r) => {
-      const k = r.category || 'Uncategorised'
+    const byTrade = Object.values(rows.reduce((m, r) => {
+      const k = r.trade || 'Untagged'
       ;(m[k] = m[k] || { key: k, total: 0, n: 0 }).total += Number(r.amount || 0)
       m[k].n++
       return m
     }, {})).sort((a, b) => b.total - a.total)
     const byPayee = Object.values(rows.reduce((m, r) => {
-      const k = r.payee_name || 'Unrecorded payee'
+      const k = r.payee_name || 'No vendor recorded'
       ;(m[k] = m[k] || { key: k, total: 0, n: 0 }).total += Number(r.amount || 0)
       m[k].n++
       return m
@@ -163,7 +164,7 @@ export default function PropertyPayments() {
     }, {})).sort((a, b) => a.key.localeCompare(b.key))
     const withBill = rows.filter(r => r.property_payment_bills?.length).length
     return {
-      total, material, labour, byCategory, byPayee, byMonth,
+      total, material, labour, byTrade, byPayee, byMonth,
       count: rows.length,
       avg: rows.length ? total / rows.length : 0,
       withBill,
@@ -171,21 +172,22 @@ export default function PropertyPayments() {
     }
   }, [rows])
 
-  const recentCategories = useMemo(() => {
+  const recentTrades = useMemo(() => {
     const seen = []
-    for (const r of rows) if (r.category && !seen.includes(r.category)) seen.push(r.category)
+    for (const r of rows) if (r.trade && !seen.includes(r.trade)) seen.push(r.trade)
     return seen
   }, [rows])
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return rows.filter(r => {
-      if (cat !== 'all' && r.category !== cat) return false
+      if (trade !== 'all' && r.trade !== trade) return false
+      if (kind !== 'all' && r.kind !== kind) return false
       if (!needle) return true
-      return [r.payee_name, r.category, r.note, r.reference, String(r.amount)]
+      return [r.description, r.payee_name, r.trade, r.note, r.reference, String(r.amount)]
         .some(v => (v || '').toLowerCase().includes(needle))
     })
-  }, [rows, cat, q])
+  }, [rows, trade, kind, q])
 
   const shownTotal = shown.reduce((n, r) => n + Number(r.amount || 0), 0)
 
@@ -196,9 +198,9 @@ export default function PropertyPayments() {
     setToast({ text: `${inr(row.amount)} deleted` })
   }
 
-  const catsInUse = useMemo(
-    () => CATEGORIES.filter(c => rows.some(r => r.category === c))
-      .concat([...new Set(rows.map(r => r.category).filter(c => c && !CATEGORIES.includes(c)))]),
+  const tradesInUse = useMemo(
+    () => TRADES.filter(t => rows.some(r => r.trade === t))
+      .concat([...new Set(rows.map(r => r.trade).filter(t => t && !TRADES.includes(t)))]),
     [rows],
   )
 
@@ -260,8 +262,8 @@ export default function PropertyPayments() {
             </div>
 
             <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: 14, display: 'grid', gridTemplateColumns: phone ? '1fr' : '1fr 1fr', gap: 20 }}>
-              <Breakdown title="By category" rows={totals.byCategory} total={totals.total} empty="—" />
-              <Breakdown title="By payee" rows={totals.byPayee.slice(0, 8)} total={totals.total} empty="No payees recorded" />
+              <Breakdown title="By trade" rows={totals.byTrade} total={totals.total} empty="—" />
+              <Breakdown title="By vendor" rows={totals.byPayee.slice(0, 8)} total={totals.total} empty="No vendors recorded" />
               {totals.byMonth.length > 1 && (
                 <div style={{ gridColumn: phone ? 'auto' : '1 / -1' }}>
                   <Breakdown title="By month" rows={totals.byMonth.map(m => ({ ...m, key: monthLabel(m.key) }))} total={totals.total} empty="—" />
@@ -270,16 +272,21 @@ export default function PropertyPayments() {
             </div>
 
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search payee, note, amount…"
+              <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search description, vendor, amount…"
                 style={{ flex: 1, minWidth: 160, padding: '9px 11px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 9, outline: 'none', fontFamily: 'inherit' }} />
-              <select value={cat} onChange={e => setCat(e.target.value)} aria-label="Filter by category"
+              <select value={kind} onChange={e => setKind(e.target.value)} aria-label="Filter by kind"
                 style={{ padding: '9px 10px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 9, outline: 'none', fontFamily: 'inherit', cursor: 'pointer' }}>
-                <option value="all">All categories</option>
-                {catsInUse.map(c => <option key={c} value={c}>{c}</option>)}
+                <option value="all">Material &amp; labour</option>
+                {KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+              </select>
+              <select value={trade} onChange={e => setTrade(e.target.value)} aria-label="Filter by trade"
+                style={{ padding: '9px 10px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 9, outline: 'none', fontFamily: 'inherit', cursor: 'pointer' }}>
+                <option value="all">All trades</option>
+                {tradesInUse.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
 
-            {(q || cat !== 'all') && (
+            {(q || trade !== 'all' || kind !== 'all') && (
               <div style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
                 {shown.length} of {rows.length} · {inr(shownTotal)}
               </div>
@@ -288,21 +295,26 @@ export default function PropertyPayments() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {shown.map(r => (
                 <div key={r.id} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 11, padding: '12px 14px' }}>
+                  {/* What it was, then how much. The description is what a
+                      person scans for; the number only means something once
+                      they have found the line. */}
                   <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 15, fontWeight: 700, fontFamily: MONO, flexShrink: 0 }}>{inr(r.amount)}</span>
-                    <span style={{ fontSize: 12.5, color: 'var(--text-dim, #9394a8)', flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
-                      {r.payee_name || <span style={{ color: 'var(--text-muted, #6b6d82)' }}>no payee</span>}
+                    <span style={{ fontSize: 13.5, color: 'var(--text, #e8e8f0)', flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
+                      {r.description || <span style={{ color: 'var(--text-muted, #6b6d82)' }}>no description</span>}
                     </span>
-                    <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, flexShrink: 0 }}>{fmtDayShort(r.paid_on)}</span>
+                    <span style={{ fontSize: 15, fontWeight: 700, fontFamily: MONO, flexShrink: 0 }}>{inr(r.amount)}</span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 7 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent, #c8963e)', border: '1px solid rgba(200,150,62,0.35)', background: 'rgba(200,150,62,0.08)', borderRadius: 6, padding: '2px 7px', fontFamily: MONO }}>{r.category}</span>
-                    {r.method && <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{r.method}</span>}
-                    {(r.material_cost != null || r.labour_cost != null) && (
+                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent, #c8963e)', border: '1px solid rgba(200,150,62,0.35)', background: 'rgba(200,150,62,0.08)', borderRadius: 6, padding: '2px 7px', fontFamily: MONO }}>{r.trade || 'untagged'}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-dim, #9394a8)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, padding: '2px 7px', fontFamily: MONO }}>{r.kind}</span>
+                    {r.payee_name && <span style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)' }}>{r.payee_name}</span>}
+                    <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{fmtDayShort(r.paid_on)}</span>
+                    {r.kind === 'Both' && (
                       <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
-                        {inr(r.material_cost || 0)} mat · {inr(r.labour_cost || 0)} lab
+                        {inr(r.material_cost || 0)} mat + {inr(r.labour_cost || 0)} lab
                       </span>
                     )}
+                    {r.method && <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{r.method}</span>}
                     {r.source === 'import' && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>imported</span>}
                     <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                       <button onClick={() => setSheet({ editing: r })}
@@ -345,7 +357,7 @@ export default function PropertyPayments() {
           pid={pid}
           payees={payees}
           editing={sheet.editing}
-          recentCategories={recentCategories}
+          recentTrades={recentTrades}
           onClose={() => setSheet(null)}
           onSaved={() => load({ silent: true })}
           onPayeeCreated={(p) => setPayees(prev => prev.some(x => x.id === p.id) ? prev : [...prev, p].sort((a, b) => a.name.localeCompare(b.name)))}

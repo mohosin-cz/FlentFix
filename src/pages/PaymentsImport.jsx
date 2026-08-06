@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { CATEGORIES, inr, cleanAmount, parseCSV, parseDateLoose, guessMapping, fmtDate } from '../utils/payments'
+import { KINDS, TRADES, inr, cleanAmount, parseCSV, parseDateLoose, guessMapping, fmtDate, normaliseKind, normaliseTrade } from '../utils/payments'
 
 // Bringing years of spend out of a spreadsheet. The rule throughout: never
 // write anything the person has not seen parsed back to them first. Every row
@@ -13,8 +13,10 @@ const MONO = 'var(--font-mono, monospace)'
 
 const FIELDS = [
   { key: 'paid_on', label: 'Date', required: true },
+  { key: 'description', label: 'Description' },
   { key: 'amount', label: 'Amount', required: true },
-  { key: 'category', label: 'Category' },
+  { key: 'kind', label: 'Material / labour' },
+  { key: 'trade', label: 'Trade' },
   { key: 'payee_name', label: 'Paid to' },
   { key: 'material_cost', label: 'Material ₹' },
   { key: 'labour_cost', label: 'Labour ₹' },
@@ -39,7 +41,8 @@ export default function PaymentsImport() {
   const [raw, setRaw] = useState('')
   const [hasHeader, setHasHeader] = useState(true)
   const [mapping, setMapping] = useState({})
-  const [defaultCategory, setDefaultCategory] = useState('Materials')
+  const [defaultKind, setDefaultKind] = useState('Material')
+  const [defaultTrade, setDefaultTrade] = useState('Other')
   const [touched, setTouched] = useState(false)
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState(null)
@@ -62,27 +65,35 @@ export default function PaymentsImport() {
       const dateRaw = get('paid_on')
       const amountRaw = get('amount')
       const paid_on = parseDateLoose(dateRaw)
-      const amount = cleanAmount(amountRaw)
+      const material_cost = cleanAmount(get('material_cost'))
+      const labour_cost = cleanAmount(get('labour_cost'))
+      // A row carrying both a material and a labour figure IS a Both payment,
+      // whatever its kind column says — and if it has no amount column, the
+      // two parts are the amount.
+      const bothParts = material_cost != null && labour_cost != null && material_cost > 0 && labour_cost > 0
+      const kind = bothParts ? 'Both' : (normaliseKind(get('kind')) || defaultKind)
+      const amount = cleanAmount(amountRaw) ?? ((material_cost || 0) + (labour_cost || 0) || null)
       const problems = []
       if (!dateRaw) problems.push('no date')
       else if (!paid_on) problems.push(`date “${dateRaw}” not understood`)
-      if (!amountRaw) problems.push('no amount')
-      else if (amount == null || amount <= 0) problems.push(`amount “${amountRaw}” not a number`)
+      if (amount == null || amount <= 0) problems.push(amountRaw ? `amount “${amountRaw}” not a number` : 'no amount')
       return {
         line: i + (hasHeader ? 2 : 1),
         paid_on,
         amount,
-        category: get('category') || defaultCategory,
+        kind,
+        trade: normaliseTrade(get('trade')) || defaultTrade,
+        description: get('description') || null,
         payee_name: get('payee_name') || null,
-        material_cost: cleanAmount(get('material_cost')),
-        labour_cost: cleanAmount(get('labour_cost')),
+        material_cost: kind === 'Both' ? material_cost : (kind === 'Material' ? (material_cost ?? amount) : null),
+        labour_cost: kind === 'Both' ? labour_cost : (kind === 'Labour' ? (labour_cost ?? amount) : null),
         method: get('method') || null,
         reference: get('reference') || null,
         note: get('note') || null,
         problems,
       }
     })
-  }, [body, mapping, hasHeader, defaultCategory])
+  }, [body, mapping, hasHeader, defaultKind, defaultTrade])
 
   const good = parsed.filter(r => !r.problems.length)
   const bad = parsed.filter(r => r.problems.length)
@@ -124,7 +135,9 @@ export default function PaymentsImport() {
       const payload = good.map(r => ({
         pid,
         paid_on: r.paid_on,
-        category: r.category,
+        kind: r.kind,
+        trade: r.trade,
+        description: r.description,
         payee_id: r.payee_name ? byName.get(r.payee_name.trim().toLowerCase()) || null : null,
         payee_name: r.payee_name,
         amount: r.amount,
@@ -216,7 +229,7 @@ export default function PaymentsImport() {
               <input type="file" accept=".csv,text/csv,text/plain" onChange={onFile}
                 style={{ ...box, padding: '9px 11px', fontSize: 12, cursor: 'pointer' }} />
               <textarea value={raw} onChange={e => { setRaw(e.target.value); setTouched(false); setResult(null) }} rows={5}
-                placeholder={'Date,Amount,Category,Vendor\n12/07/2026,12400,Materials,Sharma Hardware'}
+                placeholder={'Date,Description,Amount,Kind,Trade,Vendor\n12/07/2026,Bathroom tiles,12400,Material,Plumber,Sharma Hardware'}
                 style={{ ...box, fontFamily: MONO, fontSize: 12, resize: 'vertical' }} />
               {grid.length > 0 && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-dim, #9394a8)', cursor: 'pointer' }}>
@@ -248,11 +261,20 @@ export default function PaymentsImport() {
                   ))}
                   <div>
                     <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, display: 'block', marginBottom: 5 }}>
-                      Category if blank
+                      Kind if blank
                     </span>
-                    <select value={defaultCategory} onChange={e => setDefaultCategory(e.target.value)}
+                    <select value={defaultKind} onChange={e => setDefaultKind(e.target.value)}
                       style={{ ...box, padding: '8px 9px', fontSize: 12.5, cursor: 'pointer' }}>
-                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      {KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, display: 'block', marginBottom: 5 }}>
+                      Trade if blank
+                    </span>
+                    <select value={defaultTrade} onChange={e => setDefaultTrade(e.target.value)}
+                      style={{ ...box, padding: '8px 9px', fontSize: 12.5, cursor: 'pointer' }}>
+                      {TRADES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
                 </div>
@@ -304,8 +326,9 @@ export default function PaymentsImport() {
                       <thead>
                         <tr>
                           <th style={head}>Line</th><th style={head}>Date</th>
+                          <th style={head}>Description</th>
                           <th style={{ ...head, textAlign: 'right' }}>Amount</th>
-                          <th style={head}>Category</th><th style={head}>Paid to</th><th style={head}>Note</th>
+                          <th style={head}>Kind</th><th style={head}>Trade</th><th style={head}>Paid to</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -313,10 +336,11 @@ export default function PaymentsImport() {
                           <tr key={r.line} style={{ borderTop: '1px solid var(--border, #2e3040)', opacity: r.problems.length ? 0.45 : 1 }}>
                             <td style={{ ...cell, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{r.line}</td>
                             <td style={{ ...cell, fontFamily: MONO, color: r.paid_on ? 'var(--text, #e8e8f0)' : 'var(--red, #e05c6a)' }}>{r.paid_on ? fmtDate(r.paid_on) : '—'}</td>
+                            <td style={{ ...cell, whiteSpace: 'normal', maxWidth: 200 }}>{r.description || <span style={{ color: 'var(--text-muted, #6b6d82)' }}>—</span>}</td>
                             <td style={{ ...cell, textAlign: 'right', fontFamily: MONO, color: r.amount ? 'var(--text, #e8e8f0)' : 'var(--red, #e05c6a)' }}>{r.amount ? inr(r.amount) : '—'}</td>
-                            <td style={cell}>{r.category}</td>
+                            <td style={{ ...cell, fontFamily: MONO, fontSize: 10.5 }}>{r.kind}</td>
+                            <td style={cell}>{r.trade}</td>
                             <td style={cell}>{r.payee_name || <span style={{ color: 'var(--text-muted, #6b6d82)' }}>—</span>}</td>
-                            <td style={{ ...cell, whiteSpace: 'normal', maxWidth: 220, color: 'var(--text-muted, #6b6d82)' }}>{r.note || ''}</td>
                           </tr>
                         ))}
                       </tbody>
