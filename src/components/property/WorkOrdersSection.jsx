@@ -188,7 +188,7 @@ function TradeCard({ group, wo, vendors, busy, err, onCreate, onAssign, onDates,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export default function WorkOrdersSection({ pid }) {
+export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [loaded, setLoaded] = useState(false)      // a successful read happened
@@ -395,9 +395,9 @@ export default function WorkOrdersSection({ pid }) {
   }
 
   return (
-    <section style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 11, fontFamily: SANS }}>
+    <section style={{ marginTop: heading ? 20 : 8, display: 'flex', flexDirection: 'column', gap: 11, fontFamily: SANS }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, letterSpacing: '0.09em', textTransform: 'uppercase' }}>Work orders</span>
+        {heading && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, letterSpacing: '0.09em', textTransform: 'uppercase' }}>{heading}</span>}
         {loaded && groups.length > 0 && (
           <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
             {groups.length} trade{groups.length === 1 ? '' : 's'} · {lineItems.length} items
