@@ -50,6 +50,27 @@ function Kpi({ label, value, sub, tone }) {
   )
 }
 
+const STATUS_WORD = {
+  verified: 'Verified', vendor_completed: 'Awaiting verification',
+  in_progress: 'In progress', assigned: 'Assigned', draft: 'Not issued',
+}
+const statusWord = (s) => STATUS_WORD[s] || s
+const ITEM_WORD = { verified: 'verified', vendor_closed: 'awaiting check', disputed: 'sent back', pending: 'open' }
+
+// Slack caps a section at 3000 characters and a message at 50 blocks, so the
+// long lists get split rather than silently truncated by Slack itself.
+const chunkLines = (lines, max = 2800) => {
+  const out = []
+  let cur = ''
+  for (const l of lines) {
+    if (cur && cur.length + l.length + 1 > max) { out.push(cur); cur = l }
+    else cur = cur ? `${cur}\n${l}` : l
+  }
+  if (cur) out.push(cur)
+  return out
+}
+const section = (text) => ({ type: 'section', text: { type: 'mrkdwn', text } })
+
 const cell = { padding: '9px 10px', fontSize: 12, textAlign: 'left', verticalAlign: 'top' }
 const head = { ...cell, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, whiteSpace: 'nowrap' }
 const editInput = {
@@ -341,26 +362,138 @@ export default function WorkOrderReport() {
     setReport(data); summaryDirty.current = false
   }
 
-  const slackText = useMemo(() => {
-    const lines = [
-      `*PID ${pid} — work order completion report*`,
-      `${totals.trades} trade${totals.trades === 1 ? '' : 's'} · ${totals.vendors} vendor${totals.vendors === 1 ? '' : 's'} · ${totals.items} items · ${totals.verified} verified`,
-      `Actual *${inr(totals.actual)}* vs estimate ${inr(totals.planned)} (${totals.variance >= 0 ? '+' : ''}${inr(totals.variance)})`,
-      totals.days != null ? `${totals.days} day${totals.days === 1 ? '' : 's'} from first issue${totals.allDone ? ' to final verification' : ' (still running)'}` : null,
-      '',
-      ...byOrder.map(({ wo, rows: rr }) =>
-        `• ${tradeLabel(wo.trade)} — ${wo.vendor_name || 'no vendor'} · ${rr.length} items · ${inr(rr.reduce((n, r) => n + r.actualTotal, 0))}`),
-      summary.trim() ? `\n_${summary.trim()}_` : null,
-    ].filter(l => l !== null)
-    return lines.join('\n')
-  }, [pid, totals, byOrder, summary])
+  // Rows where someone recorded something different from the estimate. These
+  // are the whole reason the report is editable, so they get their own section
+  // rather than being buried in the full list.
+  const changedRows = useMemo(
+    () => rows.filter(r => r.actualTotal !== r.plannedTotal || r.actual?.actual_material || r.actual?.note),
+    [rows],
+  )
+
+  const pctVariance = totals.planned ? Math.round((totals.variance / totals.planned) * 100) : 0
+  const varianceStr = `${totals.variance >= 0 ? '+' : ''}${inr(totals.variance)}${totals.planned ? ` (${totals.variance >= 0 ? '+' : ''}${pctVariance}%)` : ''}`
+
+  // Plain text: the fallback Slack shows in notifications, and what Copy
+  // summary puts on the clipboard. Same content as the blocks, no markup.
+  const reportText = useMemo(() => {
+    const L = []
+    L.push(`PID ${pid} — Work order completion report`)
+    L.push(totals.allDone ? 'Status: complete' : `Status: in progress — ${totals.items - totals.verified} of ${totals.items} items not yet verified`)
+    L.push('')
+    L.push(`Actual ${inr(totals.actual)} · Estimate ${inr(totals.planned)} · Variance ${varianceStr}`)
+    L.push(`${totals.trades} trades · ${totals.vendors} vendors · ${totals.items} items · ${totals.verified} verified`)
+    if (totals.first) L.push(`${totals.days} days — ${fmtDay(totals.first)} to ${totals.allDone ? fmtDay(totals.last) : 'ongoing'}`)
+    L.push('')
+    L.push('BY VENDOR')
+    for (const { wo, rows: rr } of byOrder) {
+      const planned = rr.reduce((n, r) => n + r.plannedTotal, 0)
+      const actual = rr.reduce((n, r) => n + r.actualTotal, 0)
+      const v = actual - planned
+      const d = daysBetween(wo.issued_at, wo.verified_at || new Date())
+      L.push(`  ${tradeLabel(wo.trade)} — ${wo.vendor_name || 'unassigned'}`)
+      L.push(`    ${statusWord(wo.status)} · ${rr.length} items · ${rr.filter(r => r.status === 'verified').length} verified${wo.issued_at ? ` · ${d}d` : ''}`)
+      L.push(`    ${inr(actual)}${v ? ` (est ${inr(planned)}, ${v > 0 ? '+' : ''}${inr(v)})` : ''}`)
+    }
+    if (changedRows.length) {
+      L.push('')
+      L.push('CHANGED FROM ESTIMATE')
+      for (const r of changedRows) {
+        L.push(`  ${r.area || '—'} · ${r.description}`)
+        if (r.actual?.actual_material) L.push(`    used: ${r.actual.actual_material}${r.plannedMaterial ? ` (planned: ${r.plannedMaterial})` : ''}`)
+        if (r.actualTotal !== r.plannedTotal) L.push(`    ${inr(r.plannedTotal)} → ${inr(r.actualTotal)} (${r.actualTotal > r.plannedTotal ? '+' : ''}${inr(r.actualTotal - r.plannedTotal)})`)
+        if (r.actual?.note) L.push(`    note: ${r.actual.note}`)
+      }
+    }
+    L.push('')
+    L.push('ALL LINE ITEMS')
+    for (const { wo, rows: rr } of byOrder) {
+      L.push(`  ${tradeLabel(wo.trade)} — ${wo.vendor_name || 'unassigned'}`)
+      for (const r of rr) {
+        L.push(`    ${r.area || '—'} · ${r.description} · ${inr(r.actualTotal)} · ${ITEM_WORD[r.status] || r.status}`)
+      }
+    }
+    if (summary.trim()) { L.push(''); L.push('SUMMARY'); L.push(`  ${summary.trim()}`) }
+    return L.join('\n')
+  }, [pid, totals, byOrder, changedRows, summary, varianceStr])
+
+  // Block Kit: the same report, laid out so it is readable in the channel
+  // rather than a wall of text.
+  const slackBlocks = useMemo(() => {
+    const blocks = [
+      { type: 'header', text: { type: 'plain_text', text: `PID ${pid} — Completion report`, emoji: false } },
+      {
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: `*Actual*\n${inr(totals.actual)}` },
+          { type: 'mrkdwn', text: `*Estimate*\n${inr(totals.planned)}` },
+          { type: 'mrkdwn', text: `*Variance*\n${varianceStr}` },
+          { type: 'mrkdwn', text: `*Time taken*\n${totals.first ? `${totals.days} days` : 'not issued'}` },
+          { type: 'mrkdwn', text: `*Scope*\n${totals.trades} trades · ${totals.vendors} vendors · ${totals.items} items` },
+          { type: 'mrkdwn', text: `*Status*\n${totals.allDone ? 'Complete' : `${totals.items - totals.verified} of ${totals.items} unverified`}` },
+        ],
+      },
+      { type: 'divider' },
+    ]
+
+    const vendorLines = byOrder.map(({ wo, rows: rr }) => {
+      const planned = rr.reduce((n, r) => n + r.plannedTotal, 0)
+      const actual = rr.reduce((n, r) => n + r.actualTotal, 0)
+      const v = actual - planned
+      const d = daysBetween(wo.issued_at, wo.verified_at || new Date())
+      return `*${tradeLabel(wo.trade)}* — ${wo.vendor_name || '_unassigned_'}\n`
+        + `${statusWord(wo.status)} · ${rr.length} items · ${rr.filter(r => r.status === 'verified').length} verified`
+        + `${wo.issued_at ? ` · ${d}d` : ''} · *${inr(actual)}*${v ? `  _(est ${inr(planned)}, ${v > 0 ? '+' : ''}${inr(v)})_` : ''}`
+    })
+    blocks.push(section(`*By vendor*\n\n${vendorLines.join('\n\n')}`))
+
+    if (changedRows.length) {
+      blocks.push({ type: 'divider' })
+      const lines = changedRows.map(r => {
+        const bits = [`*${r.area || '—'} · ${r.description}*`]
+        if (r.actual?.actual_material) bits.push(`used: ${r.actual.actual_material}${r.plannedMaterial ? `  _(planned: ${r.plannedMaterial})_` : ''}`)
+        if (r.actualTotal !== r.plannedTotal) bits.push(`${inr(r.plannedTotal)} → *${inr(r.actualTotal)}*  (${r.actualTotal > r.plannedTotal ? '+' : ''}${inr(r.actualTotal - r.plannedTotal)})`)
+        if (r.actual?.note) bits.push(`_${r.actual.note}_`)
+        return bits.join('\n')
+      })
+      for (const [i, text] of chunkLines(lines.map(l => `${l}\n`)).entries()) {
+        blocks.push(section(i === 0 ? `*Changed from estimate* · ${changedRows.length}\n\n${text}` : text))
+      }
+    }
+
+    blocks.push({ type: 'divider' })
+    let itemBlocks = []
+    for (const { wo, rows: rr } of byOrder) {
+      const lines = rr.map(r => `• ${r.area || '—'} · ${r.description} — ${inr(r.actualTotal)} _(${ITEM_WORD[r.status] || r.status})_`)
+      for (const [i, text] of chunkLines(lines).entries()) {
+        itemBlocks.push(section(i === 0 ? `*${tradeLabel(wo.trade)} — ${wo.vendor_name || 'unassigned'}*\n${text}` : text))
+      }
+    }
+    // 50 blocks is Slack's hard limit. If the job is big enough to blow it, say
+    // what was left out and link to the page — never truncate silently.
+    const room = 50 - blocks.length - (summary.trim() ? 1 : 0) - 2
+    let dropped = 0
+    if (itemBlocks.length > room) {
+      dropped = itemBlocks.length - room
+      itemBlocks = itemBlocks.slice(0, room)
+    }
+    blocks.push(section(`*All line items* · ${totals.items}`))
+    blocks.push(...itemBlocks)
+    if (dropped) blocks.push(section(`_${dropped} more section${dropped === 1 ? '' : 's'} of items not shown — Slack caps a message at 50 blocks. Open the report for the full list._`))
+
+    if (summary.trim()) blocks.push(section(`*Summary*\n${summary.trim()}`))
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `${window.location.origin}/properties/${encodeURIComponent(pid)}/work-orders/report` }],
+    })
+    return blocks
+  }, [pid, totals, byOrder, changedRows, summary, varianceStr])
 
   async function copySummary() {
     try {
-      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(slackText)
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(reportText)
       else {
         const ta = document.createElement('textarea')
-        ta.value = slackText; ta.style.cssText = 'position:fixed;opacity:0'
+        ta.value = reportText; ta.style.cssText = 'position:fixed;opacity:0'
         document.body.appendChild(ta); ta.focus(); ta.select()
         document.execCommand('copy'); document.body.removeChild(ta)
       }
@@ -373,7 +506,7 @@ export default function WorkOrderReport() {
   async function sendToSlack() {
     setSending(true)
     const { data, error: e } = await supabase.functions.invoke('wo-report-notify', {
-      body: { pid, text: slackText },
+      body: { pid, text: reportText, blocks: slackBlocks },
     })
     setSending(false)
     if (e || data?.error) {
