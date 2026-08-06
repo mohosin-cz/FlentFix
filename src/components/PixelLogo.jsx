@@ -14,13 +14,22 @@ const ROWS = 7
 const GAP = 1
 const COLS = WORD.length * 5 + (WORD.length - 1) * GAP   // 29
 const CELL = 14
-const DOT = 10
+const DOT = 11.5      // of a 14 cell — fat enough that strokes read as continuous at 110px
 
 // warp knobs — the design lives here
-const BOW = 0.52      // how far rows spread apart at the centre
-const LIFT = 0.40     // how much the whole band arcs upward
-const GROW = 0.16     // dot swell where the glass is thickest
+const BOW = 0.12      // how far rows spread apart at the centre
+const LIFT = 0.34     // how much the whole band arcs upward
+const GROW = 0.12     // dot swell where the glass is thickest
 const SQUEEZE = 0.00  // edge column compression; 0 keeps letters exactly spaced
+
+// BOW is the constant to be careful with. It scales row SPACING, so a large
+// value stretches the middle letters taller than the outer ones and the
+// wordmark reads as sagging rather than curving. LIFT carries the curve — it
+// translates whole columns along an arc and leaves letterforms alone. When the
+// curve needs to be stronger, raise LIFT, not BOW.
+
+const RADIUS = 0.28   // dot corner rounding; square reads blocky, circular reads soft
+const FIELD = 0.13    // unlit dot opacity — a panel you can sense, not a grid you read
 
 const AMBER = '#E0A93F'
 const DIM = '#3A3324'
@@ -72,11 +81,17 @@ function buildCells() {
 
 const GRID = buildCells()   // computed once at module load, not per render
 
-// The warped mark is ~3.07:1, where the flat one was ~5:1. `height` stays an
+const TICK_GAP = 56         // room for the ECG tick
+const TICK_SCALE = 0.85     // sized against the mark, not the old 300-wide box
+
+// The warped mark is ~3:1, where the flat one was ~5:1. `height` stays an
 // accepted prop, but it has no default: passing width alone lets the viewBox
 // set the height, so the curve can never be squashed back into the old box.
 const PulseLogo = ({ width = 110, height }) => {
-  const totalW = GRID.vbW + 74      // room for the ECG tick
+  const totalW = GRID.vbW + TICK_GAP
+  const tx = GRID.vbW + 16
+  const ty = GRID.vbH / 2
+  const s = TICK_SCALE
   return (
     <svg
       width={width}
@@ -94,17 +109,17 @@ const PulseLogo = ({ width = 110, height }) => {
           y={(d.Y + GRID.oy - d.size / 2).toFixed(2)}
           width={d.size.toFixed(2)}
           height={d.size.toFixed(2)}
-          rx={(d.size * 0.18).toFixed(2)}
+          rx={(d.size * RADIUS).toFixed(2)}
           fill={d.on ? AMBER : DIM}
-          opacity={d.on ? 1 : 0.55}
+          opacity={d.on ? 1 : FIELD}
         />
       ))}
       {/* The display curves; the signal doesn't. */}
       <path
-        d={`M${(GRID.vbW + 14).toFixed(0)} ${(GRID.vbH / 2).toFixed(0)} h13 l6 -17 l6 31 l6 -14 h14`}
+        d={`M${tx.toFixed(0)} ${ty.toFixed(0)} h${(13 * s).toFixed(1)} l${(6 * s).toFixed(1)} ${(-17 * s).toFixed(1)} l${(6 * s).toFixed(1)} ${(31 * s).toFixed(1)} l${(6 * s).toFixed(1)} ${(-14 * s).toFixed(1)} h${(14 * s).toFixed(1)}`}
         fill="none"
         stroke={AMBER}
-        strokeWidth="3.2"
+        strokeWidth={(3.2 * s).toFixed(2)}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
