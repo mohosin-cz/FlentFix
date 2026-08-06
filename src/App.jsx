@@ -29,6 +29,7 @@ import PublicRateCard from './pages/inventory/PublicRateCard'
 import PurchaseHistory from './pages/inventory/PurchaseHistory'
 import EstimateWorkspace from './pages/EstimateWorkspace'
 import PropertyWorkOrders from './pages/PropertyWorkOrders'
+import VendorWorkOrder from './pages/VendorWorkOrder'
 import LandlordEstimate from './pages/LandlordEstimate'
 import TaxInvoice from './pages/TaxInvoice'
 import WorkOrder from './pages/WorkOrder'
@@ -206,6 +207,7 @@ export default function App() {
           />
           <Route path="/onboard" element={<Onboard />} />
           <Route path="/attend" element={<Attend />} />
+          <Route path="/wo/:token" element={<VendorWorkOrder />} />
           <Route path="/vendors" element={<ProtectedRoute><VendorHub /></ProtectedRoute>} />
           <Route path="/vendors/payroll/analytics" element={<ProtectedRoute><PayrollAnalytics /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
