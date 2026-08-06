@@ -99,6 +99,7 @@ export default function PropertyPayments() {
   const [kind, setKind] = useState('all')
   const [q, setQ] = useState('')
   const [toast, setToast] = useState(null)
+  const [confirming, setConfirming] = useState(null)
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true)
@@ -136,7 +137,9 @@ export default function PropertyPayments() {
   useEffect(() => { load() }, [load])
   useEffect(() => {
     if (!toast) return
-    const t = setTimeout(() => setToast(null), 2600)
+    // An undo on a deleted record gets a long window — you may well look away
+    // before realising the mistake, and the confirm already cost a deliberate tap.
+    const t = setTimeout(() => setToast(null), toast.tone === 'error' ? 8000 : toast.undo ? 20000 : 2600)
     return () => clearTimeout(t)
   }, [toast])
 
@@ -191,11 +194,28 @@ export default function PropertyPayments() {
 
   const shownTotal = shown.reduce((n, r) => n + Number(r.amount || 0), 0)
 
+  // Confirmed, then still undoable. The invoice files are left in storage on
+  // delete precisely so undo can put the rows back pointing at them; a purge
+  // would make this a one-way door with a friendly confirmation on it.
   async function remove(row) {
+    setConfirming(null)
     const { error } = await supabase.from('property_payments').delete().eq('id', row.id)
-    if (error) { setToast({ text: error.message, tone: 'error' }); return }
+    if (error) { setToast({ text: `Couldn’t delete: ${error.message}`, tone: 'error' }); return }
     await load({ silent: true })
-    setToast({ text: `${inr(row.amount)} deleted` })
+    setToast({
+      text: `${inr(row.amount)} · ${row.description || 'payment'} deleted`,
+      undo: async () => {
+        const { property_payment_bills: bills, ...payment } = row
+        const { error: pErr } = await supabase.from('property_payments').insert(payment)
+        if (pErr) throw new Error(pErr.message)
+        if (bills?.length) {
+          const { error: bErr } = await supabase.from('property_payment_bills')
+            .insert(bills.map(b => ({ ...b, payment_id: row.id })))
+          if (bErr) throw new Error(bErr.message)
+        }
+        await load({ silent: true })
+      },
+    })
   }
 
   const tradesInUse = useMemo(
@@ -316,16 +336,41 @@ export default function PropertyPayments() {
                     )}
                     {r.method && <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{r.method}</span>}
                     {r.source === 'import' && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>imported</span>}
-                    <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-                      <button onClick={() => setSheet({ editing: r })}
-                        style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 10.5, cursor: 'pointer', fontFamily: MONO }}>Edit</button>
-                      <button onClick={() => remove(r)}
-                        style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 10.5, cursor: 'pointer', fontFamily: MONO }}>Delete</button>
-                    </span>
                   </div>
                   {r.note && <div style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', marginTop: 6, lineHeight: 1.5, wordBreak: 'break-word' }}>{r.note}</div>}
                   {r.reference && <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 4 }}>ref {r.reference}</div>}
                   <BillLinks bills={r.property_payment_bills} />
+
+                  {/* On their own line, at button size, with delete in red.
+                      These were 10.5px muted text tucked into the metadata row
+                      and read as labels rather than controls — which is the
+                      same as not having built them. */}
+                  {confirming === r.id ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', marginTop: 11, paddingTop: 11, borderTop: '1px solid var(--border, #2e3040)' }}>
+                      <span style={{ flex: 1, minWidth: 160, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>
+                        Delete this payment?
+                      </span>
+                      <button onClick={() => remove(r)}
+                        style={{ minHeight: 34, padding: '0 14px', borderRadius: 8, border: 'none', background: 'var(--red, #e05c6a)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>
+                        Delete
+                      </button>
+                      <button onClick={() => setConfirming(null)}
+                        style={{ minHeight: 34, padding: '0 12px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 12, cursor: 'pointer', fontFamily: MONO }}>
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 11, paddingTop: 11, borderTop: '1px solid var(--border, #2e3040)' }}>
+                      <button onClick={() => setSheet({ editing: r })}
+                        style={{ minHeight: 34, padding: '0 14px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>
+                        Edit
+                      </button>
+                      <button onClick={() => setConfirming(r.id)}
+                        style={{ minHeight: 34, padding: '0 14px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--red, #e05c6a)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
               {shown.length === 0 && (
@@ -365,8 +410,20 @@ export default function PropertyPayments() {
       )}
 
       {toast && (
-        <div role="status" style={{ position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 500, maxWidth: 'calc(100vw - 32px)', padding: '10px 15px', borderRadius: 10, fontSize: 12.5, fontFamily: SANS, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', background: toast.tone === 'error' ? 'rgba(224,92,106,0.14)' : 'var(--bg-panel, #1e2028)', border: `1px solid ${toast.tone === 'error' ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}`, color: toast.tone === 'error' ? 'var(--red, #e05c6a)' : 'var(--text, #e8e8f0)' }}>
-          {toast.text}
+        <div role="status" aria-live="polite" style={{ position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 500, maxWidth: 'calc(100vw - 32px)', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 15px', borderRadius: 10, fontSize: 12.5, fontFamily: SANS, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', background: toast.tone === 'error' ? 'rgba(224,92,106,0.14)' : 'var(--bg-panel, #1e2028)', border: `1px solid ${toast.tone === 'error' ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}`, color: toast.tone === 'error' ? 'var(--red, #e05c6a)' : 'var(--text, #e8e8f0)' }}>
+          <span style={{ minWidth: 0 }}>{toast.text}</span>
+          {toast.undo && (
+            <button type="button"
+              onClick={async () => {
+                const fn = toast.undo
+                setToast({ text: 'Restoring…' })
+                try { await fn(); setToast({ text: 'Payment restored' }) }
+                catch (e) { setToast({ text: `Couldn’t restore: ${e.message || e}`, tone: 'error' }) }
+              }}
+              style={{ flexShrink: 0, minHeight: 32, padding: '0 12px', borderRadius: 7, border: '1px solid var(--accent, #c8963e)', background: 'rgba(200,150,62,0.12)', color: 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>
+              Undo
+            </button>
+          )}
         </div>
       )}
     </div>

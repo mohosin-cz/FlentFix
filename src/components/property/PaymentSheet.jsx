@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useIsMobile } from '../../hooks/useIsMobile'
-import { KINDS, TRADES, METHODS, cleanAmount, inr, todayISO, shiftISO, uploadBill } from '../../utils/payments'
+import { KINDS, TRADES, METHODS, cleanAmount, inr, todayISO, shiftISO, uploadBill, billUrl } from '../../utils/payments'
 
 // The form follows how a payment is actually thought about, in order:
 //   what kind of spend  →  what work it was for  →  what it was  →  how much
@@ -124,6 +124,7 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
   const [reference, setReference] = useState(editing?.reference || '')
   const [note, setNote] = useState(editing?.note || '')
   const [files, setFiles] = useState([])
+  const [existing, setExisting] = useState(editing?.property_payment_bills || [])
   const [extras, setExtras] = useState(!!(editing?.method || editing?.reference || editing?.note))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -146,6 +147,23 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
     descRef.current?.focus()
     // kind, trade, vendor, date and method persist — logging a day of one
     // vendor's invoices should not mean re-picking them each time
+  }
+
+  // Detaching an invoice removes the row and the stored file together; a
+  // payment's invoice has no life of its own once it is off the payment.
+  async function removeBill(b) {
+    setErr('')
+    const { error } = await supabase.from('property_payment_bills').delete().eq('id', b.id)
+    if (error) { setErr(`Couldn’t remove the invoice: ${error.message}`); return }
+    await supabase.storage.from('property-bills').remove([b.path])
+    setExisting(prev => prev.filter(x => x.id !== b.id))
+    onSaved()
+  }
+
+  async function openBill(b) {
+    const url = await billUrl(b.path)
+    if (url) window.open(url, '_blank', 'noopener')
+    else setErr('Couldn’t open that invoice.')
   }
 
   async function save(andAnother) {
@@ -343,6 +361,24 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
             <span style={stepNum}>5</span> Invoice
             <span style={{ letterSpacing: 0, textTransform: 'none', fontWeight: 400, color: 'var(--text-muted, #6b6d82)' }}>· optional</span>
           </span>
+          {/* What is already attached, and a way to take it off again. Editing
+              could previously only ever add — a wrong invoice was stuck to the
+              payment for good. */}
+          {existing.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 9 }}>
+              {existing.map(b => (
+                <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8 }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {b.filename || 'invoice'}
+                  </span>
+                  <button type="button" onClick={() => openBill(b)}
+                    style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 10.5, cursor: 'pointer', fontFamily: MONO }}>View</button>
+                  <button type="button" onClick={() => removeBill(b)} aria-label={`Remove ${b.filename || 'invoice'}`}
+                    style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--red, #e05c6a)', fontSize: 10.5, cursor: 'pointer', fontFamily: MONO }}>Remove</button>
+                </div>
+              ))}
+            </div>
+          )}
           <input type="file" accept="image/*,application/pdf" multiple
             onChange={e => setFiles([...e.target.files])}
             style={{ ...field, padding: '9px 11px', fontSize: 12, cursor: 'pointer' }} />
