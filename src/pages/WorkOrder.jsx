@@ -11,8 +11,12 @@ const tradeLabel = (t) => (t === 'Misc' ? 'Misc / untriaged' : t)
 const fmtDate = (d) => (d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : null)
 
 // Ordered by whose turn it is. Anything waiting on us comes first.
+// A single sent-back item drops the order to in_progress, but any sibling items
+// the vendor already closed are still ours to verify — bucket on the items, not
+// on the order status, or those disappear from the "Waiting on you" filter.
+const awaitingVerify = (w) => (w.work_order_items || []).filter(i => i.status === 'vendor_closed').length
 const BUCKETS = [
-  { key: 'verify',   label: 'Waiting on you', tone: 'var(--accent, #c8963e)', match: (w) => w.status === 'vendor_completed' },
+  { key: 'verify',   label: 'Waiting on you', tone: 'var(--accent, #c8963e)', match: (w) => w.status === 'vendor_completed' || awaitingVerify(w) > 0 },
   { key: 'progress', label: 'With the vendor', tone: '#6b8de6', match: (w) => w.status === 'in_progress' || w.status === 'assigned' },
   { key: 'draft',    label: 'Not issued yet',  tone: 'var(--text-muted, #6b6d82)', match: (w) => w.status === 'draft' },
   { key: 'done',     label: 'Verified',        tone: 'var(--green, #3dba7a)', match: (w) => w.status === 'verified' },
