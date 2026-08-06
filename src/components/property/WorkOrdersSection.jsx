@@ -31,6 +31,7 @@ const STATUS_TONE = {
 }
 const isClosed = (it) => it.status !== 'pending' && it.status !== 'disputed'
 
+const fmtStamp = (d) => (d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '')
 const fmtDate = (d) => (d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : null)
 
 // ── presentational pieces, hoisted ───────────────────────────────────────────
@@ -52,22 +53,66 @@ function StatusChip({ status }) {
   )
 }
 
-function ItemRow({ item }) {
+function ItemRow({ item, actionable, busy, err, onVerify, onDispute }) {
+  const [disputing, setDisputing] = useState(false)
+  const awaiting = item.status === 'vendor_closed'
+  const tone = item.status === 'verified' ? 'var(--green, #3dba7a)'
+    : item.status === 'disputed' ? 'var(--red, #e05c6a)'
+    : awaiting ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)'
+
   return (
-    <div style={{ display: 'flex', gap: 10, padding: '9px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
-      <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, minWidth: 84, flexShrink: 0, paddingTop: 2 }}>{item.area || '—'}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, color: 'var(--text, #e8e8f0)', lineHeight: 1.45, wordBreak: 'break-word' }}>{item.description}</div>
-        <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 3, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {item.fix_type && <span>{item.fix_type}</span>}
-          {item.material && <span style={{ minWidth: 0, wordBreak: 'break-word' }}>{item.material}</span>}
-          {item.quantity != null && <span>×{item.quantity}</span>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, minWidth: 84, flexShrink: 0, paddingTop: 2 }}>{item.area || '—'}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--text, #e8e8f0)', lineHeight: 1.45, wordBreak: 'break-word' }}>{item.description}</div>
+          <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 3, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {item.fix_type && <span>{item.fix_type}</span>}
+            {item.material && <span style={{ minWidth: 0, wordBreak: 'break-word' }}>{item.material}</span>}
+            {item.quantity != null && <span>×{item.quantity}</span>}
+          </div>
+          {item.vendor_note && (
+            <div style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, marginTop: 4 }}>Vendor: {item.vendor_note}</div>
+          )}
+          {item.status === 'disputed' && item.dispute_reason && (
+            <div style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: MONO, marginTop: 4, lineHeight: 1.5 }}>Sent back: {item.dispute_reason}</div>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
+          {/* A second dispute on the same item says something about the vendor,
+              not just the task — so it is called out, not buried. */}
+          {item.dispute_count > 1 && (
+            <span title={`Disputed ${item.dispute_count} times`}
+              style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--red, #e05c6a)', border: '1px solid var(--red, #e05c6a)', borderRadius: 9, padding: '1px 7px', fontFamily: MONO, whiteSpace: 'nowrap' }}>
+              ×{item.dispute_count} disputed
+            </span>
+          )}
+          <span style={{ fontSize: 9.5, fontFamily: MONO, color: tone, whiteSpace: 'nowrap' }}>
+            {item.status === 'vendor_closed' ? 'to verify' : item.status}
+          </span>
         </div>
       </div>
-      {item.status && (
-        <span style={{ fontSize: 9.5, fontFamily: MONO, flexShrink: 0, color: isClosed(item) ? 'var(--green, #3dba7a)' : item.status === 'disputed' ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)' }}>
-          {isClosed(item) ? 'closed' : item.status}
-        </span>
+
+      {err && <ErrStrip>{err}</ErrStrip>}
+
+      {actionable && awaiting && !disputing && (
+        <div style={{ display: 'flex', gap: 8, paddingLeft: 94 }}>
+          <button type="button" disabled={busy} onClick={onVerify}
+            style={{ minHeight: 38, padding: '0 15px', borderRadius: 8, border: '1px solid var(--green, #3dba7a)', background: 'rgba(61,186,122,0.12)', color: 'var(--green, #3dba7a)', fontSize: 12.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO }}>
+            {busy ? '…' : 'Verify'}
+          </button>
+          <button type="button" disabled={busy} onClick={() => setDisputing(true)}
+            style={{ minHeight: 38, padding: '0 15px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--red, #e05c6a)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>
+            Dispute
+          </button>
+        </div>
+      )}
+
+      {disputing && (
+        <div style={{ paddingLeft: 94 }}>
+          <DisputeBox busy={busy} onCancel={() => setDisputing(false)}
+            onSubmit={(reason) => onDispute(reason, () => setDisputing(false))} />
+        </div>
       )}
     </div>
   )
@@ -100,13 +145,105 @@ function VendorPicker({ vendors, trade, value, onChange, disabled }) {
 const fieldLabel = { fontSize: 9.5, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'block' }
 const dateInput = { width: '100%', padding: '8px 10px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
 
-function TradeCard({ group, wo, vendors, busy, err, onCreate, onAssign, onDates, onCopy, copied }) {
+
+// Common reasons first so a dispute is one tap, but the text is what gets
+// stored — a reason is mandatory, so there is no silent rejection.
+const DISPUTE_REASONS = [
+  'Not actually done',
+  'Done but not to standard',
+  'Wrong material used',
+  'Incomplete — part of the item remains',
+  'Cannot confirm from site',
+]
+
+function DisputeBox({ onCancel, onSubmit, busy }) {
+  const [reason, setReason] = useState('')
+  const [touched, setTouched] = useState(false)
+  const bad = touched && !reason.trim()
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 11, background: 'rgba(224,92,106,0.07)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 9 }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>Why is this being sent back?</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {DISPUTE_REASONS.map(r => (
+          <button key={r} type="button" onClick={() => { setReason(r); setTouched(true) }}
+            style={{ padding: '6px 10px', borderRadius: 14, fontSize: 11.5, cursor: 'pointer', fontFamily: MONO,
+              border: `1px solid ${reason === r ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}`,
+              background: reason === r ? 'rgba(224,92,106,0.14)' : 'var(--bg-input, #252731)',
+              color: reason === r ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}>{r}</button>
+        ))}
+      </div>
+      <textarea value={reason} onChange={e => { setReason(e.target.value); setTouched(true) }} rows={2}
+        placeholder="Or write the reason — the vendor sees this"
+        style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', borderRadius: 8, outline: 'none', fontFamily: 'inherit', resize: 'vertical',
+          border: `1px solid ${bad ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}` }} />
+      {bad && <span style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>A dispute needs a reason.</span>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" disabled={busy || !reason.trim()} onClick={() => onSubmit(reason.trim())}
+          style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 700, fontFamily: MONO,
+            background: reason.trim() ? 'var(--red, #e05c6a)' : 'var(--bg-input, #252731)',
+            color: reason.trim() ? '#fff' : 'var(--text-muted, #6b6d82)',
+            cursor: busy ? 'wait' : reason.trim() ? 'pointer' : 'not-allowed' }}>
+          {busy ? 'Sending…' : 'Send back to vendor'}
+        </button>
+        <button type="button" onClick={onCancel}
+          style={{ minHeight: 42, padding: '0 14px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 13, cursor: 'pointer', fontFamily: MONO }}>Cancel</button>
+      </div>
+    </div>
+  )
+}
+
+const EVENT_LABEL = {
+  created: 'Work order created', issued: 'Issued to vendor', assigned_vendor: 'Vendor assigned',
+  started: 'Vendor started', reopened: 'Sent back to vendor', submitted: 'Vendor submitted for verification',
+  verified: 'Work order verified', item_closed: 'Vendor marked an item done',
+  item_verified: 'Item verified', item_disputed: 'Item sent back', item_reopened: 'Item reopened',
+}
+
+function Timeline({ rows }) {
   const [open, setOpen] = useState(false)
+  if (!rows?.length) return null
+  const shown = open ? rows : rows.slice(0, 4)
+  return (
+    <div style={{ borderTop: '1px solid var(--border, #2e3040)', paddingTop: 10 }}>
+      <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginBottom: 8 }}>ACTIVITY</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {shown.map(a => (
+          <div key={a.id} style={{ display: 'flex', gap: 9, fontSize: 11.5, fontFamily: MONO, color: 'var(--text-muted, #6b6d82)', lineHeight: 1.5 }}>
+            <span style={{ flexShrink: 0, color: 'var(--text-dim, #9394a8)' }}>{fmtStamp(a.changed_at)}</span>
+            <span style={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
+              <span style={{ color: 'var(--text, #e8e8f0)' }}>{EVENT_LABEL[a.event] || a.event}</span>
+              {a.detail ? ` · ${a.detail}` : ''}
+              {a.actor ? ` · ${a.actor}` : ''}
+            </span>
+          </div>
+        ))}
+      </div>
+      {rows.length > 4 && (
+        <button type="button" onClick={() => setOpen(o => !o)}
+          style={{ marginTop: 8, padding: 0, background: 'none', border: 'none', color: 'var(--accent, #c8963e)', fontSize: 11.5, cursor: 'pointer', fontFamily: MONO }}>
+          {open ? 'Show less' : `Show all ${rows.length}`}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function TradeCard({ group, wo, vendors, busy, err, onCreate, onAssign, onDates, onCopy, copied,
+  activity, itemBusyId, itemErr, onVerify, onDispute, onVerifyAll }) {
+  const awaitingVerify = wo ? wo.items.filter(i => i.status === 'vendor_closed').length : 0
+  const isQueue = wo?.status === 'vendor_completed' || awaitingVerify > 0
+  const locked = wo?.status === 'verified'
+  const [open, setOpen] = useState(isQueue)
   const items = wo ? wo.items : group.items
   const closed = wo ? wo.items.filter(isClosed).length : 0
 
   return (
-    <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 11 }}>
+    <div style={{
+      background: 'var(--bg-panel, #1e2028)', borderRadius: 12, padding: 14,
+      display: 'flex', flexDirection: 'column', gap: 11,
+      border: `1px solid ${isQueue ? 'var(--accent, #c8963e)' : locked ? 'rgba(61,186,122,0.35)' : 'var(--border, #2e3040)'}`,
+      boxShadow: isQueue ? '0 0 0 1px rgba(200,150,62,0.25)' : 'none',
+    }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 13.5, fontWeight: 600, color: group.trade === MISC ? 'var(--accent, #c8963e)' : 'var(--text, #e8e8f0)' }}>
           {tradeLabel(group.trade)}
@@ -124,6 +261,24 @@ function TradeCard({ group, wo, vendors, busy, err, onCreate, onAssign, onDates,
 
       {err && <ErrStrip>{err}</ErrStrip>}
 
+      {wo && awaitingVerify > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.32)', borderRadius: 9 }}>
+          <span style={{ flex: 1, minWidth: 140, fontSize: 12, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.5 }}>
+            {awaitingVerify} item{awaitingVerify === 1 ? '' : 's'} waiting on you to verify
+          </span>
+          <button type="button" onClick={onVerifyAll} disabled={busy}
+            style={{ minHeight: 40, padding: '0 15px', borderRadius: 8, border: 'none', background: 'var(--green, #3dba7a)', color: '#062012', fontSize: 12.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO }}>
+            {busy ? 'Verifying…' : `Verify all ${awaitingVerify}`}
+          </button>
+        </div>
+      )}
+
+      {locked && (
+        <div style={{ padding: '10px 12px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--green, #3dba7a)', fontFamily: MONO, lineHeight: 1.5 }}>
+          Verified{wo.verified_by ? ` by ${wo.verified_by}` : ''} — this work order is closed on both sides.
+        </div>
+      )}
+
       {!wo ? (
         <button type="button" onClick={onCreate} disabled={busy}
           style={{ alignSelf: 'flex-start', padding: '9px 15px', borderRadius: 8, border: '1px solid var(--accent, #c8963e)', background: 'rgba(200,150,62,0.10)', color: 'var(--accent, #c8963e)', fontSize: 12.5, fontWeight: 600, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO }}>
@@ -135,18 +290,18 @@ function TradeCard({ group, wo, vendors, busy, err, onCreate, onAssign, onDates,
             <div>
               <label style={fieldLabel} htmlFor={`wo-vendor-${wo.id}`}>Vendor</label>
               <div id={`wo-vendor-${wo.id}`}>
-                <VendorPicker vendors={vendors} trade={wo.trade} value={wo.vendor_id} onChange={onAssign} disabled={busy} />
+                <VendorPicker vendors={vendors} trade={wo.trade} value={wo.vendor_id} onChange={onAssign} disabled={busy || locked} />
               </div>
             </div>
             <div>
               <label style={fieldLabel} htmlFor={`wo-start-${wo.id}`}>Start</label>
-              <input id={`wo-start-${wo.id}`} type="date" value={wo.scheduled_start || ''} disabled={busy}
-                onChange={e => onDates({ scheduled_start: e.target.value || null })} style={dateInput} />
+              <input id={`wo-start-${wo.id}`} type="date" value={wo.scheduled_start || ''}
+                onChange={e => onDates({ scheduled_start: e.target.value || null })} disabled={busy || locked} style={dateInput} />
             </div>
             <div>
               <label style={fieldLabel} htmlFor={`wo-end-${wo.id}`}>End</label>
-              <input id={`wo-end-${wo.id}`} type="date" value={wo.scheduled_end || ''} disabled={busy}
-                onChange={e => onDates({ scheduled_end: e.target.value || null })} style={dateInput} />
+              <input id={`wo-end-${wo.id}`} type="date" value={wo.scheduled_end || ''}
+                onChange={e => onDates({ scheduled_end: e.target.value || null })} disabled={busy || locked} style={dateInput} />
             </div>
           </div>
 
@@ -180,9 +335,21 @@ function TradeCard({ group, wo, vendors, busy, err, onCreate, onAssign, onDates,
 
       {open && (
         <div>
-          {items.map(it => <ItemRow key={it.id} item={it} />)}
+          {items.map(it => (
+            <ItemRow
+              key={it.id}
+              item={it}
+              actionable={!!wo && !locked}
+              busy={itemBusyId === it.id}
+              err={itemErr?.[it.id]}
+              onVerify={() => onVerify(it)}
+              onDispute={(reason, done) => onDispute(it, reason, done)}
+            />
+          ))}
         </div>
       )}
+
+      {wo && <Timeline rows={activity} />}
     </div>
   )
 }
@@ -200,6 +367,9 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
   const [busyTrade, setBusyTrade] = useState('')
   const [rowErr, setRowErr] = useState({})
   const [copiedId, setCopiedId] = useState(null)
+  const [activity, setActivity] = useState({})
+  const [itemBusyId, setItemBusyId] = useState(null)
+  const [itemErr, setItemErr] = useState({})
   const [toast, setToast] = useState('')
 
   const load = useCallback(async () => {
@@ -251,19 +421,28 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
       }
       setLineItems(rows.map(r => ({ ...r, _photo: firstPhoto[r.id] || null })))
 
-      const [{ data: wos, error: wErr }, { data: vends, error: vErr }] = await Promise.all([
-        supabase.from('work_orders').select('*, work_order_items(id, area, description, fix_type, material, quantity, status, sort_order)')
+      const [{ data: wos, error: wErr }, { data: vends, error: vErr }, { data: acts, error: aErr }] = await Promise.all([
+        supabase.from('work_orders').select('*, work_order_items(id, area, description, fix_type, material, quantity, status, sort_order, dispute_count, dispute_reason, vendor_note, verified_at, verified_by)')
           .eq('pid', pid).order('created_at', { ascending: true }),
         supabase.from('vendors').select('id, full_name, trade, vendor_code').eq('status', 'approved').order('full_name'),
+        supabase.from('work_order_activity').select('*').order('changed_at', { ascending: false }).limit(200),
       ])
       if (wErr) throw wErr
       if (vErr) throw vErr
+      if (aErr) throw aErr
 
       setOrders((wos || []).map(w => ({
         ...w,
         items: [...(w.work_order_items || [])].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
       })))
       setVendors(vends || [])
+      const woIds = new Set((wos || []).map(w => w.id))
+      const byWo = {}
+      for (const a of acts || []) {
+        if (!woIds.has(a.work_order_id)) continue
+        ;(byWo[a.work_order_id] = byWo[a.work_order_id] || []).push(a)
+      }
+      setActivity(byWo)
       setLoaded(true)
     } catch (e) {
       setError(e.message || String(e))
@@ -401,6 +580,32 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
     }
   }
 
+  async function verifyItem(wo, item) {
+    setItemBusyId(item.id); setItemErr(p => ({ ...p, [item.id]: '' }))
+    const { error: e } = await supabase.rpc('wo_verify_item', { p_item_id: item.id })
+    setItemBusyId(null)
+    if (e) { setItemErr(p => ({ ...p, [item.id]: e.message })); return }
+    await load()
+  }
+
+  async function disputeItem(wo, item, reason, done) {
+    setItemBusyId(item.id); setItemErr(p => ({ ...p, [item.id]: '' }))
+    const { error: e } = await supabase.rpc('wo_dispute_item', { p_item_id: item.id, p_reason: reason })
+    setItemBusyId(null)
+    if (e) { setItemErr(p => ({ ...p, [item.id]: e.message })); return }
+    done && done()
+    await load()
+  }
+
+  async function verifyAll(wo) {
+    setBusyTrade(wo.trade); setErrFor(wo.trade, '')
+    const { error: e } = await supabase.rpc('wo_verify_all', { p_work_order_id: wo.id })
+    setBusyTrade('')
+    if (e) { setErrFor(wo.trade, e.message); return }
+    await load()
+    setToast(`${tradeLabel(wo.trade)} verified`)
+  }
+
   async function copyLink(wo) {
     // Exactly this, no query string — it gets pasted into WhatsApp.
     const url = `${window.location.origin}/wo/${wo.token}`
@@ -451,7 +656,10 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
         </div>
       )}
 
-      {!loading && !error && groups.map(g => (
+      {!loading && !error && [...groups].sort((a, b) => {
+        const q = (g) => (orderByTrade[g.trade]?.items || []).some(i => i.status === 'vendor_closed') ? 0 : 1
+        return q(a) - q(b)
+      }).map(g => (
         <TradeCard
           key={g.trade}
           group={g}
@@ -464,6 +672,12 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
           onAssign={(vid) => assignVendor(orderByTrade[g.trade], vid)}
           onDates={(patch) => setDates(orderByTrade[g.trade], patch)}
           onCopy={() => copyLink(orderByTrade[g.trade])}
+          activity={activity[orderByTrade[g.trade]?.id] || []}
+          itemBusyId={itemBusyId}
+          itemErr={itemErr}
+          onVerify={(it) => verifyItem(orderByTrade[g.trade], it)}
+          onDispute={(it, reason, done) => disputeItem(orderByTrade[g.trade], it, reason, done)}
+          onVerifyAll={() => verifyAll(orderByTrade[g.trade])}
         />
       ))}
 
