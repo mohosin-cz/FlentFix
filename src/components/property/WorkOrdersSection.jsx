@@ -57,7 +57,7 @@ function StatusChip({ status }) {
   )
 }
 
-function ItemRow({ item, actionable, busy, err, onVerify, onDispute, crew, onMove, selectable, selected, onToggle }) {
+function ItemRow({ item, actionable, reversible, busy, err, onVerify, onDispute, onReverse, crew, onMove, selectable, selected, onToggle }) {
   const [disputing, setDisputing] = useState(false)
   const awaiting = item.status === 'vendor_closed'
   const movable = isMovable(item)
@@ -130,6 +130,20 @@ function ItemRow({ item, actionable, busy, err, onVerify, onDispute, crew, onMov
           <button type="button" disabled={busy} onClick={() => setDisputing(true)}
             style={{ minHeight: 38, padding: '0 15px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--red, #e05c6a)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>
             Dispute
+          </button>
+        </div>
+      )}
+
+      {/* The toast's Undo only lives for a few seconds. Reversing a verify or a
+          dispute has to stay reachable after it is gone, or a mis-tap noticed
+          five minutes later has no way back. Deliberately not gated on the card
+          being unlocked: "I verified the whole thing by mistake" is precisely
+          when a fully-verified order needs a way out. */}
+      {reversible && (item.status === 'verified' || item.status === 'disputed') && (
+        <div style={{ display: 'flex', gap: 8, paddingLeft: selectable ? 120 : 94 }}>
+          <button type="button" disabled={busy} onClick={onReverse}
+            style={{ minHeight: 34, padding: '0 12px', borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 11.5, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO }}>
+            {busy ? '…' : item.status === 'verified' ? 'Un-verify' : 'Cancel send-back'}
           </button>
         </div>
       )}
@@ -392,7 +406,8 @@ const ITEM_FILTERS = [
 ]
 
 function TradeCard({ group, wos, vendors, busyId, errs, onCreate, onAddVendor, onAssign, onDates, onCopy, copiedId,
-  activity, itemBusyId, itemErr, onVerify, onDispute, onVerifyAll, onRemoveCrew, onMoveItem, onMoveMany }) {
+  activity, itemBusyId, itemErr, onVerify, onDispute, onReverse, onVerifyAll, onRemoveCrew, onMoveItem, onMoveMany,
+  onRefresh, refreshing }) {
   const awaitingVerify = wos.reduce((n, w) => n + w.items.filter(i => i.status === 'vendor_closed').length, 0)
   const isQueue = wos.some(w => w.status === 'vendor_completed') || awaitingVerify > 0
   const locked = wos.length > 0 && wos.every(w => w.status === 'verified')
@@ -460,6 +475,16 @@ function TradeCard({ group, wos, vendors, busyId, errs, onCreate, onAddVendor, o
             {closed} of {total} closed
           </span>
         )}
+        {/* Live updates cover the normal case; this is for when you want to be
+            certain right now — before ringing the vendor, say. */}
+        <button type="button" onClick={onRefresh} disabled={refreshing} aria-label={`Refresh ${tradeLabel(group.trade)}`}
+          title="Check for vendor updates"
+          style={{ marginLeft: wos.length > 0 ? 0 : 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text-muted, #6b6d82)', cursor: refreshing ? 'wait' : 'pointer', flexShrink: 0 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+            style={{ transformOrigin: 'center', animation: refreshing ? 'wo-spin 0.8s linear infinite' : 'none' }}>
+            <path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" />
+          </svg>
+        </button>
       </div>
 
       {errs[group.trade] && <ErrStrip>{errs[group.trade]}</ErrStrip>}
@@ -583,6 +608,7 @@ function TradeCard({ group, wos, vendors, busyId, errs, onCreate, onAddVendor, o
               key={it.id}
               item={it}
               actionable={wos.length > 0 && !locked}
+              reversible={wos.length > 0}
               busy={itemBusyId === it.id}
               err={itemErr?.[it.id]}
               crew={crew}
@@ -592,6 +618,7 @@ function TradeCard({ group, wos, vendors, busyId, errs, onCreate, onAddVendor, o
               onMove={(toWoId) => onMoveItem(it, toWoId)}
               onVerify={() => onVerify(it)}
               onDispute={(reason, done) => onDispute(it, reason, done)}
+              onReverse={() => onReverse(it)}
             />
           ))}
           {shown.length === 0 && (
@@ -629,6 +656,12 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
   // still. Re-sorting live would yank a card out from under you the moment you
   // verified its last item.
   const cardOrderRef = useRef(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [live, setLive] = useState(false)
+  // Our own writes come back over realtime too. Ignoring them for a moment
+  // stops a just-patched card from being re-fetched out from under itself.
+  const muteUntilRef = useRef(0)
+  const orderIdsRef = useRef(new Set())
 
   // A refresh after an action must not unmount the list. Flipping `loading`
   // collapses the page to a one-line placeholder, the browser clamps the scroll
@@ -717,6 +750,38 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
   }, [pid])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => { orderIdsRef.current = new Set(orders.map(w => w.id)) }, [orders])
+
+  // When a vendor marks something done on their phone, it should appear here
+  // without anyone reloading. Realtime honours RLS, so this is staff-only —
+  // anon has no table access and receives nothing.
+  useEffect(() => {
+    let timer = null
+    const bump = () => {
+      if (Date.now() < muteUntilRef.current) return
+      clearTimeout(timer)
+      timer = setTimeout(() => load({ silent: true }), 700)
+    }
+    const channel = supabase
+      .channel(`work-orders-${pid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_orders', filter: `pid=eq.${pid}` }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_order_items' }, (payload) => {
+        // work_order_items carries no pid, so scope it here rather than pulling
+        // the whole property back on every other property's activity.
+        const id = payload.new?.work_order_id || payload.old?.work_order_id
+        if (id && !orderIdsRef.current.has(id)) return
+        bump()
+      })
+      .subscribe((status) => setLive(status === 'SUBSCRIBED'))
+    return () => { clearTimeout(timer); supabase.removeChannel(channel) }
+  }, [pid, load])
+
+  const manualRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await load({ silent: true })
+    setRefreshing(false)
+  }, [load])
 
   useEffect(() => {
     if (!toast) return
@@ -822,6 +887,8 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
   }, [groupsWithOrders, ordersByTrade, loaded])
 
   const setErrFor = (key, msg) => setRowErr(p => ({ ...p, [key]: msg }))
+  // Silence the realtime echo of our own write; we have already applied it.
+  const mute = () => { muteUntilRef.current = Date.now() + 2000 }
 
   // A vendor's link is the only credential on the public page, so replacing the
   // vendor has to invalidate it. Same shape as the column default: 32 hex.
@@ -899,6 +966,7 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
 
   async function assignVendor(wo, vendorId, rotate) {
     setBusyId(wo.id); setErrFor(wo.id, '')
+    mute()
     const before = { vendor_id: wo.vendor_id, vendor_name: wo.vendor_name, token: wo.token, status: wo.status, issued_at: wo.issued_at, issued_by: wo.issued_by }
     try {
       const v = vendors.find(x => x.id === vendorId) || null
@@ -1009,6 +1077,7 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
 
   async function verifyItem(item) {
     setItemBusyId(item.id); setItemErr(p => ({ ...p, [item.id]: '' }))
+    mute()
     const { data, error: e } = await supabase.rpc('wo_verify_item', { p_item_id: item.id })
     setItemBusyId(null)
     if (e) { setItemErr(p => ({ ...p, [item.id]: e.message })); return }
@@ -1029,6 +1098,7 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
 
   async function disputeItem(item, reason, done) {
     setItemBusyId(item.id); setItemErr(p => ({ ...p, [item.id]: '' }))
+    mute()
     const { error: e } = await supabase.rpc('wo_dispute_item', { p_item_id: item.id, p_reason: reason })
     setItemBusyId(null)
     if (e) { setItemErr(p => ({ ...p, [item.id]: e.message })); return }
@@ -1047,8 +1117,23 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
     })
   }
 
+  // Reversing after the toast has gone. Same RPCs the toast's Undo uses.
+  async function reverseItem(item) {
+    setItemBusyId(item.id); setItemErr(p => ({ ...p, [item.id]: '' }))
+    muteUntilRef.current = Date.now() + 2000
+    const verified = item.status === 'verified'
+    const { error: e } = verified
+      ? await supabase.rpc('wo_unverify_items', { p_item_ids: [item.id] })
+      : await supabase.rpc('wo_undispute_item', { p_item_id: item.id })
+    setItemBusyId(null)
+    if (e) { setToast({ text: e.message, tone: 'error' }); return }
+    await load({ silent: true })
+    setToast({ text: verified ? 'Back to waiting on you' : 'Send-back cancelled — item is closed again' })
+  }
+
   async function verifyAll(wo) {
     setBusyId(wo.id); setErrFor(wo.id, '')
+    mute()
     const ids = wo.items.filter(i => i.status === 'vendor_closed').map(i => i.id)
     const { data, error: e } = await supabase.rpc('wo_verify_all', { p_work_order_id: wo.id })
     setBusyId('')
@@ -1097,7 +1182,15 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
             {observations > 0 ? ` · ${observations} observation${observations === 1 ? '' : 's'} not sent` : ''}
           </span>
         )}
+        {loaded && (
+          <span title={live ? 'Vendor updates appear here as they happen' : 'Not connected — use refresh on a card'}
+            style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontFamily: MONO, color: live ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
+            {live ? 'LIVE' : 'OFFLINE'}
+          </span>
+        )}
       </div>
+      <style>{'@keyframes wo-spin{to{transform:rotate(360deg)}}'}</style>
 
       {!loading && !error && strandedOrders.length > 0 && (
         <div style={{ padding: '10px 12px', background: 'rgba(200,150,62,0.09)', border: '1px solid rgba(200,150,62,0.30)', borderRadius: 9, fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.55 }}>
@@ -1141,7 +1234,10 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
           itemErr={itemErr}
           onVerify={verifyItem}
           onDispute={disputeItem}
+          onReverse={reverseItem}
           onVerifyAll={verifyAll}
+          onRefresh={manualRefresh}
+          refreshing={refreshing}
         />
       ))}
 

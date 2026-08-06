@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -46,25 +46,26 @@ function Banner({ tone = 'red', children, onRetry }) {
 }
 
 // ── one item ─────────────────────────────────────────────────────────────────
-function ItemCard({ item, index, busy, error, onDone, disabled }) {
+function ItemCard({ item, index, busy, error, onDone, onUndo, closed }) {
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState('')
   const [photoOpen, setPhotoOpen] = useState(false)
   const done = !isOpen(item)
+  const sentBack = item.status === 'disputed'
 
   return (
-    <li style={{
+    <li id={`wo-item-${item.id}`} style={{
       listStyle: 'none',
       background: 'var(--bg-panel, #1e2028)',
-      border: `1px solid ${done ? 'rgba(61,186,122,0.30)' : 'var(--border, #2e3040)'}`,
+      border: `1px solid ${sentBack ? 'rgba(200,150,62,0.42)' : done ? 'rgba(61,186,122,0.30)' : 'var(--border, #2e3040)'}`,
       borderRadius: 12, padding: 13, display: 'flex', flexDirection: 'column', gap: 10,
-      opacity: done ? 0.72 : 1,
+      opacity: done ? 0.78 : 1,
+      scrollMarginTop: 96,
     }}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, minWidth: 22, flexShrink: 0, paddingTop: 2 }}>{index}</span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {item.area && <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{item.area}</div>}
-          <div style={{ fontSize: 15, lineHeight: 1.45, marginTop: 3, wordBreak: 'break-word', textDecoration: done ? 'line-through' : 'none' }}>{item.description}</div>
+          <div style={{ fontSize: 15, lineHeight: 1.45, wordBreak: 'break-word', textDecoration: done ? 'line-through' : 'none' }}>{item.description}</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 7 }}>
             {item.fix_type && (
               <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-dim, #9394a8)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, padding: '3px 9px', fontFamily: MONO }}>{item.fix_type}</span>
@@ -103,7 +104,7 @@ function ItemCard({ item, index, busy, error, onDone, disabled }) {
       )}
 
       {/* Sent back by Flent — still actionable, so it keeps its Mark done. */}
-      {item.status === 'disputed' && item.dispute_reason && (
+      {sentBack && item.dispute_reason && (
         <Banner tone="amber"><strong>Sent back:</strong> {item.dispute_reason}</Banner>
       )}
 
@@ -114,8 +115,20 @@ function ItemCard({ item, index, busy, error, onDone, disabled }) {
       {error && <Banner>{error}</Banner>}
 
       {done ? (
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ Done</div>
-      ) : disabled ? null : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ Done</span>
+          {/* Tapped the wrong row? Undo it yourself — until Flent has looked at it. */}
+          {!closed && item.status === 'vendor_closed' && (
+            <button type="button" onClick={onUndo} disabled={busy}
+              style={{ marginLeft: 'auto', minHeight: 40, padding: '0 14px', borderRadius: 9, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 13, fontWeight: 600, cursor: busy ? 'wait' : 'pointer', fontFamily: SANS, WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
+              {busy ? '…' : 'Undo'}
+            </button>
+          )}
+          {item.status === 'verified' && (
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>checked by Flent</span>
+          )}
+        </div>
+      ) : closed ? null : (
         <>
           {noteOpen && (
             <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
@@ -140,6 +153,11 @@ function ItemCard({ item, index, busy, error, onDone, disabled }) {
   )
 }
 
+const VIEWS = [
+  { key: 'todo', label: 'To do', match: isOpen },
+  { key: 'done', label: 'Done', match: (i) => !isOpen(i) },
+]
+
 // ─────────────────────────────────────────────────────────────────────────────
 export default function VendorWorkOrder() {
   const { token } = useParams()
@@ -151,6 +169,8 @@ export default function VendorWorkOrder() {
   const [submitting, setSubmitting] = useState(false)
   const [submitErr, setSubmitErr] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const [view, setView] = useState('all')
 
   // The fetch lives inside the effect so nothing writes state synchronously on
   // mount; `state` already starts as 'loading'. Retry bumps reloadKey.
@@ -172,10 +192,41 @@ export default function VendorWorkOrder() {
 
   const retry = () => { setState('loading'); setLoadErr(''); setReloadKey(k => k + 1) }
 
+  // anon gets no realtime (it has no table access, by design), so seeing that
+  // Flent sent something back means asking for it.
+  const refresh = useCallback(async () => {
+    setRefreshing(true)
+    const { data, error } = await supabase.rpc('wo_fetch', { p_token: token })
+    setRefreshing(false)
+    if (!error && data) setWo(data)
+  }, [token])
+
   const items = useMemo(() => wo?.items || [], [wo])
   const openCount = useMemo(() => items.filter(isOpen).length, [items])
   const doneCount = items.length - openCount
+  const sentBackCount = useMemo(() => items.filter(i => i.status === 'disputed').length, [items])
   const submitted = wo?.status === 'vendor_completed' || wo?.status === 'verified'
+  const closed = wo?.status === 'verified'
+
+  const indexOf = useMemo(() => {
+    const m = new Map()
+    items.forEach((it, i) => m.set(it.id, i + 1))
+    return m
+  }, [items])
+
+  const shown = view === 'all' ? items : items.filter(VIEWS.find(v => v.key === view)?.match || (() => true))
+
+  // Grouped by area because that is how the work is walked — room by room,
+  // not in one flat list of thirty.
+  const byArea = useMemo(() => {
+    const m = new Map()
+    for (const it of shown) {
+      const k = it.area || 'Other'
+      if (!m.has(k)) m.set(k, [])
+      m.get(k).push(it)
+    }
+    return [...m.entries()]
+  }, [shown])
 
   async function markDone(item, note) {
     setBusyId(item.id)
@@ -193,12 +244,37 @@ export default function VendorWorkOrder() {
     if (data) setWo(data)
   }
 
+  async function undoDone(item) {
+    setBusyId(item.id)
+    setItemErr(p => ({ ...p, [item.id]: '' }))
+    const before = wo
+    setWo(w => ({ ...w, items: w.items.map(i => (i.id === item.id ? { ...i, status: 'pending' } : i)) }))
+    const { data, error } = await supabase.rpc('wo_reopen_item', { p_token: token, p_item_id: item.id })
+    setBusyId(null)
+    if (error) {
+      setWo(before)
+      setItemErr(p => ({ ...p, [item.id]: error.message }))
+      return
+    }
+    if (data) setWo(data)
+  }
+
   async function submit() {
     setSubmitting(true); setSubmitErr('')
     const { data, error } = await supabase.rpc('wo_submit', { p_token: token })
     setSubmitting(false)
     if (error) { setSubmitErr(error.message); return }
     if (data) setWo(data)
+  }
+
+  const jumpToNextOpen = () => {
+    setView('todo')
+    const next = items.find(isOpen)
+    if (next) {
+      requestAnimationFrame(() => {
+        document.getElementById(`wo-item-${next.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    }
   }
 
   if (state === 'loading') return <Centered title="Loading…" />
@@ -218,38 +294,72 @@ export default function VendorWorkOrder() {
 
   return (
     <div style={shell}>
-      <header style={{ background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', paddingTop: 'env(safe-area-inset-top)' }}>
-        <div style={{ ...wrap, padding: '14px 14px 13px' }}>
+      {/* Sticky: on a long list the vendor should always be able to see how much
+          is left without scrolling back up. */}
+      <header style={{ background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', paddingTop: 'env(safe-area-inset-top)', position: 'sticky', top: 0, zIndex: 20 }}>
+        <div style={{ ...wrap, padding: '12px 14px 11px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 18, fontWeight: 700 }}>{wo.trade}</span>
             <span style={{ fontSize: 12.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>PID {wo.pid}</span>
+            <button type="button" onClick={refresh} disabled={refreshing} aria-label="Check for updates"
+              style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, minHeight: 34, padding: '0 11px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 11.5, cursor: refreshing ? 'wait' : 'pointer', fontFamily: MONO, WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                style={{ transformOrigin: 'center', animation: refreshing ? 'wo-spin 0.8s linear infinite' : 'none' }}>
+                <path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" />
+              </svg>
+              {refreshing ? '…' : 'Refresh'}
+            </button>
           </div>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 5, fontSize: 12.5, color: 'var(--text-dim, #9394a8)', fontFamily: MONO }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 4, fontSize: 12.5, color: 'var(--text-dim, #9394a8)', fontFamily: MONO }}>
             {wo.vendor_name && <span>{wo.vendor_name}</span>}
             {dates && <span>{dates}</span>}
           </div>
 
-          <div style={{ marginTop: 11 }}>
+          <div style={{ marginTop: 10 }}>
             <div style={{ height: 8, borderRadius: 4, background: 'var(--bg-input, #252731)', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${pctDone}%`, background: 'var(--green, #3dba7a)', borderRadius: 4, transition: 'width .2s' }} />
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 6 }}>
-              {doneCount} of {items.length} done
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', marginTop: 7 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
+                {doneCount} of {items.length} done
+              </span>
+              {sentBackCount > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', border: '1px solid var(--accent, #c8963e)', borderRadius: 10, padding: '2px 8px', fontFamily: MONO }}>
+                  {sentBackCount} sent back
+                </span>
+              )}
+              {items.length > 3 && (
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                  {[{ key: 'all', label: 'All', n: items.length },
+                    { key: 'todo', label: 'To do', n: openCount },
+                    { key: 'done', label: 'Done', n: doneCount }].map(v => (
+                    <button key={v.key} type="button" onClick={() => setView(v.key)} aria-pressed={view === v.key}
+                      style={{ minHeight: 32, padding: '0 10px', borderRadius: 8, fontSize: 11.5, fontFamily: MONO, cursor: 'pointer',
+                        border: `1px solid ${view === v.key ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`,
+                        background: view === v.key ? 'rgba(200,150,62,0.14)' : 'transparent',
+                        color: view === v.key ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)',
+                        WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
+                      {v.label} {v.n}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
+        <style>{'@keyframes wo-spin{to{transform:rotate(360deg)}}'}</style>
       </header>
 
       <main style={wrap}>
         {submitted && (
           <div style={{ margin: '14px 0', padding: '15px 14px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.34)', borderRadius: 11 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--green, #3dba7a)' }}>
-              {wo.status === 'verified' ? 'Verified — thank you' : 'Waiting for Flent to verify'}
+              {closed ? 'Verified — thank you' : 'Waiting for Flent to verify'}
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--text-dim, #9394a8)', marginTop: 5, lineHeight: 1.55 }}>
-              {wo.status === 'verified'
+              {closed
                 ? 'This work order is closed. Nothing else to do.'
-                : 'You’ve sent all items. Flent will check them and come back to you if anything needs another look.'}
+                : 'You’ve sent all items. Flent will check them and come back to you if anything needs another look. You can still undo an item until they do.'}
             </div>
           </div>
         )}
@@ -266,37 +376,64 @@ export default function VendorWorkOrder() {
             <div style={{ fontSize: 14, fontWeight: 600 }}>Nothing on this work order yet</div>
             <div style={{ fontSize: 12.5, color: 'var(--text-muted, #6b6d82)', marginTop: 5 }}>Check with the Flent team before starting.</div>
           </div>
+        ) : shown.length === 0 ? (
+          <div style={{ margin: '20px 0', padding: '30px 18px', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 11, textAlign: 'center' }}>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>
+              {view === 'todo' ? 'Nothing left to do' : 'Nothing done yet'}
+            </div>
+            <button type="button" onClick={() => setView('all')}
+              style={{ marginTop: 10, minHeight: 40, padding: '0 14px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 12.5, cursor: 'pointer', fontFamily: MONO }}>
+              Show all {items.length}
+            </button>
+          </div>
         ) : (
-          <ul style={{ display: 'flex', flexDirection: 'column', gap: 11, margin: '14px 0 0', padding: 0 }}>
-            {items.map((it, i) => (
-              <ItemCard
-                key={it.id}
-                item={it}
-                index={i + 1}
-                busy={busyId === it.id}
-                error={itemErr[it.id]}
-                disabled={submitted}
-                onDone={(note) => markDone(it, note)}
-              />
-            ))}
-          </ul>
+          byArea.map(([area, rows]) => (
+            <section key={area} style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
+                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', color: 'var(--text-dim, #9394a8)', fontFamily: MONO }}>{area}</span>
+                <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{rows.length}</span>
+                <span style={{ flex: 1, height: 1, background: 'var(--border, #2e3040)' }} />
+              </div>
+              <ul style={{ display: 'flex', flexDirection: 'column', gap: 11, margin: 0, padding: 0 }}>
+                {rows.map(it => (
+                  <ItemCard
+                    key={it.id}
+                    item={it}
+                    index={indexOf.get(it.id)}
+                    busy={busyId === it.id}
+                    error={itemErr[it.id]}
+                    closed={closed}
+                    onDone={(note) => markDone(it, note)}
+                    onUndo={() => undoDone(it)}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))
         )}
       </main>
 
-      {!submitted && items.length > 0 && (
-        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, background: 'var(--bg-panel, #1e2028)', borderTop: '1px solid var(--border, #2e3040)', padding: '11px 14px calc(11px + env(safe-area-inset-bottom))' }}>
+      {!closed && items.length > 0 && (
+        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, background: 'var(--bg-panel, #1e2028)', borderTop: '1px solid var(--border, #2e3040)', padding: '11px 14px calc(11px + env(safe-area-inset-bottom))', zIndex: 20 }}>
           <div style={{ maxWidth: 620, margin: '0 auto' }}>
             {submitErr && <div style={{ marginBottom: 9 }}><Banner>{submitErr}</Banner></div>}
-            <button type="button" onClick={submit} disabled={openCount > 0 || submitting}
+            {/* A dead disabled button wastes the most reachable control on the
+                screen. While work remains it takes you to the next open item. */}
+            <button type="button"
+              onClick={openCount > 0 ? jumpToNextOpen : submit}
+              disabled={submitting || (submitted && openCount === 0)}
               style={{
-                width: '100%', minHeight: 54, borderRadius: 11, border: 'none',
+                width: '100%', minHeight: 54, borderRadius: 11,
+                border: openCount > 0 ? '1px solid var(--border, #2e3040)' : 'none',
                 background: openCount > 0 ? 'var(--bg-input, #252731)' : 'var(--green, #3dba7a)',
-                color: openCount > 0 ? 'var(--text-muted, #6b6d82)' : '#062012',
+                color: openCount > 0 ? 'var(--text-dim, #9394a8)' : '#062012',
                 fontSize: 15.5, fontWeight: 700, fontFamily: SANS,
-                cursor: openCount > 0 ? 'not-allowed' : submitting ? 'wait' : 'pointer',
+                cursor: submitting ? 'wait' : 'pointer',
                 WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
               }}>
-              {submitting ? 'Sending…' : openCount > 0 ? `${openCount} item${openCount === 1 ? '' : 's'} still open` : 'Submit for verification'}
+              {submitting ? 'Sending…'
+                : openCount > 0 ? `${openCount} still open — go to next`
+                : submitted ? 'Sent — waiting for Flent' : 'Submit for verification'}
             </button>
           </div>
         </div>
