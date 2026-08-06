@@ -6,6 +6,7 @@ import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import { advanceStage, STAGES, MAIN_SEQUENCE } from '../utils/propertyJourney'
 import { logActivity } from '../utils/activityUtils'
 import LogoSpinner from '../components/LogoSpinner'
+import WorkOrdersSection from '../components/property/WorkOrdersSection'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -758,7 +759,9 @@ export default function PropertyDetail() {
               )
             })()}
 
-            {/* Stage action buttons — desktop only (mobile shows in pipeline card) */}
+            <WorkOrdersSection pid={pid} />
+
+                        {/* Stage action buttons — desktop only (mobile shows in pipeline card) */}
             {!isMobile && getStageActions().length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
                 {getStageActions().map(action => (
