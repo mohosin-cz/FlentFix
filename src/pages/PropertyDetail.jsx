@@ -87,18 +87,17 @@ const TILES = [
   },
   {
     key: 'workorder',
-    title: 'Work Order',
-    sub: 'Coming soon',
+    title: 'Work Orders',
+    sub: 'By trade · assign',
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
         <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3-3a1 1 0 0 0-1.4-1.4l-2.3 2.3-.9-.9a1 1 0 0 0-1.4 0z" stroke="currentColor" strokeWidth="1.5"/>
         <path d="M4 12h10M4 8h6M4 16h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
       </svg>
     ),
-    color: 'var(--text-muted, #6b6d82)',
-    bg: 'var(--bg-input, #252731)',
-    border: 'var(--border, #2e3040)',
-    disabled: true,
+    color: '#9b6de6',
+    bg: 'rgba(155,109,230,0.08)',
+    border: 'rgba(155,109,230,0.25)',
   },
   {
     key: 'invoice',
@@ -418,6 +417,8 @@ export default function PropertyDetail() {
       navigate(`/invoice/${latestId}`)
     } else if (key === 'raw') {
       navigate(`/properties/${pid}/raw`)
+    } else if (key === 'workorder') {
+      navigate(`/properties/${pid}/work-orders`)
     } else {
       setToast('Coming soon')
     }
