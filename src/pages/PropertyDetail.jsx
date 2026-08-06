@@ -101,6 +101,21 @@ const TILES = [
     border: 'rgba(155,109,230,0.25)',
   },
   {
+    key: 'payments',
+    title: 'Payments',
+    sub: 'Spend log · analytics',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.8"/>
+        <path d="M2 10h20" stroke="currentColor" strokeWidth="1.8"/>
+        <path d="M6 15h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+      </svg>
+    ),
+    color: 'var(--green, #3dba7a)',
+    bg: 'rgba(61,186,122,0.08)',
+    border: 'rgba(61,186,122,0.25)',
+  },
+  {
     key: 'invoice',
     title: 'Landlord Invoice',
     sub: 'Generate invoice',
@@ -420,6 +435,8 @@ export default function PropertyDetail() {
       navigate(`/properties/${pid}/raw`)
     } else if (key === 'workorder') {
       navigate(`/properties/${pid}/work-orders`)
+    } else if (key === 'payments') {
+      navigate(`/properties/${pid}/payments`)
     } else {
       setToast('Coming soon')
     }
