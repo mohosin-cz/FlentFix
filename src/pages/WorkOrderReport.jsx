@@ -332,6 +332,38 @@ export default function WorkOrderReport() {
     }
   }, [rows, orders])
 
+  // Where the money actually went: the split between materials and labour, the
+  // share each trade took, what drove any variance, and the biggest single
+  // lines. Zero-cost rows are counted too — a job where half the items carry no
+  // price on file is a report you should not read as complete.
+  const analysis = useMemo(() => {
+    const sum = (f) => rows.reduce((n, r) => n + f(r), 0)
+    const byTrade = byOrder.map(({ wo, rows: rr }) => ({
+      key: wo.id,
+      trade: wo.trade,
+      vendor: wo.vendor_name,
+      items: rr.length,
+      planned: rr.reduce((n, r) => n + r.plannedTotal, 0),
+      actual: rr.reduce((n, r) => n + r.actualTotal, 0),
+      material: rr.reduce((n, r) => n + r.actualMaterialCost, 0),
+      labour: rr.reduce((n, r) => n + r.actualLabourCost, 0),
+    })).sort((a, b) => b.actual - a.actual)
+    return {
+      material: sum(r => r.actualMaterialCost),
+      labour: sum(r => r.actualLabourCost),
+      plannedMaterial: sum(r => r.plannedMaterialCost),
+      plannedLabour: sum(r => r.plannedLabourCost),
+      byTrade,
+      top: [...rows].filter(r => r.actualTotal > 0).sort((a, b) => b.actualTotal - a.actualTotal).slice(0, 5),
+      drivers: rows.filter(r => r.actualTotal !== r.plannedTotal)
+        .sort((a, b) => Math.abs(b.actualTotal - b.plannedTotal) - Math.abs(a.actualTotal - a.plannedTotal)),
+      zeroCost: rows.filter(r => r.actualTotal === 0).length,
+      perItem: rows.length ? sum(r => r.actualTotal) / rows.length : 0,
+    }
+  }, [rows, byOrder])
+
+  const pct = (n, d) => (d ? Math.round((n / d) * 100) : 0)
+
   async function saveActual(row, patch) {
     const empty = !patch.actual_material && patch.material_cost == null && patch.labour_cost == null && !patch.note
     setSavingId(row.id); setSaveErr(p => ({ ...p, [row.id]: '' }))
@@ -412,9 +444,41 @@ export default function WorkOrderReport() {
         L.push(`    ${r.area || '—'} · ${r.description} · ${inr(r.actualTotal)} · ${ITEM_WORD[r.status] || r.status}`)
       }
     }
+    L.push('')
+    L.push('COST ANALYSIS')
+    L.push(`  Materials ${inr(analysis.material)} (${pct(analysis.material, totals.actual)}%) · Labour ${inr(analysis.labour)} (${pct(analysis.labour, totals.actual)}%)`)
+    L.push(`  Total ${inr(totals.actual)} · ${inr(analysis.perItem)} average per item`)
+    L.push('')
+    L.push('  Share by trade')
+    for (const t of analysis.byTrade) {
+      L.push(`    ${tradeLabel(t.trade)} — ${inr(t.actual)} (${pct(t.actual, totals.actual)}%) · materials ${inr(t.material)} · labour ${inr(t.labour)}`)
+    }
+    L.push('')
+    L.push('  Estimate vs actual')
+    L.push(`    Estimate ${inr(totals.planned)} (materials ${inr(analysis.plannedMaterial)}, labour ${inr(analysis.plannedLabour)})`)
+    L.push(`    Actual   ${inr(totals.actual)} (materials ${inr(analysis.material)}, labour ${inr(analysis.labour)})`)
+    L.push(`    Variance ${varianceStr}`)
+    if (analysis.drivers.length) {
+      L.push('    Driven by:')
+      for (const r of analysis.drivers.slice(0, 8)) {
+        const d = r.actualTotal - r.plannedTotal
+        L.push(`      ${r.description} — ${inr(r.plannedTotal)} → ${inr(r.actualTotal)} (${d > 0 ? '+' : ''}${inr(d)})`)
+      }
+    } else {
+      L.push('    No line was changed from its estimate.')
+    }
+    if (analysis.top.length) {
+      L.push('')
+      L.push('  Largest items')
+      analysis.top.forEach((r, i) => L.push(`    ${i + 1}. ${r.area || '—'} · ${r.description} — ${inr(r.actualTotal)} (${pct(r.actualTotal, totals.actual)}%)`))
+    }
+    if (analysis.zeroCost) {
+      L.push('')
+      L.push(`  Note: ${analysis.zeroCost} of ${totals.items} items carry no cost on file, so the totals above understate the job.`)
+    }
     if (summary.trim()) { L.push(''); L.push('SUMMARY'); L.push(`  ${summary.trim()}`) }
     return L.join('\n')
-  }, [pid, totals, byOrder, changedRows, summary, varianceStr])
+  }, [pid, totals, byOrder, changedRows, summary, varianceStr, analysis])
 
   // Block Kit: the same report, laid out so it is readable in the channel
   // rather than a wall of text.
@@ -469,8 +533,12 @@ export default function WorkOrderReport() {
       }
     }
     // 50 blocks is Slack's hard limit. If the job is big enough to blow it, say
-    // what was left out and link to the page — never truncate silently.
-    const room = 50 - blocks.length - (summary.trim() ? 1 : 0) - 2
+    // what was left out and link to the page — never truncate silently. The
+    // reserve covers the cost analysis and summary that still have to follow;
+    // the item list is what gets trimmed, because it is the one part the linked
+    // page shows in full.
+    const RESERVE = 8 + (summary.trim() ? 2 : 0)
+    const room = 50 - blocks.length - RESERVE
     let dropped = 0
     if (itemBlocks.length > room) {
       dropped = itemBlocks.length - room
@@ -480,13 +548,60 @@ export default function WorkOrderReport() {
     blocks.push(...itemBlocks)
     if (dropped) blocks.push(section(`_${dropped} more section${dropped === 1 ? '' : 's'} of items not shown — Slack caps a message at 50 blocks. Open the report for the full list._`))
 
-    if (summary.trim()) blocks.push(section(`*Summary*\n${summary.trim()}`))
+    // Cost analysis closes the numbers, then the summary has the last word.
+    blocks.push({ type: 'divider' })
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: '*Cost analysis*' },
+      fields: [
+        { type: 'mrkdwn', text: `*Materials*\n${inr(analysis.material)} · ${pct(analysis.material, totals.actual)}%` },
+        { type: 'mrkdwn', text: `*Labour*\n${inr(analysis.labour)} · ${pct(analysis.labour, totals.actual)}%` },
+        { type: 'mrkdwn', text: `*Average per item*\n${inr(analysis.perItem)}` },
+        { type: 'mrkdwn', text: `*Items priced*\n${totals.items - analysis.zeroCost} of ${totals.items}` },
+      ],
+    })
+    blocks.push(section(
+      `*Share by trade*\n${analysis.byTrade.map(t =>
+        `${tradeLabel(t.trade)} — *${inr(t.actual)}* · ${pct(t.actual, totals.actual)}%  _(materials ${inr(t.material)}, labour ${inr(t.labour)})_`,
+      ).join('\n')}`,
+    ))
+    const varianceLines = [
+      `Estimate  ${inr(totals.planned)}  _(materials ${inr(analysis.plannedMaterial)}, labour ${inr(analysis.plannedLabour)})_`,
+      `Actual  *${inr(totals.actual)}*  _(materials ${inr(analysis.material)}, labour ${inr(analysis.labour)})_`,
+      `Variance  *${varianceStr}*`,
+    ]
+    if (analysis.drivers.length) {
+      varianceLines.push('', '_Driven by:_')
+      for (const r of analysis.drivers.slice(0, 8)) {
+        const d = r.actualTotal - r.plannedTotal
+        varianceLines.push(`• ${r.description} — ${inr(r.plannedTotal)} → ${inr(r.actualTotal)} (${d > 0 ? '+' : ''}${inr(d)})`)
+      }
+      if (analysis.drivers.length > 8) varianceLines.push(`_…and ${analysis.drivers.length - 8} more changed lines._`)
+    } else {
+      varianceLines.push('', '_No line was changed from its estimate._')
+    }
+    blocks.push(section(`*Estimate vs actual*\n${varianceLines.join('\n')}`))
+    if (analysis.top.length) {
+      blocks.push(section(
+        `*Largest items*\n${analysis.top.map((r, i) =>
+          `${i + 1}. ${r.area || '—'} · ${r.description} — *${inr(r.actualTotal)}* · ${pct(r.actualTotal, totals.actual)}%`,
+        ).join('\n')}`,
+      ))
+    }
+    if (analysis.zeroCost) {
+      blocks.push(section(`_${analysis.zeroCost} of ${totals.items} items carry no cost on file, so the totals above understate the job._`))
+    }
+
+    if (summary.trim()) {
+      blocks.push({ type: 'divider' })
+      blocks.push(section(`*Summary*\n${summary.trim()}`))
+    }
     blocks.push({
       type: 'context',
       elements: [{ type: 'mrkdwn', text: `${window.location.origin}/properties/${encodeURIComponent(pid)}/work-orders/report` }],
     })
     return blocks
-  }, [pid, totals, byOrder, changedRows, summary, varianceStr])
+  }, [pid, totals, byOrder, changedRows, summary, varianceStr, analysis])
 
   async function copySummary() {
     try {
@@ -682,6 +797,104 @@ export default function WorkOrderReport() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Cost analysis closes the numbers; the summary then has the last word. */}
+            <div className="wo-card" style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Cost analysis</div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                <Kpi label="Materials" value={inr(analysis.material)} sub={`${pct(analysis.material, totals.actual)}% of spend`} />
+                <Kpi label="Labour" value={inr(analysis.labour)} sub={`${pct(analysis.labour, totals.actual)}% of spend`} />
+                <Kpi label="Average per item" value={inr(analysis.perItem)} sub={`across ${totals.items} items`} />
+                <Kpi label="Items priced" value={`${totals.items - analysis.zeroCost}/${totals.items}`}
+                  tone={analysis.zeroCost ? 'var(--accent, #c8963e)' : undefined}
+                  sub={analysis.zeroCost ? `${analysis.zeroCost} carry no cost` : 'all costed'} />
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+                  <thead>
+                    <tr>
+                      <th style={head}>Share by trade</th>
+                      <th style={{ ...head, textAlign: 'right' }}>Materials</th>
+                      <th style={{ ...head, textAlign: 'right' }}>Labour</th>
+                      <th style={{ ...head, textAlign: 'right' }}>Total</th>
+                      <th style={{ ...head, textAlign: 'right' }}>Share</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analysis.byTrade.map(t => (
+                      <tr key={t.key} style={{ borderTop: '1px solid var(--border, #2e3040)' }}>
+                        <td style={cell}>{tradeLabel(t.trade)}{t.vendor ? <span style={{ color: 'var(--text-muted, #6b6d82)' }}> · {t.vendor}</span> : null}</td>
+                        <td style={{ ...cell, textAlign: 'right', fontFamily: MONO }}>{inr(t.material)}</td>
+                        <td style={{ ...cell, textAlign: 'right', fontFamily: MONO }}>{inr(t.labour)}</td>
+                        <td style={{ ...cell, textAlign: 'right', fontFamily: MONO, fontWeight: 700 }}>{inr(t.actual)}</td>
+                        <td style={{ ...cell, textAlign: 'right', fontFamily: MONO, color: 'var(--text-muted, #6b6d82)' }}>{pct(t.actual, totals.actual)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+                <div>
+                  <div style={{ ...head, padding: '0 0 6px' }}>Estimate vs actual</div>
+                  <div style={{ fontSize: 12, fontFamily: MONO, lineHeight: 1.9, color: 'var(--text-dim, #9394a8)' }}>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <span style={{ flex: 1 }}>Estimate</span>
+                      <span style={{ color: 'var(--text, #e8e8f0)', flexShrink: 0 }}>{inr(totals.planned)}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <span style={{ flex: 1 }}>Actual</span>
+                      <span style={{ color: 'var(--text, #e8e8f0)', fontWeight: 700, flexShrink: 0 }}>{inr(totals.actual)}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, borderTop: '1px solid var(--border, #2e3040)', marginTop: 4, paddingTop: 4 }}>
+                      <span style={{ flex: 1 }}>Variance</span>
+                      <span style={{ fontWeight: 700, flexShrink: 0, color: totals.variance > 0 ? 'var(--red, #e05c6a)' : totals.variance < 0 ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }}>{varianceStr}</span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, fontFamily: MONO, color: 'var(--text-muted, #6b6d82)', marginTop: 10, lineHeight: 1.7 }}>
+                    {analysis.drivers.length ? (
+                      <>
+                        <div style={{ marginBottom: 3 }}>Driven by</div>
+                        {analysis.drivers.slice(0, 8).map(r => {
+                          const d = r.actualTotal - r.plannedTotal
+                          return (
+                            <div key={r.id} style={{ wordBreak: 'break-word' }}>
+                              · {r.description} {inr(r.plannedTotal)} → {inr(r.actualTotal)}{' '}
+                              <span style={{ color: d > 0 ? 'var(--red, #e05c6a)' : 'var(--green, #3dba7a)' }}>({d > 0 ? '+' : ''}{inr(d)})</span>
+                            </div>
+                          )
+                        })}
+                        {analysis.drivers.length > 8 && <div>…and {analysis.drivers.length - 8} more changed lines</div>}
+                      </>
+                    ) : 'No line was changed from its estimate.'}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ ...head, padding: '0 0 6px' }}>Largest items</div>
+                  {analysis.top.length ? (
+                    <div style={{ fontSize: 11.5, fontFamily: MONO, color: 'var(--text-dim, #9394a8)', lineHeight: 1.9 }}>
+                      {analysis.top.map((r, i) => (
+                        <div key={r.id} style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
+                          <span style={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>{i + 1}. {r.description}</span>
+                          <span style={{ color: 'var(--text, #e8e8f0)', flexShrink: 0 }}>{inr(r.actualTotal)} · {pct(r.actualTotal, totals.actual)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11.5, fontFamily: MONO, color: 'var(--text-muted, #6b6d82)' }}>Nothing on this job carries a cost yet.</div>
+                  )}
+                </div>
+              </div>
+
+              {analysis.zeroCost > 0 && (
+                <div style={{ padding: '9px 11px', background: 'rgba(200,150,62,0.09)', border: '1px solid rgba(200,150,62,0.30)', borderRadius: 8, fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.55 }}>
+                  {analysis.zeroCost} of {totals.items} items carry no cost on file, so these totals understate the job.
+                </div>
+              )}
             </div>
 
             <div className="wo-card" style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: 14 }}>
