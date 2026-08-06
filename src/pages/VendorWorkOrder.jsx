@@ -135,17 +135,22 @@ function ItemCard({ item, index, busy, error, onDone, onUndo, closed }) {
               placeholder="Note for Flent (optional)"
               style={{ width: '100%', boxSizing: 'border-box', padding: '10px 11px', fontSize: 16, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 9, outline: 'none', fontFamily: 'inherit', resize: 'vertical' }} />
           )}
-          <div style={{ display: 'flex', gap: 9 }}>
-            <button type="button" onClick={() => onDone(note.trim() || null)} disabled={busy}
-              style={{ flex: 1, minHeight: 52, borderRadius: 10, border: 'none', background: busy ? 'var(--accent-dim, #8a6428)' : 'var(--green, #3dba7a)', color: '#062012', fontSize: 15, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: SANS, WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
-              {busy ? 'Saving…' : 'Mark done'}
-            </button>
+          {/* Sized for a thumb (44px) but not a slab — a checklist of thirty
+              rows should read as the work, not as thirty green buttons. */}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
             {!noteOpen && (
               <button type="button" onClick={() => setNoteOpen(true)}
-                style={{ minHeight: 52, padding: '0 15px', borderRadius: 10, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 13, cursor: 'pointer', fontFamily: SANS, WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
+                style={{ minHeight: 44, padding: '0 13px', borderRadius: 9, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 12.5, cursor: 'pointer', fontFamily: SANS, WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
                 Note
               </button>
             )}
+            <button type="button" onClick={() => onDone(note.trim() || null)} disabled={busy}
+              style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 44, padding: '0 17px', borderRadius: 9, border: '1px solid var(--green, #3dba7a)', background: 'rgba(61,186,122,0.14)', color: 'var(--green, #3dba7a)', fontSize: 13.5, fontWeight: 600, cursor: busy ? 'wait' : 'pointer', fontFamily: SANS, WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+              {busy ? 'Saving…' : 'Mark done'}
+            </button>
           </div>
         </>
       )}
