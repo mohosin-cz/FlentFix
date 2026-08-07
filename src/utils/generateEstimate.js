@@ -10,7 +10,18 @@ export function belongsInEstimate(item) {
   if (item.excluded_from_estimate === true) return false
   const hasCost = (parseFloat(item.material_cost) || 0) + (parseFloat(item.labour_cost) || 0) > 0
   if (hasCost) return true // "not available" WITH install cost IS work — include
+
+  // A custom item's NAME is what the inspector typed, so it IS the description —
+  // people write the whole finding there ("The upvc window needs to be
+  // refrosted") and never fill the issue row. Reading only issue_description
+  // silently dropped those from the estimate, the workbench and work orders.
+  // Scoped to custom rows on purpose: a catalogue item's name is fixed and says
+  // nothing about whether there is work, so the same fallback there would drag
+  // in every item that was merely checked.
+  const isCustom = (item.area || '').trim().toLowerCase() === 'custom'
   const desc = (item.issue_description || '').trim()
+    || (isCustom ? (item.item_name || '').trim() : '')
+
   if (!desc) return false // no description, no cost → skip
   if (OBSERVATION_RE.test(desc)) return false // pure observation
   return true // real issue, zero cost so far (e.g. action-only pending price) — include

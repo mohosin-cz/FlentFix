@@ -2115,11 +2115,15 @@ export default function InspectionIndoor() {
         const ciMedia = Array.isArray(ci.media) ? ci.media.filter(f => typeof f === 'string' && f.startsWith('http')) : []
         const ciIssues = ci.issues || []
         if (ciIssues.length === 0) {
-          lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: '', material_cost: 0, labour_cost: 0, item_score: ci.health ?? null })
+          // ci.notes used to be dropped on the floor here. With no issue row it
+          // is the only description the inspector wrote, so it becomes the
+          // issue description as well as being kept verbatim in notes.
+          const ciNote = (ci.notes || '').trim()
+          lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: ciNote, notes: ciNote || null, material_cost: 0, labour_cost: 0, item_score: ci.health ?? null })
           mediaArrays.push(ciMedia); proofMediaArrays.push([])
         } else {
           ciIssues.forEach((row, ri) => {
-            lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: row.issueDescription || '', action: row.action || '', material_cost: parseFloat(row.materialCost) || 0, labour_cost: parseFloat(row.labourCost) || 0, item_score: ci.health ?? null })
+            lineItemRows.push({ inspection_id: inspectionId, section_name: tab.label, area: 'Custom', item_name: ci.name, trade: 'misc', issue_description: row.issueDescription || '', action: row.action || '', notes: (ci.notes || '').trim() || null, material_cost: parseFloat(row.materialCost) || 0, labour_cost: parseFloat(row.labourCost) || 0, item_score: ci.health ?? null })
             mediaArrays.push(ri === 0 ? ciMedia : []); proofMediaArrays.push([])
           })
         }
