@@ -81,7 +81,12 @@ html, body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overscroll-behavior: none;
+  /* Y only. The shorthand `overscroll-behavior: none` also sets the X axis,
+     and overscroll-behavior-x:none is exactly what switches off the browser's
+     two-finger swipe back/forward — so the app was suppressing a gesture it
+     never meant to touch. The Y axis stays suppressed on purpose: it stops the
+     native pull-to-refresh from fighting usePullToRefresh. */
+  overscroll-behavior-y: none;
 }
 
 #root {
