@@ -98,6 +98,22 @@ export default function PropertyUtilitiesOverview() {
   const chipCls = (on) => `tct tct-bare${on ? ' is-on' : ''}`
   const chipSty = { flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '10px 14px', fontSize: 12.5, lineHeight: 1, whiteSpace: 'nowrap' }
 
+  const typeChips = presentTypes.length > 1 ? (
+    <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 8, WebkitOverflowScrolling: 'touch' }}>
+      <button onClick={() => setTypeF('all')} className={chipCls(typeF === 'all')} style={chipSty}>All types</button>
+      {presentTypes.map(t => <button key={t.key} onClick={() => setTypeF(t.key)} className={chipCls(typeF === t.key)} style={chipSty}><UtilityIcon type={t.key} size={14} />{t.label}</button>)}
+    </div>
+  ) : null
+
+  // By month answers a historical question, so it takes the type filter but not
+  // the recharge-due one — "overdue" is about today and would silently drop
+  // past deployments from a month's count.
+  const byType = useMemo(
+    () => (typeF === 'all' ? rows : rows.filter(r => r.utility_type === typeF)),
+    [rows, typeF],
+  )
+  const typeName = typeF === 'all' ? '' : (UTILITY_TYPES.find(t => t.key === typeF)?.label || typeF)
+
   const listView = (
     <div style={{ flex: 1, minWidth: 0 }}>
       {narrow && rows.length > 0 && (
@@ -112,12 +128,7 @@ export default function PropertyUtilitiesOverview() {
           style={{ width: '100%', boxSizing: 'border-box', padding: '11px 13px 11px 34px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, outline: 'none', fontFamily: SANS }} />
         {q && <button onClick={() => setQ('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, borderRadius: 6, border: 'none', background: 'var(--bg-panel, #1e2028)', color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontSize: 13 }}>×</button>}
       </div>
-      {presentTypes.length > 1 && (
-        <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 8, WebkitOverflowScrolling: 'touch' }}>
-          <button onClick={() => setTypeF('all')} className={chipCls(typeF === 'all')} style={chipSty}>All types</button>
-          {presentTypes.map(t => <button key={t.key} onClick={() => setTypeF(t.key)} className={chipCls(typeF === t.key)} style={chipSty}><UtilityIcon type={t.key} size={14} />{t.label}</button>)}
-        </div>
-      )}
+      {typeChips}
       <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 8, marginBottom: 12, WebkitOverflowScrolling: 'touch' }}>
         {DUE_FILTERS.map(f => <button key={f.key} onClick={() => setDueF(f.key)} className={chipCls(dueF === f.key)} style={chipSty}>{f.label}</button>)}
       </div>
@@ -189,7 +200,11 @@ export default function PropertyUtilitiesOverview() {
               </div>
 
               {tab === 'months' ? (
-                <UtilitiesByMonth rows={rows} navigate={navigate} />
+                <>
+                  {typeChips}
+                  <div style={{ height: 12 }} />
+                  <UtilitiesByMonth rows={byType} navigate={navigate} typeKey={typeF} typeName={typeName} />
+                </>
               ) : (
                 <div style={{ display: 'flex', gap: 22, alignItems: 'flex-start' }}>
                   {listView}

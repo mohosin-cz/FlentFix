@@ -84,18 +84,24 @@ export function monthLabel(ym) {
 }
 
 // per-month deployment cohorts keyed on install (start_date), newest first
+// Two different money questions, kept as two fields because conflating them is
+// what made this table unreconcilable against the fixture sheet:
+//   paid  — cash committed by that month's deployments (a ₹5,088/yr plan is ₹5,088)
+//   spend — recurring monthly-equivalent those deployments added (₹5,088/12 = ₹424)
+// The sheet counts cash, so `paid` is the headline and `spend` the footnote.
 export function deploymentsByMonth(rows) {
   const map = {}
   for (const r of rows) {
     if (!r.start_date) continue
     const ym = r.start_date.slice(0, 7)
-    const g = map[ym] || (map[ym] = { ym, deploys: 0, props: new Set(), wifi: 0, water: 0, other: 0, spend: 0 })
+    const g = map[ym] || (map[ym] = { ym, deploys: 0, props: new Set(), wifi: 0, water: 0, other: 0, spend: 0, paid: 0 })
     g.deploys++
     g.props.add(r.pid)
     if (r.utility_type === 'wifi') g.wifi++
     else if (r.utility_type === 'water_purifier') g.water++
     else g.other++
     g.spend += monthlyCost(r)
+    g.paid += Number(r.billing_amount) || 0
   }
   return Object.values(map).map(g => ({ ...g, properties: g.props.size })).sort((a, b) => b.ym.localeCompare(a.ym))
 }
