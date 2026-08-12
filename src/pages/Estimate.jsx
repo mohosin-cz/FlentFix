@@ -3,9 +3,9 @@ import { HIGH_VALUE_VIDEO_THRESHOLD, validateProofVideo } from '../utils/proofVi
 import EstimateDashboard from '../components/estimate/EstimateDashboard'
 import ItemDrawer from '../components/estimate/ItemDrawer'
 import RateDrawer from '../components/estimate/RateDrawer'
-import { MediaLightbox, TypeSeg, ScoreChip, MediaCell } from '../components/estimate/parts'
+import { MediaLightbox, TypeSeg, ScoreChip, MediaCell, FilterSelect } from '../components/estimate/parts'
 import { CSS } from '../components/estimate/workbenchCss'
-import { uiType, dbType, tc, fmt, itemTot, getScore, invPrice, maxSort } from '../utils/estimateHelpers'
+import { uiType, dbType, tc, fmt, itemTot, getScore, needsPricing, invPrice, maxSort } from '../utils/estimateHelpers'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { reconcileEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
@@ -24,6 +24,10 @@ const VALID_COLUMNS = new Set([
 ])
 
 // DB cost_type: 'priced' | 'actuals' | 'nil'  ↔  UI type: 'priced' | 'actual' | 'none'
+// Sentinel for "this field is empty" in a facet filter. Not a real value, so
+// it cannot collide with a trade or area someone actually typed.
+const FACET_BLANK = '\u0000blank'
+
 const REASON_SHORT = {
   why_needed: 'why?', more_photos: 'photos', cost_breakdown: 'cost?',
   self_arrange: 'self', not_needed: 'not needed', price_too_high: 'price',
@@ -59,6 +63,11 @@ function EstimateWorkbenchInner() {
   const [estimate, setEstimate]         = useState(null)
   const [views, setViews]               = useState([])      // landlord 'viewed' events, newest first
   const [statusF, setStatusF]           = useState('all')   // all | approved | disputed | pending
+  const [tradeF, setTradeF]             = useState('all')   // lowercased trade
+  const [areaF,  setAreaF]              = useState('all')   // lowercased area
+  const [typeF,  setTypeF]              = useState('all')   // priced | actual | none | needs
+  const [condF,  setCondF]              = useState('all')   // replace | repair | ok | unscored
+  const [flagF,  setFlagF]              = useState('all')   // nophoto | noproof | query
   const [items, setItems]               = useState([])
   const [inspection, setInspection]     = useState(null)
   const [loading, setLoading]           = useState(true)
@@ -589,6 +598,31 @@ function EstimateWorkbenchInner() {
     }
   }, [items])
 
+  // Trade and area come from the data rather than a fixed list — a filter that
+  // offers a trade nobody used, or omits one somebody typed, is worse than no
+  // filter. Keyed case-insensitively for the same reason the groups are.
+  const facets = useMemo(() => {
+    const live = items.filter(i => i.status !== 'removed')
+    // Blanks get their own option rather than being dropped — an item with no
+    // trade is exactly the one you want to find, and skipping it made the
+    // counts not add up to the total.
+    const tally = (pick, blankLabel) => {
+      const m = new Map()
+      let blank = 0
+      for (const it of live) {
+        const raw = (pick(it) || '').trim()
+        if (!raw) { blank++; continue }
+        const k = raw.toLowerCase()
+        if (!m.has(k)) m.set(k, { key: k, label: raw, n: 0 })
+        m.get(k).n++
+      }
+      const out = [...m.values()].sort((a, b) => a.label.localeCompare(b.label))
+      if (blank) out.push({ key: FACET_BLANK, label: blankLabel, n: blank })
+      return out
+    }
+    return { trades: tally(i => i.trade, 'Uncategorised'), areas: tally(i => i.area, 'No area') }
+  }, [items])
+
   // One predicate for text and decision, so the count in the find bar and the
   // rows on screen can never disagree.
   const matchesStatus = useCallback((it) => {
@@ -598,12 +632,57 @@ function EstimateWorkbenchInner() {
     return it.status === statusF
   }, [statusF])
 
+  const matchesFacets = useCallback((it) => {
+    const facetMiss = (val, sel) => {
+      const v = (val || '').trim().toLowerCase()
+      return sel === FACET_BLANK ? v !== '' : v !== sel
+    }
+    if (tradeF !== 'all' && facetMiss(it.trade, tradeF)) return false
+    if (areaF  !== 'all' && facetMiss(it.area,  areaF))  return false
+
+    if (typeF !== 'all') {
+      if (typeF === 'needs') { if (!needsPricing(it)) return false }
+      else if (uiType(it.cost_type) !== typeF) return false
+    }
+
+    if (condF !== 'all') {
+      const s = getScore(it)
+      if (condF === 'unscored') { if (s != null) return false }
+      else if (s == null) return false
+      else if (condF === 'replace' && s > 3) return false
+      else if (condF === 'repair'  && (s <= 3 || s > 6)) return false
+      else if (condF === 'ok'      && s <= 6) return false
+    }
+
+    if (flagF !== 'all') {
+      const media  = mediaMap[it.line_item_id] || []
+      const photos = media.filter(m => m.type !== 'video' && !/\.(mp4|mov|webm)$/i.test(m.url)).length
+      if (flagF === 'nophoto' && photos > 0) return false
+      if (flagF === 'noproof') {
+        if (itemTot(it) < HIGH_VALUE_VIDEO_THRESHOLD) return false
+        if (media.some(m => m.is_proof_video)) return false
+      }
+      if (flagF === 'query') {
+        const ds = disputeMap[it.id]
+        if (!(ds?.length > 0 && ds[ds.length - 1].author_type === 'landlord')) return false
+      }
+    }
+    return true
+  }, [tradeF, areaF, typeF, condF, flagF, mediaMap, disputeMap])
+
   const matchesQuery = useCallback((it) => {
     if (!matchesStatus(it)) return false
+    if (!matchesFacets(it)) return false
     if (!needle) return true
     return [it.item_name, it.area, it.issue_description, it.action, it.trade]
       .some(f => (f || '').toLowerCase().includes(needle))
-  }, [needle, matchesStatus])
+  }, [needle, matchesStatus, matchesFacets])
+
+  const activeFilters = [statusF, tradeF, areaF, typeF, condF, flagF].filter(v => v !== 'all').length
+  const clearFilters = useCallback(() => {
+    setStatusF('all'); setTradeF('all'); setAreaF('all')
+    setTypeF('all'); setCondF('all'); setFlagF('all'); setQuery('')
+  }, [])
 
   const totalCount = useMemo(() => items.filter(i => i.status !== 'removed').length, [items])
   const matchCount = useMemo(() => items.filter(i => i.status !== 'removed' && matchesQuery(i)).length, [items, matchesQuery])
@@ -877,8 +956,52 @@ function EstimateWorkbenchInner() {
               <button className="sfbtn" onClick={() => setStatusF('all')} title="Clear the decision filter">×</button>
             )}
           </div>
-          {needle && matchCount === 0 && (
-            <div className="nores">Nothing matches “{query.trim()}”.</div>
+
+          {/* The other axes. Trade and area are built from the data; the rest
+              are fixed vocabularies. Kept as one quiet row so five more
+              filters do not cost five more rows of chrome. */}
+          <div className="fbar">
+            <FilterSelect label="Trade" value={tradeF} onChange={setTradeF}
+              options={facets.trades} allLabel="All trades" />
+            <FilterSelect label="Area" value={areaF} onChange={setAreaF}
+              options={facets.areas} allLabel="All areas" />
+            <FilterSelect label="Cost" value={typeF} onChange={setTypeF} allLabel="Any cost type"
+              options={[
+                { key:'priced', label:'Priced' },
+                { key:'actual', label:'On actuals' },
+                { key:'none',   label:'Nil' },
+                { key:'needs',  label:'Needs a cost' },
+              ]} />
+            <FilterSelect label="Condition" value={condF} onChange={setCondF} allLabel="Any condition"
+              options={[
+                { key:'replace',  label:'Replace (1–3)' },
+                { key:'repair',   label:'Repair (4–6)' },
+                { key:'ok',       label:'OK (7–10)' },
+                { key:'unscored', label:'Not scored' },
+              ]} />
+            <FilterSelect label="Flag" value={flagF} onChange={setFlagF} allLabel="No flag"
+              options={[
+                { key:'nophoto', label:'No photo' },
+                { key:'noproof', label:'Missing proof video' },
+                { key:'query',   label:'Open query' },
+              ]} />
+            {activeFilters > 0 && (
+              <button className="fclear" onClick={clearFilters}>
+                Clear {activeFilters} filter{activeFilters > 1 ? 's' : ''}
+              </button>
+            )}
+            <span className="fcount">{matchCount} of {totalCount}</span>
+          </div>
+
+          {matchCount === 0 && (
+            <div className="nores">
+              {needle
+                ? <>Nothing matches “{query.trim()}”{activeFilters > 0 ? ' with these filters' : ''}.</>
+                : <>No item matches these filters.</>}
+              {(activeFilters > 0 || needle) && (
+                <button className="nores-clr" onClick={clearFilters}>Clear everything</button>
+              )}
+            </div>
           )}
           {tradeGroups.map(({ trade, rows, subtotal }) => {
             const color = tc(trade)

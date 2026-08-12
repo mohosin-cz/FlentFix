@@ -68,7 +68,25 @@ export const CSS = `
 .findbar .cnt{font-family:var(--mono);font-size:10.5px;color:var(--muted);white-space:nowrap;flex-shrink:0}
 .findbar .clr{background:none;border:none;color:var(--muted);font-size:16px;line-height:1;cursor:pointer;padding:0 2px;flex-shrink:0}
 .findbar .clr:hover{color:var(--ink)}
-.nores{padding:26px 14px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted);border:1px dashed var(--line2);border-radius:7px;margin-bottom:16px}
+.nores{padding:34px 16px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted);border:1px dashed rgba(47,52,63,.7);border-radius:10px;margin-bottom:16px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.nores-clr{font-family:var(--mono);font-size:11px;color:var(--gold);background:none;border:1px solid rgba(227,170,90,.3);border-radius:7px;padding:7px 13px;min-height:36px;cursor:pointer;transition:background .14s,border-color .14s}
+.nores-clr:hover{background:rgba(227,170,90,.09);border-color:rgba(227,170,90,.55)}
+
+/* Filter row. Five selects that read as one quiet strip until one is set —
+   an active facet is the only thing here allowed to carry the accent. */
+.fbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 13px 12px}
+.fsel{position:relative;display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 22px 0 11px;border-radius:8px;background:var(--panel2);box-shadow:inset 0 0 0 1px transparent;color:var(--ink2);cursor:pointer;transition:background .14s,box-shadow .14s,color .14s}
+.fsel:hover{background:#1b1f27}
+.fsel:focus-within{box-shadow:inset 0 0 0 1px var(--line2)}
+.fsel.on{color:var(--gold);box-shadow:inset 0 0 0 1px rgba(227,170,90,.38)}
+.fsel-l{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.085em;text-transform:uppercase;color:var(--faint)}
+.fsel.on .fsel-l{color:rgba(227,170,90,.65)}
+.fsel select{appearance:none;-webkit-appearance:none;background:none;border:none;outline:none;color:inherit;font-family:var(--mono);font-size:11px;cursor:pointer;max-width:150px;flex:1 1 auto;min-width:0;text-overflow:ellipsis}
+.fsel option{background:var(--panel);color:var(--ink)}
+.fsel::after{content:'';position:absolute;right:10px;top:50%;width:5px;height:5px;margin-top:-4px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);opacity:.45;pointer-events:none}
+.fclear{font-family:var(--mono);font-size:10.5px;color:var(--muted);background:none;border:none;border-radius:8px;padding:0 10px;height:34px;cursor:pointer;transition:color .14s,background .14s}
+.fclear:hover{color:var(--ink2);background:var(--panel2)}
+.fcount{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--faint);white-space:nowrap}
 /* overflow:clip, not hidden — hidden would make this a scroll container and
    silently kill the sticky header below it. clip still respects the radius. */
 .grp{margin-bottom:14px;border:1px solid var(--line);border-radius:10px;overflow:clip;background:var(--panel)}
@@ -263,6 +281,14 @@ export const CSS = `
   .acts{flex-wrap:wrap;justify-content:flex-end;gap:6px;min-width:0}
   /* Full touch targets where there is no pointer to aim with. */
   .sfbtn{min-height:44px;padding:10px 14px}
+  /* Two per row. Stacked, five filters cost ~260px of scrolling before the
+     first item comes into view. */
+  .fbar{gap:6px}
+  .fsel{height:44px;flex:1 1 calc(50% - 3px);min-width:0;padding-left:10px}
+  .fsel select{max-width:none}
+  .fclear{height:44px;flex:1 1 100%;text-align:left}
+  /* The count would otherwise be pushed onto a line of its own by margin-left:auto. */
+  .fcount{margin-left:0;width:100%}
 }
 @media(max-width:380px){
   .dash{grid-template-columns:1fr}

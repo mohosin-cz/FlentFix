@@ -254,3 +254,25 @@ export function ProofVideoInput({ onAddProofVideo }) {
     </div>
   )
 }
+
+// ─── FilterSelect ─────────────────────────────────────────────────────────────
+
+// A native select, styled down. Native because it is the one control that
+// already works on a phone, with a keyboard, and with a screen reader without
+// being rebuilt — and a workbench filter is not worth a custom listbox.
+export function FilterSelect({ label, value, onChange, options, allLabel }) {
+  const on = value !== 'all'
+  return (
+    <label className={`fsel${on ? ' on' : ''}`}>
+      <span className="fsel-l">{label}</span>
+      <select value={value} onChange={e => onChange(e.target.value)} aria-label={label}>
+        <option value="all">{allLabel}</option>
+        {options.map(o => (
+          <option key={o.key} value={o.key}>
+            {o.label}{o.n != null ? ` (${o.n})` : ''}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
