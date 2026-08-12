@@ -2,8 +2,13 @@
 // ─── CSS (ported node-for-node from reference) ────────────────────────────────
 
 export const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
-:root{--bg:#0c0d11;--panel:#14161c;--panel2:#181b22;--line:#23272f;--line2:#2f343f;--ink:#eae8e2;--ink2:#c3c1ba;--muted:#868a94;--faint:#595e69;--gold:#e3aa5a;--teal:#5fb6a8;--clay:#d07050;--amber:#e1a93f;--good:#5fae6e;--blue:#6088c6;--mono:'IBM Plex Mono',ui-monospace,monospace;--sans:'Inter',system-ui,sans-serif}
+/* Type comes from the app's tokens, not from a second font stack. This page
+   used to pull IBM Plex Mono + Inter off Google Fonts while the rest of Pulse
+   ran on Urbanist + JetBrains Mono, so the workbench read as a different
+   product — and it cost an extra font request on top of the ones index.html
+   already makes. --mono/--sans stay as local aliases so the rules below are
+   untouched. */
+:root{--bg:#0c0d11;--panel:#14161c;--panel2:#181b22;--line:#23272f;--line2:#2f343f;--ink:#eae8e2;--ink2:#c3c1ba;--muted:#868a94;--faint:#595e69;--gold:#e3aa5a;--teal:#5fb6a8;--clay:#d07050;--amber:#e1a93f;--good:#5fae6e;--blue:#6088c6;--mono:var(--font-mono,'JetBrains Mono','Fira Mono',monospace);--sans:var(--font-sans,'Urbanist','Poppins',sans-serif)}
 *{box-sizing:border-box;margin:0;padding:0}
 .ey{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .cmd{position:sticky;top:0;z-index:6;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 22px;background:rgba(12,13,17,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
@@ -16,12 +21,19 @@ export const CSS = `
 .pill.viewed{color:var(--gold);border-color:rgba(227,170,90,.4)}
 .pill.status{text-transform:uppercase;letter-spacing:.08em}
 .acts{display:flex;align-items:center;gap:8px}
-.btn{font-size:13px;font-weight:500;padding:10px 14px;min-height:44px;border-radius:5px;border:1px solid var(--line2);background:transparent;color:var(--ink2);cursor:pointer;font-family:var(--sans);touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-.btn:hover{background:rgba(255,255,255,.04)}
-.btn.ghost{border-color:transparent;color:var(--muted);padding:8px 9px}
-.btn.ghost:hover{color:var(--ink2);background:rgba(255,255,255,.04)}
-.btn.primary{background:var(--gold);color:#231a0a;border-color:var(--gold);font-weight:600}
-.btn.primary:hover{opacity:.9}
+/* Layout only. Surface, typography, the lit plateau and the press recess all
+   come from .tct in theme.css, so these buttons are the same control as the
+   Home header nav instead of a local imitation of it. */
+.btn{font-size:13px;padding:10px 14px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+.btn.ghost{padding:8px 11px;min-height:44px}
+/* The one exception: a send/save CTA is a filled affirmative, not a nav item,
+   so it keeps the gold face and takes .tct's depth on top. */
+.btn.primary{background:var(--gold);color:#231a0a;font-weight:600;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 2px 6px rgba(0,0,0,.45)}
+.btn.primary:hover{background:var(--gold);color:#231a0a;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 9px rgba(0,0,0,.5)}
+.btn.primary:active{background:#d19a4a;color:#231a0a;box-shadow:inset 0 3px 6px rgba(0,0,0,.4)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:disabled:hover{background:var(--bg-input);box-shadow:inset 0 0 0 1px var(--border)}
+.btn.primary:disabled:hover{background:var(--gold)}
 .dash{display:grid;grid-template-columns:1.15fr 1fr 1.15fr 1fr;gap:12px;padding:13px 22px;border-bottom:1px solid var(--line);background:var(--panel);transition:margin-right .16s}
 .card{border:1px solid var(--line);border-radius:7px;background:var(--panel2);padding:11px 13px;display:flex;flex-direction:column;gap:9px}
 .card .ct{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
@@ -219,6 +231,8 @@ export const CSS = `
   /* Six action buttons in one non-wrapping row pushed the page 49px sideways.
      .cmd already wraps; .acts is the row inside it that did not. */
   .acts{flex-wrap:wrap;justify-content:flex-end;gap:6px;min-width:0}
+  /* Full touch targets where there is no pointer to aim with. */
+  .sfbtn{min-height:44px;padding:10px 14px}
 }
 @media(max-width:380px){
   .dash{grid-template-columns:1fr}
@@ -247,8 +261,9 @@ export const CSS = `
 .ownerfoot{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:7px;line-height:1.5}
 .slegend b{font-weight:700}
 .sfilter{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-.sfbtn{font-family:var(--mono);font-size:11px;padding:6px 10px;min-height:30px;border-radius:5px;border:1px solid var(--line2);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
-.sfbtn.on{border-color:var(--gold);color:var(--gold);background:rgba(227,170,90,.09)}
+/* Status filters are a tab set, which is exactly what .tct + .is-on is for —
+   same gold-floor selected state as every other segmented control in Pulse. */
+.sfbtn{font-size:12px;padding:8px 12px;min-height:36px;white-space:nowrap;display:inline-flex;align-items:center}
 .row.q-open:not(.active){box-shadow:inset 3px 0 0 var(--amber)}
 .row.q-approved:not(.active){box-shadow:inset 3px 0 0 var(--good);background:rgba(95,174,110,.03)}
 @keyframes q-pulse-once{0%,100%{box-shadow:inset 3px 0 0 var(--amber)}50%{box-shadow:inset 3px 0 0 rgba(225,169,63,.1);background:rgba(225,169,63,.06)}}

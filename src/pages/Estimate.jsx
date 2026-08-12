@@ -38,7 +38,7 @@ class WbErrorBoundary extends Component {
   render() {
     if (!this.state.err) return this.props.children
     return (
-      <div style={{ minHeight:'100vh',background:'#0c0d11',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,padding:24,fontFamily:'IBM Plex Mono,monospace' }}>
+      <div style={{ minHeight:'100vh',background:'#0c0d11',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,padding:24,fontFamily:'var(--font-mono, monospace)' }}>
         <div style={{ fontSize:12,color:'#d07050',fontWeight:700 }}>Workbench error</div>
         <div style={{ fontSize:11,color:'#595e69',maxWidth:480,textAlign:'center',wordBreak:'break-word' }}>{String(this.state.err)}</div>
         <button onClick={() => { this.setState({ err:null }); window.location.reload() }}
@@ -768,10 +768,10 @@ function EstimateWorkbenchInner() {
           </div>
         </div>
         <div className="acts">
-          {!isLocked && <button className="btn ghost" onClick={handleRegenerate} disabled={generating}>{generating ? 'Regen…' : 'Regen'}</button>}
-          <button className="btn ghost" onClick={() => setNotesEditing(p => !p)}>Notes</button>
-          {shareUrl && <button className="btn" onClick={() => window.open(shareUrl,'_blank')}>Preview</button>}
-          <button className="btn" onClick={copyLink}>{copied ? 'Copied!' : 'Copy link'}</button>
+          {!isLocked && <button className="btn ghost tct tct-bare" onClick={handleRegenerate} disabled={generating}>{generating ? 'Regen…' : 'Regen'}</button>}
+          <button className="btn ghost tct tct-bare" onClick={() => setNotesEditing(p => !p)}>Notes</button>
+          {shareUrl && <button className="btn ghost tct tct-bare" onClick={() => window.open(shareUrl,'_blank')}>Preview</button>}
+          <button className="btn ghost tct tct-bare" onClick={copyLink}>{copied ? 'Copied!' : 'Copy link'}</button>
           {sendError && (
             <span style={{ fontSize:11,color:'#f87171',fontFamily:'var(--mono)',maxWidth:260,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }} title={sendError}>
               ⚠ {sendError}
@@ -781,14 +781,18 @@ function EstimateWorkbenchInner() {
             const liveCount = items.filter(i => i.status !== 'removed').length
             const isEmpty = liveCount === 0
             return (
-              <button className="btn primary" onClick={handleSend} disabled={sending || isEmpty}
+              <button className="btn primary tct tct-raised" onClick={handleSend} disabled={sending || isEmpty}
                 title={isEmpty ? 'Nothing to send — estimate has no items' : undefined}>
                 {sending ? 'Sending…' : isEmpty ? 'No items' : status === 'draft' ? 'Send →' : 'Resend →'}
               </button>
             )
           })()}
           {!isLocked && status !== 'draft' && (
-            <button className="btn ghost" onClick={handleLock} disabled={locking} style={{ color:'var(--gold)',borderColor:'rgba(200,150,62,0.4)' }}>
+            // .tct draws no border, so the old gold outline became a shadow ring.
+            // Mark final is irreversible and shouldn't read as a bare-text
+            // action sitting next to Notes.
+            <button className="btn ghost tct tct-bare" onClick={handleLock} disabled={locking}
+              style={{ color:'var(--gold)' }}>
               {locking ? 'Locking…' : 'Mark final'}
             </button>
           )}
@@ -812,8 +816,8 @@ function EstimateWorkbenchInner() {
               onFocus={e => e.target.style.borderColor='var(--gold)'} onBlur={e => e.target.style.borderColor='var(--line)'}
             />
             <div style={{ display:'flex',flexDirection:'column',gap:6 }}>
-              <button className="btn primary" onClick={saveNotes} disabled={savingNotes}>{savingNotes ? 'Saving…' : 'Save'}</button>
-              <button className="btn ghost" onClick={() => setNotesEditing(false)}>Cancel</button>
+              <button className="btn primary tct tct-raised" onClick={saveNotes} disabled={savingNotes}>{savingNotes ? 'Saving…' : 'Save'}</button>
+              <button className="btn ghost tct tct-bare" onClick={() => setNotesEditing(false)}>Cancel</button>
             </div>
           </div>
         )}
@@ -847,7 +851,7 @@ function EstimateWorkbenchInner() {
               { k:'disputed', l:'Disputed', n:statusCounts.disputed },
               { k:'pending',  l:'Awaiting', n:statusCounts.pending },
             ].map(f => (
-              <button key={f.k} className={`sfbtn${statusF === f.k ? ' on' : ''}`}
+              <button key={f.k} className={`sfbtn tct tct-raised${statusF === f.k ? ' is-on' : ''}`}
                 aria-pressed={statusF === f.k}
                 onClick={() => setStatusF(f.k)}>
                 {f.l} {f.n}
