@@ -604,14 +604,18 @@ function EstimateWorkbenchInner() {
     drawerItem ? navigable.findIndex(i => i.id === drawerItem.id) : -1
   , [drawerItem, navigable])
 
+  // Grouped case-insensitively: "Cleaning" and "cleaning" are one trade, not
+  // two half-empty sections. The first spelling seen becomes the group's value,
+  // so dragging into it normalises the odd one out rather than preserving it.
   const tradeGroups = useMemo(() => {
     const map = {}
     for (const item of items.filter(matchesQuery)) {
-      const t = item.trade || ''
-      if (!map[t]) map[t] = []
-      map[t].push(item)
+      const raw = (item.trade || '').trim()
+      const key = raw.toLowerCase()
+      if (!map[key]) map[key] = { trade: raw, rows: [] }
+      map[key].rows.push(item)
     }
-    return Object.entries(map).map(([trade, rows]) => ({
+    return Object.values(map).map(({ trade, rows }) => ({
       trade,
       rows: [...rows].sort((a,b) => (a.sort_order||0)-(b.sort_order||0)),
       subtotal: rows.filter(i => !['removed','excluded'].includes(i.status) && i.cost_type==='priced').reduce((s,i) => s+itemTot(i), 0),

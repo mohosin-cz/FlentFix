@@ -72,7 +72,9 @@ export const CSS = `
 .sc.lo{color:#e8a3a3;background:rgba(208,112,80,.16);border:1px solid rgba(208,112,80,.4)}
 .sc.mid{color:var(--amber);background:rgba(225,169,63,.13);border:1px solid rgba(225,169,63,.35)}
 .sc.hi{color:#8fce9c;background:rgba(95,174,110,.13);border:1px solid rgba(95,174,110,.35)}
-.sc.na{color:var(--faint);background:rgba(89,94,105,.1);border:1px solid rgba(89,94,105,.3)}
+/* An unscored item is an absence, not a state — a bordered box around a dash
+   reads as a value and adds a rectangle to every row that has no score. */
+.sc.na{color:var(--faint);background:none;border:1px solid transparent}
 .idn .it{font-weight:600;color:var(--ink);font-size:12.5px;display:flex;align-items:center;flex-wrap:wrap;gap:3px 0;min-width:0;white-space:nowrap}
 .idn .itname{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:56px}
 .idn .it>.spill,.idn .it>.qchip,.idn .it>.ddot{flex-shrink:0}
@@ -82,23 +84,52 @@ export const CSS = `
 .fnd{color:var(--ink2);font-size:12px;line-height:1.4;overflow:hidden}
 .fnd-txt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .fnd .wd{display:block;color:var(--muted);font-size:11px;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.num{font-family:var(--mono);font-size:11.5px;color:var(--ink2)}
+/* Components recede so the total reads as the number on the row; the split is
+   still there when you look for it, but it no longer competes. */
+.num{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.row:hover .num,.row.active .num{color:var(--ink2)}
 .mut{font-family:var(--mono);font-size:11px;color:var(--faint)}
 .tot-cell{font-family:var(--mono);font-weight:600;font-size:12.5px;color:var(--ink)}
 .act-cell{font-family:var(--mono);font-size:10.5px;color:var(--teal);font-style:italic}
 .none-cell{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
 .np-cell{font-family:var(--mono);font-size:12px;color:var(--amber)}
-.seg{display:inline-flex;border:1px solid var(--line2);border-radius:5px;overflow:hidden}
-.seg b{font-family:var(--mono);font-size:11px;padding:8px 10px;min-height:36px;color:var(--muted);font-weight:500;cursor:pointer;user-select:none;border:none;background:none;display:flex;align-items:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+/* The type control sits on every row, so at rest it states the current type
+   quietly and hides the alternative — thirty solid gold blocks were the
+   loudest thing on the page and none of it was data. Touching or hovering the
+   row promotes it back to a full segmented control you can act on. */
+.seg{display:inline-flex;border:1px solid transparent;border-radius:5px;overflow:hidden;transition:border-color .1s}
+.seg b{font-family:var(--mono);font-size:11px;padding:8px 10px;min-height:36px;color:var(--muted);font-weight:500;cursor:pointer;user-select:none;border:none;background:none;display:flex;align-items:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:opacity .1s,color .1s,background .1s}
 .seg b:hover{background:rgba(255,255,255,.05);color:var(--ink2)}
-.seg b.on{color:#231a0a;background:var(--gold);font-weight:600}
-.seg b.on.t{background:var(--teal);color:#0a1f1b}
-.seg b.on.n{background:#3a3f4b;color:var(--ink2)}
+.seg b:not(.on){opacity:0}
+.seg b.on{color:var(--gold);background:rgba(227,170,90,.12);font-weight:600}
+.seg b.on.t{background:rgba(77,217,192,.12);color:var(--teal)}
+.seg b.on.n{background:rgba(148,152,170,.10);color:var(--ink2)}
+.row:hover .seg,.row.active .seg,.row:focus-within .seg{border-color:var(--line2)}
+.row:hover .seg b:not(.on),.row.active .seg b:not(.on),
+.row:focus-within .seg b:not(.on),.seg b:focus-visible{opacity:1}
+.row:hover .seg b.on,.row.active .seg b.on{color:#231a0a;background:var(--gold)}
+.row:hover .seg b.on.t,.row.active .seg b.on.t{background:var(--teal);color:#0a1f1b}
+.row:hover .seg b.on.n,.row.active .seg b.on.n{background:#3a3f4b;color:var(--ink2)}
+/* Coarse pointers get no hover, so the control stays fully visible there. */
+@media (hover:none){
+  .seg{border-color:var(--line2)}
+  .seg b:not(.on){opacity:1}
+  .seg b.on{color:#231a0a;background:var(--gold)}
+  .seg b.on.t{background:var(--teal);color:#0a1f1b}
+  .seg b.on.n{background:#3a3f4b;color:var(--ink2)}
+}
 .med{display:flex;align-items:center;gap:1px;flex-wrap:wrap}
 .med .ms{font-family:var(--mono);font-size:10px;color:var(--muted);margin-right:6px}
-.add-med{font-family:var(--mono);font-size:9.5px;color:var(--faint);border:1px dashed var(--line2);border-radius:4px;padding:4px 6px;cursor:pointer}
+/* Affordances, not content. Twenty-seven dashed "+ add" boxes and a ⋯ on every
+   row were furniture the eye had to step over on the way to the finding; they
+   come back the moment the pointer is on the row that could use them. */
+.add-med{font-family:var(--mono);font-size:9.5px;color:var(--faint);border:1px dashed var(--line2);border-radius:4px;padding:4px 6px;cursor:pointer;opacity:0;transition:opacity .1s}
 .add-med:hover{border-color:var(--muted);color:var(--muted)}
-.kb{color:var(--faint);text-align:center;font-size:12px}
+.kb{color:var(--faint);text-align:center;font-size:12px;opacity:0;transition:opacity .1s}
+.row:hover .add-med,.row.active .add-med,.row:hover .kb,.row.active .kb,
+.row:focus-within .add-med,.row:focus-within .kb,
+.add-med:focus-visible,.kb:focus-visible{opacity:1}
+@media (hover:none){.add-med,.kb{opacity:1}}
 .addrow{padding:12px 13px;min-height:44px;font-family:var(--mono);font-size:12px;color:var(--muted);border-top:1px solid var(--line);cursor:pointer;display:flex;align-items:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .addrow:hover{color:var(--ink2);background:rgba(255,255,255,.02)}
 .dwr{position:fixed;top:0;right:0;height:100%;width:min(412px,100vw);background:var(--panel);border-left:1px solid var(--line2);z-index:9;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .16s}
@@ -185,6 +216,9 @@ export const CSS = `
   .flagrow{flex-wrap:wrap;justify-content:flex-start;gap:3px 12px}
   .legend{gap:6px 10px}
   .hint{display:none}
+  /* Six action buttons in one non-wrapping row pushed the page 49px sideways.
+     .cmd already wraps; .acts is the row inside it that did not. */
+  .acts{flex-wrap:wrap;justify-content:flex-end;gap:6px;min-width:0}
 }
 @media(max-width:380px){
   .dash{grid-template-columns:1fr}
@@ -195,11 +229,16 @@ export const CSS = `
 .qchip-done{background:rgba(95,174,110,.13);color:#5fae6e}
 .qchip-approved{background:rgba(77,217,192,.13);color:#4dd9c0}
 .spill{border:none;padding:0 7px;border-radius:4px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.04em;margin-left:5px;height:17px;display:inline-flex;align-items:center;vertical-align:middle;line-height:1;white-space:nowrap;cursor:pointer}
-.spill-approved{background:rgba(95,174,110,.16);color:#6fc47f}
+/* Approved is the outcome we want, so it annotates rather than badges — a
+   wall of thirty green chips carries no more information than one and drowns
+   the two rows that actually need attention. Disputed keeps its chip. */
+.spill-approved{background:none;color:#5a8f66;padding:0 0 0 5px}
+.row:hover .spill-approved,.row.active .spill-approved{color:#6fc47f}
 .spill-disputed{background:rgba(224,92,106,.16);color:#e8697a}
 .spill-pending{background:rgba(148,152,170,.12);color:#8d90a3}
 .spill-excluded{background:rgba(148,152,170,.10);color:#7a7d8e}
-.row.s-approved:not(.active){box-shadow:inset 3px 0 0 #5fae6e}
+/* Same logic on the edge stripe: the norm is a hairline, the exception is bold. */
+.row.s-approved:not(.active){box-shadow:inset 2px 0 0 rgba(95,174,110,.45)}
 .row.s-disputed:not(.active){box-shadow:inset 3px 0 0 var(--clay,#e05c6a)}
 .sbar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--panel2);margin-top:2px}
 .sbar i{display:block;height:100%}
