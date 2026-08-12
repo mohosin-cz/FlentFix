@@ -127,7 +127,7 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
           <div className="flagrow">
             {blocked && <span style={{ color:'var(--amber)' }}>↩ {openQueryCount} quer{openQueryCount > 1 ? 'ies' : 'y'}</span>}
             {g.ng > 0 && <span>▤ No photo {g.ng}</span>}
-            {g.np > 0 && <span style={{ color:'var(--amber)' }}>⬤ No proof {g.np}</span>}
+            {g.np > 0 && <span style={{ color:'var(--amber)' }}>● No proof {g.np}</span>}
           </div>
         )}
       </div>

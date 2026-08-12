@@ -980,20 +980,24 @@ function EstimateWorkbenchInner() {
                               onDragEnd={() => { dragRef.current = null; setDragOverId(null); setDragOverTrade(null) }}>⠿</div>
                             <div><ScoreChip score={score} /></div>
                             <div className="idn">
-                              <div className="ar">{item.area || '—'}</div>
-                              <div className="it">
-                                <span className="itname">{item.item_name || '—'}</span>
-                                {/* Decision first, conversation second. The
-                                    approved chip used to require a dispute
-                                    thread to exist, so a cleanly approved item
-                                    showed nothing at all and a disputed one
-                                    showed a bare dot. */}
+                              {/* Approved rides the area line, not the name
+                                  line. Sharing 148px with the item name, it
+                                  wrapped under long names and sat inline after
+                                  short ones, so the column never held a line.
+                                  It is also the quiet case — the loud ones
+                                  below stay beside the name where they catch
+                                  the eye. */}
+                              <div className="ar">
+                                <span className="ar-area">{item.area || '—'}</span>
                                 {item.status === 'approved' && (
                                   <button className="spill spill-approved"
                                     onClick={e => { e.stopPropagation(); setDrawerInitTab(hasDispute ? 'thread' : 'details'); setPinnedId(item.id) }}>
                                     ✓ Approved
                                   </button>
                                 )}
+                              </div>
+                              <div className="it">
+                                <span className="itname">{item.item_name || '—'}</span>
                                 {item.status === 'disputed' && (
                                   <button className="spill spill-disputed"
                                     onClick={e => { e.stopPropagation(); setDrawerInitTab(hasDispute ? 'thread' : 'details'); setPinnedId(item.id) }}>
