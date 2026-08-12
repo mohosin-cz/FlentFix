@@ -35,7 +35,8 @@ export const CSS = `
 .btn:disabled:hover{background:var(--bg-input);box-shadow:inset 0 0 0 1px var(--border)}
 .btn.primary:disabled:hover{background:var(--gold)}
 .dash{display:grid;grid-template-columns:1.15fr 1fr 1.15fr 1fr;gap:12px;padding:13px 22px;border-bottom:1px solid var(--line);background:var(--panel);transition:margin-right .16s}
-.card{border:1px solid var(--line);border-radius:7px;background:var(--panel2);padding:11px 13px;display:flex;flex-direction:column;gap:9px}
+.card{border:1px solid var(--line);border-radius:7px;background:var(--panel2);padding:11px 13px;display:flex;flex-direction:column;gap:9px;transition:border-color .16s,transform .16s,box-shadow .16s}
+.card:hover{border-color:var(--line2);transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.35)}
 .card .ct{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .big{font-family:var(--mono);font-weight:700;font-size:21px;color:var(--gold);line-height:1}
 .mlrow{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--ink2)}
@@ -61,8 +62,14 @@ export const CSS = `
 .findbar .clr{background:none;border:none;color:var(--muted);font-size:16px;line-height:1;cursor:pointer;padding:0 2px;flex-shrink:0}
 .findbar .clr:hover{color:var(--ink)}
 .nores{padding:26px 14px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted);border:1px dashed var(--line2);border-radius:7px;margin-bottom:16px}
-.grp{margin-bottom:16px;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--panel)}
-.ghead{display:flex;align-items:center;justify-content:space-between;padding:13px 13px;min-height:48px;border-bottom:1px solid var(--line);cursor:pointer;border-left:3px solid var(--muted);touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+/* overflow:clip, not hidden — hidden would make this a scroll container and
+   silently kill the sticky header below it. clip still respects the radius. */
+.grp{margin-bottom:16px;border:1px solid var(--line);border-radius:7px;overflow:clip;background:var(--panel)}
+/* The trade header follows you down its own group, so on a 30-row estimate you
+   never lose track of which trade you are reading. It parks under the command
+   bar, whose height is measured into --cmd-h because the bar wraps on a phone.
+   An opaque background is required: rows would otherwise scroll through it. */
+.ghead{position:sticky;top:var(--cmd-h,64px);z-index:3;background:var(--panel);display:flex;align-items:center;justify-content:space-between;padding:13px 13px;min-height:48px;border-bottom:1px solid var(--line);cursor:pointer;border-left:3px solid var(--muted);touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:box-shadow .16s}
 .ghead:hover{background:rgba(255,255,255,.02)}
 .ghead .gt{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);font-weight:600}
 .ghead .gr{font-family:var(--mono);font-size:11px;color:var(--muted)}
@@ -71,9 +78,14 @@ export const CSS = `
 .colhead,.row{display:grid;grid-template-columns:16px 44px 148px 1fr 78px 78px 34px 88px 122px 56px 16px;gap:10px;align-items:center;padding:8px 13px;min-width:700px}
 .colhead{padding:7px 13px;border-bottom:1px solid var(--line)}
 .colhead span{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
-.row{border-bottom:1px solid rgba(35,39,47,.55);cursor:pointer;transition:background .1s}
+.row{border-bottom:1px solid rgba(35,39,47,.55);cursor:pointer;transition:background .12s}
 .row:last-child{border-bottom:none}
 .row:hover{background:var(--panel2)}
+/* The hovered row picks up a trace of its own trade colour — plumbing warms
+   teal, electrical blue — so the row you are on stays tied to the group it
+   belongs to even when the header has scrolled away. Falls back to the flat
+   hover above wherever color-mix is unsupported. */
+.row:hover{background:color-mix(in srgb, var(--trade-col, transparent) 7%, var(--panel2))}
 .row.active{background:rgba(227,170,90,.07);box-shadow:inset 2px 0 0 var(--gold)}
 .row.dim{opacity:.5}
 .hnd{color:var(--faint);font-size:12px;cursor:grab;user-select:none}
@@ -272,5 +284,36 @@ export const CSS = `
 .dwr-tab{padding:9px 14px;background:none;border:none;border-bottom:2px solid transparent;font-size:11px;font-family:var(--mono);cursor:pointer;color:var(--muted);transition:color .12s;display:flex;align-items:center;gap:5px;min-height:40px}
 .dwr-tab.on{color:var(--gold);border-bottom-color:var(--gold)}
 .dwr-tab-dot{width:6px;height:6px;border-radius:50%;background:#f0a050;display:inline-block}
+
+/* ─── Finish ──────────────────────────────────────────────────────────────── */
+
+/* Money lines up column-wise even where the face is proportional, so you can
+   compare two totals by their shape instead of reading both. */
+.num,.tot-cell,.big,.condnum,.mut,.none-cell,.np-cell,.gr{font-variant-numeric:tabular-nums}
+
+/* The dashboard bars draw themselves once on load. It is the one moment the
+   numbers change without you doing anything, so it is worth showing. */
+.splitbar i,.stackbar i,.meter>i,.sbar i{transform-origin:left center;animation:bar-draw .55s cubic-bezier(.2,.8,.2,1) both}
+@keyframes bar-draw{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+/* Searching is the one thing you do before you know what you are looking for,
+   so the field earns a little more presence when it has focus. */
+.findbar{transition:border-color .16s,box-shadow .16s,background .16s}
+.findbar:focus-within{border-color:var(--gold);background:var(--panel);box-shadow:0 0 0 3px rgba(227,170,90,.10)}
+.findbar .clr{border-radius:4px;transition:color .12s,background .12s}
+.findbar .clr:hover{background:rgba(255,255,255,.06)}
+
+/* Group headers get a lift on hover so the whole strip reads as the control it
+   is — the entire bar toggles the group, not just the caret. */
+.ghead:hover{box-shadow:inset 0 0 0 1px var(--line2)}
+
+/* Nothing above is load-bearing, so none of it runs for anyone who has asked
+   the system to stop moving things. */
+@media (prefers-reduced-motion: reduce){
+  .splitbar i,.stackbar i,.meter>i,.sbar i{animation:none}
+  .card{transition:border-color .16s}
+  .card:hover{transform:none}
+  .row.q-new:not(.active){animation:none;box-shadow:inset 3px 0 0 var(--amber)}
+}
 `
 

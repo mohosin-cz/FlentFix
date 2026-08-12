@@ -87,6 +87,22 @@ function EstimateWorkbenchInner() {
   const initialQueryIds                   = useRef(null)
   const prevDisputeMapRef                 = useRef({})
 
+  // Group headers stick under the command bar, so they need its real height —
+  // measured, not assumed, because the bar wraps to three rows on a phone.
+  // A callback ref rather than useRef + useEffect: the header unmounts while
+  // the page is loading, and an effect would leave the observer watching the
+  // detached node, pinning --cmd-h to whatever it measured first.
+  const cmdRoRef = useRef(null)
+  const cmdRef = useCallback(node => {
+    cmdRoRef.current?.disconnect()
+    if (!node) { document.documentElement.style.removeProperty('--cmd-h'); return }
+    const apply = () => document.documentElement.style.setProperty('--cmd-h', `${Math.round(node.getBoundingClientRect().height)}px`)
+    apply()
+    const ro = new ResizeObserver(apply)
+    ro.observe(node)
+    cmdRoRef.current = ro
+  }, [])
+
   const dragRef          = useRef(null)   // { itemId, trade }
   const activityTimers   = useRef(new Map())
   const activityFirstOld = useRef(new Map())
@@ -753,7 +769,7 @@ function EstimateWorkbenchInner() {
       )}
 
       {/* Command bar */}
-      <header className="cmd">
+      <header className="cmd" ref={cmdRef}>
         <div className="l">
           <button className="back" onClick={() => navigate(`/properties/${pid}/estimates`)}>‹</button>
           <div>

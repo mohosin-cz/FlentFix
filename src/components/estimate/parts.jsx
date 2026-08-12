@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { fmt, scls } from '../../utils/estimateHelpers'
+import { fmt, scls, rrTxt } from '../../utils/estimateHelpers'
 
 // ─── MediaLightbox ────────────────────────────────────────────────────────────
 
@@ -87,9 +87,11 @@ export function TypeSeg({ type, onSet, stopProp = true }) {
 
 // ─── ScoreChip ────────────────────────────────────────────────────────────────
 
+// The number alone doesn't say which way is bad, and the colour only helps if
+// you already know the scale — so hovering names the verdict outright.
 export function ScoreChip({ score, style }) {
-  if (score == null) return <span className="sc na" style={style}>—</span>
-  return <span className={`sc ${scls(score)}`} style={style}>{score}</span>
+  if (score == null) return <span className="sc na" style={style} title="Not scored during inspection">—</span>
+  return <span className={`sc ${scls(score)}`} style={style} title={`Condition ${score}/10 — ${rrTxt(score)}`}>{score}</span>
 }
 
 // ─── MediaCell (row) ──────────────────────────────────────────────────────────
