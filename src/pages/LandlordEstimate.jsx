@@ -717,8 +717,15 @@ export default function LandlordEstimate() {
     setDisputes(estDisputes || [])
     setInspection(insp)
 
-    if (!est.first_viewed_at && !isPreview) {
-      await supabase.from('estimates').update({ first_viewed_at: new Date().toISOString(), status: 'viewed' }).eq('id', est.id)
+    // Every open is logged, not just the first. A single 'viewed' row could only
+    // ever answer "did they look?" — counting them answers "are they still
+    // chewing on it?", which is what tells you to pick up the phone.
+    // first_viewed_at is still stamped once, so "how long since" stays stable.
+    if (!isPreview) {
+      if (!est.first_viewed_at) {
+        await supabase.from('estimates')
+          .update({ first_viewed_at: new Date().toISOString(), status: 'viewed' }).eq('id', est.id)
+      }
       await supabase.from('estimate_events').insert({ estimate_id: est.id, event_type: 'viewed', actor: 'landlord' })
     }
     setLoading(false)

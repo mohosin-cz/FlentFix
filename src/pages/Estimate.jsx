@@ -140,7 +140,10 @@ const CSS = `
 .sc.mid{color:var(--amber);background:rgba(225,169,63,.13);border:1px solid rgba(225,169,63,.35)}
 .sc.hi{color:#8fce9c;background:rgba(95,174,110,.13);border:1px solid rgba(95,174,110,.35)}
 .sc.na{color:var(--faint);background:rgba(89,94,105,.1);border:1px solid rgba(89,94,105,.3)}
-.idn .it{font-weight:600;color:var(--ink);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.idn .it{font-weight:600;color:var(--ink);font-size:12.5px;display:flex;align-items:center;flex-wrap:wrap;gap:3px 0;min-width:0;white-space:nowrap}
+.idn .itname{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:56px}
+.idn .it>.spill,.idn .it>.qchip,.idn .it>.ddot{flex-shrink:0}
+.idn .it>.spill:first-of-type{margin-left:5px}
 .idn .ar{font-family:var(--mono);font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
 .ddot{color:var(--clay);font-size:9px;margin-left:5px}
 .fnd{color:var(--ink2);font-size:12px;line-height:1.4;overflow:hidden}
@@ -258,6 +261,21 @@ const CSS = `
 .qchip-open{background:rgba(240,160,80,.18);color:#f0a050}
 .qchip-done{background:rgba(95,174,110,.13);color:#5fae6e}
 .qchip-approved{background:rgba(77,217,192,.13);color:#4dd9c0}
+.spill{border:none;padding:0 7px;border-radius:4px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.04em;margin-left:5px;height:17px;display:inline-flex;align-items:center;vertical-align:middle;line-height:1;white-space:nowrap;cursor:pointer}
+.spill-approved{background:rgba(95,174,110,.16);color:#6fc47f}
+.spill-disputed{background:rgba(224,92,106,.16);color:#e8697a}
+.spill-pending{background:rgba(148,152,170,.12);color:#8d90a3}
+.spill-excluded{background:rgba(148,152,170,.10);color:#7a7d8e}
+.row.s-approved:not(.active){box-shadow:inset 3px 0 0 #5fae6e}
+.row.s-disputed:not(.active){box-shadow:inset 3px 0 0 var(--clay,#e05c6a)}
+.sbar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--panel2);margin-top:2px}
+.sbar i{display:block;height:100%}
+.sbar i+i{box-shadow:inset 1px 0 0 var(--panel)}
+.slegend{display:flex;gap:12px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px;margin-top:7px}
+.slegend b{font-weight:700}
+.sfilter{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.sfbtn{font-family:var(--mono);font-size:11px;padding:6px 10px;min-height:30px;border-radius:5px;border:1px solid var(--line2);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
+.sfbtn.on{border-color:var(--gold);color:var(--gold);background:rgba(227,170,90,.09)}
 .row.q-open:not(.active){box-shadow:inset 3px 0 0 var(--amber)}
 .row.q-approved:not(.active){box-shadow:inset 3px 0 0 var(--good);background:rgba(95,174,110,.03)}
 @keyframes q-pulse-once{0%,100%{box-shadow:inset 3px 0 0 var(--amber)}50%{box-shadow:inset 3px 0 0 rgba(225,169,63,.1);background:rgba(225,169,63,.06)}}
@@ -880,7 +898,24 @@ function RateDrawer({ open, onClose, onSelectMaterial, onSelectLabour }) {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-function Dashboard({ items, mediaMap, openQueryCount = 0 }) {
+// "3d", "5h", "just now" — a duration you can read at a glance rather than a date
+// you have to subtract in your head.
+function ago(iso) {
+  if (!iso) return null
+  const ms = Date.now() - new Date(iso).getTime()
+  if (ms < 0) return 'just now'
+  const mins = Math.floor(ms / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h`
+  const days = Math.floor(hrs / 24)
+  if (days < 31) return `${days}d`
+  const mo = Math.floor(days / 30)
+  return `${mo}mo`
+}
+
+function Dashboard({ items, mediaMap, openQueryCount = 0, estimate, views = [] }) {
   const g = useMemo(() => {
     let firm=0, mat=0, lab=0, p=0, a=0, n=0, nd=0, rep=0, rpr=0, ok=0, dp=0, ng=0, np=0, ss=0, scoredCount=0
     items.forEach(it => {
@@ -918,6 +953,28 @@ function Dashboard({ items, mediaMap, openQueryCount = 0 }) {
   const stack = (c, col) => c && g.total
     ? <i key={col} style={{ width:`${Math.round(c/g.total*100)}%`,background:col }} />
     : null
+
+  // Live items only: removed rows are gone, and an excluded row was never put
+  // to the owner, so counting either would flatter or punish the percentage.
+  const v = (() => {
+    const live = items.filter(i => !['removed', 'excluded'].includes(i.status))
+    const n = live.length
+    const approved = live.filter(i => i.status === 'approved').length
+    const disputed = live.filter(i => i.status === 'disputed').length
+    const pending  = n - approved - disputed
+    const pct = (x) => (n > 0 ? Math.round(x / n * 100) : 0)
+    const firstViewed = estimate?.first_viewed_at || null
+    const lastViewed  = views[0]?.created_at || null
+    return {
+      live: n, approved, disputed, pending,
+      appPct: pct(approved), disPct: pct(disputed), penPct: pct(pending),
+      firstViewed, sinceFirst: ago(firstViewed),
+      lastViewed, sinceLast: ago(lastViewed),
+      viewCount: views.length,
+      ownerName: estimate?.approved_by_name || null,
+      sent: !!estimate?.sent_at || estimate?.status !== 'draft',
+    }
+  })()
 
   return (
     <div className="dash">
@@ -979,12 +1036,59 @@ function Dashboard({ items, mediaMap, openQueryCount = 0 }) {
           )
         })()}
         <div className="flagrow">
-          <span className="clay">● Disputed {g.dp}</span>
           {openQueryCount > 0
             ? <span style={{ color:'var(--amber)' }}>↩ {openQueryCount} quer{openQueryCount > 1 ? 'ies' : 'y'}</span>
             : <span>▤ No photo {g.ng}</span>}
           {g.np > 0 && <span style={{ color:'var(--amber)' }}>⬤ No proof {g.np}</span>}
         </div>
+      </div>
+
+      {/* Where the owner has got to. A count of disputes alone never said what
+          share of the estimate was settled — this is the same numbers as a
+          proportion, which is the question actually being asked. */}
+      <div className="card">
+        <div className="ct">Owner decisions</div>
+        <div className="condrow">
+          <span className="condnum" style={{ color: v.appPct === 100 ? 'var(--good)' : 'var(--ink)', fontSize:18 }}>{v.appPct}%</span>
+          <span className="dist">{v.approved}/{v.live} approved</span>
+        </div>
+        <div className="sbar" title={`${v.approved} approved · ${v.disputed} disputed · ${v.pending} awaiting`}>
+          {v.approved > 0 && <i style={{ width:`${v.appPct}%`, background:'#5fae6e' }} />}
+          {v.disputed > 0 && <i style={{ width:`${v.disPct}%`, background:'var(--clay,#e05c6a)' }} />}
+          {v.pending  > 0 && <i style={{ width:`${v.penPct}%`, background:'var(--line2)' }} />}
+        </div>
+        <div className="slegend">
+          <span style={{ color:'#6fc47f' }}><b>{v.approved}</b> approved</span>
+          <span style={{ color:'#e8697a' }}><b>{v.disputed}</b> disputed</span>
+          <span style={{ color:'var(--muted)' }}><b>{v.pending}</b> awaiting</span>
+        </div>
+      </div>
+
+      {/* Engagement — silence after a send looks identical to never having sent
+          it, unless you can see whether it was opened and how often. */}
+      <div className="card">
+        <div className="ct">Owner engagement</div>
+        {v.firstViewed ? (
+          <>
+            <div className="condrow">
+              <span className="condnum" style={{ fontSize:18 }}>{v.sinceFirst}</span>
+              <span className="dist">since first opened</span>
+            </div>
+            <div className="slegend" style={{ marginTop:4 }}>
+              <span><b style={{ color:'var(--ink2)' }}>{v.viewCount}</b> view{v.viewCount === 1 ? '' : 's'}</span>
+              {v.lastViewed && <span style={{ color:'var(--muted)' }}>last {v.sinceLast}</span>}
+            </div>
+            <div style={{ fontFamily:'var(--mono)',fontSize:10.5,color:'var(--muted)',marginTop:6,lineHeight:1.5 }}>
+              {v.ownerName
+                ? <>Signed as <span style={{ color:'var(--ink2)' }}>{v.ownerName}</span></>
+                : 'No name given yet'}
+            </div>
+          </>
+        ) : (
+          <div style={{ fontFamily:'var(--mono)',fontSize:11.5,color:'var(--muted)',lineHeight:1.6,paddingTop:2 }}>
+            {v.sent ? 'Sent, not opened yet.' : 'Not sent yet.'}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1017,6 +1121,8 @@ function EstimateWorkbenchInner() {
   const navigate = useNavigate()
 
   const [estimate, setEstimate]         = useState(null)
+  const [views, setViews]               = useState([])      // landlord 'viewed' events, newest first
+  const [statusF, setStatusF]           = useState('all')   // all | approved | disputed | pending
   const [items, setItems]               = useState([])
   const [inspection, setInspection]     = useState(null)
   const [loading, setLoading]           = useState(true)
@@ -1059,7 +1165,7 @@ function EstimateWorkbenchInner() {
     setLoading(true)
     const [{ data: { user } }, { data: est }] = await Promise.all([
       supabase.auth.getUser(),
-      supabase.from('estimates').select('id,pid,inspection_id,status,notes,share_token,created_at,created_by,total,current_version,locked,locked_at,locked_by').eq('id', id).maybeSingle(),
+      supabase.from('estimates').select('id,pid,inspection_id,status,notes,share_token,created_at,created_by,total,current_version,locked,locked_at,locked_by,first_viewed_at,approved_by_name,approved_at,sent_at').eq('id', id).maybeSingle(),
     ])
     setUserEmail(user?.email || null)
     if (!est) { setError('Estimate not found'); setLoading(false); return }
@@ -1080,14 +1186,17 @@ function EstimateWorkbenchInner() {
       itemsData = d1
     }
 
-    const [inspRes, estCountRes] = await Promise.all([
+    const [inspRes, estCountRes, viewRes] = await Promise.all([
       supabase.from('inspections').select('id,pid,house_type,inspection_date').eq('id', est.inspection_id).maybeSingle(),
       supabase.from('estimates').select('id').eq('pid', est.pid),
+      supabase.from('estimate_events').select('created_at')
+        .eq('estimate_id', id).eq('event_type', 'viewed').order('created_at', { ascending: false }),
     ])
     const fetched = itemsData || []
     setItems(fetched)
     setInspection(inspRes.data || null)
     setVersionCount(estCountRes.data?.length || 1)
+    setViews(viewRes.data || [])
     setLoading(false)
     loadMedia(fetched)
     loadDisputes(id)
@@ -1504,11 +1613,31 @@ function EstimateWorkbenchInner() {
   // Search across the fields someone would actually recall: what it is, where
   // it is, what was found, what we plan to do, and the trade.
   const needle = query.trim().toLowerCase()
+  const statusCounts = useMemo(() => {
+    const live = items.filter(i => !['removed', 'excluded'].includes(i.status))
+    return {
+      all: live.length,
+      approved: live.filter(i => i.status === 'approved').length,
+      disputed: live.filter(i => i.status === 'disputed').length,
+      pending:  live.filter(i => !['approved', 'disputed'].includes(i.status)).length,
+    }
+  }, [items])
+
+  // One predicate for text and decision, so the count in the find bar and the
+  // rows on screen can never disagree.
+  const matchesStatus = useCallback((it) => {
+    if (statusF === 'all') return true
+    if (['removed', 'excluded'].includes(it.status)) return false
+    if (statusF === 'pending') return !['approved', 'disputed'].includes(it.status)
+    return it.status === statusF
+  }, [statusF])
+
   const matchesQuery = useCallback((it) => {
+    if (!matchesStatus(it)) return false
     if (!needle) return true
     return [it.item_name, it.area, it.issue_description, it.action, it.trade]
       .some(f => (f || '').toLowerCase().includes(needle))
-  }, [needle])
+  }, [needle, matchesStatus])
 
   const totalCount = useMemo(() => items.filter(i => i.status !== 'removed').length, [items])
   const matchCount = useMemo(() => items.filter(i => i.status !== 'removed' && matchesQuery(i)).length, [items, matchesQuery])
@@ -1715,7 +1844,7 @@ function EstimateWorkbenchInner() {
         {/* Dashboard */}
         {(() => {
           const openQueryCount = Object.values(disputeMap).filter(ds => ds.length > 0 && ds[ds.length - 1].author_type === 'landlord').length
-          return <Dashboard items={items} mediaMap={mediaMap} openQueryCount={openQueryCount} />
+          return <Dashboard items={items} mediaMap={mediaMap} openQueryCount={openQueryCount} estimate={estimate} views={views} />
         })()}
 
         {/* Notes bar */}
@@ -1750,6 +1879,26 @@ function EstimateWorkbenchInner() {
               ? <><span className="cnt">{matchCount} of {totalCount}</span>
                   <button className="clr" onClick={() => setQuery('')} aria-label="Clear search">×</button></>
               : <span className="cnt">{totalCount} items</span>}
+          </div>
+
+          {/* Decision filter. Counts sit on the chips so an empty state is
+              obvious before you click into it. */}
+          <div className="sfilter" style={{ padding:'0 13px 10px' }}>
+            {[
+              { k:'all',      l:'All',      n:statusCounts.all },
+              { k:'approved', l:'Approved', n:statusCounts.approved },
+              { k:'disputed', l:'Disputed', n:statusCounts.disputed },
+              { k:'pending',  l:'Awaiting', n:statusCounts.pending },
+            ].map(f => (
+              <button key={f.k} className={`sfbtn${statusF === f.k ? ' on' : ''}`}
+                aria-pressed={statusF === f.k}
+                onClick={() => setStatusF(f.k)}>
+                {f.l} {f.n}
+              </button>
+            ))}
+            {statusF !== 'all' && (
+              <button className="sfbtn" onClick={() => setStatusF('all')} title="Clear the decision filter">×</button>
+            )}
           </div>
           {needle && matchCount === 0 && (
             <div className="nores">Nothing matches “{query.trim()}”.</div>
@@ -1828,6 +1977,8 @@ function EstimateWorkbenchInner() {
                           isDim ? 'dim' : '',
                           dragOverId === item.id ? 'drag-over' : '',
                           isApproved && hasDispute ? 'q-approved' : '',
+                          isApproved && !hasDispute ? 's-approved' : '',
+                          item.status === 'disputed' ? 's-disputed' : '',
                           qNeedsReply && !isApproved ? 'q-open' : '',
                           isQNew ? 'q-new' : '',
                         ].filter(Boolean).join(' ')
@@ -1854,30 +2005,42 @@ function EstimateWorkbenchInner() {
                             <div className="idn">
                               <div className="ar">{item.area || '—'}</div>
                               <div className="it">
-                                {item.item_name || '—'}
+                                <span className="itname">{item.item_name || '—'}</span>
+                                {/* Decision first, conversation second. The
+                                    approved chip used to require a dispute
+                                    thread to exist, so a cleanly approved item
+                                    showed nothing at all and a disputed one
+                                    showed a bare dot. */}
+                                {item.status === 'approved' && (
+                                  <button className="spill spill-approved"
+                                    onClick={e => { e.stopPropagation(); setDrawerInitTab(hasDispute ? 'thread' : 'details'); setPinnedId(item.id) }}>
+                                    ✓ Approved
+                                  </button>
+                                )}
+                                {item.status === 'disputed' && (
+                                  <button className="spill spill-disputed"
+                                    onClick={e => { e.stopPropagation(); setDrawerInitTab(hasDispute ? 'thread' : 'details'); setPinnedId(item.id) }}>
+                                    ✕ Disputed
+                                  </button>
+                                )}
+                                {item.status === 'excluded' && <span className="spill spill-excluded">excluded</span>}
                                 {(() => {
-                                  if (hasDispute) {
-                                    const firstReason = ds[0]?.reason_tag
-                                    const shortTag = REASON_SHORT[firstReason] || firstReason || 'query'
-                                    if (isApproved) {
-                                      return (
-                                        <button className="qchip qchip-approved"
-                                          onClick={e => { e.stopPropagation(); setDrawerInitTab('thread'); setPinnedId(item.id) }}>
-                                          ✓ Approved
-                                        </button>
-                                      )
-                                    }
-                                    return (
-                                      <button
-                                        className={qNeedsReply ? 'qchip qchip-open' : 'qchip qchip-done'}
-                                        onClick={e => { e.stopPropagation(); setDrawerInitTab('thread'); setPinnedId(item.id) }}
-                                      >
-                                        {qNeedsReply ? `● Query · ${shortTag}` : '↩ replied'}
-                                      </button>
-                                    )
-                                  }
-                                  if (item.status === 'disputed') return <span className="ddot">●</span>
-                                  return null
+                                  if (!hasDispute) return null
+                                  const firstReason = ds[0]?.reason_tag
+                                  const shortTag = REASON_SHORT[firstReason] || firstReason || 'query'
+                                  // The thread chip now says only what the thread
+                                  // is doing; the decision is the pill beside it.
+                                  if (isApproved && !qNeedsReply) return null
+                                  const decided = item.status === 'approved' || item.status === 'disputed'
+                                  return (
+                                    <button
+                                      className={qNeedsReply ? 'qchip qchip-open' : 'qchip qchip-done'}
+                                      title={qNeedsReply ? `Query · ${shortTag}` : 'Replied'}
+                                      onClick={e => { e.stopPropagation(); setDrawerInitTab('thread'); setPinnedId(item.id) }}
+                                    >
+                                      {qNeedsReply ? (decided ? '● Query' : `● Query · ${shortTag}`) : '↩ replied'}
+                                    </button>
+                                  )
                                 })()}
                               </div>
                             </div>
