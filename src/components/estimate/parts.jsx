@@ -262,8 +262,11 @@ export function ProofVideoInput({ onAddProofVideo }) {
 // being rebuilt — and a workbench filter is not worth a custom listbox.
 export function FilterSelect({ label, value, onChange, options, allLabel }) {
   const on = value !== 'all'
+  // Same .tct control as the decision chips directly above, including the gold
+  // floor when set — two filter rows in two different control families read as
+  // two unrelated things.
   return (
-    <label className={`fsel${on ? ' on' : ''}`}>
+    <label className={`fsel tct tct-raised${on ? ' is-on' : ''}`}>
       <span className="fsel-l">{label}</span>
       <select value={value} onChange={e => onChange(e.target.value)} aria-label={label}>
         <option value="all">{allLabel}</option>

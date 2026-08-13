@@ -986,7 +986,7 @@ function EstimateWorkbenchInner() {
                 { key:'query',   label:'Open query' },
               ]} />
             {activeFilters > 0 && (
-              <button className="fclear" onClick={clearFilters}>
+              <button className="fclear tct tct-bare" onClick={clearFilters}>
                 Clear {activeFilters} filter{activeFilters > 1 ? 's' : ''}
               </button>
             )}

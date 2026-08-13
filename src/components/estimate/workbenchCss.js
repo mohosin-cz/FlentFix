@@ -72,20 +72,19 @@ export const CSS = `
 .nores-clr{font-family:var(--mono);font-size:11px;color:var(--gold);background:none;border:1px solid rgba(227,170,90,.3);border-radius:7px;padding:7px 13px;min-height:36px;cursor:pointer;transition:background .14s,border-color .14s}
 .nores-clr:hover{background:rgba(227,170,90,.09);border-color:rgba(227,170,90,.55)}
 
-/* Filter row. Five selects that read as one quiet strip until one is set —
-   an active facet is the only thing here allowed to carry the accent. */
+/* Filter row. Layout only — surface, type, depth and the gold "set" floor all
+   come from .tct, so these are the same control as the decision chips in the
+   row above rather than a second family that happens to sit near them.
+   Matched to .sfbtn: 36px tall, 12px face. */
 .fbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 13px 12px}
-.fsel{position:relative;display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 22px 0 11px;border-radius:8px;background:var(--panel2);box-shadow:inset 0 0 0 1px transparent;color:var(--ink2);cursor:pointer;transition:background .14s,box-shadow .14s,color .14s}
-.fsel:hover{background:#1b1f27}
-.fsel:focus-within{box-shadow:inset 0 0 0 1px var(--line2)}
-.fsel.on{color:var(--gold);box-shadow:inset 0 0 0 1px rgba(227,170,90,.38)}
-.fsel-l{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.085em;text-transform:uppercase;color:var(--faint)}
-.fsel.on .fsel-l{color:rgba(227,170,90,.65)}
-.fsel select{appearance:none;-webkit-appearance:none;background:none;border:none;outline:none;color:inherit;font-family:var(--mono);font-size:11px;cursor:pointer;max-width:150px;flex:1 1 auto;min-width:0;text-overflow:ellipsis}
-.fsel option{background:var(--panel);color:var(--ink)}
-.fsel::after{content:'';position:absolute;right:10px;top:50%;width:5px;height:5px;margin-top:-4px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);opacity:.45;pointer-events:none}
-.fclear{font-family:var(--mono);font-size:10.5px;color:var(--muted);background:none;border:none;border-radius:8px;padding:0 10px;height:34px;cursor:pointer;transition:color .14s,background .14s}
-.fclear:hover{color:var(--ink2);background:var(--panel2)}
+.fsel{position:relative;display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 25px 0 12px;cursor:pointer}
+.fsel-l{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.085em;text-transform:uppercase;color:var(--faint);flex-shrink:0}
+.fsel:hover .fsel-l{color:var(--muted)}
+.fsel.is-on .fsel-l{color:rgba(200,150,62,.7)}
+.fsel select{appearance:none;-webkit-appearance:none;background:none;border:none;outline:none;color:inherit;font-family:inherit;font-weight:inherit;font-size:12px;cursor:pointer;max-width:150px;flex:1 1 auto;min-width:0;text-overflow:ellipsis}
+.fsel option{background:var(--panel);color:var(--ink);font-family:var(--sans)}
+.fsel::after{content:'';position:absolute;right:11px;top:50%;width:5px;height:5px;margin-top:-4px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);opacity:.5;pointer-events:none}
+.fclear{font-size:12px;padding:0 12px;height:36px;display:inline-flex;align-items:center;cursor:pointer}
 .fcount{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--faint);white-space:nowrap}
 /* overflow:clip, not hidden — hidden would make this a scroll container and
    silently kill the sticky header below it. clip still respects the radius. */
@@ -258,41 +257,7 @@ export const CSS = `
 .ctx-menu{position:fixed;background:var(--panel);border:1px solid var(--line2);border-radius:7px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:600;min-width:140px;overflow:hidden}
 .ctx-item{display:block;width:100%;padding:9px 13px;background:none;border:none;cursor:pointer;font-size:12px;text-align:left;font-family:var(--sans);color:var(--ink2)}
 .ctx-item:hover{background:rgba(255,255,255,.06)}
-@media(max-width:1100px){
-  .drw-scrim{display:block}
-  .board,.dash{margin-right:0!important}
-}
-/* Phone. The dashboard was a fixed 4-column grid that could not shrink below
-   516px, pushing the whole page 126px sideways; the item table already scrolls
-   inside .grp-body, so this is what was breaking it. The hint bar goes too —
-   it lists keyboard shortcuts on a device with no keyboard, and it sat on top
-   of the last row. */
-@media(max-width:640px){
-  .cmd{flex-wrap:wrap;height:auto;padding:9px 12px;gap:8px}
-  .dash{grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px}
-  .board{padding:12px 12px 28px}
-  .card{padding:10px 11px;gap:7px}
-  .big,.condnum{font-size:19px}
-  .flagrow{flex-wrap:wrap;justify-content:flex-start;gap:3px 12px}
-  .legend{gap:6px 10px}
-  .hint{display:none}
-  /* Six action buttons in one non-wrapping row pushed the page 49px sideways.
-     .cmd already wraps; .acts is the row inside it that did not. */
-  .acts{flex-wrap:wrap;justify-content:flex-end;gap:6px;min-width:0}
-  /* Full touch targets where there is no pointer to aim with. */
-  .sfbtn{min-height:44px;padding:10px 14px}
-  /* Two per row. Stacked, five filters cost ~260px of scrolling before the
-     first item comes into view. */
-  .fbar{gap:6px}
-  .fsel{height:44px;flex:1 1 calc(50% - 3px);min-width:0;padding-left:10px}
-  .fsel select{max-width:none}
-  .fclear{height:44px;flex:1 1 100%;text-align:left}
-  /* The count would otherwise be pushed onto a line of its own by margin-left:auto. */
-  .fcount{margin-left:0;width:100%}
-}
-@media(max-width:380px){
-  .dash{grid-template-columns:1fr}
-}
+
 @keyframes lb-spin{to{transform:rotate(360deg)}}
 .qchip{border:none;cursor:pointer;padding:0 6px;border-radius:4px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.04em;margin-left:5px;height:17px;display:inline-flex;align-items:center;vertical-align:middle;line-height:1;white-space:nowrap}
 .qchip-open{background:rgba(240,160,80,.18);color:#f0a050}
@@ -359,5 +324,44 @@ export const CSS = `
   .card:hover{transform:none}
   .row.q-new:not(.active){animation:none;box-shadow:inset 3px 0 0 var(--amber)}
 }
-`
 
+/* ── Responsive overrides ──────────────────────────────────────────────────
+   Kept last on purpose. These lost to base rules declared further down the
+   file — same specificity, later wins — which had quietly killed the 44px
+   touch target on the status chips. */
+@media(max-width:1100px){
+  .drw-scrim{display:block}
+  .board,.dash{margin-right:0!important}
+}
+/* Phone. The dashboard was a fixed 4-column grid that could not shrink below
+   516px, pushing the whole page 126px sideways; the item table already scrolls
+   inside .grp-body, so this is what was breaking it. The hint bar goes too —
+   it lists keyboard shortcuts on a device with no keyboard, and it sat on top
+   of the last row. */
+@media(max-width:640px){
+  .cmd{flex-wrap:wrap;height:auto;padding:9px 12px;gap:8px}
+  .dash{grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px}
+  .board{padding:12px 12px 28px}
+  .card{padding:10px 11px;gap:7px}
+  .big,.condnum{font-size:19px}
+  .flagrow{flex-wrap:wrap;justify-content:flex-start;gap:3px 12px}
+  .legend{gap:6px 10px}
+  .hint{display:none}
+  /* Six action buttons in one non-wrapping row pushed the page 49px sideways.
+     .cmd already wraps; .acts is the row inside it that did not. */
+  .acts{flex-wrap:wrap;justify-content:flex-end;gap:6px;min-width:0}
+  /* Full touch targets where there is no pointer to aim with. */
+  .sfbtn{min-height:44px;padding:10px 14px}
+  /* Two per row. Stacked, five filters cost ~260px of scrolling before the
+     first item comes into view. */
+  .fbar{gap:6px}
+  .fsel{height:44px;flex:1 1 calc(50% - 3px);min-width:0;padding-left:10px}
+  .fsel select{max-width:none}
+  .fclear{height:44px;flex:1 1 100%;text-align:left}
+  /* The count would otherwise be pushed onto a line of its own by margin-left:auto. */
+  .fcount{margin-left:0;width:100%}
+}
+@media(max-width:380px){
+  .dash{grid-template-columns:1fr}
+}
+`
