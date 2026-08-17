@@ -17,6 +17,7 @@ import Estimate from './pages/Estimate'
 import Properties from './pages/Properties'
 import PropertyDetail from './pages/PropertyDetail'
 import PropertyBin from './pages/PropertyBin'
+import PropertyArchive from './pages/PropertyArchive'
 import PropertyUtilities from './pages/PropertyUtilities'
 import PropertyUtilitiesOverview from './pages/PropertyUtilitiesOverview'
 import RawInspectionData from './pages/RawInspectionData'
@@ -143,6 +144,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Properties />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/properties/archive"
+            element={
+              <ProtectedRoute>
+                <PropertyArchive />
               </ProtectedRoute>
             }
           />
