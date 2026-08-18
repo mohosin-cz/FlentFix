@@ -74,15 +74,29 @@ export async function compressForUpload(blob) {
 }
 
 // ─── Upload one doc to the private vendor-docs bucket ───────────────────────
-// Compresses, then uploads under `${submissionId}/${name}.webp`.
+// Compresses, then uploads under `${submissionId}/${name}-${nonce}.${ext}`.
 // Returns the stored path (never a public URL — the bucket is private and the
 // anon key has no read access). Throws the real error on failure.
+//
+// Every upload writes a NEW object. It used to upsert to a fixed path, which
+// bricked the form on the second attempt: the bucket grants anon insert but
+// deliberately not update — so nobody can overwrite another vendor's
+// documents — and an upsert over an existing object is an update, which RLS
+// refuses with "new row violates row-level security policy". The submission id
+// is fixed for the page session, so once a submit had failed for any reason,
+// every retry hit that wall until the vendor reloaded and started over.
+//
+// A per-call nonce keeps each attempt an insert, so retries work under the
+// existing (tighter) policy. It also fixes the quieter bug in the obvious
+// alternative of ignoring "already exists": if the vendor retakes a photo and
+// resubmits, the retake is what gets stored, not the first shot.
 export async function uploadVendorDoc(supabase, submissionId, name, blob) {
   const { file, ext } = await compressForUpload(blob)
-  const path = `${submissionId}/${name}.${ext}`
+  const nonce = newSubmissionId().slice(0, 8)
+  const path = `${submissionId}/${name}-${nonce}.${ext}`
   const { data, error } = await supabase.storage
     .from('vendor-docs')
-    .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' })
+    .upload(path, file, { contentType: file.type || 'image/jpeg' })
   if (error) throw error
   return data.path
 }
