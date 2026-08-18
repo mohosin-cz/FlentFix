@@ -8,6 +8,7 @@ import {
 } from '../components/ui'
 import QuickNotes from '../components/QuickNotes'
 import { uploadMedia } from '../utils/mediaUtils'
+import LiveCameraSheet from '../components/LiveCameraSheet'
 
 // ── Appliance definitions ─────────────────────────────────────────────────────
 const APPLIANCES = [

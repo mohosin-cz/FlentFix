@@ -8,6 +8,7 @@ import {
 } from '../components/ui'
 import QuickNotes from '../components/QuickNotes'
 import { uploadMedia } from '../utils/mediaUtils'
+import LiveCameraSheet from '../components/LiveCameraSheet'
 import { HIGH_VALUE_VIDEO_THRESHOLD, validateProofVideo } from '../utils/proofVideo'
 import { classifyItemKind } from '../utils/itemKind'
 
