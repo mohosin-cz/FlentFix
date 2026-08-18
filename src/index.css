@@ -2,6 +2,19 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Touch behaviour for every control, not just the .tct ones.
+   Android paints a translucent grey rectangle over any tapped control unless
+   the highlight is cleared, which made the whole app read as a web page
+   rather than an app — .tct already opted out, so the rest looked wrong next
+   to it. touch-action:manipulation drops double-tap-to-zoom on controls,
+   which is what causes a tap to feel like it lands late. Both are on the
+   interactive elements only; page text stays selectable and zoomable. */
+button, [role="button"], a, label, summary,
+input[type="checkbox"], input[type="radio"], input[type="file"], select {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 @media (max-width: 640px) {
   /* Prevent horizontal overflow */
   body, #root {
