@@ -5,8 +5,7 @@ import {
 } from '../components/ui'
 import {
   isPhone, isPincode, isEmail, isIFSC, isPAN, isUPI, isLast4,
-  uploadVendorDoc,
-} from '../utils/vendorOnboard'
+  uploadVendorDoc, newSubmissionId } from '../utils/vendorOnboard'
 import FlentWordmark from '../components/FlentWordmark'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -112,8 +111,9 @@ function StepperNextBtn({ onClick, disabled, label = 'Continue →' }) {
 }
 
 // ── Live camera capture (getUserMedia → canvas). No file input, ever. ───────
-function CameraCapture({ facingMode, mirror, hasPhoto, previewUrl, onCapture, onRetake }) {
+function CameraCapture({ facingMode, mirror, hasPhoto, previewUrl, onCapture, onRetake, allowUpload = false }) {
   const videoRef = useRef(null)
+  const fileRef = useRef(null)
   const streamRef = useRef(null)
   const [streaming, setStreaming] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -207,6 +207,17 @@ function CameraCapture({ facingMode, mirror, hasPhoto, previewUrl, onCapture, on
 
       {error && <RedStrip title="Camera unavailable">{error}</RedStrip>}
 
+      {allowUpload && (
+        <input
+          ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
+          onChange={e => {
+            const f = e.target.files && e.target.files[0]
+            e.target.value = ''
+            if (f) { stop(); onCapture(f) }
+          }}
+        />
+      )}
+
       {hasPhoto ? (
         <button type="button" onClick={retake} style={ctrlBtnStyle(false)}>Retake photo</button>
       ) : streaming ? (
@@ -214,6 +225,16 @@ function CameraCapture({ facingMode, mirror, hasPhoto, previewUrl, onCapture, on
       ) : (
         <button type="button" onClick={start} disabled={busy} style={ctrlBtnStyle(true, busy)}>
           {busy ? 'Starting…' : 'Start camera'}
+        </button>
+      )}
+
+      {/* Documents only. A photo of a card is not a liveness check, so a file
+          the vendor already has is just as good — and without this, a phone
+          that will not give up its camera cannot finish onboarding at all.
+          The selfie deliberately has no such escape. */}
+      {allowUpload && !hasPhoto && (
+        <button type="button" onClick={() => fileRef.current?.click()} style={ctrlBtnStyle(false)}>
+          Upload a photo instead
         </button>
       )}
     </div>
@@ -244,6 +265,7 @@ function DocCapture({ anchorId, title, hint, photo, onCapture, onRetake }) {
       <CameraCapture
         facingMode="environment"
         mirror={false}
+        allowUpload
         hasPhoto={!!photo}
         previewUrl={photo && photo.url}
         onCapture={onCapture}
@@ -303,7 +325,7 @@ export default function Onboard() {
   // one submission id for the whole flow — used as BOTH the storage prefix and
   // the row id, so we never need to read the row back (the anon key can't).
   const submissionId = useRef(null)
-  if (submissionId.current === null) submissionId.current = crypto.randomUUID()
+  if (submissionId.current === null) submissionId.current = newSubmissionId()
 
   const setField = useCallback((k) => (v) => setForm(f => ({ ...f, [k]: v })), [])
 
@@ -323,11 +345,12 @@ export default function Onboard() {
   const upiValid = isUPI(form.upi_id)
   const stage3Done = bankValid || upiValid
 
-  const dlRequired = form.trade === 'Runner'
   const aadhaarDone = isLast4(form.aadhaar_last4) && !!aadhaarPhoto
   const panDone = isPAN(form.pan_number) && !!panPhoto
-  const dlDone = dlRequired ? (!!form.dl_number.trim() && !!form.dl_expiry && !!dlPhoto) : true
-  const stage4Done = aadhaarDone && panDone && dlDone
+  // Driving licence is optional for every trade, Runner included. It used to
+  // gate submission, which stopped a runner who had not brought the card with
+  // them from onboarding at all; staff chase it afterwards instead.
+  const stage4Done = aadhaarDone && panDone
 
   // ── inline field errors (only shown once the field has content) ────────────
   const phoneErr = form.phone && !isPhone(form.phone) ? 'Enter a valid 10-digit mobile number' : ''
@@ -354,9 +377,6 @@ export default function Onboard() {
   if (!aadhaarPhoto) missing.push({ label: 'Aadhaar card photo', stage: 4, target: 'anchor-4-aadhaar' })
   if (!isPAN(form.pan_number)) missing.push({ label: 'Valid PAN number', stage: 4, target: 'f-pan_number' })
   if (!panPhoto) missing.push({ label: 'PAN card photo', stage: 4, target: 'anchor-4-pan' })
-  if (dlRequired && !form.dl_number.trim()) missing.push({ label: 'Driving licence number (Runner)', stage: 4, target: 'f-dl_number' })
-  if (dlRequired && !form.dl_expiry) missing.push({ label: 'Driving licence expiry (Runner)', stage: 4, target: 'f-dl_expiry' })
-  if (dlRequired && !dlPhoto) missing.push({ label: 'Driving licence photo (Runner)', stage: 4, target: 'anchor-4-dl' })
   const canSubmit = missing.length === 0
 
   function jumpTo(stage, target) {
@@ -604,9 +624,9 @@ export default function Onboard() {
           <DocCapture anchorId="anchor-4-pan" title="PAN card photo" photo={panPhoto} onCapture={blob => setPanPhoto(makeMedia(blob))} onRetake={() => setPanPhoto(null)} />
 
           <Divider />
-          <TextField id="f-dl_number" label="Driving licence number" optional={!dlRequired} value={form.dl_number} onChange={setField('dl_number')} placeholder="DL number" autoCapitalize="characters" />
-          <TextField id="f-dl_expiry" label="Driving licence expiry" optional={!dlRequired} value={form.dl_expiry} onChange={setField('dl_expiry')} type="date" />
-          <DocCapture anchorId="anchor-4-dl" title={`Driving licence photo${dlRequired ? ' (required for Runner)' : ' (optional)'}`} photo={dlPhoto} onCapture={blob => setDlPhoto(makeMedia(blob))} onRetake={() => setDlPhoto(null)} />
+          <TextField id="f-dl_number" label="Driving licence number" optional value={form.dl_number} onChange={setField('dl_number')} placeholder="DL number" autoCapitalize="characters" />
+          <TextField id="f-dl_expiry" label="Driving licence expiry" optional value={form.dl_expiry} onChange={setField('dl_expiry')} type="date" />
+          <DocCapture anchorId="anchor-4-dl" title="Driving licence photo (optional)" photo={dlPhoto} onCapture={blob => setDlPhoto(makeMedia(blob))} onRetake={() => setDlPhoto(null)} />
 
           <StepperNextBtn onClick={() => setOpenStage(5)} disabled={!stage4Done} label="Review →" />
         </StepperStageBox>
@@ -626,7 +646,7 @@ export default function Onboard() {
             <ReviewRow label="Payout" value={s3Summary} onEdit={() => jumpTo(3, 'anchor-3')} />
             <ReviewRow label="Aadhaar" value={isLast4(form.aadhaar_last4) ? `••${form.aadhaar_last4}${aadhaarPhoto ? ' · photo ✓' : ''}` : ''} onEdit={() => jumpTo(4, 'f-aadhaar_last4')} />
             <ReviewRow label="PAN" value={isPAN(form.pan_number) ? `${form.pan_number.toUpperCase()}${panPhoto ? ' · photo ✓' : ''}` : ''} onEdit={() => jumpTo(4, 'f-pan_number')} />
-            <ReviewRow label="Licence" value={form.dl_number.trim() ? `${form.dl_number.toUpperCase()}${dlPhoto ? ' · photo ✓' : ''}` : (dlRequired ? '' : 'Not provided')} onEdit={() => jumpTo(4, 'f-dl_number')} />
+            <ReviewRow label="Licence" value={form.dl_number.trim() ? `${form.dl_number.toUpperCase()}${dlPhoto ? ' · photo ✓' : ''}` : 'Not provided'} onEdit={() => jumpTo(4, 'f-dl_number')} />
           </div>
 
           {!canSubmit && (
