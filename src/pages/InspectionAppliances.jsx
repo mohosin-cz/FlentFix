@@ -75,12 +75,16 @@ function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photo
   const videoRef   = useRef(null)
   const galleryRef = useRef(null)
   const [sheet, setSheet]       = useState(false)
+  const [camOpen, setCamOpen]   = useState(false)
   const [uploading, setUploading] = useState(false)
 
+  // The live camera hands back File objects directly; the file inputs hand
+  // back an event. Both end up here.
   async function handleFiles(e) {
-    const selected = Array.from(e.target.files || [])
+    const selected = Array.isArray(e) ? e : Array.from(e.target.files || [])
     if (!selected.length) return
-    e.target.value = ''; setSheet(false)
+    if (!Array.isArray(e)) e.target.value = ''
+    setSheet(false)
     if (!pid) { onChange([...files, ...selected]); return }
     setUploading(true)
     const newUrls = []
@@ -104,6 +108,14 @@ function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photo
           no intent to launch and silently falls back to the document picker,
           which is why Android users could not take a live photo at all. iOS
           tolerates the combined form, so this only ever broke on Android. */}
+      <LiveCameraSheet
+        open={camOpen}
+        onClose={() => setCamOpen(false)}
+        onDone={fs => { setCamOpen(false); if (fs.length) handleFiles(fs) }}
+        onFallback={() => { setCamOpen(false); cameraRef.current?.click() }}
+      />
+      {/* Kept only as the escape hatch the camera sheet offers when
+          getUserMedia cannot start. */}
       <input ref={cameraRef}  type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFiles} />
       <input ref={videoRef}   type="file" accept="video/*" capture="environment" style={{ display: 'none' }} onChange={handleFiles} />
       <input ref={galleryRef} type="file" accept="image/*,video/*" multiple            style={{ display: 'none' }} onChange={handleFiles} />
@@ -127,7 +139,7 @@ function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photo
           <div style={{ width: '100%', background: 'var(--bg-panel, #1e2028)', borderRadius: '12px 12px 0 0', padding: '8px 16px 36px' }} onClick={e => e.stopPropagation()}>
             <div style={{ width: 36, height: 3, borderRadius: 2, background: 'var(--border-dash, #3a3d52)', margin: '10px auto 18px' }} />
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', marginBottom: 14, textAlign: 'center', fontFamily: 'var(--font-mono, monospace)' }}>{label}</div>
-            <button type="button" onClick={() => cameraRef.current?.click()} style={SHEET_BTN}>
+            <button type="button" onClick={() => { setSheet(false); setCamOpen(true) }} style={SHEET_BTN}>
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M6.5 3h5l1.5 2H15a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V6a1 1 0 011-1h1.5L6 3z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><circle cx="9" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.4"/></svg>
               take photo
             </button>
