@@ -72,6 +72,37 @@ function DeleteModal({ pid, onConfirm, onCancel, deleting }) {
   )
 }
 
+function ArchiveModal({ pid, onConfirm, onCancel, archiving }) {
+  return (
+    <div style={m.overlay} onClick={onCancel}>
+      <div style={m.sheet} onClick={e => e.stopPropagation()}>
+        <div style={{ ...m.iconWrap, background: 'rgba(200,150,62,0.12)' }}>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="4" width="18" height="4" rx="1" stroke="var(--accent, #c8963e)" strokeWidth="1.8"/>
+            <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" stroke="var(--accent, #c8963e)" strokeWidth="1.8" strokeLinecap="round"/>
+            <path d="M10 12h4" stroke="var(--accent, #c8963e)" strokeWidth="1.8" strokeLinecap="round"/>
+          </svg>
+        </div>
+        <div style={m.title}>Archive PID{pid}?</div>
+        <div style={m.body}>
+          <strong style={{ color: 'var(--text, #e8e8f0)' }}>PID{pid}</strong> moves to the archive and leaves this list.
+          Nothing is deleted, and you can restore it at any time.
+        </div>
+        <div style={m.actions}>
+          <button style={m.cancelBtn} onClick={onCancel} disabled={archiving}>Cancel</button>
+          <button
+            style={{ ...m.archiveBtn, opacity: archiving ? 0.6 : 1, cursor: archiving ? 'not-allowed' : 'pointer' }}
+            onClick={onConfirm}
+            disabled={archiving}
+          >
+            {archiving ? 'Archiving…' : 'Archive'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Properties() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -81,6 +112,10 @@ export default function Properties() {
   const [confirmPid, setConfirmPid] = useState(null)
   const [deleting, setDeleting]     = useState(false)
   const [binCount, setBinCount]     = useState(0)
+  const [archiveCount, setArchiveCount] = useState(0)
+  const [archivePid, setArchivePid] = useState(null)
+  const [archiving, setArchiving]   = useState(false)
+  const [archiveError, setArchiveError] = useState(null)
 
   const fetchData = useCallback(() => {
     Promise.all([
@@ -98,11 +133,16 @@ export default function Properties() {
         .from('estimates')
         .select('pid, inspector_name, created_by')
         .order('created_at', { ascending: false }),
-    ]).then(([{ data: props }, { data: insp }, { data: binRows }, { data: ests }]) => {
+      supabase.from('properties_archive').select('pid'),
+    ]).then(([{ data: props }, { data: insp }, { data: binRows }, { data: ests }, archiveRes]) => {
       const inspections = insp || []
       const properties  = props || []
       const estimates   = ests || []
       const deletedPids = new Set((binRows || []).map(r => r.pid))
+      // A failed archive read must not silently un-hide every archived
+      // property; say so instead, and leave the list alone.
+      setArchiveError(archiveRes.error ? archiveRes.error.message : null)
+      const archivedPids = new Set((archiveRes.data || []).map(r => r.pid))
 
       // Most recent estimate per PID → email fallback for legacy PIDs
       const estimateEmailMap = new Map()
@@ -117,7 +157,7 @@ export default function Properties() {
       // Build from inspections first — authoritative source for all PIDs
       // Also captures owner_email (populated going forward on all new inspections)
       for (const insp of inspections) {
-        if (deletedPids.has(insp.pid)) continue
+        if (deletedPids.has(insp.pid) || archivedPids.has(insp.pid)) continue
         if (!pidMap.has(insp.pid)) {
           pidMap.set(insp.pid, {
             pid: insp.pid, type: insp.house_type,
@@ -128,7 +168,7 @@ export default function Properties() {
       }
       // Layer in properties metadata without dropping any PID
       for (const p of properties) {
-        if (deletedPids.has(p.pid)) continue
+        if (deletedPids.has(p.pid) || archivedPids.has(p.pid)) continue
         pidMap.set(p.pid, {
           ...(pidMap.get(p.pid) || { pid: p.pid }),
           name: p.name, address: p.address,
@@ -147,6 +187,7 @@ export default function Properties() {
 
       setRows(allProperties)
       setBinCount(binRows?.length || 0)
+      setArchiveCount(archivedPids.size)
       setLoading(false)
     })
   }, [])
@@ -166,6 +207,37 @@ export default function Properties() {
   const filtered = grouped.filter(r =>
     !search || r.pid?.toLowerCase().includes(search.toLowerCase())
   )
+
+  // Archiving is the same shape as the soft delete, into a different bucket.
+  // The properties update is best-effort on purpose: a PID can exist only in
+  // inspections with no properties row, and the archive row is what actually
+  // hides it, so an update touching zero rows is not a failure. A failed
+  // archive insert is.
+  async function handleArchive() {
+    if (!archivePid) return
+    setArchiving(true)
+    const prop = rows.find(r => r.pid === archivePid)
+    const archivedBy = user?.email || 'admin'
+
+    await supabase.from('properties')
+      .update({ archived_at: new Date().toISOString(), archived_by: archivedBy })
+      .eq('pid', archivePid)
+
+    const { error } = await supabase.from('properties_archive').insert({
+      pid:           archivePid,
+      name:          prop?.name || archivePid,
+      type:          prop?.type,
+      archived_by:   archivedBy,
+      original_data: prop,
+    })
+    if (error) { setArchiveError(error.message); setArchiving(false); setArchivePid(null); return }
+
+    setRows(prev => prev.filter(r => r.pid !== archivePid))
+    setArchiveCount(c => c + 1)
+    setArchiveError(null)
+    setArchiving(false)
+    setArchivePid(null)
+  }
 
   async function handleSoftDelete() {
     if (!confirmPid) return
@@ -206,23 +278,52 @@ export default function Properties() {
           <span style={s.headerTitle}>properties</span>
           <span style={s.headerSub}>{loading ? '…' : `${grouped.length} unit${grouped.length !== 1 ? 's' : ''}`}</span>
         </div>
-        {/* Bin button */}
-        <button
-          style={s.binHeaderBtn}
-          onClick={() => navigate('/properties/bin')}
-          title="View bin"
-          onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(224,92,106,0.5)'}
-          onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border, #2e3040)'}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-            <polyline points="3 6 5 6 21 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          {binCount > 0 && <span style={s.binBadge}>{binCount}</span>}
-        </button>
+        {/* Archive + bin, as a pair. Both are places things go when they leave
+            this list, so they sit together rather than in separate corners. */}
+        <div style={s.headerBtns}>
+          <button
+            style={s.binHeaderBtn}
+            onClick={() => navigate('/properties/archive')}
+            title="View archive"
+            aria-label="View archive"
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent, #c8963e)'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border, #2e3040)'}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="4" width="18" height="4" rx="1" stroke="currentColor" strokeWidth="2"/>
+              <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M10 12h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            {archiveCount > 0 && <span style={s.archiveBadge}>{archiveCount}</span>}
+          </button>
+
+          <button
+            style={s.binHeaderBtn}
+            onClick={() => navigate('/properties/bin')}
+            title="View bin"
+            aria-label="View bin"
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(224,92,106,0.5)'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border, #2e3040)'}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <polyline points="3 6 5 6 21 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            {binCount > 0 && <span style={s.binBadge}>{binCount}</span>}
+          </button>
+        </div>
       </header>
+
+      {archiveError && (
+        <div style={s.errorStrip}>
+          Archive unavailable — {archiveError}
+          {/relation|does not exist|schema cache|Could not find the table/i.test(archiveError) && (
+            <> · run <code style={{ color: 'var(--text-dim, #9394a8)' }}>supabase/migrations/property_archive.sql</code></>
+          )}
+        </div>
+      )}
 
       {/* Search */}
       <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 20px', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
@@ -256,6 +357,31 @@ export default function Properties() {
           <div style={s.list}>
             {filtered.map(row => (
               <div key={row.pid} style={s.cardWrap}>
+                {/* Archive — sits left of the delete ×, in the order you'd
+                    reach for them: put it away first, throw it out second. */}
+                <button
+                  style={s.archiveBtn}
+                  onClick={() => setArchivePid(row.pid)}
+                  title="Archive"
+                  aria-label={`Archive PID ${row.pid}`}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(200,150,62,0.18)'
+                    e.currentTarget.style.borderColor = 'var(--accent, #c8963e)'
+                    e.currentTarget.style.color = 'var(--accent, #c8963e)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'var(--bg-input, #252731)'
+                    e.currentTarget.style.borderColor = 'var(--border, #2e3040)'
+                    e.currentTarget.style.color = 'var(--text-muted, #6b6d82)'
+                  }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="4" width="18" height="4" rx="1" stroke="currentColor" strokeWidth="2.4"/>
+                    <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"/>
+                    <path d="M10 12h4" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"/>
+                  </svg>
+                </button>
+
                 {/* × delete button */}
                 <button
                   style={s.closeBtn}
@@ -306,6 +432,15 @@ export default function Properties() {
           </div>
         )}
       </main>
+
+      {archivePid && (
+        <ArchiveModal
+          pid={archivePid}
+          onConfirm={handleArchive}
+          onCancel={() => !archiving && setArchivePid(null)}
+          archiving={archiving}
+        />
+      )}
 
       {confirmPid && (
         <DeleteModal
@@ -384,7 +519,34 @@ const s = {
   list: {
     display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10,
   },
+  headerBtns: { display: 'flex', alignItems: 'center', gap: 8 },
+  archiveBadge: {
+    position: 'absolute', top: -5, right: -5,
+    minWidth: 16, height: 16, borderRadius: 8,
+    background: 'var(--accent, #c8963e)', color: '#1a1408',
+    fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: '0 4px',
+    border: '2px solid var(--bg-panel, #1e2028)',
+  },
+  errorStrip: {
+    padding: '11px 20px', background: 'rgba(224,92,106,0.10)',
+    borderBottom: '1px solid rgba(224,92,106,0.35)',
+    fontSize: 11.5, lineHeight: 1.6, color: '#e8697a',
+    fontFamily: 'var(--font-mono, monospace)', textAlign: 'center',
+  },
   cardWrap: { position: 'relative' },
+  archiveBtn: {
+    position: 'absolute', top: 8, right: 36, zIndex: 2,
+    width: 22, height: 22, borderRadius: '50%',
+    background: 'var(--bg-input, #252731)',
+    border: '1px solid var(--border, #2e3040)',
+    color: 'var(--text-muted, #6b6d82)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    cursor: 'pointer',
+    transition: 'background 0.15s, border-color 0.15s, color 0.15s',
+    padding: 0,
+  },
   closeBtn: {
     position: 'absolute', top: 8, right: 8, zIndex: 2,
     width: 22, height: 22, borderRadius: '50%',
@@ -456,6 +618,12 @@ const m = {
     fontFamily: 'var(--font-mono, monospace)', marginBottom: 24,
   },
   actions: { display: 'flex', gap: 10 },
+  archiveBtn: {
+    flex: 1, padding: '11px 0', borderRadius: 8,
+    background: 'rgba(200,150,62,0.15)', border: '1px solid rgba(200,150,62,0.45)',
+    fontSize: 13, fontWeight: 600, color: 'var(--accent, #c8963e)',
+    fontFamily: 'var(--font-mono, monospace)', transition: 'opacity 0.15s',
+  },
   cancelBtn: {
     flex: 1, padding: '11px 0',
     background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)',
