@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import LogoSpinner from '../components/LogoSpinner'
 
@@ -17,6 +18,17 @@ function parseName(str) {
   const s = str.trim()
   if (!s) return null
   return s.includes('@') ? s.split('@')[0] : s
+}
+
+// Sentinel for "this field is empty" in a facet filter. Not a real value, so
+// it cannot collide with a type or inspector name someone actually entered.
+const FACET_BLANK = '\u0000blank'
+
+const STATUS_LABEL = {
+  completed: 'Completed',
+  draft: 'Draft',
+  submitted: 'Submitted',
+  estimate_generated: 'Estimate ready',
 }
 
 function titleCase(str) {
@@ -103,9 +115,29 @@ function ArchiveModal({ pid, onConfirm, onCancel, archiving }) {
   )
 }
 
+// A native select styled to match the app's .tct controls. Native because it
+// is the one control that already works on a phone, with a keyboard and with
+// a screen reader without being rebuilt.
+function PropFilter({ label, value, onChange, options, allLabel, mobile }) {
+  const on = value !== 'all'
+  return (
+    <label className={`tct tct-raised${on ? ' is-on' : ''}`} style={{ ...s.fsel, ...(mobile ? s.fselMobile : null) }}>
+      <span style={{ ...s.fselLabel, color: on ? 'rgba(200,150,62,0.7)' : 'var(--text-muted, #6b6d82)' }}>{label}</span>
+      <select value={value} onChange={e => onChange(e.target.value)} aria-label={label} style={s.fselSelect}>
+        <option value="all">{allLabel}</option>
+        {options.map(o => (
+          <option key={o.key} value={o.key}>{o.label} ({o.n})</option>
+        ))}
+      </select>
+      <span aria-hidden="true" style={s.fselCaret}>▾</span>
+    </label>
+  )
+}
+
 export default function Properties() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const isMobile = useIsMobile()
   const [rows, setRows]             = useState([])
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
@@ -116,6 +148,10 @@ export default function Properties() {
   const [archivePid, setArchivePid] = useState(null)
   const [archiving, setArchiving]   = useState(false)
   const [archiveError, setArchiveError] = useState(null)
+  const [monthF, setMonthF]         = useState('all')
+  const [inspectorF, setInspectorF] = useState('all')
+  const [typeF, setTypeF]           = useState('all')
+  const [statusF, setStatusF]       = useState('all')
 
   const fetchData = useCallback(() => {
     Promise.all([
@@ -196,17 +232,83 @@ export default function Properties() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const grouped = []
-  const seen = new Set()
-  for (const row of rows) {
-    if (!row.pid || seen.has(row.pid)) continue
-    seen.add(row.pid)
-    grouped.push(row)
+  // Memoised so the facet tally below actually memoises — a fresh array on
+  // every render made its useMemo recompute unconditionally.
+  const grouped = useMemo(() => {
+    const out = []
+    const seen = new Set()
+    for (const row of rows) {
+      if (!row.pid || seen.has(row.pid)) continue
+      seen.add(row.pid)
+      out.push(row)
+    }
+    return out
+  }, [rows])
+
+  // Facet options are built from the properties actually on the list, with
+  // counts, so the dropdowns can never offer a month nobody inspected or omit
+  // a building type somebody used. Blanks get their own option rather than
+  // being dropped — an unassigned property is exactly the one you go looking
+  // for, and skipping it made the counts fail to add up to the total.
+  const facets = useMemo(() => {
+    const tally = (pick, blankLabel, labelOf) => {
+      const m = new Map()
+      let blank = 0
+      for (const r of grouped) {
+        const raw = pick(r)
+        if (raw == null || String(raw).trim() === '') { blank++; continue }
+        const key = String(raw).trim().toLowerCase()
+        if (!m.has(key)) m.set(key, { key, label: labelOf ? labelOf(raw) : String(raw).trim(), n: 0 })
+        m.get(key).n++
+      }
+      const out = [...m.values()]
+      if (blank) out.push({ key: FACET_BLANK, label: blankLabel, n: blank })
+      return out
+    }
+
+    const months = tally(
+      r => (r.inspection_date || '').slice(0, 7),
+      'No inspection date',
+      ym => {
+        const [y, mo] = ym.split('-').map(Number)
+        return new Date(y, mo - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+      },
+    ).sort((a, b) => (a.key === FACET_BLANK ? 1 : b.key === FACET_BLANK ? -1 : b.key.localeCompare(a.key)))
+
+    const alpha = (list) => list.sort((a, b) =>
+      a.key === FACET_BLANK ? 1 : b.key === FACET_BLANK ? -1 : a.label.localeCompare(b.label))
+
+    return {
+      months,
+      inspectors: alpha(tally(r => r.inspector, 'Unassigned')),
+      types:      alpha(tally(r => r.type, 'No type', titleCase)),
+      statuses:   alpha(tally(r => r.status, 'No status', s => STATUS_LABEL[s] || s)),
+    }
+  }, [grouped])
+
+  const matchesFacet = (val, sel) => {
+    if (sel === 'all') return true
+    const v = (val == null ? '' : String(val)).trim().toLowerCase()
+    return sel === FACET_BLANK ? v === '' : v === sel
   }
 
-  const filtered = grouped.filter(r =>
-    !search || r.pid?.toLowerCase().includes(search.toLowerCase())
-  )
+  const needle = search.trim().toLowerCase()
+  const filtered = grouped.filter(r => {
+    if (!matchesFacet((r.inspection_date || '').slice(0, 7), monthF)) return false
+    if (!matchesFacet(r.inspector, inspectorF)) return false
+    if (!matchesFacet(r.type, typeF))           return false
+    if (!matchesFacet(r.status, statusF))       return false
+    if (!needle) return true
+    // Widened from PID-only: with filters above it, searching by the name or
+    // address you actually remember is the common case.
+    return [r.pid, r.name, r.address, r.type, r.inspector]
+      .some(f => (f || '').toLowerCase().includes(needle))
+  })
+
+  const activeFilters = [monthF, inspectorF, typeF, statusF].filter(v => v !== 'all').length
+  function clearFilters() {
+    setMonthF('all'); setInspectorF('all'); setTypeF('all'); setStatusF('all'); setSearch('')
+  }
 
   // Archiving is the same shape as the soft delete, into a different bucket.
   // The properties update is best-effort on purpose: a PID can exist only in
@@ -336,7 +438,7 @@ export default function Properties() {
           </span>
           <input
             type="text"
-            placeholder="search by pid…"
+            placeholder="search pid, name, address, inspector…"
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ width: '100%', padding: '9px 32px 9px 34px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 100, color: 'var(--text, #e8e8f0)', fontSize: 13, fontFamily: 'var(--font-mono, monospace)', outline: 'none', boxSizing: 'border-box' }}
@@ -347,12 +449,40 @@ export default function Properties() {
         </div>
       </div>
 
+      {/* Filters. Options and counts come from the properties actually on the
+          list, so a month nobody inspected is never offered. */}
+      {!loading && grouped.length > 0 && (
+        <div style={s.fbar}>
+          <PropFilter label="Month"     value={monthF}     onChange={setMonthF}     options={facets.months} mobile={isMobile}     allLabel="All months" />
+          <PropFilter label="Inspector" value={inspectorF} onChange={setInspectorF} options={facets.inspectors} mobile={isMobile} allLabel="All inspectors" />
+          <PropFilter label="Type"      value={typeF}      onChange={setTypeF}      options={facets.types} mobile={isMobile}      allLabel="All types" />
+          <PropFilter label="Status"    value={statusF}    onChange={setStatusF}    options={facets.statuses} mobile={isMobile}   allLabel="Any status" />
+          {(activeFilters > 0 || search) && (
+            <button className="tct tct-bare" style={s.fclear} onClick={clearFilters}>
+              Clear{activeFilters > 0 ? ` ${activeFilters} filter${activeFilters > 1 ? 's' : ''}` : ''}
+            </button>
+          )}
+          <span style={s.fcount}>{filtered.length} of {grouped.length}</span>
+        </div>
+      )}
+
       {/* Grid */}
       <main style={s.main}>
         {loading ? (
           <LogoSpinner />
         ) : filtered.length === 0 ? (
-          <div style={s.empty}>{search ? '// no matches found' : '// no properties yet'}</div>
+          <div style={s.emptyState}>
+            <div style={s.emptyTitle}>{grouped.length === 0 ? 'No properties yet' : 'Nothing matches'}</div>
+            {grouped.length > 0 && (
+              <>
+                <div style={s.emptySub}>
+                  {search ? <>No property matches “{search.trim()}”{activeFilters > 0 ? ' with these filters' : ''}.</>
+                          : 'No property matches these filters.'}
+                </div>
+                <button className="tct tct-raised" style={s.emptyClear} onClick={clearFilters}>Clear everything</button>
+              </>
+            )}
+          </div>
         ) : (
           <div style={s.list}>
             {filtered.map(row => (
@@ -520,6 +650,41 @@ const s = {
     display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10,
   },
   headerBtns: { display: 'flex', alignItems: 'center', gap: 8 },
+  fbar: {
+    display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
+    padding: '10px 20px',
+    background: 'var(--bg-panel, #1e2028)',
+    borderBottom: '1px solid var(--border, #2e3040)',
+  },
+  fsel: {
+    position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 7,
+    height: 36, padding: '0 24px 0 12px', cursor: 'pointer', minWidth: 0,
+  },
+  fselLabel: {
+    fontSize: 9, fontWeight: 500, letterSpacing: '0.085em', textTransform: 'uppercase',
+    fontFamily: 'var(--font-mono, monospace)', flexShrink: 0,
+  },
+  fselSelect: {
+    appearance: 'none', WebkitAppearance: 'none', background: 'none', border: 'none',
+    outline: 'none', color: 'inherit', font: 'inherit', fontSize: 12,
+    cursor: 'pointer', maxWidth: 160, minWidth: 0, flex: '1 1 auto', textOverflow: 'ellipsis',
+  },
+  fselCaret: {
+    position: 'absolute', right: 10, fontSize: 8, opacity: 0.5, pointerEvents: 'none',
+  },
+  fselMobile: { height: 44, flex: '1 1 calc(50% - 4px)' },
+  fclear: { height: 36, padding: '0 12px', fontSize: 12, display: 'inline-flex', alignItems: 'center', cursor: 'pointer' },
+  fcount: {
+    marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted, #6b6d82)',
+    fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap',
+  },
+  emptyState: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    gap: 12, padding: '70px 20px', textAlign: 'center',
+  },
+  emptyTitle: { fontSize: 15, fontWeight: 600, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' },
+  emptySub: { fontSize: 12.5, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.6 },
+  emptyClear: { height: 38, padding: '0 16px', fontSize: 12.5, cursor: 'pointer', marginTop: 2 },
   archiveBadge: {
     position: 'absolute', top: -5, right: -5,
     minWidth: 16, height: 16, borderRadius: 8,
