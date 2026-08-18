@@ -72,6 +72,7 @@ const SHEET_BTN = { display: 'flex', alignItems: 'center', justifyContent: 'cent
 
 function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photos / Videos' }) {
   const cameraRef  = useRef(null)
+  const videoRef   = useRef(null)
   const galleryRef = useRef(null)
   const [sheet, setSheet]       = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -98,7 +99,13 @@ function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photo
   function remove(idx) { onChange(files.filter((_, i) => i !== idx)) }
   return (
     <div>
-      <input ref={cameraRef}  type="file" accept="image/*,video/*" capture="environment" style={{ display: 'none' }} onChange={handleFiles} />
+      {/* One capture medium per input. Android Chrome only honours `capture`
+          when `accept` names a single medium — with "image/*,video/*" it has
+          no intent to launch and silently falls back to the document picker,
+          which is why Android users could not take a live photo at all. iOS
+          tolerates the combined form, so this only ever broke on Android. */}
+      <input ref={cameraRef}  type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFiles} />
+      <input ref={videoRef}   type="file" accept="video/*" capture="environment" style={{ display: 'none' }} onChange={handleFiles} />
       <input ref={galleryRef} type="file" accept="image/*,video/*" multiple            style={{ display: 'none' }} onChange={handleFiles} />
       <button type="button" onClick={() => !uploading && setSheet(true)} disabled={uploading} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', border: `1px dashed ${uploading ? 'var(--accent, #c8963e)' : files.length ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)'}`, borderRadius: 6, background: uploading ? 'rgba(200,150,62,0.08)' : files.length ? 'rgba(61,186,122,0.08)' : 'var(--bg-input, #252731)', fontSize: 13, fontWeight: 500, color: uploading ? 'var(--accent, #c8963e)' : files.length ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', cursor: uploading ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 11v2a1 1 0 001 1h12a1 1 0 001-1v-2M8 1v9M5 4l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -122,7 +129,11 @@ function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photo
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', marginBottom: 14, textAlign: 'center', fontFamily: 'var(--font-mono, monospace)' }}>{label}</div>
             <button type="button" onClick={() => cameraRef.current?.click()} style={SHEET_BTN}>
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M6.5 3h5l1.5 2H15a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V6a1 1 0 011-1h1.5L6 3z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><circle cx="9" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.4"/></svg>
-              take photo / video
+              take photo
+            </button>
+            <button type="button" onClick={() => videoRef.current?.click()} style={{ ...SHEET_BTN, marginTop: 8 }}>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="4.5" width="10" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4"/><path d="M12 8.5l4-2.5v6l-4-2.5z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>
+              record video
             </button>
             <button type="button" onClick={() => galleryRef.current?.click()} style={{ ...SHEET_BTN, marginTop: 8 }}>
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="2" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.4"/><circle cx="6.5" cy="6.5" r="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M2 12l4-4 3 3 2-2 5 5" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>
