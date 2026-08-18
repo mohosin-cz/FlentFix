@@ -78,8 +78,10 @@ export const CSS = `
    Matched to .sfbtn: 36px tall, 12px face. */
 .fbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 13px 12px}
 /* Hairline between the decision chips and the facet selects. They share a
-   line because they do the same job, but they are still two kinds of thing. */
-.fdiv{width:1px;height:20px;background:var(--line2);flex-shrink:0;margin:0 2px}
+   line because they do the same job, but they are still two kinds of thing.
+   margin-left:auto is what splits the row: decisions hold the left, the
+   facets and their count are pushed to the right edge. */
+.fdiv{width:1px;height:20px;background:var(--line2);flex-shrink:0;margin:0 4px 0 auto}
 .fsel{position:relative;display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 25px 0 12px;cursor:pointer}
 .fsel-l{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.085em;text-transform:uppercase;color:var(--faint);flex-shrink:0}
 .fsel:hover .fsel-l{color:var(--muted)}
@@ -88,7 +90,7 @@ export const CSS = `
 .fsel option{background:var(--panel);color:var(--ink);font-family:var(--sans)}
 .fsel::after{content:'';position:absolute;right:11px;top:50%;width:5px;height:5px;margin-top:-4px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);opacity:.5;pointer-events:none}
 .fclear{font-size:12px;padding:0 12px;height:36px;display:inline-flex;align-items:center;cursor:pointer}
-.fcount{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--faint);white-space:nowrap}
+.fcount{margin-left:4px;font-family:var(--mono);font-size:10.5px;color:var(--faint);white-space:nowrap}
 /* overflow:clip, not hidden — hidden would make this a scroll container and
    silently kill the sticky header below it. clip still respects the radius. */
 .grp{margin-bottom:14px;border:1px solid var(--line);border-radius:10px;overflow:clip;background:var(--panel)}
