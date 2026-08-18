@@ -449,25 +449,24 @@ export default function Properties() {
         </div>
       </div>
 
-      {/* Filters. Options and counts come from the properties actually on the
-          list, so a month nobody inspected is never offered. */}
-      {!loading && grouped.length > 0 && (
-        <div style={s.fbar}>
-          <PropFilter label="Month"     value={monthF}     onChange={setMonthF}     options={facets.months} mobile={isMobile}     allLabel="All months" />
-          <PropFilter label="Inspector" value={inspectorF} onChange={setInspectorF} options={facets.inspectors} mobile={isMobile} allLabel="All inspectors" />
-          <PropFilter label="Type"      value={typeF}      onChange={setTypeF}      options={facets.types} mobile={isMobile}      allLabel="All types" />
-          <PropFilter label="Status"    value={statusF}    onChange={setStatusF}    options={facets.statuses} mobile={isMobile}   allLabel="Any status" />
-          {(activeFilters > 0 || search) && (
-            <button className="tct tct-bare" style={s.fclear} onClick={clearFilters}>
-              Clear{activeFilters > 0 ? ` ${activeFilters} filter${activeFilters > 1 ? 's' : ''}` : ''}
-            </button>
-          )}
-          <span style={s.fcount}>{filtered.length} of {grouped.length}</span>
-        </div>
-      )}
-
       {/* Grid */}
       <main style={s.main}>
+        {/* Filters. Options and counts come from the properties actually on the
+            list, so a month nobody inspected is never offered. */}
+        {!loading && grouped.length > 0 && (
+          <div style={s.fbar}>
+            <PropFilter label="Month"     value={monthF}     onChange={setMonthF}     options={facets.months} mobile={isMobile}     allLabel="All months" />
+            <PropFilter label="Inspector" value={inspectorF} onChange={setInspectorF} options={facets.inspectors} mobile={isMobile} allLabel="All inspectors" />
+            <PropFilter label="Type"      value={typeF}      onChange={setTypeF}      options={facets.types} mobile={isMobile}      allLabel="All types" />
+            <PropFilter label="Status"    value={statusF}    onChange={setStatusF}    options={facets.statuses} mobile={isMobile}   allLabel="Any status" />
+            {(activeFilters > 0 || search) && (
+              <button className="tct tct-bare" style={s.fclear} onClick={clearFilters}>
+                Clear{activeFilters > 0 ? ` ${activeFilters} filter${activeFilters > 1 ? 's' : ''}` : ''}
+              </button>
+            )}
+            <span style={s.fcount}>{filtered.length} of {grouped.length}</span>
+          </div>
+        )}
         {loading ? (
           <LogoSpinner />
         ) : filtered.length === 0 ? (
@@ -650,11 +649,12 @@ const s = {
     display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10,
   },
   headerBtns: { display: 'flex', alignItems: 'center', gap: 8 },
+  // Centred in the same 860px column as the tiles, sitting directly above
+  // them rather than in the header strip — the panel background and border
+  // are gone because it is now part of the content, not the chrome.
   fbar: {
-    display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
-    padding: '10px 20px',
-    background: 'var(--bg-panel, #1e2028)',
-    borderBottom: '1px solid var(--border, #2e3040)',
+    display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
+    gap: 8, marginBottom: 16,
   },
   fsel: {
     position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 7,
@@ -675,8 +675,8 @@ const s = {
   fselMobile: { height: 44, flex: '1 1 calc(50% - 4px)' },
   fclear: { height: 36, padding: '0 12px', fontSize: 12, display: 'inline-flex', alignItems: 'center', cursor: 'pointer' },
   fcount: {
-    marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted, #6b6d82)',
-    fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap',
+    fontSize: 11, color: 'var(--text-muted, #6b6d82)',
+    fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', marginLeft: 4,
   },
   emptyState: {
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
