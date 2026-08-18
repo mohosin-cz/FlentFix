@@ -937,9 +937,11 @@ function EstimateWorkbenchInner() {
               : <span className="cnt">{totalCount} items</span>}
           </div>
 
-          {/* Decision filter. Counts sit on the chips so an empty state is
-              obvious before you click into it. */}
-          <div className="sfilter" style={{ padding:'0 13px 10px' }}>
+          {/* Every filter on one line. The decision chips and the facet
+              selects narrow the same list, so splitting them across two rows
+              made them read as two unrelated controls. Counts sit on the
+              chips so an empty state is obvious before you click into it. */}
+          <div className="fbar">
             {[
               { k:'all',      l:'All',      n:statusCounts.all },
               { k:'approved', l:'Approved', n:statusCounts.approved },
@@ -952,15 +954,7 @@ function EstimateWorkbenchInner() {
                 {f.l} {f.n}
               </button>
             ))}
-            {statusF !== 'all' && (
-              <button className="sfbtn" onClick={() => setStatusF('all')} title="Clear the decision filter">×</button>
-            )}
-          </div>
-
-          {/* The other axes. Trade and area are built from the data; the rest
-              are fixed vocabularies. Kept as one quiet row so five more
-              filters do not cost five more rows of chrome. */}
-          <div className="fbar">
+            <span className="fdiv" aria-hidden="true" />
             <FilterSelect label="Trade" value={tradeF} onChange={setTradeF}
               options={facets.trades} allLabel="All trades" />
             <FilterSelect label="Area" value={areaF} onChange={setAreaF}

@@ -77,6 +77,9 @@ export const CSS = `
    row above rather than a second family that happens to sit near them.
    Matched to .sfbtn: 36px tall, 12px face. */
 .fbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 13px 12px}
+/* Hairline between the decision chips and the facet selects. They share a
+   line because they do the same job, but they are still two kinds of thing. */
+.fdiv{width:1px;height:20px;background:var(--line2);flex-shrink:0;margin:0 2px}
 .fsel{position:relative;display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 25px 0 12px;cursor:pointer}
 .fsel-l{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.085em;text-transform:uppercase;color:var(--faint);flex-shrink:0}
 .fsel:hover .fsel-l{color:var(--muted)}
@@ -355,6 +358,9 @@ export const CSS = `
   /* Two per row. Stacked, five filters cost ~260px of scrolling before the
      first item comes into view. */
   .fbar{gap:6px}
+  /* The row wraps here, so the divider no longer sits between two groups —
+     it would just float mid-wrap and take a slot out of the 50/50 pairing. */
+  .fdiv{display:none}
   .fsel{height:44px;flex:1 1 calc(50% - 3px);min-width:0;padding-left:10px}
   .fsel select{max-width:none}
   .fclear{height:44px;flex:1 1 100%;text-align:left}
