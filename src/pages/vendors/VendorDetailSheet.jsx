@@ -266,6 +266,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
   const { session } = useAuth()
   const admin = isAdmin(session?.user?.email)
   const removed  = row.status === 'exited'
+  const rejected = row.status === 'rejected'
   const archived = row.status === 'archived'
 
   // built-ins + every POD in use + whatever this vendor already has, so a custom
@@ -276,6 +277,55 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
     ...(row.pod ? [row.pod] : []),
     'Unassigned',
   ]))
+
+  // Reject / undo / delete a submission.
+  //
+  // Done as direct updates rather than RPCs because no reject_vendor RPC
+  // exists and this needs no DDL to start working — assignPod already writes
+  // to this table the same way. reviewed_at/reviewed_by are the right home
+  // for it: a rejection is a review decision, same as an approval.
+  //
+  // reject_reason may not exist yet (see the migration), so the write retries
+  // without it rather than failing. Losing the note is better than leaving
+  // staff unable to clear the queue at all.
+  async function rejectVendor() {
+    setBusy('remove'); setErr('')
+    const { data: { user } } = await supabase.auth.getUser()
+    const base = { status: 'rejected', reviewed_at: new Date().toISOString(), reviewed_by: user?.email || null }
+    let res = await supabase.from('vendors').update({ ...base, reject_reason: reason.trim() || null }).eq('id', row.id).select().maybeSingle()
+    if (res.error && /reject_reason/.test(res.error.message || '')) {
+      res = await supabase.from('vendors').update(base).eq('id', row.id).select().maybeSingle()
+    }
+    setBusy('')
+    if (res.error) { setErr(res.error.message); return }
+    setRow(r => ({ ...r, ...base, reject_reason: reason.trim() || null }))
+    setPending(''); setReason('')
+    onUpdated && onUpdated()
+  }
+
+  async function unrejectVendor() {
+    setBusy('remove'); setErr('')
+    const { error } = await supabase.from('vendors').update({ status: 'submitted', reviewed_at: null, reviewed_by: null }).eq('id', row.id)
+    setBusy('')
+    if (error) { setErr(error.message); return }
+    setRow(r => ({ ...r, status: 'submitted', reviewed_at: null, reviewed_by: null }))
+    setPending('')
+    onUpdated && onUpdated()
+  }
+
+  // Hard delete, admin only, and only from the rejected state — so nothing is
+  // erased without first being rejected and looked at a second time. The
+  // uploaded documents are left in storage deliberately: this table is the
+  // only index of them, so removing the row first would orphan them silently.
+  async function deleteVendor() {
+    setBusy('remove'); setErr('')
+    const { error } = await supabase.from('vendors').delete().eq('id', row.id)
+    setBusy('')
+    if (error) { setErr('Could not delete: ' + error.message); return }
+    setPending('')
+    onUpdated && onUpdated()
+    onClose && onClose()
+  }
 
   async function removeVendor() {
     setBusy('remove'); setErr('')
@@ -580,6 +630,53 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
                 </div>
               ))}
             </>
+          ) : rejected ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.35)', borderRadius: 10 }}>
+                <span style={{ fontSize: 20 }}>✕</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>Rejected{row.reviewed_at ? ` · ${fmtDate(row.reviewed_at)}` : ''}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-word' }}>
+                    {row.reviewed_by || '—'}{row.reject_reason ? ` · ${row.reject_reason}` : ''}
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.5 }}>
+                Off the pending list. Nothing is deleted — the submission and its documents are kept, and you can put it back.
+              </div>
+
+              {pending === 'delete' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: '12px 13px', borderRadius: 10, background: 'rgba(224,92,106,0.07)', border: '1px solid rgba(224,92,106,0.30)' }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>Delete {row.full_name.split(' ')[0]} permanently?</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5, fontFamily: 'var(--font-mono, monospace)' }}>
+                    The submission is erased for good. This cannot be undone. Uploaded documents stay in storage — this row is the only index of them, so clear those from the bucket too if the record must go entirely.
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" onClick={deleteVendor} disabled={busy === 'remove'}
+                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', background: 'var(--red, #e05c6a)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                      {busy === 'remove' ? 'Deleting…' : 'Delete forever'}
+                    </button>
+                    <button type="button" onClick={() => { setPending(''); setErr('') }}
+                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" onClick={unrejectVendor} disabled={busy === 'remove'}
+                    style={{ flex: 1, minHeight: 46, borderRadius: 10, border: '1px solid var(--green, #3dba7a)', background: 'rgba(61,186,122,0.10)', color: 'var(--green, #3dba7a)', fontSize: 14, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                    {busy === 'remove' ? 'Working…' : '↩ Back to pending'}
+                  </button>
+                  {admin && (
+                    <button type="button" onClick={() => setPending('delete')}
+                      style={{ padding: '7px 12px', minHeight: 46, borderRadius: 10, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--red, #e05c6a)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                      Delete
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
           ) : (
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -608,6 +705,36 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
               >
                 {busy === 'onboard' ? 'Onboarding…' : `Onboard ${row.full_name.split(' ')[0]} →`}
               </button>
+
+              {/* Not everyone who applies gets taken on, and until now there
+                  was no way to say so — a duplicate or a test submission sat
+                  in the queue for ever. */}
+              {pending === 'reject' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: '12px 13px', borderRadius: 10, background: 'rgba(224,92,106,0.07)', border: '1px solid rgba(224,92,106,0.30)' }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>Reject {row.full_name.split(' ')[0]}&rsquo;s application?</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5, fontFamily: 'var(--font-mono, monospace)' }}>
+                    It comes off the pending list. Nothing is deleted, and you can put it back at any time.
+                  </div>
+                  <input value={reason} onChange={e => setReason(e.target.value)}
+                    placeholder="Reason (optional) — e.g. duplicate submission"
+                    style={{ padding: '8px 10px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, outline: 'none', fontFamily: 'inherit' }} />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" onClick={rejectVendor} disabled={busy === 'remove'}
+                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', background: 'var(--red, #e05c6a)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                      {busy === 'remove' ? 'Rejecting…' : 'Yes, reject'}
+                    </button>
+                    <button type="button" onClick={() => { setPending(''); setReason(''); setErr('') }}
+                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setPending('reject')}
+                  style={{ width: '100%', minHeight: 44, borderRadius: 10, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--red, #e05c6a)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                  Reject application
+                </button>
+              )}
             </>
           )}
         </div>

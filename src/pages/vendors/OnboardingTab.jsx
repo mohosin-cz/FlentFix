@@ -171,7 +171,8 @@ export default function OnboardingTab() {
   const [podFilter, setPodFilter] = useState('all')
   const [removed, setRemoved] = useState([])
   const [archived, setArchived] = useState([])
-  const [view, setView] = useState('onroll')   // 'onroll' | 'archived' | 'removed'
+  const [rejected, setRejected] = useState([])
+  const [view, setView] = useState('onroll')   // 'onroll' | 'archived' | 'removed' | 'rejected'
 
   const { session } = useAuth()
   const admin = isAdmin(session?.user?.email)
@@ -179,20 +180,21 @@ export default function OnboardingTab() {
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
-    const [onbRes, candRes, exitRes, archRes, statsRes] = await Promise.all([
+    const [onbRes, candRes, exitRes, archRes, rejRes, statsRes] = await Promise.all([
       supabase.from('vendors').select('*').eq('status', 'approved').order('reviewed_at', { ascending: false, nullsFirst: false }),
       supabase.from('vendors').select('*').eq('status', 'submitted').order('submitted_at', { ascending: false }),
       supabase.from('vendors').select('*').eq('status', 'exited').order('exited_at', { ascending: false, nullsFirst: false }),
       supabase.from('vendors').select('*').eq('status', 'archived').order('archived_at', { ascending: false, nullsFirst: false }),
+      supabase.from('vendors').select('*').eq('status', 'rejected').order('reviewed_at', { ascending: false, nullsFirst: false }),
       supabase.rpc('vendor_stats'),
     ])
     const e = onbRes.error || candRes.error
     if (e) { setError(e.message); setRows(null) }
     else {
-      setRows(onbRes.data); setCandidates(candRes.data || []); setRemoved(exitRes.data || []); setArchived(archRes.data || [])
+      setRows(onbRes.data); setCandidates(candRes.data || []); setRemoved(exitRes.data || []); setArchived(archRes.data || []); setRejected(rejRes.data || [])
       const sm = {}; for (const r of statsRes.data || []) sm[r.vendor_id] = r.properties_done
       setStats(sm)
-      const map = await signedDocUrls(supabase, [...(onbRes.data || []), ...(candRes.data || []), ...(exitRes.data || []), ...(archRes.data || [])].map(v => v.live_photo_path), 300)
+      const map = await signedDocUrls(supabase, [...(onbRes.data || []), ...(candRes.data || []), ...(exitRes.data || []), ...(archRes.data || []), ...(rejRes.data || [])].map(v => v.live_photo_path), 300)
       setPhotos(map)
     }
     setLoading(false)
@@ -202,7 +204,7 @@ export default function OnboardingTab() {
 
   const q = query.trim().toLowerCase()
   // one list, two sources — removed vendors are only reachable by the admin
-  const source = view === 'removed' ? removed : view === 'archived' ? archived : (rows || [])
+  const source = view === 'removed' ? removed : view === 'archived' ? archived : view === 'rejected' ? rejected : (rows || [])
   const tradeOptions = ['all', ...Array.from(new Set(source.map(v => v.trade).filter(Boolean))).sort()]
   const podsPresent = new Set(source.map(v => v.pod || 'Unassigned'))
   const podOptions = ['all', ...['OG', 'Alpha', 'Unassigned'].filter(p => podsPresent.has(p))]
@@ -216,7 +218,7 @@ export default function OnboardingTab() {
 
   // every POD in use anywhere, so a custom name is reusable once created
   const knownPods = Array.from(new Set(
-    [...(rows || []), ...removed, ...archived, ...candidates].map(v => v.pod).filter(Boolean)
+    [...(rows || []), ...removed, ...archived, ...rejected, ...candidates].map(v => v.pod).filter(Boolean)
   )).sort()
 
   // switching roster resets the filters, which describe the list you just left
@@ -239,9 +241,10 @@ export default function OnboardingTab() {
       {!loading && !error && rows && (
         source.length === 0 ? (
           <div style={{ padding: '44px 20px', textAlign: 'center', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 12 }}>
-            <div style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', fontWeight: 600 }}>{view === 'removed' ? 'Nobody has been removed' : view === 'archived' ? 'Nobody is archived' : 'No vendors onboarded yet'}</div>
+            <div style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', fontWeight: 600 }}>{view === 'removed' ? 'Nobody has been removed' : view === 'archived' ? 'Nobody is archived' : view === 'rejected' ? 'Nothing has been rejected' : 'No vendors onboarded yet'}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', marginTop: 4 }}>
-              {view === 'removed' ? 'Vendors you take off the roster will be listed here, and can be put back.'
+              {view === 'rejected' ? 'Applications you turn down will be listed here, and can be put back on the pending list.'
+                : view === 'removed' ? 'Vendors you take off the roster will be listed here, and can be put back.'
                 : view === 'archived' ? 'Vendors parked while they are away will be listed here, and can be returned to the roster.'
                 : candidates.length ? 'Review the new applications above to onboard your first vendor.' : 'Onboarded vendors will appear here.'}
             </div>
@@ -265,6 +268,7 @@ export default function OnboardingTab() {
                   <>
                     <FilterChip label={`On roll · ${(rows || []).length}`} active={view === 'onroll'} onClick={() => switchView('onroll')} />
                     <FilterChip label={`Archived · ${archived.length}`} active={view === 'archived'} onClick={() => switchView('archived')} />
+                    {rejected.length > 0 && <FilterChip label={`Rejected · ${rejected.length}`} active={view === 'rejected'} onClick={() => switchView('rejected')} />}
                     {admin && <FilterChip label={`Removed · ${removed.length}`} active={view === 'removed'} onClick={() => switchView('removed')} />}
                     <span aria-hidden="true" style={{ flexShrink: 0, width: 1, height: 20, background: 'var(--border, #2e3040)', margin: '0 2px' }} />
                   </>
