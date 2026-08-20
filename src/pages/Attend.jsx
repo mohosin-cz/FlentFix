@@ -509,7 +509,7 @@ export default function Attend() {
             {/* Shift timer + breaks. Only while actually on the clock. */}
             {onClock && (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderRadius: 10, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                     <span style={{ fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
                       {openBreak ? `On ${BREAK_RULES[openBreak.kind].label.toLowerCase()} break` : (isOt ? 'Overtime running' : 'Shift running')}
@@ -517,10 +517,6 @@ export default function Attend() {
                     <span style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, letterSpacing: '0.04em', fontFamily: 'var(--font-mono, monospace)', color: openBreak ? 'var(--accent, #c8963e)' : 'var(--green, #3dba7a)', fontVariantNumeric: 'tabular-nums' }}>
                       {openBreak ? fmtBreakLeft(openBreak, tick) : fmtElapsed(tick - new Date(activeOpen.punched_at).getTime())}
                     </span>
-                  </div>
-                  <div style={{ textAlign: 'right', fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.6 }}>
-                    <div>since {fmtTime(activeOpen.punched_at)}</div>
-                    <div>break {Math.round(breakMinsUsed)}/60 min</div>
                   </div>
                 </div>
 
@@ -535,6 +531,15 @@ export default function Attend() {
                 )}
 
                 {breakErr && <RedStrip title="Break">{breakErr}</RedStrip>}
+
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, paddingTop: 2 }}>
+                  <span style={{ fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                    Break allowance · today
+                  </span>
+                  <span style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', color: breakMinsUsed > 60 ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)' }}>
+                    {Math.round(breakMinsUsed)} / 60 min used
+                  </span>
+                </div>
 
                 {openBreak ? (
                   <button type="button" onClick={endBreak} disabled={breakBusy === 'end'}
