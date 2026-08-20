@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { Field, Input } from '../components/ui'
-import { getPosition, fmtTime, fmtDate, fmtDuration, maskAccount, initials, avatarColor } from '../utils/vendorHub'
+import { getPosition, fmtTime, fmtDate, fmtDuration, fmtElapsed, fmtBreakLeft, maskAccount, initials, avatarColor } from '../utils/vendorHub'
 import { compressForUpload, newSubmissionId } from '../utils/vendorOnboard'
 import FlentWordmark from '../components/FlentWordmark'
 
@@ -185,6 +185,10 @@ export default function Attend() {
   const [editBusy, setEditBusy] = useState(false)
   const [editErr, setEditErr] = useState('')
   const [nowTs, setNowTs] = useState(0)              // ticker for the countdown
+  const [breaks, setBreaks] = useState(null)         // today's breaks, newest last
+  const [breakBusy, setBreakBusy] = useState('')
+  const [breakErr, setBreakErr] = useState('')
+  const [tick, setTick] = useState(() => Date.now()) // 1s clock, only while on the clock
 
   const captureLocation = useCallback(async () => {
     setGeoErr(''); setGeoBusy(true)
@@ -202,6 +206,14 @@ export default function Attend() {
     if (!error && data) setProfile(Array.isArray(data) ? data[0] : data)
   }, [])
 
+  const loadBreaks = useCallback(async () => {
+    const { data, error } = await supabase.rpc('attend_break_status', { p_token: tokenRef.current })
+    // A missing RPC means the migration has not been run; say so rather than
+    // showing an empty break panel that looks like "no breaks taken".
+    if (error) { setBreakErr(error.message); setBreaks([]); return }
+    setBreakErr(''); setBreaks(data || [])
+  }, [])
+
   const loadEditStatus = useCallback(async () => {
     const { data, error } = await supabase.rpc('attend_edit_status', { p_token: tokenRef.current })
     if (error) return
@@ -210,8 +222,8 @@ export default function Attend() {
 
   const enterPortal = useCallback(async (v) => {
     setVendor(v); setTab('time'); setStep('portal')
-    loadHistory(); loadProfile(); loadEditStatus(); captureLocation()
-  }, [captureLocation, loadHistory, loadProfile, loadEditStatus])
+    loadHistory(); loadProfile(); loadEditStatus(); loadBreaks(); captureLocation()
+  }, [captureLocation, loadHistory, loadProfile, loadEditStatus, loadBreaks])
 
   const isGranted = editReq && editReq.status === 'granted' && editReq.expires_at && new Date(editReq.expires_at).getTime() > nowTs
   const minsLeft = editReq && editReq.expires_at ? Math.max(0, Math.ceil((new Date(editReq.expires_at).getTime() - nowTs) / 60000)) : 0
@@ -290,6 +302,60 @@ export default function Attend() {
   const activeOpen = kind === 'regular' ? openReg : openOt
   const onClock = !!activeOpen
 
+  // 1s clock for the shift timer and the break countdown. Only runs while the
+  // vendor is on the clock — no point spinning a per-second render otherwise.
+  useEffect(() => {
+    if (!onClock) return undefined
+    setTick(Date.now())
+    const iv = setInterval(() => setTick(Date.now()), 1000)
+    return () => clearInterval(iv)
+  }, [onClock])
+
+
+  // ── Breaks ────────────────────────────────────────────────────────────────
+  // 45 min lunch from 1 pm, 15 min snack between 4 and 6 pm, one of each a day.
+  // The same numbers live in attend_break_rules() server-side; these drive the
+  // buttons, the RPC is what actually enforces them.
+  const BREAK_RULES = { lunch: { mins: 45, from: 13, to: 24, label: 'Lunch', when: 'after 1 pm' },
+                        snack: { mins: 15, from: 16, to: 18, label: 'Snack', when: '4–6 pm' } }
+
+  // Read the hour in IST regardless of how the phone is set, so the button and
+  // the server agree about when a window opens.
+  const istHour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false }).format(new Date(tick)))
+
+  const openBreak = (breaks || []).find(b => !b.ended_at) || null
+  const takenKinds = new Set((breaks || []).map(b => b.kind))
+  const breakMinsUsed = (breaks || []).reduce((sum, b) => {
+    const end = b.ended_at ? new Date(b.ended_at).getTime() : tick
+    return sum + Math.max(0, (end - new Date(b.started_at).getTime()) / 60000)
+  }, 0)
+
+  function breakState(kind) {
+    const r = BREAK_RULES[kind]
+    if (takenKinds.has(kind) && !(openBreak && openBreak.kind === kind)) return { can: false, why: 'Taken today' }
+    if (!onClock)                       return { can: false, why: 'Punch in first' }
+    if (openBreak)                      return { can: false, why: 'On a break' }
+    if (istHour < r.from)               return { can: false, why: `Opens ${r.when}` }
+    if (istHour >= r.to)                return { can: false, why: `Window closed (${r.when})` }
+    return { can: true, why: '' }
+  }
+
+  async function startBreak(kind) {
+    setBreakBusy(kind); setBreakErr('')
+    const { error } = await supabase.rpc('attend_break_start', { p_token: tokenRef.current, p_kind: kind })
+    setBreakBusy('')
+    if (error) { setBreakErr(error.message); return }
+    loadBreaks()
+  }
+
+  async function endBreak() {
+    setBreakBusy('end'); setBreakErr('')
+    const { error } = await supabase.rpc('attend_break_end', { p_token: tokenRef.current })
+    setBreakBusy('')
+    if (error) { setBreakErr(error.message); return }
+    loadBreaks()
+  }
+
   // a punch always captures a selfie first: open the camera, then record on capture
   function startPunch(type) {
     setErr(''); setConfirm(null)
@@ -318,6 +384,11 @@ export default function Attend() {
       const { error: upErr } = await supabase.storage.from('vendor-avatars').upload(selfiePath, blob, { contentType: 'image/jpeg' })
       if (upErr) throw upErr
     } catch (e) { setBusy(false); setErr('Selfie upload failed: ' + (e && e.message ? e.message : 'try again')); return }
+    // Checking out while still on a break would leave that break open for
+    // ever — no end time, so it counts as unbounded. End it first.
+    if (type === 'out' && (breaks || []).some(b => !b.ended_at)) {
+      await supabase.rpc('attend_break_end', { p_token: tokenRef.current })
+    }
     const { data, error } = await supabase.rpc('attend_punch', {
       p_token: tokenRef.current, p_type: type, p_kind: kind,
       p_pid: type === 'in' ? pid.trim() : (pid.trim() || null),
@@ -329,7 +400,7 @@ export default function Attend() {
     const r = Array.isArray(data) ? data[0] : data
     setConfirm(r)
     if (type === 'out') setPid('')
-    loadHistory()
+    loadHistory(); loadBreaks()
   }
 
   async function onAvatarFile(e) {
@@ -435,6 +506,64 @@ export default function Attend() {
               </div>
             )}
             {err && <RedStrip title="Couldn’t record">{err}</RedStrip>}
+            {/* Shift timer + breaks. Only while actually on the clock. */}
+            {onClock && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderRadius: 10, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                      {openBreak ? `On ${BREAK_RULES[openBreak.kind].label.toLowerCase()} break` : (isOt ? 'Overtime running' : 'Shift running')}
+                    </span>
+                    <span style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, letterSpacing: '0.04em', fontFamily: 'var(--font-mono, monospace)', color: openBreak ? 'var(--accent, #c8963e)' : 'var(--green, #3dba7a)', fontVariantNumeric: 'tabular-nums' }}>
+                      {openBreak ? fmtBreakLeft(openBreak, tick) : fmtElapsed(tick - new Date(activeOpen.punched_at).getTime())}
+                    </span>
+                  </div>
+                  <div style={{ textAlign: 'right', fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.6 }}>
+                    <div>since {fmtTime(activeOpen.punched_at)}</div>
+                    <div>break {Math.round(breakMinsUsed)}/60 min</div>
+                  </div>
+                </div>
+
+                {/* 6 pm: nudge to punch out. */}
+                {istHour >= 18 && !openBreak && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', borderRadius: 10, background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.35)' }}>
+                    <span style={{ fontSize: 16 }}>⏰</span>
+                    <span style={{ flex: 1, fontSize: 12, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.45 }}>
+                      It&rsquo;s past 6 pm — remember to check out.
+                    </span>
+                  </div>
+                )}
+
+                {breakErr && <RedStrip title="Break">{breakErr}</RedStrip>}
+
+                {openBreak ? (
+                  <button type="button" onClick={endBreak} disabled={breakBusy === 'end'}
+                    style={{ width: '100%', minHeight: 46, borderRadius: 10, border: '1px solid var(--accent, #c8963e)', background: 'rgba(200,150,62,0.12)', color: 'var(--accent, #c8963e)', fontSize: 14, fontWeight: 700, cursor: breakBusy === 'end' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                    {breakBusy === 'end' ? 'Ending…' : `End ${BREAK_RULES[openBreak.kind].label.toLowerCase()} break`}
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {['lunch', 'snack'].map(k => {
+                      const r = BREAK_RULES[k]
+                      const st = breakState(k)
+                      return (
+                        <button key={k} type="button" onClick={() => startBreak(k)} disabled={!st.can || breakBusy === k}
+                          style={{ flex: 1, minHeight: 52, borderRadius: 10, padding: '6px 8px',
+                            border: `1px solid ${st.can ? 'var(--border, #2e3040)' : 'transparent'}`,
+                            background: st.can ? 'var(--bg-input, #252731)' : 'rgba(255,255,255,0.03)',
+                            color: st.can ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)',
+                            cursor: st.can ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-mono, monospace)',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700 }}>{r.label} · {r.mins}m</span>
+                          <span style={{ fontSize: 10 }}>{breakBusy === k ? 'Starting…' : (st.can ? 'Tap to start' : st.why)}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+
             <button type="button" onClick={() => startPunch(onClock ? 'out' : 'in')} disabled={busy} style={bigBtn(onClock ? 'danger' : (isOt ? 'ot' : 'go'), busy)}>
               {busy ? 'Recording…' : `📷 ${onClock ? (isOt ? 'End overtime' : 'Check out') : (isOt ? 'Start overtime' : 'Check in')} →`}
             </button>

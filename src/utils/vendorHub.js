@@ -34,6 +34,25 @@ export function getPosition() {
   })
 }
 
+// hh:mm:ss elapsed, for a shift that is still running
+export function fmtElapsed(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  const h = String(Math.floor(s / 3600)).padStart(2, '0')
+  const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0')
+  return `${h}:${m}:${String(s % 60).padStart(2, '0')}`
+}
+
+// mm:ss left of a running break, counting down from its allowance. Once it
+// runs over it shows the overrun as +mm:ss rather than freezing at zero —
+// nobody is stopped from working on, but the time is visible.
+export function fmtBreakLeft(brk, now) {
+  const allowed = (brk.minutes || 0) * 60000
+  const left = allowed - (now - new Date(brk.started_at).getTime())
+  const s = Math.floor(Math.abs(left) / 1000)
+  const body = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+  return left < 0 ? `+${body}` : body
+}
+
 export function fmtTime(d) {
   if (!d) return '—'
   return new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
