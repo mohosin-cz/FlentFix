@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext'
 import { isEmail } from '../../utils/vendorOnboard'
 import VendorWorkHistory from './VendorWorkHistory'
+import VendorPaymentHistory from './VendorPaymentHistory'
 
 const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
 // Suggestions, not closed lists — staff can type a new one.
@@ -89,6 +90,15 @@ const SECTIONS = [
   ] },
 ]
 const ALL_FIELDS = SECTIONS.flatMap(s => s.fields)
+
+// Payout setup and payment method sit with the money, not with the person.
+const PAY_SECTIONS = new Set(['Payout setup', 'Payment method'])
+
+const TABS = [
+  { key: 'profile', label: 'Profile' },
+  { key: 'time',    label: 'Time log' },
+  { key: 'pay',     label: 'Payments' },
+]
 
 // ── one row of the record ───────────────────────────────────────────────────
 // Read-only until the card as a whole is put into edit mode, so the sheet stays
@@ -186,6 +196,28 @@ function Warn({ tone, children }) {
 }
 
 // ── titled section card ─────────────────────────────────────────────────────
+function PaySection({ sec, row, hasBank, revealAcct, setRevealAcct }) {
+  return (
+    <Card title={sec.title}>
+      {sec.kind === 'payout' && !row.monthly_rate && (
+        <Warn tone="amber">No monthly rate — {row.full_name.split(' ')[0]} will be generated into payroll at ₹0 until one is set.</Warn>
+      )}
+      {sec.kind === 'payment' && !hasBank && !row.upi_id && (
+        <Warn tone="red">Neither bank details nor UPI — there is no way to pay this vendor.</Warn>
+      )}
+      {sec.fields.map(f => (
+        <Field key={f.name} f={f}
+          value={f.secret && !revealAcct ? maskAccount(row[f.name]) : row[f.name]}
+          editing={false} draft="" error={null} onChange={() => {}}>
+          {f.secret && row[f.name] && (
+            <button type="button" onClick={() => setRevealAcct(v => !v)} style={{ fontSize: 10, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{revealAcct ? 'hide' : 'reveal'}</button>
+          )}
+        </Field>
+      ))}
+    </Card>
+  )
+}
+
 function Card({ title, children }) {
   return (
     <div style={{ background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: '4px 14px 8px' }}>
@@ -255,6 +287,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
   const [row, setRow] = useState(vendor)
   const [docs, setDocs] = useState({})
   const [revealAcct, setRevealAcct] = useState(false)
+  const [tab, setTab] = useState('profile')   // 'profile' | 'time' | 'pay'
   const [busy, setBusy] = useState('')       // 'pod' | 'onboard' | 'remove' | ''
   const [err, setErr] = useState('')
   const [done, setDone] = useState(null)     // assigned vendor_code after onboarding
@@ -268,6 +301,16 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
   const admin = isAdmin(session?.user?.email)
   const removed  = row.status === 'exited'
   const rejected = row.status === 'rejected'
+  // Tabs only make sense once there is a time log and payroll to show. A
+  // submitted application has neither, so it stays a single profile page.
+  const onBooks = ['approved', 'exited', 'archived'].includes(row.status)
+  // While editing, the form covers the profile fields — keep them on screen.
+  const showProfile = editing || !onBooks || tab === 'profile'
+  // The pay sections live on the Payments tab — but only when that tab
+  // actually exists, and never while editing, or the bank fields would vanish
+  // from the one screen where they can be changed.
+  const profileSections = SECTIONS.filter(sec =>
+    (onBooks && !editing) ? !PAY_SECTIONS.has(sec.title) : true)
   const archived = row.status === 'archived'
 
   // built-ins + every POD in use + whatever this vendor already has, so a custom
@@ -489,9 +532,30 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
           )}
         </div>
 
+        {/* Tabs. Same .tct controls as the Home header nav, including the
+            hairline score between items, so this reads as one app. Hidden
+            while editing: the form spans the profile fields and switching
+            away mid-edit would strand the draft. */}
+        {!editing && onBooks && (
+          <div className="tct-scored" style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '6px 12px 0', borderBottom: '1px solid var(--border, #2e3040)', flexShrink: 0 }}>
+            {TABS.map(t => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                aria-selected={tab === t.key}
+                className={`tct tct-bare${tab === t.key ? ' is-on' : ''}`}
+                style={{ padding: '10px 14px', fontSize: 13, minHeight: 44, borderRadius: '8px 8px 0 0', whiteSpace: 'nowrap' }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* body */}
         <div style={{ overflowY: 'auto', padding: '14px 18px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {SECTIONS.map(sec => (
+          {showProfile && profileSections.map(sec => (
             <Card key={sec.title} title={sec.title}>
               {sec.kind === 'payout' && !row.monthly_rate && (
                 <Warn tone="amber">No monthly rate — {row.full_name.split(' ')[0]} will be generated into payroll at ₹0 until one is set.</Warn>
@@ -524,17 +588,28 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
             </Card>
           ))}
 
-          {/* A submitted application has no attendance yet, so the card would
-              only ever say "none" — show it once they are on the books. */}
-          {['approved', 'exited', 'archived'].includes(row.status) && (
-            <Card title="Work history">
+          {showProfile && (
+            <Card title="Live capture">
+              <LocationCard lat={row.capture_lat} lng={row.capture_lng} accuracy={row.capture_accuracy} at={row.capture_at} />
+            </Card>
+          )}
+
+          {tab === 'time' && onBooks && (
+            <Card title="Time log">
               <VendorWorkHistory vendorId={row.id} />
             </Card>
           )}
 
-          <Card title="Live capture">
-            <LocationCard lat={row.capture_lat} lng={row.capture_lng} accuracy={row.capture_accuracy} at={row.capture_at} />
-          </Card>
+          {tab === 'pay' && onBooks && (
+            <>
+              {SECTIONS.filter(sec => PAY_SECTIONS.has(sec.title)).map(sec => (
+                <PaySection key={sec.title} sec={sec} row={row} hasBank={hasBank} revealAcct={revealAcct} setRevealAcct={setRevealAcct} />
+              ))}
+              <Card title="Payment history">
+                <VendorPaymentHistory vendorId={row.id} />
+              </Card>
+            </>
+          )}
         </div>
 
         {/* footer: assign POD + onboard */}
