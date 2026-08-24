@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { fmtDate, initials, avatarColor } from '../../utils/vendorHub'
-import { STAGES, STAGE_LABEL, stageIndex, nextStage } from '../../utils/assetRequest'
+import { STAGE_LABEL, nextStage } from '../../utils/assetRequest'
+import RequestStepper from '../../components/vendor/RequestStepper'
 
 // Staff end of the request pipeline: approve or deny, then walk an approved
 // request along until it is in the vendor's hands. The vendor logs the item
@@ -10,19 +11,6 @@ import { STAGES, STAGE_LABEL, stageIndex, nextStage } from '../../utils/assetReq
 // that stage is theirs to reach.
 
 const MONO = 'var(--font-mono, monospace)'
-
-function Rail({ status }) {
-  if (status === 'denied') return null
-  const at = stageIndex(status)
-  return (
-    <div style={{ display: 'flex', gap: 3, flex: '1 1 160px', minWidth: 120 }}>
-      {STAGES.map((s, i) => (
-        <div key={s.key} title={s.label}
-          style={{ flex: 1, height: 4, borderRadius: 2, background: i <= at ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)' }} />
-      ))}
-    </div>
-  )
-}
 
 export default function AssetRequestsPanel({ vendors, onChanged }) {
   const { session } = useAuth()
@@ -120,7 +108,7 @@ export default function AssetRequestsPanel({ vendors, onChanged }) {
 
             {r.reason && <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>“{r.reason}”</div>}
 
-            {r.status !== 'denied' && r.status !== 'logged' && <Rail status={r.status} />}
+            {r.status !== 'denied' && <RequestStepper status={r.status} compact />}
 
             {denying === r.id ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

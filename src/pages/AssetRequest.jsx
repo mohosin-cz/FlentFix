@@ -2,7 +2,8 @@ import { useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import FlentWordmark from '../components/FlentWordmark'
 import { CATEGORIES } from '../utils/assetMeta'
-import { STAGES, stageIndex, DETAIL_FIELDS } from '../utils/assetRequest'
+import { DETAIL_FIELDS } from '../utils/assetRequest'
+import RequestStepper from '../components/vendor/RequestStepper'
 
 // The vendor's end of the asset pipeline, on one public link.
 //
@@ -18,9 +19,56 @@ import { STAGES, stageIndex, DETAIL_FIELDS } from '../utils/assetRequest'
 const MONO = 'var(--font-mono, monospace)'
 
 const input = {
-  width: '100%', minHeight: 46, padding: '11px 13px', boxSizing: 'border-box',
-  background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)',
-  borderRadius: 10, color: 'var(--text, #e8e8f0)', fontSize: 15, fontFamily: 'inherit', outline: 'none',
+  width: '100%', minHeight: 48, padding: '12px 14px', boxSizing: 'border-box',
+  background: 'var(--bg-input, #252731)', border: '1px solid transparent',
+  borderRadius: 11, color: 'var(--text, #e8e8f0)', fontSize: 15, fontFamily: 'inherit', outline: 'none',
+  transition: 'border-color .16s, box-shadow .16s',
+}
+
+// A focus ring rather than a permanent outline: the field is defined by its
+// fill, and the accent shows up on the one it is actually on.
+function Input(props) {
+  const [f, setF] = useState(false)
+  const { style, ...rest } = props
+  return <input {...rest} onFocus={e => { setF(true); rest.onFocus?.(e) }} onBlur={e => { setF(false); rest.onBlur?.(e) }}
+    style={{ ...input, ...(f ? { borderColor: 'var(--accent, #c8963e)', boxShadow: '0 0 0 3px rgba(200,150,62,0.10)' } : null), ...style }} />
+}
+
+// appearance:none strips the caret, which left the category looking like a
+// text box nobody could tell was a dropdown.
+function Select({ value, onChange, children, ariaLabel, style }) {
+  const [f, setF] = useState(false)
+  return (
+    <div style={{ position: 'relative', flex: 1, minWidth: 0, ...style }}>
+      <select value={value} onChange={onChange} aria-label={ariaLabel}
+        onFocus={() => setF(true)} onBlur={() => setF(false)}
+        style={{ ...input, appearance: 'none', WebkitAppearance: 'none', paddingRight: 38, cursor: 'pointer',
+          ...(f ? { borderColor: 'var(--accent, #c8963e)', boxShadow: '0 0 0 3px rgba(200,150,62,0.10)' } : null) }}>
+        {children}
+      </select>
+      <span aria-hidden="true" style={{ position: 'absolute', right: 15, top: '50%', width: 7, height: 7, marginTop: -5,
+        borderRight: '2px solid var(--text-muted, #6b6d82)', borderBottom: '2px solid var(--text-muted, #6b6d82)',
+        transform: 'rotate(45deg)', pointerEvents: 'none' }} />
+    </div>
+  )
+}
+
+// One primary button, so "not yet" reads as waiting rather than broken.
+function Primary({ children, disabled, ...rest }) {
+  return (
+    <button {...rest} disabled={disabled}
+      style={{
+        minHeight: 52, borderRadius: 12, border: 'none', width: '100%',
+        background: disabled ? 'rgba(200,150,62,0.16)' : 'var(--accent, #c8963e)',
+        color: disabled ? 'rgba(200,150,62,0.55)' : '#1a1408',
+        fontSize: 15, fontWeight: 700, fontFamily: MONO, letterSpacing: '0.01em',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        boxShadow: disabled ? 'none' : '0 2px 10px rgba(0,0,0,0.35)',
+        transition: 'background .16s, color .16s, box-shadow .16s',
+      }}>
+      {children}
+    </button>
+  )
 }
 
 function Shell({ children }) {
@@ -42,35 +90,6 @@ function Err({ children }) {
   return (
     <div style={{ padding: '11px 13px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.35)', borderRadius: 10, fontSize: 12.5, color: '#e8697a', fontFamily: MONO, lineHeight: 1.55, wordBreak: 'break-word' }}>
       {children}
-    </div>
-  )
-}
-
-// Where the request has got to, as a rail the vendor can read at a glance.
-function StatusRail({ status }) {
-  if (status === 'denied') {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 11px', borderRadius: 9, background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)' }}>
-        <span style={{ fontSize: 14 }}>✕</span>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>Not approved</span>
-      </div>
-    )
-  }
-  const at = stageIndex(status)
-  return (
-    <div style={{ display: 'flex', alignItems: 'stretch', gap: 0 }}>
-      {STAGES.map((s, i) => {
-        const done = i <= at
-        const current = i === at
-        return (
-          <div key={s.key} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <div style={{ height: 4, borderRadius: 2, background: done ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)', marginInlineEnd: i === STAGES.length - 1 ? 0 : 3 }} />
-            <span style={{ fontSize: 9.5, lineHeight: 1.3, fontFamily: MONO, color: current ? 'var(--accent, #c8963e)' : done ? 'var(--text-dim, #9394a8)' : 'var(--text-muted, #6b6d82)', fontWeight: current ? 700 : 500 }}>
-              {s.short}
-            </span>
-          </div>
-        )
-      })}
     </div>
   )
 }
@@ -150,13 +169,12 @@ export default function AssetRequest() {
           Enter the email you gave when you joined. You will see anything you have already asked for and where it has got to.
         </div>
         <form onSubmit={signIn} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <input value={email} onChange={e => setEmail(e.target.value)} type="email" inputMode="email"
-            autoCapitalize="none" autoCorrect="off" placeholder="name@example.com" aria-label="Your email" style={input} />
+          <Input value={email} onChange={e => setEmail(e.target.value)} type="email" inputMode="email"
+            autoCapitalize="none" autoCorrect="off" placeholder="name@example.com" aria-label="Your email" />
           <Err>{err}</Err>
-          <button type="submit" disabled={busy === 'in' || !email.trim()}
-            style={{ minHeight: 50, borderRadius: 11, border: 'none', background: 'var(--accent, #c8963e)', color: '#1a1408', fontSize: 15, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO }}>
+          <Primary type="submit" disabled={busy === 'in' || !email.trim()}>
             {busy === 'in' ? 'Checking…' : 'Continue →'}
-          </button>
+          </Primary>
         </form>
       </Shell>
     )
@@ -176,21 +194,20 @@ export default function AssetRequest() {
         <form onSubmit={saveLog} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span style={{ fontSize: 10, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Serial / ID number</span>
-            <input value={serial} onChange={e => setSerial(e.target.value)} placeholder="As printed on the item"
-              autoCapitalize="characters" style={{ ...input, fontFamily: MONO }} />
+            <Input value={serial} onChange={e => setSerial(e.target.value)} placeholder="As printed on the item"
+              autoCapitalize="characters" style={{ fontFamily: MONO }} />
           </label>
           {fields.map(f => (
             <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               <span style={{ fontSize: 10, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{f.label}</span>
-              <input value={details[f.key] || ''} onChange={e => setDetails(d => ({ ...d, [f.key]: e.target.value }))}
-                placeholder={f.placeholder || ''} style={f.mono ? { ...input, fontFamily: MONO } : input} />
+              <Input value={details[f.key] || ''} onChange={e => setDetails(d => ({ ...d, [f.key]: e.target.value }))}
+                placeholder={f.placeholder || ''} style={f.mono ? { fontFamily: MONO } : null} />
             </label>
           ))}
           <Err>{err}</Err>
-          <button type="submit" disabled={busy === 'log'}
-            style={{ minHeight: 50, borderRadius: 11, border: 'none', background: 'var(--accent, #c8963e)', color: '#1a1408', fontSize: 15, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO }}>
+          <Primary type="submit" disabled={busy === 'log'}>
             {busy === 'log' ? 'Saving…' : 'Save details'}
-          </button>
+          </Primary>
         </form>
       </Shell>
     )
@@ -204,8 +221,8 @@ export default function AssetRequest() {
           <div style={{ fontSize: 17, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{me.full_name}</div>
           <div style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{[me.vendor_code, me.trade].filter(Boolean).join(' · ')}</div>
         </div>
-        <button type="button" onClick={() => { setMe(null); setRows([]); setErr('') }}
-          style={{ flexShrink: 0, background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', minHeight: 36, padding: '0 11px', fontFamily: MONO }}>
+        <button type="button" className="tct tct-raised" onClick={() => { setMe(null); setRows([]); setErr('') }}
+          style={{ flexShrink: 0, fontSize: 12.5, minHeight: 38, padding: '0 13px', cursor: 'pointer' }}>
           Not you?
         </button>
       </div>
@@ -213,25 +230,24 @@ export default function AssetRequest() {
       {/* ask */}
       <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px 14px 15px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
         <div style={{ fontSize: 14, fontWeight: 700 }}>Ask for something</div>
-        <input value={item} onChange={e => setItem(e.target.value)} placeholder="What do you need? e.g. Two-wheeler, Backpack" aria-label="What do you need" style={input} />
+        <Input value={item} onChange={e => setItem(e.target.value)} placeholder="What do you need? e.g. Two-wheeler, Backpack" aria-label="What do you need" />
         <div style={{ display: 'flex', gap: 9 }}>
-          <select value={cat} onChange={e => setCat(e.target.value)} aria-label="Category" style={{ ...input, flex: 1, appearance: 'none' }}>
+          <Select value={cat} onChange={e => setCat(e.target.value)} ariaLabel="Category">
             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <input value={qty} onChange={e => setQty(e.target.value)} inputMode="numeric" aria-label="How many"
-            style={{ ...input, width: 78, flexShrink: 0, fontFamily: MONO, textAlign: 'center' }} />
+          </Select>
+          <Input value={qty} onChange={e => setQty(e.target.value)} inputMode="numeric" aria-label="How many"
+            style={{ width: 82, flexShrink: 0, fontFamily: MONO, textAlign: 'center' }} />
         </div>
-        <input value={why} onChange={e => setWhy(e.target.value)} placeholder="Why do you need it? (optional)" aria-label="Reason" style={input} />
+        <Input value={why} onChange={e => setWhy(e.target.value)} placeholder="Why do you need it? (optional)" aria-label="Reason" />
         <Err>{err}</Err>
         {sent && (
           <div style={{ padding: '9px 11px', borderRadius: 9, background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.32)', fontSize: 12.5, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>
             ✓ Sent — the office will review it.
           </div>
         )}
-        <button type="submit" disabled={busy === 'req' || !item.trim()}
-          style={{ minHeight: 48, borderRadius: 11, border: 'none', background: item.trim() ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)', color: item.trim() ? '#1a1408' : 'var(--text-muted, #6b6d82)', fontSize: 14.5, fontWeight: 700, cursor: item.trim() ? 'pointer' : 'not-allowed', fontFamily: MONO }}>
+        <Primary type="submit" disabled={busy === 'req' || !item.trim()}>
           {busy === 'req' ? 'Sending…' : 'Send request'}
-        </button>
+        </Primary>
       </form>
 
       {/* track */}
@@ -248,17 +264,16 @@ export default function AssetRequest() {
             <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, flexShrink: 0 }}>{r.category}</span>
           </div>
 
-          <StatusRail status={r.status} />
+          <RequestStepper status={r.status} />
 
           {r.status === 'denied' && r.deny_reason && (
             <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, lineHeight: 1.5 }}>{r.deny_reason}</div>
           )}
 
           {r.status === 'deployed' && (
-            <button type="button" onClick={() => { setLogging(r); setErr('') }}
-              style={{ minHeight: 46, borderRadius: 10, border: 'none', background: 'var(--accent, #c8963e)', color: '#1a1408', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>
+            <Primary type="button" onClick={() => { setLogging(r); setErr('') }} style={{ minHeight: 46 }}>
               Log the details →
-            </button>
+            </Primary>
           )}
 
           {r.status === 'logged' && (
