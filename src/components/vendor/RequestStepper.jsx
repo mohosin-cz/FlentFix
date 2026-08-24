@@ -30,11 +30,11 @@ export default function RequestStepper({ status, compact = false }) {
   const dot = compact ? 9 : 11
   const pct = STAGES.length > 1 ? (at / (STAGES.length - 1)) * 100 : 0
 
-  // Capped rather than full-bleed: on a desktop card the track ran the whole
-  // 1450px and left five nodes marooned across it. A progress track only has
-  // to be long enough to read.
+  // Full width where the container already bounds it — the vendor page is a
+  // 560px column — and capped only on the staff card, which is otherwise as
+  // wide as the window and would strand five nodes across 1450px.
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: compact ? 6 : 9, width: '100%', maxWidth: compact ? 360 : 420 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: compact ? 6 : 9, width: '100%', maxWidth: compact ? 680 : 'none' }}>
       <div style={{ position: 'relative', height: dot, display: 'flex', alignItems: 'center' }}>
         {/* the track, and how far along it we are */}
         <div style={{ position: 'absolute', left: dot / 2, right: dot / 2, height: 2, background: TRACK, borderRadius: 1 }} />
