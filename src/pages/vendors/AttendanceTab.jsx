@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import ShareSheet from '../../components/vendor/ShareSheet'
 import { attendUrl, fmtTime, fmtDate, fmtDuration, todayStr, initials, avatarColor } from '../../utils/vendorHub'
+import { summarize } from '../../utils/attendance'
 
 const avatarUrl = (path) => {
   if (!path) return null
@@ -12,22 +13,6 @@ const shiftDay = (d, delta) => { const dt = new Date(`${d}T12:00:00`); dt.setDat
 const dayNav = { width: 34, minWidth: 34, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-dim, #9394a8)', cursor: 'pointer', fontSize: 15, fontFamily: 'var(--font-mono, monospace)' }
 
 // ── summarise one vendor's punches for the day (kind-aware) ──────────────────
-function summarize(list) {
-  const ms = { regular: 0, overtime: 0 }
-  const open = { regular: null, overtime: null }
-  let firstIn = null, lastOut = null
-  for (const p of list) {
-    const k = p.kind || 'regular'
-    if (p.punch_type === 'in') { if (!firstIn) firstIn = p; if (open[k] == null) open[k] = new Date(p.punched_at).getTime() }
-    else { lastOut = p; if (open[k] != null) { ms[k] += new Date(p.punched_at).getTime() - open[k]; open[k] = null } }
-  }
-  const now = Date.now()
-  const regMs = ms.regular + (open.regular != null ? now - open.regular : 0)
-  const otMs = ms.overtime + (open.overtime != null ? now - open.overtime : 0)
-  const last = list[list.length - 1]
-  return { firstIn, lastOut, status: (open.regular != null || open.overtime != null) ? 'on_site' : 'checked_out', regMs, otMs, site: (firstIn && firstIn.pid) || last.pid || null }
-}
-
 // ── avatar (small) ──────────────────────────────────────────────────────────
 function Ava({ v, size = 34 }) {
   const name = (v && v.full_name) || '?'

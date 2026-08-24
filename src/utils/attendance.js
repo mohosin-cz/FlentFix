@@ -1,0 +1,89 @@
+// Shared attendance arithmetic.
+//
+// Lifted out of AttendanceTab so the live board and a vendor's own history
+// cannot drift apart. Two screens each pairing in/out rows their own way is
+// how you end up with a board saying 8h and a profile saying 7h for the same
+// day, with no way to tell which is lying.
+
+// Total regular / overtime milliseconds for one day's punches, plus who is
+// still on site. `list` must be a single vendor's punches for one day, oldest
+// first. An unclosed 'in' counts up to `now`, so a running shift shows real
+// time rather than zero.
+export function summarize(list, now = Date.now()) {
+  const ms = { regular: 0, overtime: 0 }
+  const open = { regular: null, overtime: null }
+  let firstIn = null, lastOut = null
+  for (const p of list) {
+    const k = p.kind || 'regular'
+    if (p.punch_type === 'in') { if (!firstIn) firstIn = p; if (open[k] == null) open[k] = new Date(p.punched_at).getTime() }
+    else { lastOut = p; if (open[k] != null) { ms[k] += new Date(p.punched_at).getTime() - open[k]; open[k] = null } }
+  }
+  const regMs = ms.regular + (open.regular != null ? now - open.regular : 0)
+  const otMs  = ms.overtime + (open.overtime != null ? now - open.overtime : 0)
+  const last  = list[list.length - 1]
+  return {
+    firstIn, lastOut,
+    status: (open.regular != null || open.overtime != null) ? 'on_site' : 'checked_out',
+    regMs, otMs,
+    site: (firstIn && firstIn.pid) || (last && last.pid) || null,
+  }
+}
+
+// Group a vendor's punches into calendar days, newest day first, each day's
+// punches oldest first. Keyed on the local date so a shift reads against the
+// day the vendor actually worked.
+export function groupByDay(punches) {
+  const byDay = new Map()
+  for (const p of punches) {
+    const d = new Date(p.punched_at)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    if (!byDay.has(key)) byDay.set(key, [])
+    byDay.get(key).push(p)
+  }
+  return [...byDay.entries()]
+    .map(([date, list]) => ({
+      date,
+      punches: [...list].sort((a, b) => new Date(a.punched_at) - new Date(b.punched_at)),
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date))
+}
+
+// Minutes of break taken on a given local date. An unfinished break counts up
+// to `now` for the same reason an open shift does.
+export function breakMinutesOn(breaks, dateKey, now = Date.now()) {
+  return (breaks || []).reduce((sum, b) => {
+    const d = new Date(b.started_at)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    if (key !== dateKey) return sum
+    const end = b.ended_at ? new Date(b.ended_at).getTime() : now
+    return sum + Math.max(0, (end - d.getTime()) / 60000)
+  }, 0)
+}
+
+// Local YYYY-MM-DD, the key days are grouped by.
+export function dayKey(d) {
+  const x = new Date(d)
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+}
+
+// summarize() for a *historical* day.
+//
+// An unclosed 'in' counting up to now() is right for today — it is a shift in
+// progress. On a past day it is a forgotten check-out, and counting it to now
+// produced totals like 425h for a single day. Rather than invent an end time,
+// such a day is reported as incomplete with no hours, so the gap shows up as
+// the data problem it is instead of being laundered into a plausible-looking
+// number. Totals skip it.
+export function summarizeDay(punches, key, now = Date.now()) {
+  const s = summarize(punches, now)
+  const incomplete = s.status === 'on_site' && key !== dayKey(now)
+  return incomplete
+    ? { ...s, incomplete: true, regMs: 0, otMs: 0 }
+    : { ...s, incomplete: false }
+}
+
+export function fmtHrs(ms) {
+  const mins = Math.max(0, Math.round(ms / 60000))
+  const h = Math.floor(mins / 60)
+  return h > 0 ? `${h}h ${String(mins % 60).padStart(2, '0')}m` : `${mins}m`
+}

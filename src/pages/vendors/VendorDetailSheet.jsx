@@ -7,6 +7,7 @@ import {
 } from '../../utils/vendorHub'
 import { useAuth } from '../../contexts/AuthContext'
 import { isEmail } from '../../utils/vendorOnboard'
+import VendorWorkHistory from './VendorWorkHistory'
 
 const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
 // Suggestions, not closed lists — staff can type a new one.
@@ -522,6 +523,14 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
               )}
             </Card>
           ))}
+
+          {/* A submitted application has no attendance yet, so the card would
+              only ever say "none" — show it once they are on the books. */}
+          {['approved', 'exited', 'archived'].includes(row.status) && (
+            <Card title="Work history">
+              <VendorWorkHistory vendorId={row.id} />
+            </Card>
+          )}
 
           <Card title="Live capture">
             <LocationCard lat={row.capture_lat} lng={row.capture_lng} accuracy={row.capture_accuracy} at={row.capture_at} />
