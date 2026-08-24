@@ -70,7 +70,7 @@ export default function RequestStepper({ status, row, compact = false }) {
   const h = compact ? 5 : 6
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: compact ? 6 : 8, width: '100%', maxWidth: compact ? 680 : 'none' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: compact ? 6 : 8, width: '100%' }}>
       <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
         {STAGES.map((s, i) => {
           const isPast = i < at
