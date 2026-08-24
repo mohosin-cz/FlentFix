@@ -114,27 +114,33 @@ export default function AssetRequestsPanel({ vendors, onChanged }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <input value={reason} onChange={e => setReason(e.target.value)} placeholder="Why not? (optional, the vendor sees this)"
                   style={{ minHeight: 40, padding: '9px 11px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text, #e8e8f0)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => { setDenying(null); setReason('') }} className="tct tct-raised"
+                    style={{ minHeight: 40, padding: '0 16px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
                   <button type="button" onClick={() => deny(r)} disabled={busy === r.id}
-                    style={{ flex: 1, minHeight: 40, borderRadius: 8, border: 'none', background: 'var(--red, #e05c6a)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>Confirm deny</button>
-                  <button type="button" onClick={() => { setDenying(null); setReason('') }}
-                    style={{ flex: 1, minHeight: 40, borderRadius: 8, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', color: 'var(--text-dim, #9394a8)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>Cancel</button>
+                    style={{ minWidth: 124, minHeight: 40, padding: '0 18px', borderRadius: 10, border: 'none', background: 'var(--red, #e05c6a)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>Confirm deny</button>
                 </div>
               </div>
             ) : r.status === 'requested' ? (
-              <div style={{ display: 'flex', gap: 8 }}>
+              // A card action is sized to its word, not to the card. flex:1
+              // stretched Approve to 1551px on a desktop, which read as a
+              // banner rather than a button.
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => setDenying(r.id)} disabled={busy === r.id}
+                  className="tct tct-raised"
+                  style={{ minHeight: 40, padding: '0 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: 'var(--red, #e05c6a)' }}>Deny</button>
                 <button type="button" onClick={() => approve(r)} disabled={busy === r.id}
-                  style={{ flex: 1, minHeight: 42, borderRadius: 9, border: 'none', background: 'var(--accent, #c8963e)', color: '#1a1408', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>
+                  style={{ minWidth: 124, minHeight: 40, padding: '0 20px', borderRadius: 10, border: 'none', background: 'var(--accent, #c8963e)', color: '#1a1408', fontSize: 13, fontWeight: 700, cursor: busy === r.id ? 'wait' : 'pointer', fontFamily: MONO, boxShadow: '0 2px 8px rgba(0,0,0,0.32)' }}>
                   {busy === r.id ? '…' : 'Approve'}
                 </button>
-                <button type="button" onClick={() => setDenying(r.id)} disabled={busy === r.id}
-                  style={{ minHeight: 42, padding: '0 14px', borderRadius: 9, background: 'none', border: '1px solid var(--border, #2e3040)', color: 'var(--red, #e05c6a)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>Deny</button>
               </div>
             ) : nxt ? (
-              <button type="button" onClick={() => advance(r)} disabled={busy === r.id} className="tct tct-raised"
-                style={{ minHeight: 42, borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                {busy === r.id ? '…' : `Mark ${nxt.short.toLowerCase()} →`}
-              </button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => advance(r)} disabled={busy === r.id} className="tct tct-raised"
+                  style={{ minHeight: 40, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  {busy === r.id ? '…' : `Mark ${nxt.short.toLowerCase()} →`}
+                </button>
+              </div>
             ) : r.status === 'deployed' ? (
               <div style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.5 }}>
                 Waiting on {v ? v.full_name.split(' ')[0] : 'the vendor'} to log the item&rsquo;s details.
