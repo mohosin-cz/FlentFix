@@ -9,6 +9,7 @@ import EditRequestsSheet from '../components/vendor/EditRequestsSheet'
 import OnboardingTab from './vendors/OnboardingTab'
 import AttendanceTab from './vendors/AttendanceTab'
 import PayrollTab from './vendors/PayrollTab'
+import AssetsTab from './vendors/AssetsTab'
 
 // Tab registry — new tabs slot in here with their own component; the shell does
 // not need to change.
@@ -16,6 +17,7 @@ const TABS = [
   { key: 'onboarding', label: 'Onroll vendors', Comp: OnboardingTab },
   { key: 'attendance', label: 'Attendance', Comp: AttendanceTab },
   { key: 'payroll',    label: 'Payroll',    Comp: PayrollTab },
+  { key: 'assets',     label: 'Assets',     Comp: AssetsTab },
   { key: 'exit',       label: 'Exit',       Comp: null },
 ]
 

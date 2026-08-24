@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { isEmail } from '../../utils/vendorOnboard'
 import VendorWorkHistory from './VendorWorkHistory'
 import VendorPaymentHistory from './VendorPaymentHistory'
+import VendorAssets from './VendorAssets'
 
 const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
 // Suggestions, not closed lists — staff can type a new one.
@@ -98,6 +99,7 @@ const TABS = [
   { key: 'profile', label: 'Profile' },
   { key: 'time',    label: 'Time log' },
   { key: 'pay',     label: 'Payments' },
+  { key: 'assets',  label: 'Assets' },
 ]
 
 // ── one row of the record ───────────────────────────────────────────────────
@@ -597,6 +599,12 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
           {tab === 'time' && onBooks && (
             <Card title="Time log">
               <VendorWorkHistory vendorId={row.id} />
+            </Card>
+          )}
+
+          {tab === 'assets' && onBooks && (
+            <Card title="Assets held">
+              <VendorAssets vendorId={row.id} />
             </Card>
           )}
 
