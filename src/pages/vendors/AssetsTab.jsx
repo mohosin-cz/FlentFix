@@ -29,7 +29,7 @@ function Sel({ label, value, onChange, options }) {
   const on = value !== 'all'
   return (
     <label className={`tct tct-raised${on ? ' is-on' : ''}`}
-      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 7, height: 36, padding: '0 24px 0 12px', cursor: 'pointer', minWidth: 0 }}>
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 7, height: 38, padding: '0 24px 0 12px', cursor: 'pointer', minWidth: 0 }}>
       <span style={{ fontSize: 9, fontWeight: 500, letterSpacing: '0.085em', textTransform: 'uppercase', fontFamily: MONO, flexShrink: 0, color: on ? 'rgba(200,150,62,0.7)' : 'var(--text-muted, #6b6d82)' }}>{label}</span>
       <select value={value} onChange={e => onChange(e.target.value)} aria-label={label}
         style={{ appearance: 'none', WebkitAppearance: 'none', background: 'none', border: 'none', outline: 'none', color: 'inherit', font: 'inherit', fontSize: 12, cursor: 'pointer', maxWidth: 150, minWidth: 0, flex: '1 1 auto' }}>
@@ -160,23 +160,9 @@ export default function AssetsTab() {
         <Tile label="Value held" value={assets == null ? '…' : money(stats.value)} sub="excludes returned" color="var(--accent, #c8963e)" />
       </div>
 
-      {/* search + log */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <SearchField
-          value={q} onChange={setQ}
-          placeholder="Search name, tag, serial, vendor…"
-          ariaLabel="Search assets by name, tag, serial number or vendor"
-          count={assets == null ? null : list.length}
-          total={assets == null ? null : assets.length}
-        />
-        <button type="button" onClick={() => setSheet({ mode: 'new' })}
-          style={{ display: 'flex', alignItems: 'center', gap: 7, height: 42, padding: '0 16px', borderRadius: 11, cursor: 'pointer', flexShrink: 0,
-            background: 'var(--accent, #c8963e)', border: 'none', color: '#1a1408', fontSize: 13, fontWeight: 700, fontFamily: MONO }}>
-          + Log asset
-        </button>
-      </div>
-
-      {/* filters */}
+      {/* Filters left, search right, on one line — they narrow the same list,
+          so splitting them across two rows made them read as unrelated. The
+          CTA anchors the end. Wraps on a narrow screen. */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <Sel label="Status" value={statusF} onChange={setStatusF}
           options={[{ value: 'all', label: 'Any status' }, ...Object.entries(STATUS_META).map(([k, m]) => ({ value: k, label: m.label }))]} />
@@ -188,10 +174,24 @@ export default function AssetsTab() {
               .map(v => ({ value: v.id, label: v.full_name }))]} />
         {(activeFilters > 0 || q) && (
           <button type="button" className="tct tct-bare" onClick={() => { setStatusF('all'); setCatF('all'); setVendorF('all'); setQ('') }}
-            style={{ height: 36, padding: '0 12px', fontSize: 12, cursor: 'pointer' }}>
+            style={{ height: 38, padding: '0 12px', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>
             Clear{activeFilters ? ` ${activeFilters} filter${activeFilters > 1 ? 's' : ''}` : ''}
           </button>
         )}
+
+        <SearchField
+          value={q} onChange={setQ}
+          placeholder="Search name, tag, serial, vendor…"
+          ariaLabel="Search assets by name, tag, serial number or vendor"
+          count={assets == null ? null : list.length}
+          total={assets == null ? null : assets.length}
+          style={{ marginInlineStart: 'auto', height: 38, flex: '0 1 300px', maxWidth: 340 }}
+        />
+        <button type="button" onClick={() => setSheet({ mode: 'new' })}
+          style={{ display: 'flex', alignItems: 'center', gap: 7, height: 38, padding: '0 15px', borderRadius: 11, cursor: 'pointer', flexShrink: 0,
+            background: 'var(--accent, #c8963e)', border: 'none', color: '#1a1408', fontSize: 13, fontWeight: 700, fontFamily: MONO }}>
+          + Log asset
+        </button>
       </div>
 
       {/* list */}
