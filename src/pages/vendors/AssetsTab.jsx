@@ -5,6 +5,7 @@ import { initials, avatarColor } from '../../utils/vendorHub'
 import { CATEGORIES, STATUS_META, assetMoney } from '../../utils/assetMeta'
 import AssetStatusChip from './AssetStatusChip'
 import AssetFormSheet from './AssetFormSheet'
+import SearchField from '../../components/vendor/SearchField'
 
 // The asset register: what we have issued, who is holding it, and what state
 // it is in. An item is one row for its whole life — assignment moves it
@@ -161,16 +162,15 @@ export default function AssetsTab() {
 
       {/* search + log */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 0 }}>
-          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #6b6d82)', pointerEvents: 'none', display: 'flex' }}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.4"/><path d="M9.5 9.5l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
-          </span>
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="search name, tag, serial, vendor…"
-            aria-label="Search assets"
-            style={{ width: '100%', padding: '10px 12px 10px 34px', minHeight: 42, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, color: 'var(--text, #e8e8f0)', fontSize: 13, fontFamily: MONO, outline: 'none', boxSizing: 'border-box' }} />
-        </div>
+        <SearchField
+          value={q} onChange={setQ}
+          placeholder="Search name, tag, serial, vendor…"
+          ariaLabel="Search assets by name, tag, serial number or vendor"
+          count={assets == null ? null : list.length}
+          total={assets == null ? null : assets.length}
+        />
         <button type="button" onClick={() => setSheet({ mode: 'new' })}
-          style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 42, padding: '0 15px', borderRadius: 10, cursor: 'pointer', flexShrink: 0,
+          style={{ display: 'flex', alignItems: 'center', gap: 7, height: 42, padding: '0 16px', borderRadius: 11, cursor: 'pointer', flexShrink: 0,
             background: 'var(--accent, #c8963e)', border: 'none', color: '#1a1408', fontSize: 13, fontWeight: 700, fontFamily: MONO }}>
           + Log asset
         </button>
@@ -192,9 +192,6 @@ export default function AssetsTab() {
             Clear{activeFilters ? ` ${activeFilters} filter${activeFilters > 1 ? 's' : ''}` : ''}
           </button>
         )}
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, whiteSpace: 'nowrap' }}>
-          {assets == null ? '' : `${list.length} of ${assets.length}`}
-        </span>
       </div>
 
       {/* list */}
