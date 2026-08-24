@@ -121,15 +121,34 @@ export default function VendorWorkHistory({ vendorId }) {
             {grouped.map(d => {
               const s = summarizeDay(d.punches, d.date)
               const brk = breakMinutesOn(breaks, d.date)
+              // Every site touched that day, in order. summarize() only keeps
+              // the first, which quietly hid the second property whenever
+              // somebody moved between two in a day.
+              const sites = [...new Set(d.punches.map(p => p.pid).filter(Boolean))]
               const open = expanded === d.date
               return (
                 <div key={d.date} style={{ borderTop: '1px solid var(--border, #2e3040)' }}>
                   <button type="button" onClick={() => setExpanded(open ? null : d.date)}
                     style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 2px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', minHeight: 44 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: MONO, minWidth: 92 }}>{fmtDate(d.date)}</span>
-                    <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, minWidth: 84, flexShrink: 0 }}>{fmtDate(d.date)}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                      {sites.length === 0 ? (
+                        <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>no site</span>
+                      ) : sites.slice(0, 3).map(pid => (
+                        <span key={pid} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, padding: '3px 8px', borderRadius: 6, background: 'rgba(200,150,62,0.12)', border: '1px solid rgba(200,150,62,0.32)' }}>
+                          <span style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: 'var(--accent, #c8963e)', fontFamily: MONO }}>PID</span>
+                          <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: MONO }}>{pid}</span>
+                        </span>
+                      ))}
+                      {/* The date and the badges never shrink, so a day spent
+                          across many sites would push the row sideways. Three
+                          fit; the rest are a count you can open the day to see. */}
+                      {sites.length > 3 && (
+                        <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: MONO }}>+{sites.length - 3}</span>
+                      )}
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {s.firstIn ? fmtTime(s.firstIn.punched_at) : '—'} → {s.incomplete ? 'never checked out' : s.status === 'on_site' ? 'on site' : (s.lastOut ? fmtTime(s.lastOut.punched_at) : '—')}
-                      {s.site ? ` · ${s.site}` : ''}
                     </span>
                     {s.incomplete ? (
                       <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: MONO }}>no check-out</span>
@@ -150,7 +169,12 @@ export default function VendorWorkHistory({ vendorId }) {
                           <span style={{ width: 30, color: p.punch_type === 'in' ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', fontWeight: 700 }}>{p.punch_type === 'in' ? 'IN' : 'OUT'}</span>
                           <span style={{ color: 'var(--text-dim, #9394a8)', minWidth: 70 }}>{fmtTime(p.punched_at)}</span>
                           {(p.kind || 'regular') === 'overtime' && <span style={{ color: '#5b8def', fontSize: 10 }}>overtime</span>}
-                          {p.pid && <span style={{ color: 'var(--text-muted, #6b6d82)' }}>· {p.pid}</span>}
+                          {p.pid && (
+                            <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 3, padding: '1px 6px', borderRadius: 5, background: 'rgba(200,150,62,0.10)' }}>
+                              <span style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', color: 'var(--accent, #c8963e)' }}>PID</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim, #9394a8)' }}>{p.pid}</span>
+                            </span>
+                          )}
                           {p.source && p.source !== 'self' && <span style={{ color: 'var(--accent, #c8963e)', fontSize: 10 }}>· {p.source}</span>}
                         </div>
                       ))}
