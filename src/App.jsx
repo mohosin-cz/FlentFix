@@ -18,6 +18,7 @@ import Properties from './pages/Properties'
 import PropertyDetail from './pages/PropertyDetail'
 import PropertyBin from './pages/PropertyBin'
 import PropertyArchive from './pages/PropertyArchive'
+import AssetRequest from './pages/AssetRequest'
 import PropertyUtilities from './pages/PropertyUtilities'
 import PropertyUtilitiesOverview from './pages/PropertyUtilitiesOverview'
 import RawInspectionData from './pages/RawInspectionData'
@@ -221,6 +222,7 @@ export default function App() {
             }
           />
           <Route path="/onboard" element={<Onboard />} />
+          <Route path="/asset-request" element={<AssetRequest />} />
           <Route path="/attend" element={<Attend />} />
           <Route path="/wo/:token" element={<VendorWorkOrder />} />
           <Route path="/vendors" element={<ProtectedRoute><VendorHub /></ProtectedRoute>} />

@@ -6,6 +6,9 @@ import { CATEGORIES, STATUS_META, assetMoney } from '../../utils/assetMeta'
 import AssetStatusChip from './AssetStatusChip'
 import AssetFormSheet from './AssetFormSheet'
 import SearchField from '../../components/vendor/SearchField'
+import AssetRequestsPanel from './AssetRequestsPanel'
+import ShareSheet from '../../components/vendor/ShareSheet'
+import { assetRequestUrl } from '../../utils/vendorHub'
 
 // The asset register: what we have issued, who is holding it, and what state
 // it is in. An item is one row for its whole life — assignment moves it
@@ -89,6 +92,8 @@ export default function AssetsTab() {
   const [catF, setCatF] = useState('all')
   const [vendorF, setVendorF] = useState('all')
   const [sheet, setSheet] = useState(null)   // { mode:'new' } | { mode:'edit', asset }
+  const [sharing, setSharing] = useState(false)
+  const [view, setView] = useState('register')   // 'register' | 'requests'
 
   const load = useCallback(async () => {
     const [aRes, vRes] = await Promise.all([
@@ -151,6 +156,25 @@ export default function AssetsTab() {
           )}
         </div>
       )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" className={`tct tct-raised${view === 'register' ? ' is-on' : ''}`} onClick={() => setView('register')}
+          style={{ height: 38, padding: '0 14px', fontSize: 13, cursor: 'pointer' }}>Register</button>
+        <button type="button" className={`tct tct-raised${view === 'requests' ? ' is-on' : ''}`} onClick={() => setView('requests')}
+          style={{ height: 38, padding: '0 14px', fontSize: 13, cursor: 'pointer' }}>Requests</button>
+        {/* The link vendors use to ask for something and, later, to log what
+            they were handed. Shared the same way the onboarding link is. */}
+        <button type="button" onClick={() => setSharing(true)}
+          style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: 7, height: 38, padding: '0 14px', borderRadius: 11, cursor: 'pointer',
+            background: 'rgba(200,150,62,0.10)', border: '1px solid var(--accent, #c8963e)', color: 'var(--accent, #c8963e)', fontSize: 12.5, fontWeight: 600, fontFamily: MONO }}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M11 5.5a2 2 0 10-1.9-2.6L6.3 4.6a2 2 0 100 2.8l2.8 1.7a2 2 0 10.6-1L7 6.4a2 2 0 000-.8l2.8-1.7A2 2 0 0011 5.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/></svg>
+          Request link
+        </button>
+      </div>
+
+      {view === 'requests' ? (
+        <AssetRequestsPanel vendors={vendors} onChanged={load} />
+      ) : (<>
 
       {/* summary */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -219,6 +243,17 @@ export default function AssetsTab() {
               onOpen={() => setSheet({ mode: 'edit', asset: a })} />
           ))}
         </div>
+      )}
+
+      </>)}
+
+      {sharing && (
+        <ShareSheet
+          title="Share the asset request link"
+          subtitle="Vendors open this to ask for an item, follow its progress, and log the details once it reaches them."
+          url={assetRequestUrl()}
+          onClose={() => setSharing(false)}
+        />
       )}
 
       {sheet && (

@@ -2,7 +2,7 @@
 // Kept out of the component files so none of them exports anything but a
 // component — otherwise fast refresh stops working for the whole module.
 
-export const CATEGORIES = ['Tool', 'Device', 'Uniform', 'Safety', 'Furniture', 'Other']
+export const CATEGORIES = ['Tool', 'Device', 'Vehicle', 'Uniform', 'Safety', 'Furniture', 'Other']
 export const CONDITIONS = ['new', 'good', 'fair', 'poor']
 
 export const STATUS_META = {

@@ -13,6 +13,10 @@ export function onboardUrl() {
 }
 
 // The public vendor attendance (punch) URL.
+export function assetRequestUrl() {
+  return `${window.location.origin}/asset-request`
+}
+
 export function attendUrl() {
   return `${window.location.origin}/attend`
 }
