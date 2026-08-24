@@ -264,7 +264,7 @@ export default function AssetRequest() {
             <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, flexShrink: 0 }}>{r.category}</span>
           </div>
 
-          <RequestStepper status={r.status} />
+          <RequestStepper status={r.status} row={r} />
 
           {r.status === 'denied' && r.deny_reason && (
             <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, lineHeight: 1.5 }}>{r.deny_reason}</div>

@@ -175,32 +175,12 @@ input[type=range]::-webkit-slider-thumb:active { transform: scale(1.2); }
 
 
 
-/* ── Liquid progress (asset request status) ─────────────────────────────────
-   The fill is a real body of liquid rather than a bar: the surface texture
-   drifts, the leading edge undulates, a highlight sweeps through, and a few
-   bubbles rise. Four slow, unsynchronised loops so it never reads as one
-   looping animation.
-   All of it is decoration — none of it runs for anyone who has asked the
-   system to stop moving things. */
+/* ── Stage progress (asset requests) ────────────────────────────────────────
+   One animation, on one segment: the stage the request is actually sitting
+   in. Motion on this page always means "here, now" — which is only true if
+   nothing else moves. */
 
-@keyframes lq-flow    { from { background-position: 0 0; }      to { background-position: 68px 0; } }
-@keyframes lq-wave    { 0%,100% { transform: translateY(-20%); } 50% { transform: translateY(-38%); } }
-@keyframes lq-sheen   { 0% { transform: translateX(-120%); } 60%,100% { transform: translateX(420%); } }
-@keyframes lq-bubble  {
-  0%   { transform: translateY(0) scale(.6);   opacity: 0; }
-  18%  { opacity: .55; }
-  75%  { opacity: .35; }
-  100% { transform: translateY(-140%) scale(1); opacity: 0; }
-}
+@keyframes stg-sweep { 0% { transform: translateX(-110%); } 55%,100% { transform: translateX(330%); } }
+.stg-live { animation: stg-sweep 2.8s cubic-bezier(.4,0,.25,1) infinite; }
 
-.lq-fill    { animation: lq-flow 3.4s linear infinite; }
-.lq-wave    { animation: lq-wave 3.4s ease-in-out infinite; }
-.lq-sheen   { animation: lq-sheen 4.6s cubic-bezier(.4,0,.2,1) infinite; }
-.lq-bubble  { animation: lq-bubble 3.8s ease-in infinite; }
-
-@media (prefers-reduced-motion: reduce) {
-  .lq-fill, .lq-wave, .lq-sheen, .lq-bubble { animation: none; }
-  .lq-wave { transform: translateY(-28%); }
-  .lq-sheen { display: none; }
-  .lq-bubble { display: none; }
-}
+@media (prefers-reduced-motion: reduce) { .stg-live { animation: none; opacity: .5; } }

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { fmtDate, initials, avatarColor } from '../../utils/vendorHub'
-import { STAGE_LABEL, nextStage } from '../../utils/assetRequest'
+import { nextStage } from '../../utils/assetRequest'
 import RequestStepper from '../../components/vendor/RequestStepper'
 
 // Staff end of the request pipeline: approve or deny, then walk an approved
@@ -101,14 +101,14 @@ export default function AssetRequestsPanel({ vendors, onChanged }) {
                   {v ? v.full_name : r.requested_email} · asked {fmtDate(r.created_at)}
                 </div>
               </div>
-              <span style={{ fontSize: 10.5, fontWeight: 700, fontFamily: MONO, flexShrink: 0, color: r.status === 'denied' ? 'var(--red, #e05c6a)' : r.status === 'logged' ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)' }}>
-                {r.status === 'denied' ? 'Denied' : STAGE_LABEL[r.status]}
-              </span>
+              {r.status === 'denied' && (
+                <span style={{ fontSize: 10.5, fontWeight: 700, fontFamily: MONO, flexShrink: 0, color: 'var(--red, #e05c6a)' }}>Denied</span>
+              )}
             </div>
 
             {r.reason && <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>“{r.reason}”</div>}
 
-            {r.status !== 'denied' && <RequestStepper status={r.status} compact />}
+            {r.status !== 'denied' && <RequestStepper status={r.status} row={r} compact />}
 
             {denying === r.id ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
