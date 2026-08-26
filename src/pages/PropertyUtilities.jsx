@@ -56,10 +56,42 @@ const labelStyle = { fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted, 
 function Labeled({ label, children, span }) {
   return <div style={{ gridColumn: span ? '1 / -1' : 'auto' }}><label style={labelStyle}>{label}</label>{children}</div>
 }
+
+// ── form layout ──────────────────────────────────────────────────────────────
+// The form was ten identical label-on-top blocks, every label uppercase mono,
+// every control full width. With one tier of emphasis and one rhythm there is
+// no hierarchy to read, so it lands as a wall. Two things fix that: group the
+// fields into the sections the data already falls into, and give field labels
+// a quieter voice than section headings.
+
+const sectionHead = { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 11 }
+const sectionRule = { flex: 1, height: 1, background: 'var(--border, #2e3040)' }
+function Section({ title, children }) {
+  return (
+    <div>
+      <div style={sectionHead}>
+        <span style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.14em' }}>{title}</span>
+        <span style={sectionRule} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{children}</div>
+    </div>
+  )
+}
+
+// Label beside the control rather than above it — the card already reads this
+// way, and it halves the form's height without shrinking a single target.
+function Row({ label, phone, children }) {
+  return (
+    <div style={{ display: phone ? 'block' : 'grid', gridTemplateColumns: '96px 1fr', gap: phone ? 0 : 14, alignItems: 'start' }}>
+      <label style={{ display: 'block', fontSize: 12.5, color: 'var(--text-dim, #9394a8)', fontFamily: SANS, paddingTop: phone ? 0 : 9, marginBottom: phone ? 6 : 0 }}>{label}</label>
+      <div style={{ minWidth: 0 }}>{children}</div>
+    </div>
+  )
+}
 // Preset chips with a free-text escape. `value` is whatever ends up stored —
 // a preset when one is chosen, otherwise whatever was typed — so nothing
 // downstream has to know a picker was involved.
-function ChipPick({ label, value, onChange, options, placeholder, span, allowCustom = true }) {
+function ChipPick({ value, onChange, options, placeholder, allowCustom = true }) {
   // Case-insensitive, because the existing rows hold "300 mbps", "300 Mbps"
   // and "200mbps" for the same plan. Matching loosely lights the right chip on
   // an old row without silently rewriting what is stored — only a tap does that.
@@ -71,8 +103,7 @@ function ChipPick({ label, value, onChange, options, placeholder, span, allowCus
   const [forceCustom, setCustom] = useState(false)
   const custom = forceCustom || (!!value && !known)
   return (
-    <div style={{ gridColumn: span ? '1 / -1' : 'auto' }}>
-      <label style={labelStyle}>{label}</label>
+    <div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: custom ? 8 : 0 }}>
         {options.map(o => (
           <button key={o} type="button" onClick={() => { setCustom(false); onChange(o) }}
@@ -98,10 +129,30 @@ function ChipPick({ label, value, onChange, options, placeholder, span, allowCus
   )
 }
 
-function Sheet({ title, subtitle, onClose, children }) {
+// Fields that are almost always left at their default. `open` forces them
+// visible when they aren't — the disclosure hides defaults, never data.
+function MoreFields({ open, children }) {
+  const [shown, setShown] = useState(false)
+  if (open || shown) {
+    return (
+      <Section title="Status & notes">{children}</Section>
+    )
+  }
+  return (
+    <button type="button" onClick={() => setShown(true)}
+      style={{ ...hintBtn, alignSelf: 'flex-start', color: 'var(--text-dim, #9394a8)', fontSize: 12 }}>
+      + Status &amp; notes
+    </button>
+  )
+}
+
+// `wide` is for the entry form: its chip groups need about 500px of run before
+// they stop wrapping, and a wrapped chip group reads as two fields rather than
+// one. Everything else stays at the narrower default.
+function Sheet({ title, subtitle, onClose, children, wide }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(8,9,13,0.6)', backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: 'var(--bg-panel, #1e2028)', borderTop: '1px solid var(--border, #2e3040)', borderRadius: '18px 18px 0 0', padding: '18px 20px 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ width: '100%', maxWidth: wide ? 700 : 520, maxHeight: '92vh', overflowY: 'auto', background: 'var(--bg-panel, #1e2028)', borderTop: '1px solid var(--border, #2e3040)', borderRadius: '18px 18px 0 0', padding: '18px 20px 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--border, #2e3040)', margin: '-4px auto 2px', flexShrink: 0 }} />
         <div>
           <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: SANS }}>{title}</div>
@@ -181,99 +232,114 @@ function UtilityForm({ record, pid, userEmail, existing = [], onClose, onSaved }
   }
 
   return (
-    <Sheet title={isEdit ? 'Edit utility' : 'Add utility'} onClose={onClose}>
-      <div>
-        <label style={labelStyle}>Type</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {picker.map(t => {
-            const on = form.utility_type === t.key
-            return (
-              <button key={t.key} onClick={() => set('utility_type', t.key)} aria-pressed={on}
-                className={`tct tct-bare${on ? ' is-on' : ''}`}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 14px', fontSize: 12.5, lineHeight: 1 }}>
-                <UtilityIcon type={t.key} size={15} />{t.label}
-              </button>
-            )
-          })}
-        </div>
+    <Sheet title={isEdit ? 'Edit utility' : 'Add utility'} subtitle={`PID ${pid}`} onClose={onClose} wide>
+      {/* Type reshapes every section below it — which providers, which plans,
+          whether there is an SSID at all — so it leads, unlabelled and outside
+          the sections rather than as the first row of one. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {picker.map(t => {
+          const on = form.utility_type === t.key
+          return (
+            <button key={t.key} onClick={() => set('utility_type', t.key)} aria-pressed={on}
+              className={`tct tct-bare${on ? ' is-on' : ''}`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 14px', fontSize: 12.5, lineHeight: 1 }}>
+              <UtilityIcon type={t.key} size={15} />{t.label}
+            </button>
+          )
+        })}
       </div>
 
       {form.utility_type === 'other' && (
-        <Labeled label="Utility name"><input style={inputStyle} value={form.custom_type} onChange={e => set('custom_type', e.target.value)} placeholder="e.g. Newspaper, Milk delivery" autoFocus /></Labeled>
+        <input style={inputStyle} value={form.custom_type} onChange={e => set('custom_type', e.target.value)} placeholder="Name this utility — e.g. Newspaper, Milk delivery" autoFocus />
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: phone ? '1fr' : '1fr 1fr', gap: 12 }}>
-        <ChipPick label="Provider" span value={form.provider} onChange={v => set('provider', v)}
-          options={PROVIDERS[form.utility_type] || []} placeholder="Provider name" />
+      <Section title="Service">
+        <Row label="Provider" phone={phone}>
+          <ChipPick value={form.provider} onChange={v => set('provider', v)}
+            options={PROVIDERS[form.utility_type] || []} placeholder="Provider name" />
+        </Row>
+        <Row label="Plan" phone={phone}>
+          <ChipPick value={form.plan_type} onChange={v => set('plan_type', v)}
+            options={PLANS[form.utility_type] || []}
+            placeholder={form.utility_type === 'wifi' ? 'e.g. 150 Mbps' : 'What was bought'} />
+        </Row>
+      </Section>
 
-        <ChipPick label="Plan" span value={form.plan_type} onChange={v => set('plan_type', v)}
-          options={PLANS[form.utility_type] || []}
-          placeholder={form.utility_type === 'wifi' ? 'e.g. 150 Mbps' : 'What was bought'} />
-
-        <Labeled label="Account / consumer no.">
-          <input style={inputStyle} value={form.account_number} onChange={e => set('account_number', e.target.value)} placeholder="Account number" />
+      {/* Mirrors the grey Account / Network / Password block on the card, so
+          what you fill in here sits where you will later go looking for it. */}
+      <Section title="Access">
+        <Row label="Account no." phone={phone}>
+          <input style={{ ...inputStyle, maxWidth: 260 }} value={form.account_number} onChange={e => set('account_number', e.target.value)} placeholder="Account / consumer number" />
           {dupAccount && (
-            <div style={{ fontSize: 11, color: 'var(--accent, #c8963e)', fontFamily: MONO, marginTop: 5, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 11, color: 'var(--accent, #c8963e)', fontFamily: MONO, marginTop: 6, lineHeight: 1.5 }}>
               ⚠ Already on {dupAccount.label} at this property.
             </div>
           )}
-        </Labeled>
-
+        </Row>
         {form.utility_type === 'wifi' && (
-          <Labeled label="Network (SSID)">
-            <input style={inputStyle} value={form.ssid} onChange={e => set('ssid', e.target.value)} placeholder="Flent_304" />
+          <Row label="Network" phone={phone}>
+            <input style={{ ...inputStyle, maxWidth: 260 }} value={form.ssid} onChange={e => set('ssid', e.target.value)} placeholder="Flent_304" />
             {!form.ssid.trim() && (
-              <button type="button" onClick={() => set('ssid', SSID_PREFIX)}
-                style={hintBtn}>
-                start with {SSID_PREFIX}
-              </button>
+              <div><button type="button" onClick={() => set('ssid', SSID_PREFIX)} style={hintBtn}>start with {SSID_PREFIX}</button></div>
             )}
-          </Labeled>
+          </Row>
         )}
-
         {/* The standard we set on install, or something typed once on purpose. */}
-        <ChipPick label="Password" span={form.utility_type !== 'wifi'} value={form.password}
-          onChange={v => set('password', v)} options={[DEFAULT_PASSWORD]} placeholder="Set a different password" />
+        <Row label="Password" phone={phone}>
+          <ChipPick value={form.password} onChange={v => set('password', v)}
+            options={[DEFAULT_PASSWORD]} placeholder="Set a different password" />
+        </Row>
+      </Section>
 
-        {/* Offered, not defaulted. Most entries are made on the day of install,
-            but a silently pre-filled date that happens to be wrong gets saved
-            without anyone looking at it. */}
-        <Labeled label="Installation / start date">
-          <input style={inputStyle} type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
-          {!form.start_date && (
-            <button type="button" onClick={() => set('start_date', todayISO())}
-              style={hintBtn}>
-              installed today
-            </button>
-          )}
-        </Labeled>
-        <Labeled label="Amount (₹)">
-          <input style={inputStyle} type="number" inputMode="decimal" value={form.billing_amount} onChange={e => set('billing_amount', e.target.value)} placeholder="0" />
+      <Section title="Billing">
+        <Row label="Amount" phone={phone}>
+          <div style={{ position: 'relative', maxWidth: 160 }}>
+            <span style={{ position: 'absolute', insetInlineStart: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--text-muted, #6b6d82)', pointerEvents: 'none' }}>₹</span>
+            <input style={{ ...inputStyle, paddingInlineStart: 28 }} type="number" inputMode="decimal" value={form.billing_amount} onChange={e => set('billing_amount', e.target.value)} placeholder="0" />
+          </div>
           {suggestedAmount != null && Number(form.billing_amount) !== suggestedAmount && (
-            <button type="button" onClick={() => set('billing_amount', String(suggestedAmount))}
-              style={hintBtn}>
+            <div><button type="button" onClick={() => set('billing_amount', String(suggestedAmount))} style={hintBtn}>
               last {form.provider} {form.plan_type}: ₹{suggestedAmount.toLocaleString('en-IN')} — use
-            </button>
+            </button></div>
           )}
-        </Labeled>
-        {/* The recharge length. Chips rather than a select because this is the
-            field that drives the countdown, and it is answered in one word. */}
-        <Labeled label="Recharge every" span>
+        </Row>
+        {/* The duration is the chip, not the cycle name: the row already says
+            "Recharge every", so "6m" completes the sentence where "Half-yearly"
+            restates it. Six short chips also fit on one line, and a wrapped
+            chip group reads as two fields. The stored value is unchanged — the
+            title attribute carries the cycle name for anyone who wants it. */}
+        <Row label="Recharge every" phone={phone}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {CYCLE_PRESETS.map(c => {
               const on = form.billing_cycle === c.cycle
               return (
-                <button key={c.cycle} type="button" onClick={() => set('billing_cycle', c.cycle)} aria-pressed={on}
+                <button key={c.cycle} type="button" title={c.cycle} onClick={() => set('billing_cycle', c.cycle)} aria-pressed={on}
+                  aria-label={c.cycle}
                   className={`tct tct-raised${on ? ' is-on' : ''}`}
-                  style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, padding: '8px 12px', fontSize: 12.5, lineHeight: 1, minHeight: 36, cursor: 'pointer' }}>
-                  {c.cycle}
-                  {c.short && <span style={{ fontSize: 10.5, fontFamily: MONO, opacity: 0.65 }}>{c.short}</span>}
+                  style={{ padding: '8px 13px', fontSize: 12.5, lineHeight: 1, minHeight: 36, cursor: 'pointer', fontFamily: c.short ? MONO : SANS }}>
+                  {c.short || c.cycle}
                 </button>
               )
             })}
           </div>
-        </Labeled>
-        <Labeled label="Status" span>
+        </Row>
+        {/* Offered, not defaulted. Most entries are made on the day of install,
+            but a silently pre-filled date that happens to be wrong gets saved
+            without anyone looking at it. */}
+        <Row label="Installed" phone={phone}>
+          <input style={{ ...inputStyle, maxWidth: 200 }} type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
+          {!form.start_date && (
+            <div><button type="button" onClick={() => set('start_date', todayISO())} style={hintBtn}>installed today</button></div>
+          )}
+        </Row>
+      </Section>
+
+      {/* 92% of rows are Active and 5% carry a note, so in the common case
+          these two are a wall you scroll past. Folded away when they hold
+          their defaults, open on their own when they don't — an edited row
+          never hides what makes it unusual. */}
+      <MoreFields open={form.status !== 'active' || !!form.notes.trim()}>
+        <Row label="Status" phone={phone}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {STATUSES.map(st => {
               const on = form.status === st.key
@@ -287,9 +353,11 @@ function UtilityForm({ record, pid, userEmail, existing = [], onClose, onSaved }
               )
             })}
           </div>
-        </Labeled>
-        <Labeled label="Notes" span><textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Anything worth remembering…" /></Labeled>
-      </div>
+        </Row>
+        <Row label="Notes" phone={phone}>
+          <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 62 }} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Anything worth remembering…" />
+        </Row>
+      </MoreFields>
 
       {error && <div style={{ fontSize: 12, color: '#f87171', fontFamily: MONO, padding: '9px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: 8 }}>{error}</div>}
       <div style={{ display: 'flex', gap: 10, marginTop: 2 }}>
