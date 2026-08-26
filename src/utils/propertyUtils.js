@@ -129,3 +129,45 @@ export function dueInfo(u) {
   else { color = 'var(--green, #3dba7a)'; label = `Recharge in ${days} days`; tone = 'ok' }
   return { date: d, days, label, color, tone }
 }
+
+// ── Entry presets ────────────────────────────────────────────────────────────
+// The common cases as one tap, with a free-text escape for the rest. Typing
+// "ACT" by hand on a phone at a site is how "ACT", "Act" and "ACT Fibernet"
+// end up as three providers in the same report.
+
+// Ordered by how often they actually appear in the estate, so the first chip
+// is usually the right one.
+export const PROVIDERS = {
+  wifi: ['ACT', 'Airtel', 'Tata Play Fiber', 'Jio', 'BSNL'],
+  water_purifier: ['DrinkPrime', 'AquaGuard-LL', 'Livpure', 'Kent', 'Pureit'],
+  other: [],
+}
+
+// "Plan" is the thing you bought, and it means different things per utility:
+// a line speed for broadband, a litre allowance for an RO. It is NOT the
+// recharge length — that is the billing cycle, below. Keeping them separate
+// matches how the 300-odd existing rows are already filled in.
+export const PLANS = {
+  wifi: ['100 Mbps', '200 Mbps', '200 Mbps mesh', '300 Mbps', '400 Mbps'],
+  water_purifier: ['250L/M', '500L/M', 'Unlimited'],
+  other: [],
+}
+
+// The recharge length as chips, with the duration spelled out beside the name —
+// "Half-yearly 6m" so nobody has to translate. Derived from BILLING_CYCLES and
+// CYCLE_MONTHS rather than restated, because a second hand-written list of the
+// same cycles is a list that eventually disagrees with the one driving the
+// countdown. One-time has no duration, hence the blank.
+export const CYCLE_PRESETS = BILLING_CYCLES.map(cycle => ({
+  cycle,
+  short: CYCLE_MONTHS[cycle] ? `${CYCLE_MONTHS[cycle]}m` : '',
+}))
+
+// The standard we set on install — 161 of the 166 WiFi rows use it. Anything
+// else is typed once, deliberately.
+export const DEFAULT_PASSWORD = 'Flent@2k24'
+
+// Nearly every SSID in the estate is Flent_<flat>, but the flat number is not
+// the PID and nothing here knows it. So this offers the prefix and stops —
+// proposing a whole SSID would just be inventing the half that matters.
+export const SSID_PREFIX = 'Flent_'
