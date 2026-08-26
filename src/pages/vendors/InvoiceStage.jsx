@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { initials, avatarColor } from '../../utils/vendorHub'
 import InvoiceDoc from '../../components/vendor/InvoiceDoc'
+import InvoiceFlow from './InvoiceFlow'
 import { INVOICE_STATUS, STATUS_ORDER, inr, sumLines, sendBlockers, monthLabel } from '../../utils/vendorInvoice'
 
 // The signature stage: reviewed → invoiced → signed → final.
@@ -233,6 +234,7 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
   const [preview, setPreview] = useState(null)
   const [entityOpen, setEntityOpen] = useState(false)
   const [note, setNote] = useState('')
+  const [flowOpen, setFlowOpen] = useState(false)
 
   const load = useCallback(async () => {
     const [{ data: inv, error: iErr }, { data: props }] = await Promise.all([
@@ -284,18 +286,12 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
   const missing = (payouts || []).length - (invoices || []).length
   const allSigned = rows.length > 0 && rows.every(r => r.status === 'signed' || r.status === 'void')
 
-  async function generate() {
-    setBusy('gen'); setErr(''); setNote('')
-    const { data, error } = await supabase.rpc('invoice_generate_for_period', { p_period_id: period.id })
-    setBusy('')
-    if (error) { setErr(error.message); return }
-    setNote(`${data} invoice${data === 1 ? '' : 's'} raised as drafts.`)
-    load()
-  }
-
-  async function send(ids) {
-    if (!ids.length) return
+  // Returns the outcome as well as showing it, because the card flow reports
+  // its own result and shouldn't have to read this component's error strip.
+  const send = useCallback(async (ids) => {
+    if (!ids.length) return { sent: 0, failed: [], error: 'Nothing to send.' }
     setBusy('send'); setErr(''); setNote('')
+    let out
     const { data: s } = await supabase.auth.getSession()
     const token = s?.session?.access_token
     try {
@@ -305,17 +301,32 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
       })
       if (res.error) throw res.error
       const d = res.data || {}
-      if (d.sent) setNote(`Sent ${d.sent} invoice${d.sent === 1 ? '' : 's'}.`)
-      if (d.failed?.length) {
-        setErr(`${d.failed.length} didn't send — ${d.failed[0].error}`)
-      } else if (!d.sent) {
-        setErr(d.error || 'Nothing was sent.')
-      }
+      out = { sent: d.sent || 0, failed: d.failed || [], error: (!d.sent && !d.failed?.length) ? (d.error || 'Nothing was sent.') : '' }
+      if (out.sent) setNote(`Sent ${out.sent} invoice${out.sent === 1 ? '' : 's'}.`)
+      if (out.failed.length) setErr(`${out.failed.length} didn't send — ${out.failed[0].error}`)
+      else if (out.error) setErr(out.error)
     } catch (e) {
-      setErr(e.message || String(e))
+      out = { sent: 0, failed: [], error: e.message || String(e) }
+      setErr(out.error)
     }
     setBusy('')
     load()
+    return out
+  }, [load])
+
+  // One entry point for the whole PID pass: raise anything missing, then open
+  // the cards. Two buttons for "make the invoices" and "fill them in" is a
+  // distinction that matters to the database, not to the person doing the work.
+  async function startFlow() {
+    setErr(''); setNote('')
+    if (missing > 0) {
+      setBusy('gen')
+      const { error } = await supabase.rpc('invoice_generate_for_period', { p_period_id: period.id })
+      setBusy('')
+      if (error) { setErr(error.message); return }
+      await load()
+    }
+    setFlowOpen(true)
   }
 
   async function voidInvoice(inv) {
@@ -362,13 +373,13 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
         </div>
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          {missing > 0 && (
-            <button type="button" onClick={generate} disabled={busy === 'gen'} style={primaryBtn}>
-              {busy === 'gen' ? 'Raising…' : `Raise ${missing} invoice${missing === 1 ? '' : 's'}`}
+          {!allSigned && (
+            <button type="button" onClick={startFlow} disabled={busy === 'gen'} style={{ ...primaryBtn, padding: '10px 16px', fontSize: 13 }}>
+              {busy === 'gen' ? 'Raising…' : missing > 0 ? `▸ Raise & set PIDs · ${missing}` : '▸ Set PIDs one by one'}
             </button>
           )}
           {readyToSend.length > 0 && (
-            <button type="button" onClick={() => send(readyToSend.map(r => r.invoice.id))} disabled={busy === 'send'} style={primaryBtn}>
+            <button type="button" onClick={() => send(readyToSend.map(r => r.invoice.id))} disabled={busy === 'send'} style={actBtn}>
               {busy === 'send' ? 'Sending…' : `✉ Send ${readyToSend.length} for signing`}
             </button>
           )}
@@ -457,6 +468,10 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
           <InvoiceDoc data={preview.invoice.snapshot} compact
             signature={preview.invoice.signature_png} signedName={preview.invoice.signed_name} signedAt={preview.invoice.signed_at} />
         </Sheet>
+      )}
+      {flowOpen && (
+        <InvoiceFlow period={period} rows={rows} properties={properties}
+          onSend={send} onClose={() => { setFlowOpen(false); load(); onChanged && onChanged() }} />
       )}
       {entityOpen && <BillingEntitySheet onClose={() => setEntityOpen(false)} />}
     </div>
