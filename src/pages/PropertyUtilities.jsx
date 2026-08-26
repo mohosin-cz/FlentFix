@@ -7,8 +7,9 @@ import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import LogoSpinner from '../components/LogoSpinner'
 import UtilityIcon from '../components/UtilityIcon'
 import {
-  ADD_TYPES, TYPE_MAP, BILLING_CYCLES, STATUSES, STATUS_MAP,
+  ADD_TYPES, TYPE_MAP, STATUSES, STATUS_MAP,
   fmtDate, typeLabel, typeColor, dueInfo,
+  PROVIDERS, PLANS, CYCLE_PRESETS, DEFAULT_PASSWORD, SSID_PREFIX,
 } from '../utils/propertyUtils'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
@@ -48,10 +49,55 @@ function CopyBtn({ value, label = 'Copy' }) {
 }
 
 const inputStyle = { background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 9, padding: '11px 13px', fontSize: 15, color: 'var(--text, #e8e8f0)', fontFamily: SANS, outline: 'none', width: '100%', boxSizing: 'border-box' }
+// A text link is still a tap target on a phone: padding gives it a hit box
+// without giving it a visible box.
+const hintBtn = { marginTop: 2, marginInlineStart: -5, background: 'none', border: 'none', padding: '6px 5px', fontSize: 11, color: 'var(--accent, #c8963e)', fontFamily: MONO, cursor: 'pointer', textAlign: 'start' }
 const labelStyle = { fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 6, display: 'block' }
 function Labeled({ label, children, span }) {
   return <div style={{ gridColumn: span ? '1 / -1' : 'auto' }}><label style={labelStyle}>{label}</label>{children}</div>
 }
+// Preset chips with a free-text escape. `value` is whatever ends up stored —
+// a preset when one is chosen, otherwise whatever was typed — so nothing
+// downstream has to know a picker was involved.
+function ChipPick({ label, value, onChange, options, placeholder, span, allowCustom = true }) {
+  // Case-insensitive, because the existing rows hold "300 mbps", "300 Mbps"
+  // and "200mbps" for the same plan. Matching loosely lights the right chip on
+  // an old row without silently rewriting what is stored — only a tap does that.
+  const eq = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase()
+  const known = options.some(o => eq(o, value))
+  // Derived, not latched. The option list changes under this component when the
+  // utility type changes, and a value that is no longer a preset has to reappear
+  // in the text box — otherwise it stays set but invisible, and gets saved blind.
+  const [forceCustom, setCustom] = useState(false)
+  const custom = forceCustom || (!!value && !known)
+  return (
+    <div style={{ gridColumn: span ? '1 / -1' : 'auto' }}>
+      <label style={labelStyle}>{label}</label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: custom ? 8 : 0 }}>
+        {options.map(o => (
+          <button key={o} type="button" onClick={() => { setCustom(false); onChange(o) }}
+            aria-pressed={!custom && eq(o, value)}
+            className={`tct tct-raised${!custom && eq(o, value) ? ' is-on' : ''}`}
+            style={{ padding: '8px 12px', fontSize: 12.5, lineHeight: 1, minHeight: 36, cursor: 'pointer' }}>
+            {o}
+          </button>
+        ))}
+        {allowCustom && (
+          <button type="button" onClick={() => { setCustom(true); if (known) onChange('') }}
+            aria-pressed={custom}
+            className={`tct tct-raised${custom ? ' is-on' : ''}`}
+            style={{ padding: '8px 12px', fontSize: 12.5, lineHeight: 1, minHeight: 36, cursor: 'pointer' }}>
+            Other…
+          </button>
+        )}
+      </div>
+      {custom && (
+        <input style={inputStyle} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} autoFocus />
+      )}
+    </div>
+  )
+}
+
 function Sheet({ title, subtitle, onClose, children }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(8,9,13,0.6)', backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -78,7 +124,7 @@ const toForm = (record) => {
   return { ...f, billing_amount: record?.billing_amount ?? '', start_date: record?.start_date || '' }
 }
 
-function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
+function UtilityForm({ record, pid, userEmail, existing = [], onClose, onSaved }) {
   const phone = useIsMobile(640)
   const [form, setForm] = useState(() => toForm(record))
   const [saving, setSaving] = useState(false)
@@ -88,6 +134,30 @@ function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
   // show the current type even if it's a legacy one no longer offered (e.g. gas)
   const picker = record && !ADD_TYPES.some(t => t.key === record.utility_type) && TYPE_MAP[record.utility_type]
     ? [TYPE_MAP[record.utility_type], ...ADD_TYPES] : ADD_TYPES
+
+  // Account numbers are typed by hand every time, which is exactly when the
+  // same connection gets entered twice. Warn, don't block — a shared account
+  // across two utilities at one property is unusual but not impossible.
+  const acct = form.account_number.trim().toLowerCase()
+  const dupRow = acct ? existing.find(u => u.id !== record?.id && (u.account_number || '').trim().toLowerCase() === acct) : null
+  const dupAccount = dupRow ? { label: typeLabel(dupRow) } : null
+
+  // What this provider + plan cost last time it was set up anywhere, so the
+  // amount is a confirmation rather than a lookup in someone's inbox.
+  const [suggestedAmount, setSuggested] = useState(null)
+  const prov = form.provider.trim(), plan = form.plan_type.trim()
+  useEffect(() => {
+    let live = true
+    const t = setTimeout(async () => {
+      if (!prov || !plan) { if (live) setSuggested(null); return }
+      const { data } = await supabase.from('property_utilities')
+        .select('billing_amount').eq('utility_type', form.utility_type)
+        .ilike('provider', prov).ilike('plan_type', plan)
+        .not('billing_amount', 'is', null).order('created_at', { ascending: false }).limit(1)
+      if (live) setSuggested(data?.[0]?.billing_amount ?? null)
+    }, 300)
+    return () => { live = false; clearTimeout(t) }
+  }, [prov, plan, form.utility_type])
 
   async function handleSave() {
     if (saving) return
@@ -133,15 +203,91 @@ function UtilityForm({ record, pid, userEmail, onClose, onSaved }) {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: phone ? '1fr' : '1fr 1fr', gap: 12 }}>
-        <Labeled label="Provider"><input style={inputStyle} value={form.provider} onChange={e => set('provider', e.target.value)} placeholder="ACT, DrinkPrime…" /></Labeled>
-        <Labeled label="Plan"><input style={inputStyle} value={form.plan_type} onChange={e => set('plan_type', e.target.value)} placeholder="150 Mbps / rental…" /></Labeled>
-        <Labeled label="Account / consumer no."><input style={inputStyle} value={form.account_number} onChange={e => set('account_number', e.target.value)} placeholder="Account number" /></Labeled>
-        {form.utility_type === 'wifi' && <Labeled label="Network (SSID)"><input style={inputStyle} value={form.ssid} onChange={e => set('ssid', e.target.value)} placeholder="Flent_304" /></Labeled>}
-        <Labeled label="Password" span={form.utility_type !== 'wifi'}><input style={inputStyle} value={form.password} onChange={e => set('password', e.target.value)} placeholder="WiFi / portal password" /></Labeled>
-        <Labeled label="Installation / start date"><input style={inputStyle} type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} /></Labeled>
-        <Labeled label="Amount (₹)"><input style={inputStyle} type="number" inputMode="decimal" value={form.billing_amount} onChange={e => set('billing_amount', e.target.value)} placeholder="0" /></Labeled>
-        <Labeled label="Billing cycle"><select style={inputStyle} value={form.billing_cycle} onChange={e => set('billing_cycle', e.target.value)}>{BILLING_CYCLES.map(c => <option key={c} value={c}>{c}</option>)}</select></Labeled>
-        <Labeled label="Status"><select style={inputStyle} value={form.status} onChange={e => set('status', e.target.value)}>{STATUSES.map(st => <option key={st.key} value={st.key}>{st.label}</option>)}</select></Labeled>
+        <ChipPick label="Provider" span value={form.provider} onChange={v => set('provider', v)}
+          options={PROVIDERS[form.utility_type] || []} placeholder="Provider name" />
+
+        <ChipPick label="Plan" span value={form.plan_type} onChange={v => set('plan_type', v)}
+          options={PLANS[form.utility_type] || []}
+          placeholder={form.utility_type === 'wifi' ? 'e.g. 150 Mbps' : 'What was bought'} />
+
+        <Labeled label="Account / consumer no.">
+          <input style={inputStyle} value={form.account_number} onChange={e => set('account_number', e.target.value)} placeholder="Account number" />
+          {dupAccount && (
+            <div style={{ fontSize: 11, color: 'var(--accent, #c8963e)', fontFamily: MONO, marginTop: 5, lineHeight: 1.5 }}>
+              ⚠ Already on {dupAccount.label} at this property.
+            </div>
+          )}
+        </Labeled>
+
+        {form.utility_type === 'wifi' && (
+          <Labeled label="Network (SSID)">
+            <input style={inputStyle} value={form.ssid} onChange={e => set('ssid', e.target.value)} placeholder="Flent_304" />
+            {!form.ssid.trim() && (
+              <button type="button" onClick={() => set('ssid', SSID_PREFIX)}
+                style={hintBtn}>
+                start with {SSID_PREFIX}
+              </button>
+            )}
+          </Labeled>
+        )}
+
+        {/* The standard we set on install, or something typed once on purpose. */}
+        <ChipPick label="Password" span={form.utility_type !== 'wifi'} value={form.password}
+          onChange={v => set('password', v)} options={[DEFAULT_PASSWORD]} placeholder="Set a different password" />
+
+        {/* Offered, not defaulted. Most entries are made on the day of install,
+            but a silently pre-filled date that happens to be wrong gets saved
+            without anyone looking at it. */}
+        <Labeled label="Installation / start date">
+          <input style={inputStyle} type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
+          {!form.start_date && (
+            <button type="button" onClick={() => set('start_date', todayISO())}
+              style={hintBtn}>
+              installed today
+            </button>
+          )}
+        </Labeled>
+        <Labeled label="Amount (₹)">
+          <input style={inputStyle} type="number" inputMode="decimal" value={form.billing_amount} onChange={e => set('billing_amount', e.target.value)} placeholder="0" />
+          {suggestedAmount != null && Number(form.billing_amount) !== suggestedAmount && (
+            <button type="button" onClick={() => set('billing_amount', String(suggestedAmount))}
+              style={hintBtn}>
+              last {form.provider} {form.plan_type}: ₹{suggestedAmount.toLocaleString('en-IN')} — use
+            </button>
+          )}
+        </Labeled>
+        {/* The recharge length. Chips rather than a select because this is the
+            field that drives the countdown, and it is answered in one word. */}
+        <Labeled label="Recharge every" span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {CYCLE_PRESETS.map(c => {
+              const on = form.billing_cycle === c.cycle
+              return (
+                <button key={c.cycle} type="button" onClick={() => set('billing_cycle', c.cycle)} aria-pressed={on}
+                  className={`tct tct-raised${on ? ' is-on' : ''}`}
+                  style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, padding: '8px 12px', fontSize: 12.5, lineHeight: 1, minHeight: 36, cursor: 'pointer' }}>
+                  {c.cycle}
+                  {c.short && <span style={{ fontSize: 10.5, fontFamily: MONO, opacity: 0.65 }}>{c.short}</span>}
+                </button>
+              )
+            })}
+          </div>
+        </Labeled>
+        <Labeled label="Status" span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {STATUSES.map(st => {
+              const on = form.status === st.key
+              return (
+                <button key={st.key} type="button" onClick={() => set('status', st.key)} aria-pressed={on}
+                  className={`tct tct-raised${on ? ' is-on' : ''}`}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 12px', fontSize: 12.5, lineHeight: 1, minHeight: 36, cursor: 'pointer' }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: st.color, flexShrink: 0 }} />
+                  {st.label}
+                </button>
+              )
+            })}
+          </div>
+        </Labeled>
         <Labeled label="Notes" span><textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Anything worth remembering…" /></Labeled>
       </div>
 
@@ -391,7 +537,7 @@ export default function PropertyUtilities() {
           )}
         </main>
 
-        {formRecord !== undefined && <UtilityForm record={formRecord} pid={pid} userEmail={userEmail} onClose={() => setFormRecord(undefined)} onSaved={(msg) => { setFormRecord(undefined); setToast(msg); fetchData() }} />}
+        {formRecord !== undefined && <UtilityForm record={formRecord} pid={pid} userEmail={userEmail} existing={utilities} onClose={() => setFormRecord(undefined)} onSaved={(msg) => { setFormRecord(undefined); setToast(msg); fetchData() }} />}
         {rechargeTarget && <RechargeSheet utility={rechargeTarget} userEmail={userEmail} onClose={() => setRechargeTarget(null)} onSaved={(msg) => { setRechargeTarget(null); setToast(msg); fetchData() }} />}
         {deleteTarget && <ConfirmDelete label={typeLabel(deleteTarget)} busy={deleting} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} />}
         {toast && <Toast msg={toast} onClose={() => setToast('')} />}
