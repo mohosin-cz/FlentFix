@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { initials, avatarColor } from '../../utils/vendorHub'
+import InvoiceStage from './InvoiceStage'
 
 const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
 const monthLabel = (d) => d ? new Date(d).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : ''
@@ -84,6 +85,8 @@ export default function PayrollTab() {
   const [sheet, setSheet] = useState('')          // 'newperiod' | 'rates' | ''
   const [actErr, setActErr] = useState('')        // month action errors (finalize/delete)
   const [reviewing, setReviewing] = useState(false)
+  const [stage, setStage] = useState('review')    // 'review' | 'invoices'
+  const [signed, setSigned] = useState(null)      // { signed, total } for the finalize gate
 
   const loadPeriods = useCallback(async () => {
     setLoading(true); setError('')
@@ -97,7 +100,23 @@ export default function PayrollTab() {
     setPeriod(p); setPayouts(null); setRowsLoading(true); setActErr('')
     const { data } = await supabase.from('vendor_payouts').select('*, vendor:vendors(full_name,avatar_path)').eq('period_id', p.id).order('total_payout', { ascending: false, nullsFirst: false })
     setPayouts(data || []); setRowsLoading(false)
+    // Signature progress drives the finalize gate. A missing invoices table
+    // (migration not run yet) must not break the payroll screen — it just
+    // means there is nothing to gate on.
+    const { data: inv } = await supabase.from('vendor_invoices').select('status').eq('period_id', p.id)
+    setSigned(inv ? { signed: inv.filter(i => i.status === 'signed').length, total: (data || []).length } : null)
   }, [])
+
+  // Finalising a month with unsigned invoices is allowed but never accidental:
+  // the count of who hasn't signed is put in front of you first.
+  const confirmFinalize = useCallback(() => {
+    if (!signed || signed.total === 0) return true
+    const missing = signed.total - signed.signed
+    if (missing <= 0) return true
+    return window.confirm(
+      `${missing} of ${signed.total} vendors haven't signed their invoice yet.\n\n` +
+      `Mark the month final anyway?`)
+  }, [signed])
 
   // ── period detail ────────────────────────────────────────────────────────────
   if (period) {
@@ -119,7 +138,7 @@ export default function PayrollTab() {
                 <button type="button" onClick={() => downloadCsv(period, payouts || [])} style={actBtn}>⤓ CSV</button>
                 <button type="button" onClick={async () => { setActErr(''); const { error: rErr } = await supabase.rpc('payroll_fill_month', { p_period_id: period.id }); if (rErr) { setActErr(rErr.message); return } openPeriod(period) }} style={actBtn}>↻ Regenerate</button>
                 <button type="button" onClick={async () => { if (!window.confirm('Delete this draft month and its lines?')) return; await supabase.from('vendor_payouts').delete().eq('period_id', period.id); await supabase.from('vendor_payroll_periods').delete().eq('id', period.id); setPeriod(null); setPayouts(null); loadPeriods() }} style={{ ...actBtn, color: 'var(--red, #e05c6a)' }}>Delete</button>
-                <button type="button" onClick={async () => { const at = new Date().toISOString(); const { error: mErr } = await supabase.from('vendor_payroll_periods').update({ status: 'locked', locked_at: at }).eq('id', period.id); if (mErr) { setActErr(mErr.message); return } setActErr(''); setPeriod({ ...period, status: 'locked', locked_at: at }) }} style={{ ...actBtn, color: 'var(--green, #3dba7a)', borderColor: 'var(--green, #3dba7a)' }}>✓ Mark final</button>
+                <button type="button" onClick={async () => { if (!confirmFinalize()) return; const at = new Date().toISOString(); const { error: mErr } = await supabase.from('vendor_payroll_periods').update({ status: 'locked', locked_at: at }).eq('id', period.id); if (mErr) { setActErr(mErr.message); return } setActErr(''); setPeriod({ ...period, status: 'locked', locked_at: at }) }} style={{ ...actBtn, color: 'var(--green, #3dba7a)', borderColor: 'var(--green, #3dba7a)' }}>✓ Mark final</button>
                 <button type="button" onClick={() => setReviewing(true)} style={{ ...actBtn, marginLeft: 'auto', color: '#fff', background: 'var(--accent, #c8963e)', border: 'none', fontWeight: 700 }}>▸ Review &amp; finalize</button>
               </div>
             : <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap', alignItems: 'center', padding: '10px 12px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.30)', borderRadius: 10 }}>
@@ -129,9 +148,29 @@ export default function PayrollTab() {
               </div>}
           {actErr && <div style={{ marginTop: 10 }}><Err>{actErr}</Err></div>}
         </div>
+        {/* Review, then invoices, then final. The stages are ordered because
+            the work is: you cannot ask someone to sign for a figure you are
+            still editing. */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {[['review', 'Review payouts'], ['invoices', 'Invoices & signatures']].map(([k, l]) => (
+            <button key={k} type="button" onClick={() => setStage(k)} aria-pressed={stage === k}
+              className={`tct tct-raised${stage === k ? ' is-on' : ''}`}
+              style={{ padding: '9px 14px', fontSize: 12.5, lineHeight: 1, minHeight: 38, cursor: 'pointer' }}>
+              {l}
+              {k === 'invoices' && signed && signed.total > 0 && (
+                <span style={{ marginInlineStart: 7, fontSize: 10.5, fontFamily: 'var(--font-mono, monospace)', color: signed.signed >= signed.total ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)' }}>
+                  {signed.signed}/{signed.total}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
         {rowsLoading ? <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>
-          : <ReviewTable key={period.id} period={period} rows={payouts || []} onReload={() => openPeriod(period)} />}
-        {reviewing && <ReviewFlow period={period} rows={payouts || []} onClose={() => { setReviewing(false); openPeriod(period) }} />}
+          : stage === 'invoices'
+            ? <InvoiceStage key={period.id} period={period} payouts={payouts || []} onChanged={() => openPeriod(period)} />
+            : <ReviewTable key={period.id} period={period} rows={payouts || []} onReload={() => openPeriod(period)} />}
+        {reviewing && <ReviewFlow period={period} rows={payouts || []} confirmFinalize={confirmFinalize} onClose={() => { setReviewing(false); openPeriod(period) }} />}
       </div>
     )
   }
@@ -337,7 +376,7 @@ function ReviewTable({ period, rows: initialRows, onReload }) {
 }
 
 // ── swipeable card review (blurred backdrop, approve each, then finalize) ─────
-function ReviewFlow({ period, rows: initialRows, onClose }) {
+function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
   const [rows, setRows] = useState(() => (initialRows || []).map(r => ({ ...r, days_worked: r.days_worked ?? 30 })))
   const [idx, setIdx] = useState(0)
   const [approved, setApproved] = useState(() => new Set())
@@ -381,6 +420,7 @@ function ReviewFlow({ period, rows: initialRows, onClose }) {
   }
 
   async function submitFinal() {
+    if (confirmFinalize && !confirmFinalize()) return
     setBusy(true); setErr('')
     try {
       for (const r of rows) {
