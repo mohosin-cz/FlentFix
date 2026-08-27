@@ -38,3 +38,13 @@ export async function uploadAssetFile(supabase, folder, file, name = 'file') {
   if (error) throw error
   return data.path
 }
+
+// The stored objects carry no useful content type — they were written as
+// application/octet-stream — so the extension is the only thing that says what
+// a file actually is. Lives here rather than in the viewer because a component
+// file that exports a helper stops fast refresh working for the whole module.
+const MIME = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
+  gif: 'image/gif', heic: 'image/heic', heif: 'image/heif', pdf: 'application/pdf',
+}
+export const typeForPath = (s) => MIME[(s || '').split('?')[0].split('.').pop()?.toLowerCase()] || ''

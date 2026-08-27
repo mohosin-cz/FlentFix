@@ -5,6 +5,7 @@ import {
   POD_OPTIONS, signedDocUrl, fmtDate, fmtDateTime, relTime,
   maskAccount, initials, avatarColor, isAdmin,
 } from '../../utils/vendorHub'
+import DocViewer from '../../components/vendor/DocViewer'
 import { useAuth } from '../../contexts/AuthContext'
 import { isEmail } from '../../utils/vendorOnboard'
 import VendorWorkHistory from './VendorWorkHistory'
@@ -240,8 +241,10 @@ function Row({ label, children }) {
 
 // ── document thumbnail (signed URL, opens full on tap) ──────────────────────
 function DocThumb({ label, doc }) {
+  const [viewing, setViewing] = useState(false)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: '1 1 0', minWidth: 92 }}>
+      {viewing && doc?.url && <DocViewer url={doc.url} name={doc.path || label} onClose={() => setViewing(false)} />}
       <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
       {!doc ? (
         <div style={{ ...box, color: 'var(--text-muted, #6b6d82)', fontSize: 11 }}>loading…</div>
@@ -250,9 +253,10 @@ function DocThumb({ label, doc }) {
       ) : doc.err ? (
         <div style={{ ...box, border: '1px solid rgba(224,92,106,0.4)', color: 'var(--red, #e05c6a)', fontSize: 10, textAlign: 'center', padding: 6, fontFamily: 'var(--font-mono, monospace)' }}>{doc.err}</div>
       ) : (
-        <a href={doc.url} target="_blank" rel="noreferrer" style={{ ...box, padding: 0, overflow: 'hidden' }}>
+        <button type="button" onClick={() => setViewing(true)} title={`View ${label}`}
+          style={{ ...box, padding: 0, overflow: 'hidden', border: '1px solid var(--border, #2e3040)' }}>
           <img src={doc.url} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        </a>
+        </button>
       )}
     </div>
   )
@@ -418,7 +422,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
       const out = {}
       for (const [k, p] of Object.entries(paths)) {
         if (!p) { out[k] = { missing: true }; continue }
-        try { out[k] = { url: await signedDocUrl(supabase, p, 300) } }
+        try { out[k] = { url: await signedDocUrl(supabase, p, 300), path: p } }
         catch (e) { out[k] = { err: e.message } }
       }
       if (alive) setDocs(out)

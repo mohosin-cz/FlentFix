@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import LiveCameraSheet from '../LiveCameraSheet'
+import DocViewer from './DocViewer'
 import { signedDocUrl } from '../../utils/vendorHub'
 import { uploadAssetFile, isPdfPath, IMAGE_OR_PDF } from '../../utils/assetFiles'
 
@@ -46,13 +47,16 @@ export default function CaptureUpload({
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [preview, setPreview] = useState(null)
+  const [viewing, setViewing] = useState(false)
   const fileRef = useRef(null)
 
   // A private bucket needs a signed URL, and it expires — so this re-runs
-  // whenever the stored path changes rather than being resolved once.
+  // whenever the stored path changes rather than being resolved once. Signed
+  // for PDFs too: they get no thumbnail, but the viewer still needs a URL to
+  // fetch, and skipping it left "View" doing nothing on an attached bill.
   useEffect(() => {
     let alive = true
-    if (!value || isPdfPath(value)) {
+    if (!value) {
       const t = setTimeout(() => { if (alive) setPreview(null) }, 0)
       return () => { alive = false; clearTimeout(t) }
     }
@@ -78,23 +82,28 @@ export default function CaptureUpload({
   if (value) {
     const pdf = isPdfPath(value)
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 9 }}>
-        {pdf
-          ? <span style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(224,92,106,0.12)', color: 'var(--red, #e05c6a)', fontSize: 9, fontWeight: 700, fontFamily: MONO }}>PDF</span>
-          : preview
-            ? <img src={preview} alt="" style={{ width: 40, height: 40, flexShrink: 0, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border, #2e3040)' }} />
-            : <span style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: 'var(--bg-panel, #1e2028)' }} />}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12.5, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ {doneLabel}</div>
-          {preview && !pdf && (
-            <a href={preview} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>view full size</a>
+      <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 9 }}>
+          <button type="button" onClick={() => setViewing(true)} title="View"
+            style={{ padding: 0, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0, lineHeight: 0, borderRadius: 6 }}>
+            {pdf
+              ? <span style={{ width: 40, height: 40, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(224,92,106,0.12)', color: 'var(--red, #e05c6a)', fontSize: 9, fontWeight: 700, fontFamily: MONO }}>PDF</span>
+              : preview
+                ? <img src={preview} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border, #2e3040)' }} />
+                : <span style={{ width: 40, height: 40, borderRadius: 6, display: 'block', background: 'var(--bg-panel, #1e2028)' }} />}
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ {doneLabel}</div>
+            <button type="button" onClick={() => setViewing(true)}
+              style={{ background: 'none', border: 'none', padding: '6px 6px 6px 0', margin: '-6px 0', minHeight: 40, display: 'inline-flex', alignItems: 'center', fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: MONO, cursor: 'pointer' }}>View</button>
+          </div>
+          {!disabled && (
+            <button type="button" onClick={() => { onChange(null); setPreview(null) }}
+              style={{ background: 'none', border: 'none', color: 'var(--red, #e05c6a)', cursor: 'pointer', fontSize: 12, fontFamily: MONO, padding: '10px 6px', minHeight: 44 }}>Remove</button>
           )}
         </div>
-        {!disabled && (
-          <button type="button" onClick={() => { onChange(null); setPreview(null) }}
-            style={{ background: 'none', border: 'none', color: 'var(--red, #e05c6a)', cursor: 'pointer', fontSize: 12, fontFamily: MONO, padding: '8px 6px' }}>Remove</button>
-        )}
-      </div>
+        {viewing && preview && <DocViewer url={preview} name={value} onClose={() => setViewing(false)} />}
+      </>
     )
   }
 
