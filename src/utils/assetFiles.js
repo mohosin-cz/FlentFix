@@ -1,4 +1,4 @@
-import { compressForUpload, newSubmissionId } from './vendorOnboard'
+import { compressForUpload, newSubmissionId, canDecodeImage } from './vendorOnboard'
 
 // Files attached to an asset: the purchase invoice, and a photo of the item
 // itself at handover.
@@ -25,6 +25,15 @@ export async function uploadAssetFile(supabase, folder, file, name = 'file') {
   let body = file, ext = 'pdf', type = 'application/pdf'
 
   if (!isPdf(file)) {
+    // Refuse what we could not show back. An iPhone HEIC uploads perfectly
+    // happily and is then unopenable in Chrome, so the failure surfaces weeks
+    // later as a broken thumbnail nobody can explain.
+    if (!(await canDecodeImage(file))) {
+      const heic = /heic|heif/i.test(file.type || '') || /\.(heic|heif)$/i.test(file.name || '')
+      throw new Error(heic
+        ? "That's an iPhone HEIC photo, which browsers can't display. Use Take photo, or save it as JPEG first."
+        : "That image can't be opened — try a JPEG or PNG.")
+    }
     const out = await compressForUpload(file)
     body = out.file
     ext = out.ext

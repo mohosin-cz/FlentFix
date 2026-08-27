@@ -3,15 +3,20 @@ import { typeForPath } from '../../utils/assetFiles'
 
 // Look at a stored document without downloading it.
 //
-// Objects in vendor-docs were written without a content type, so they come
-// back as application/octet-stream — which no browser will render inline, so
-// following the link just saves the file. Rather than only fixing it for
-// uploads from here on and leaving every existing document unviewable, this
-// fetches the bytes and rebuilds the blob with the type the extension implies.
-// The viewer then renders from an object URL it controls, so what the server
-// claims the file is stops mattering.
+// A PDF attachment previously had no way to open it at all — the signed URL
+// was only fetched for images — so reading a bill meant saving it first.
+// Everything renders here instead, from an object URL this owns.
 //
-// Download stays available — it is just no longer the only thing on offer.
+// It also has to cope with files that lie. An iPhone HEIC lands in the bucket
+// named .jpg (the compressor cannot decode HEIC, so it stores the original,
+// and the old extension fallback called anything not-PNG-not-WebP a JPEG).
+// So the served content type wins over the extension, and the bytes are test-
+// decoded before rendering: Chrome cannot display HEIC at all, and a blank
+// frame with no explanation is the worst of the available outcomes.
+//
+// Save stays available throughout — it is just no longer the only thing on
+// offer, and it is the only thing left when the browser genuinely cannot
+// render the format.
 
 const MONO = 'var(--font-mono, monospace)'
 
@@ -33,10 +38,25 @@ export default function DocViewer({ url, name, onClose }) {
         const res = await fetch(url)
         if (!res.ok) throw new Error(`Could not load it (${res.status})`)
         const raw = await res.blob()
-        // Trust the extension over the server: these objects are all stored as
-        // octet-stream, so the response type tells us nothing useful.
-        const type = typeForPath(name || url) || raw.type || 'application/octet-stream'
+        // The server's type wins when it says something specific — a file
+        // stored as .jpg may actually be HEIC, and believing the extension
+        // there produces a blank frame with no explanation. The extension is
+        // the fallback, for objects written with no type at all.
+        const served = raw.type && raw.type !== 'application/octet-stream' ? raw.type : ''
+        const type = served || typeForPath(name || url) || 'application/octet-stream'
         objectUrl = URL.createObjectURL(raw.type === type ? raw : new Blob([raw], { type }))
+
+        // Chrome cannot decode HEIC, so an <img> would just render nothing.
+        // Say so instead of showing an empty box.
+        if (type.startsWith('image/')) {
+          try { (await createImageBitmap(raw)).close?.() } catch {
+            if (alive) setState({
+              loading: false, href: objectUrl, type, undecodable: true,
+              err: `This is a ${(type.split('/')[1] || 'unsupported').toUpperCase()} image, which this browser can't display. Save it to view it.`,
+            })
+            return
+          }
+        }
         if (alive) setState({ loading: false, href: objectUrl, type, err: '' })
       } catch (e) {
         if (alive) setState({ loading: false, href: null, type: '', err: e.message || 'Could not load it' })
@@ -72,15 +92,15 @@ export default function DocViewer({ url, name, onClose }) {
       <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
         style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 12px 16px', overflow: 'auto' }}>
         {state.loading && <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontFamily: MONO }}>Loading…</div>}
-        {state.err && <div style={{ fontSize: 13, color: '#e8697a', fontFamily: MONO, textAlign: 'center', lineHeight: 1.6 }}>⚠ {state.err}</div>}
-        {state.href && (isPdf
+        {state.err && <div style={{ maxWidth: 340, fontSize: 13, color: state.undecodable ? 'rgba(255,255,255,0.75)' : '#e8697a', fontFamily: MONO, textAlign: 'center', lineHeight: 1.65 }}>⚠ {state.err}</div>}
+        {state.href && !state.undecodable && (isPdf
           ? <iframe title="Document" src={state.href} style={{ width: '100%', height: '100%', border: 'none', borderRadius: 8, background: '#fff' }} />
           : <img src={state.href} alt={name || ''} onClick={() => setZoom(z => !z)}
               style={{ maxWidth: zoom ? 'none' : '100%', maxHeight: zoom ? 'none' : '100%', width: zoom ? 'auto' : undefined,
                 objectFit: 'contain', borderRadius: 8, cursor: zoom ? 'zoom-out' : 'zoom-in', display: 'block' }} />)}
       </div>
 
-      {state.href && !isPdf && (
+      {state.href && !isPdf && !state.undecodable && (
         <div style={{ flexShrink: 0, textAlign: 'center', paddingBottom: 'max(12px, env(safe-area-inset-bottom))', fontSize: 11, color: 'rgba(255,255,255,0.45)', fontFamily: MONO }}>
           Tap the image to {zoom ? 'fit' : 'zoom'}
         </div>

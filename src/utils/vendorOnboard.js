@@ -69,8 +69,29 @@ export async function compressForUpload(blob) {
     console.warn('[compressForUpload] jpeg failed, sending original:', e?.message)
   }
 
-  const ext = /png$/i.test(file.type) ? 'png' : /webp$/i.test(file.type) ? 'webp' : 'jpg'
+  // Last resort: store the original under an extension that matches what it
+  // actually is. The old fallback treated anything that wasn't PNG or WebP as
+  // JPEG, so an iPhone HEIC — which the compressor above cannot decode, so it
+  // always lands here — was written as `.jpg` containing HEIC bytes. Nothing
+  // could then render it, and the file gave no clue why.
+  const sub = (file.type || '').split('/')[1]?.split(';')[0]?.toLowerCase()
+  const ext = ({ jpeg: 'jpg', 'svg+xml': 'svg' }[sub]) ||
+    (/^[a-z0-9]{2,5}$/.test(sub || '') ? sub : 'jpg')
   return { file, ext }
+}
+
+// Can this browser actually draw the image? HEIC decodes in Safari and not in
+// Chrome, so "it is an image" is not the same question as "we can show it".
+// Asked before upload, because a file nobody can open is worse stored than
+// refused — at least a refusal says what to do about it.
+export async function canDecodeImage(blob) {
+  try {
+    const bmp = await createImageBitmap(blob)
+    bmp.close?.()
+    return true
+  } catch {
+    return false
+  }
 }
 
 // ─── Upload one doc to the private vendor-docs bucket ───────────────────────
