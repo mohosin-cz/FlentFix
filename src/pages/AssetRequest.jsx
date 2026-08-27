@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase'
 import FlentWordmark from '../components/FlentWordmark'
 import { CATEGORIES } from '../utils/assetMeta'
 import { DETAIL_FIELDS } from '../utils/assetRequest'
-import InvoiceCapture from '../components/vendor/InvoiceCapture'
+import CaptureUpload from '../components/vendor/CaptureUpload'
+import { assetFolder, IMAGE_ONLY } from '../utils/assetFiles'
 import RequestStepper from '../components/vendor/RequestStepper'
 
 // The vendor's end of the asset pipeline, on one public link.
@@ -115,6 +116,7 @@ export default function AssetRequest() {
   const [details, setDetails] = useState({})
   const [invoiceNo, setInvoiceNo] = useState('')
   const [invoicePath, setInvoicePath] = useState(null)
+  const [photoPath, setPhotoPath] = useState(null)
 
   const refresh = useCallback(async (addr) => {
     const { data, error } = await supabase.rpc('asset_request_list', { p_email: addr })
@@ -164,11 +166,12 @@ export default function AssetRequest() {
     }
     if (invoiceNo.trim()) args.p_invoice_no = invoiceNo.trim()
     if (invoicePath) args.p_invoice_path = invoicePath
+    if (photoPath) args.p_photo_path = photoPath
 
     const { error } = await supabase.rpc('asset_request_log_item', args)
     setBusy('')
     if (error) { setErr(error.message); return }
-    setLogging(null); setSerial(''); setDetails({}); setInvoiceNo(''); setInvoicePath(null)
+    setLogging(null); setSerial(''); setDetails({}); setInvoiceNo(''); setInvoicePath(null); setPhotoPath(null)
     refresh(email.trim())
   }
 
@@ -217,6 +220,17 @@ export default function AssetRequest() {
             </label>
           ))}
 
+          {/* What it actually looks like on the day it changed hands. Worth
+              more than any condition dropdown when something is later returned
+              scratched and nobody can say whether it arrived that way. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 12, borderTop: '1px solid var(--border, #2e3040)', marginTop: 4 }}>
+            <span style={{ fontSize: 10, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Photo of the item</span>
+            <CaptureUpload supabase={supabase} folder={assetFolder(logging.id)} name="item"
+              accept={IMAGE_ONLY} hint="A clear photo of the item as you received it"
+              camTitle="Photograph the item" doneLabel="Photo attached"
+              value={photoPath} onChange={setPhotoPath} disabled={busy === 'log'} />
+          </div>
+
           {/* The bill that came with it. Optional — an item with no paperwork
               is still worth logging, and blocking on it would just mean the
               details never get entered at all. */}
@@ -224,7 +238,9 @@ export default function AssetRequest() {
             <span style={{ fontSize: 10, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, paddingTop: 8 }}>Invoice / bill <span style={{ textTransform: 'none', letterSpacing: 0 }}>(if you have it)</span></span>
             <Input value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} placeholder="Invoice number" style={{ fontFamily: MONO }} />
             <div style={{ marginTop: 4 }}>
-              <InvoiceCapture supabase={supabase} folder={`asset-invoices/${logging.id}`}
+              <CaptureUpload supabase={supabase} folder={assetFolder(logging.id)} name="invoice"
+                hint="Photo of the bill, or a PDF" camTitle="Photograph the invoice"
+                doneLabel="Invoice attached"
                 value={invoicePath} onChange={setInvoicePath} disabled={busy === 'log'} />
             </div>
           </div>

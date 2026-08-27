@@ -1,18 +1,20 @@
 import { useState, useRef, useEffect } from 'react'
 import LiveCameraSheet from '../LiveCameraSheet'
 import { signedDocUrl } from '../../utils/vendorHub'
-import { uploadAssetInvoice, invoiceIsPdfPath, INVOICE_ACCEPT } from '../../utils/assetInvoice'
+import { uploadAssetFile, isPdfPath, IMAGE_OR_PDF } from '../../utils/assetFiles'
 
-// Attach the purchase invoice for an asset: photograph it, or pick a file.
+// Photograph it, or pick a file. Used for an asset's purchase invoice and for
+// the photo of the item itself.
 //
-// Both routes, always. The bill is usually in the box, so the camera is the
-// fast path — but it may equally have arrived as a PDF by email, and on Android
-// `capture` is a request the OS is free to ignore, so a file picker that opens
-// the gallery is never a substitute for a real camera. getUserMedia drives the
-// capture and the picker stays as its own button rather than a fallback.
+// Both routes, always. The thing being captured is usually in front of you, so
+// the camera is the fast path — but an invoice may equally have arrived as a
+// PDF by email. On Android `capture` is a request the OS is free to ignore, so
+// a file picker that opens the gallery is never a substitute for a real camera:
+// getUserMedia drives the capture and the picker stays its own button rather
+// than a fallback.
 //
-// Uploads on selection rather than on form submit: a bill photographed on a
-// building site should not be riding on the form staying open.
+// Uploads on selection rather than on form submit, because something
+// photographed on a building site should not be riding on the form staying open.
 
 const MONO = 'var(--font-mono, monospace)'
 
@@ -23,7 +25,14 @@ const btn = {
   background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', flex: '1 1 130px',
 }
 
-export default function InvoiceCapture({ value, folder, supabase, onChange, disabled }) {
+export default function CaptureUpload({
+  value, folder, supabase, onChange, disabled,
+  name = 'file',
+  accept = IMAGE_OR_PDF,
+  hint = 'Photo, or a PDF',
+  camTitle = 'Take photo',
+  doneLabel = 'Attached',
+}) {
   const [cam, setCam] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -34,7 +43,7 @@ export default function InvoiceCapture({ value, folder, supabase, onChange, disa
   // whenever the stored path changes rather than being resolved once.
   useEffect(() => {
     let alive = true
-    if (!value || invoiceIsPdfPath(value)) {
+    if (!value || isPdfPath(value)) {
       const t = setTimeout(() => { if (alive) setPreview(null) }, 0)
       return () => { alive = false; clearTimeout(t) }
     }
@@ -46,25 +55,28 @@ export default function InvoiceCapture({ value, folder, supabase, onChange, disa
     if (!file) return
     setBusy(true); setErr('')
     try {
-      const path = await uploadAssetInvoice(supabase, folder, file)
+      const path = await uploadAssetFile(supabase, folder, file, name)
       onChange(path)
     } catch (e) {
-      setErr(e.message || 'Could not upload that.')
+      const msg = /row-level security/i.test(e.message || '')
+        ? "Upload isn't permitted for this account yet — the office needs to enable it."
+        : (e.message || 'Could not upload that.')
+      setErr(msg)
     }
     setBusy(false)
   }
 
   if (value) {
-    const pdf = invoiceIsPdfPath(value)
+    const pdf = isPdfPath(value)
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 9 }}>
         {pdf
           ? <span style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(224,92,106,0.12)', color: 'var(--red, #e05c6a)', fontSize: 9, fontWeight: 700, fontFamily: MONO }}>PDF</span>
           : preview
-            ? <img src={preview} alt="Invoice" style={{ width: 40, height: 40, flexShrink: 0, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border, #2e3040)' }} />
+            ? <img src={preview} alt="" style={{ width: 40, height: 40, flexShrink: 0, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border, #2e3040)' }} />
             : <span style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: 'var(--bg-panel, #1e2028)' }} />}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12.5, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ Invoice attached</div>
+          <div style={{ fontSize: 12.5, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ {doneLabel}</div>
           {preview && !pdf && (
             <a href={preview} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>view full size</a>
           )}
@@ -87,19 +99,17 @@ export default function InvoiceCapture({ value, folder, supabase, onChange, disa
           ⤒ Choose file
         </button>
       </div>
-      <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 5 }}>
-        Photo of the bill, or a PDF
-      </div>
+      <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 5 }}>{hint}</div>
       {err && (
         <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: MONO, lineHeight: 1.5, wordBreak: 'break-word' }}>⚠ {err}</div>
       )}
 
-      <input ref={fileRef} type="file" accept={INVOICE_ACCEPT} style={{ display: 'none' }}
+      <input ref={fileRef} type="file" accept={accept} style={{ display: 'none' }}
         onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; take(f) }} />
 
       <LiveCameraSheet
         open={cam}
-        title="Photograph the invoice"
+        title={camTitle}
         onClose={() => setCam(false)}
         onDone={fs => { setCam(false); if (fs.length) take(fs[0]) }}
         onFallback={() => { setCam(false); fileRef.current?.click() }}

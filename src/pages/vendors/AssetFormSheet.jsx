@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { fmtDate, initials, avatarColor } from '../../utils/vendorHub'
 import { CATEGORIES, CONDITIONS } from '../../utils/assetMeta'
-import InvoiceCapture from '../../components/vendor/InvoiceCapture'
+import CaptureUpload from '../../components/vendor/CaptureUpload'
+import { assetFolder, IMAGE_ONLY } from '../../utils/assetFiles'
 import AssetStatusChip from './AssetStatusChip'
 
 // Log an asset, and hand it to a vendor by their email.
@@ -43,6 +44,7 @@ export default function AssetFormSheet({ mode, asset, vendors, actor, onClose, o
     notes: asset?.notes || '',
   }))
   const [invoicePath, setInvoicePath] = useState(asset?.invoice_doc_path || null)
+  const [photoPath, setPhotoPath] = useState(asset?.photo_path || null)
   const [email, setEmail] = useState(asset?.assigned_email || '')
   const [busy, setBusy] = useState('')
   const [err, setErr] = useState('')
@@ -107,6 +109,7 @@ export default function AssetFormSheet({ mode, asset, vendors, actor, onClose, o
       value: f.value === '' ? null : Number(f.value),
       invoice_no: f.invoice_no.trim() || null,
       invoice_doc_path: invoicePath,
+      photo_path: photoPath,
       notes: f.notes.trim() || null,
     }
 
@@ -234,8 +237,24 @@ export default function AssetFormSheet({ mode, asset, vendors, actor, onClose, o
             </div>
             <div style={{ flex: '1 1 220px', minWidth: 0 }}>
               <Row label="Invoice copy">
-                <InvoiceCapture supabase={supabase} folder={`asset-invoices/staff/${asset?.id || 'new'}`}
+                <CaptureUpload supabase={supabase} folder={assetFolder(`staff/${asset?.id || 'new'}`)} name="invoice"
+                  hint="Photo of the bill, or a PDF" camTitle="Photograph the invoice"
+                  doneLabel="Invoice attached"
                   value={invoicePath} onChange={setInvoicePath} />
+              </Row>
+            </div>
+          </div>
+
+          {/* What it looks like. Worth more than a condition dropdown when
+              something comes back scratched and nobody can say whether it
+              went out that way. */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+              <Row label="Photo of the item">
+                <CaptureUpload supabase={supabase} folder={assetFolder(`staff/${asset?.id || 'new'}`)} name="item"
+                  accept={IMAGE_ONLY} hint="A clear photo of the item"
+                  camTitle="Photograph the item" doneLabel="Photo attached"
+                  value={photoPath} onChange={setPhotoPath} />
               </Row>
             </div>
           </div>
