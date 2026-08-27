@@ -87,6 +87,33 @@ function Shell({ children }) {
   )
 }
 
+// Two tiers of label instead of one.
+//
+// Every field on this form wore the same uppercase mono label, so nothing led
+// and the whole thing read as a wall. Section headings keep that treatment;
+// field labels drop to quiet sentence case underneath them. This is a page
+// vendors open on a phone, so it stays a single column — the clutter was
+// never the layout, it was that everything shouted at the same volume.
+function Section({ title, children, first }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 11, paddingTop: first ? 0 : 16, marginTop: first ? 0 : 4, borderTop: first ? 'none' : '1px solid var(--border, #2e3040)' }}>
+      <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{title}</div>
+      {children}
+    </div>
+  )
+}
+
+function Field({ label, note, children }) {
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <span style={{ fontSize: 12.5, color: 'var(--text-dim, #9394a8)' }}>
+        {label}{note && <span style={{ color: 'var(--text-muted, #6b6d82)' }}> · {note}</span>}
+      </span>
+      {children}
+    </label>
+  )
+}
+
 function Err({ children }) {
   if (!children) return null
   return (
@@ -201,54 +228,54 @@ export default function AssetRequest() {
     return (
       <Shell>
         <button type="button" onClick={() => { setLogging(null); setErr('') }}
-          style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 13, cursor: 'pointer', fontFamily: MONO, padding: 0 }}>‹ back</button>
+          style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 13, cursor: 'pointer', fontFamily: MONO, padding: '0 8px', marginInlineStart: -8, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>‹ back</button>
         <div style={{ fontSize: 19, fontWeight: 700 }}>Log your {logging.item_name.toLowerCase()}</div>
         <div style={{ fontSize: 13, color: 'var(--text-dim, #9394a8)', lineHeight: 1.6 }}>
           Fill in what is written on the item itself. This is what the office will hold against your name.
         </div>
-        <form onSubmit={saveLog} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <span style={{ fontSize: 10, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Serial / ID number</span>
-            <Input value={serial} onChange={e => setSerial(e.target.value)} placeholder="As printed on the item"
-              autoCapitalize="characters" style={{ fontFamily: MONO }} />
-          </label>
-          {fields.map(f => (
-            <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <span style={{ fontSize: 10, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{f.label}</span>
-              <Input value={details[f.key] || ''} onChange={e => setDetails(d => ({ ...d, [f.key]: e.target.value }))}
-                placeholder={f.placeholder || ''} style={f.mono ? { fontFamily: MONO } : null} />
-            </label>
-          ))}
+        <form onSubmit={saveLog} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <Section first title="The item">
+            <Field label="Serial / ID number" note="as printed on it">
+              <Input value={serial} onChange={e => setSerial(e.target.value)} placeholder="e.g. SN889231"
+                autoCapitalize="characters" style={{ fontFamily: MONO }} />
+            </Field>
+            {fields.map(f => (
+              <Field key={f.key} label={f.label}>
+                <Input value={details[f.key] || ''} onChange={e => setDetails(d => ({ ...d, [f.key]: e.target.value }))}
+                  placeholder={f.placeholder || ''} style={f.mono ? { fontFamily: MONO } : null} />
+              </Field>
+            ))}
+          </Section>
 
-          {/* What it actually looks like on the day it changed hands. Worth
-              more than any condition dropdown when something is later returned
-              scratched and nobody can say whether it arrived that way. */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 12, borderTop: '1px solid var(--border, #2e3040)', marginTop: 4 }}>
-            <span style={{ fontSize: 10, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Photo of the item</span>
-            <CaptureUpload supabase={supabase} folder={assetFolder(logging.id)} name="item"
-              accept={IMAGE_ONLY} hint="A clear photo of the item as you received it"
-              camTitle="Photograph the item" doneLabel="Photo attached"
-              value={photoPath} onChange={setPhotoPath} disabled={busy === 'log'} />
+          <Section title="Photo & paperwork">
+            {/* What it looks like on the day it changed hands. Worth more than
+                any condition dropdown when something is later returned
+                scratched and nobody can say whether it arrived that way. */}
+            <Field label="Photo of the item">
+              <CaptureUpload supabase={supabase} folder={assetFolder(logging.id)} name="item"
+                accept={IMAGE_ONLY} icon="📷" hint="As you received it"
+                camTitle="Photograph the item" doneLabel="Photo attached"
+                value={photoPath} onChange={setPhotoPath} disabled={busy === 'log'} />
+            </Field>
+
+            {/* Optional — an item with no paperwork is still worth logging, and
+                blocking on it would just mean the details never get entered. */}
+            <Field label="Invoice number" note="if you have it">
+              <Input value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)}
+                placeholder="e.g. INV/2026/0042" style={{ fontFamily: MONO }} />
+            </Field>
+            <CaptureUpload supabase={supabase} folder={assetFolder(logging.id)} name="invoice"
+              icon="🧾" hint="Photo of the bill, or a PDF" camTitle="Photograph the invoice"
+              doneLabel="Invoice attached"
+              value={invoicePath} onChange={setInvoicePath} disabled={busy === 'log'} />
+          </Section>
+
+          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Err>{err}</Err>
+            <Primary type="submit" disabled={busy === 'log'}>
+              {busy === 'log' ? 'Saving…' : 'Save details'}
+            </Primary>
           </div>
-
-          {/* The bill that came with it. Optional — an item with no paperwork
-              is still worth logging, and blocking on it would just mean the
-              details never get entered at all. */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 4, borderTop: '1px solid var(--border, #2e3040)', marginTop: 4 }}>
-            <span style={{ fontSize: 10, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, paddingTop: 8 }}>Invoice / bill <span style={{ textTransform: 'none', letterSpacing: 0 }}>(if you have it)</span></span>
-            <Input value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} placeholder="Invoice number" style={{ fontFamily: MONO }} />
-            <div style={{ marginTop: 4 }}>
-              <CaptureUpload supabase={supabase} folder={assetFolder(logging.id)} name="invoice"
-                hint="Photo of the bill, or a PDF" camTitle="Photograph the invoice"
-                doneLabel="Invoice attached"
-                value={invoicePath} onChange={setInvoicePath} disabled={busy === 'log'} />
-            </div>
-          </div>
-
-          <Err>{err}</Err>
-          <Primary type="submit" disabled={busy === 'log'}>
-            {busy === 'log' ? 'Saving…' : 'Save details'}
-          </Primary>
         </form>
       </Shell>
     )

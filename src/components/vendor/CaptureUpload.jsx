@@ -18,11 +18,19 @@ import { uploadAssetFile, isPdfPath, IMAGE_OR_PDF } from '../../utils/assetFiles
 
 const MONO = 'var(--font-mono, monospace)'
 
-const btn = {
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-  padding: '10px 14px', minHeight: 42, fontSize: 12.5, fontWeight: 600, borderRadius: 9,
-  cursor: 'pointer', fontFamily: MONO, border: '1px dashed var(--border-dash, #3a3d52)',
-  background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', flex: '1 1 130px',
+// One card per file, not a label plus two big buttons plus a hint. Two of
+// those side by side was most of the visual weight on a form that is mostly
+// text fields, and it made an optional attachment read louder than the serial
+// number nobody is allowed to skip.
+// Text-styled, but still a real target: 44px tall with a negative margin so
+// the hit box extends past the visible text without pushing the card open.
+// A link that only looks tappable is the kind of thing that works on a desk
+// and fails on a phone held in one hand at a site.
+const link = {
+  background: 'none', border: 'none', padding: '0 6px', margin: '-6px 0',
+  minHeight: 44, display: 'inline-flex', alignItems: 'center',
+  fontSize: 12.5, fontWeight: 600, fontFamily: MONO, cursor: 'pointer',
+  color: 'var(--accent, #c8963e)',
 }
 
 export default function CaptureUpload({
@@ -32,6 +40,7 @@ export default function CaptureUpload({
   hint = 'Photo, or a PDF',
   camTitle = 'Take photo',
   doneLabel = 'Attached',
+  icon = '📎',
 }) {
   const [cam, setCam] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -91,15 +100,21 @@ export default function CaptureUpload({
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" disabled={disabled || busy} onClick={() => setCam(true)} style={btn}>
-          {busy ? 'Uploading…' : '📷 Take photo'}
-        </button>
-        <button type="button" disabled={disabled || busy} onClick={() => fileRef.current?.click()} style={btn}>
-          ⤒ Choose file
-        </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 10 }}>
+        <span aria-hidden="true" style={{ fontSize: 17, lineHeight: 1, opacity: busy ? 0.5 : 0.8 }}>{icon}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {busy
+            ? <div style={{ fontSize: 12.5, color: 'var(--accent, #c8963e)', fontFamily: MONO }}>Uploading…</div>
+            : (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' }}>
+                <button type="button" disabled={disabled} onClick={() => setCam(true)} style={link}>Take photo</button>
+                <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>or</span>
+                <button type="button" disabled={disabled} onClick={() => fileRef.current?.click()} style={link}>choose a file</button>
+              </div>
+            )}
+          <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.4 }}>{hint}</div>
+        </div>
       </div>
-      <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 5 }}>{hint}</div>
       {err && (
         <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: MONO, lineHeight: 1.5, wordBreak: 'break-word' }}>⚠ {err}</div>
       )}
