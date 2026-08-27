@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { fmtDate, initials, avatarColor } from '../../utils/vendorHub'
 import { CATEGORIES, CONDITIONS } from '../../utils/assetMeta'
+import InvoiceCapture from '../../components/vendor/InvoiceCapture'
 import AssetStatusChip from './AssetStatusChip'
 
 // Log an asset, and hand it to a vendor by their email.
@@ -38,8 +39,10 @@ export default function AssetFormSheet({ mode, asset, vendors, actor, onClose, o
     make: asset?.make || '', model: asset?.model || '',
     condition: asset?.condition || 'good',
     purchase_date: asset?.purchase_date || '', value: asset?.value ?? '',
+    invoice_no: asset?.invoice_no || '',
     notes: asset?.notes || '',
   }))
+  const [invoicePath, setInvoicePath] = useState(asset?.invoice_doc_path || null)
   const [email, setEmail] = useState(asset?.assigned_email || '')
   const [busy, setBusy] = useState('')
   const [err, setErr] = useState('')
@@ -102,6 +105,8 @@ export default function AssetFormSheet({ mode, asset, vendors, actor, onClose, o
       condition: f.condition,
       purchase_date: f.purchase_date || null,
       value: f.value === '' ? null : Number(f.value),
+      invoice_no: f.invoice_no.trim() || null,
+      invoice_doc_path: invoicePath,
       notes: f.notes.trim() || null,
     }
 
@@ -219,6 +224,20 @@ export default function AssetFormSheet({ mode, asset, vendors, actor, onClose, o
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <div style={{ flex: '1 1 150px', minWidth: 0 }}><Row label="Purchased"><input type="date" value={f.purchase_date} onChange={set('purchase_date')} style={inputStyle} /></Row></div>
             <div style={{ flex: '1 1 150px', minWidth: 0 }}><Row label="Value (₹)"><input value={f.value} onChange={set('value')} inputMode="decimal" placeholder="0" style={{ ...inputStyle, fontFamily: MONO }} /></Row></div>
+          </div>
+
+          {/* The bill behind the value. An asset carrying an amount with
+              nothing backing it is the wrong way round for a warranty claim. */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 150px', minWidth: 0 }}>
+              <Row label="Invoice no."><input value={f.invoice_no} onChange={set('invoice_no')} placeholder="Bill number" style={{ ...inputStyle, fontFamily: MONO }} /></Row>
+            </div>
+            <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+              <Row label="Invoice copy">
+                <InvoiceCapture supabase={supabase} folder={`asset-invoices/staff/${asset?.id || 'new'}`}
+                  value={invoicePath} onChange={setInvoicePath} />
+              </Row>
+            </div>
           </div>
 
           {/* the join */}

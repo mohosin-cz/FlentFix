@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import FlentWordmark from '../components/FlentWordmark'
 import { CATEGORIES } from '../utils/assetMeta'
 import { DETAIL_FIELDS } from '../utils/assetRequest'
+import InvoiceCapture from '../components/vendor/InvoiceCapture'
 import RequestStepper from '../components/vendor/RequestStepper'
 
 // The vendor's end of the asset pipeline, on one public link.
@@ -112,6 +113,8 @@ export default function AssetRequest() {
   const [logging, setLogging] = useState(null)   // request row
   const [serial, setSerial] = useState('')
   const [details, setDetails] = useState({})
+  const [invoiceNo, setInvoiceNo] = useState('')
+  const [invoicePath, setInvoicePath] = useState(null)
 
   const refresh = useCallback(async (addr) => {
     const { data, error } = await supabase.rpc('asset_request_list', { p_email: addr })
@@ -150,13 +153,22 @@ export default function AssetRequest() {
     setErr(''); setBusy('log')
     const clean = {}
     for (const [k, v] of Object.entries(details)) if (String(v || '').trim()) clean[k] = String(v).trim()
-    const { error } = await supabase.rpc('asset_request_log_item', {
+    // The invoice arguments are only sent when there is an invoice. PostgREST
+    // resolves the function by the arguments given, so a four-argument call
+    // matches both the old signature and the new one (whose invoice params
+    // default to null) — which means logging an item keeps working whether or
+    // not the invoice migration has been applied yet.
+    const args = {
       p_email: email.trim(), p_request_id: logging.id,
       p_serial: serial.trim() || null, p_details: clean,
-    })
+    }
+    if (invoiceNo.trim()) args.p_invoice_no = invoiceNo.trim()
+    if (invoicePath) args.p_invoice_path = invoicePath
+
+    const { error } = await supabase.rpc('asset_request_log_item', args)
     setBusy('')
     if (error) { setErr(error.message); return }
-    setLogging(null); setSerial(''); setDetails({})
+    setLogging(null); setSerial(''); setDetails({}); setInvoiceNo(''); setInvoicePath(null)
     refresh(email.trim())
   }
 
@@ -204,6 +216,19 @@ export default function AssetRequest() {
                 placeholder={f.placeholder || ''} style={f.mono ? { fontFamily: MONO } : null} />
             </label>
           ))}
+
+          {/* The bill that came with it. Optional — an item with no paperwork
+              is still worth logging, and blocking on it would just mean the
+              details never get entered at all. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 4, borderTop: '1px solid var(--border, #2e3040)', marginTop: 4 }}>
+            <span style={{ fontSize: 10, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, paddingTop: 8 }}>Invoice / bill <span style={{ textTransform: 'none', letterSpacing: 0 }}>(if you have it)</span></span>
+            <Input value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} placeholder="Invoice number" style={{ fontFamily: MONO }} />
+            <div style={{ marginTop: 4 }}>
+              <InvoiceCapture supabase={supabase} folder={`asset-invoices/${logging.id}`}
+                value={invoicePath} onChange={setInvoicePath} disabled={busy === 'log'} />
+            </div>
+          </div>
+
           <Err>{err}</Err>
           <Primary type="submit" disabled={busy === 'log'}>
             {busy === 'log' ? 'Saving…' : 'Save details'}
