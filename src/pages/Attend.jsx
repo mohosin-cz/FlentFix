@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import PortalPayroll from '../components/vendor/PortalPayroll'
 import { Field, Input } from '../components/ui'
 import { getPosition, fmtTime, fmtDate, fmtDuration, fmtElapsed, fmtBreakLeft, maskAccount, initials, avatarColor } from '../utils/vendorHub'
 import { compressForUpload, newSubmissionId } from '../utils/vendorOnboard'
@@ -174,6 +175,7 @@ export default function Attend() {
   const [err, setErr] = useState('')
   const [confirm, setConfirm] = useState(null)
   const [tab, setTab] = useState('time')
+  const [password, setPassword] = useState('')
   const [profile, setProfile] = useState(null)
   const [history, setHistory] = useState(null)
   const [avatarBusy, setAvatarBusy] = useState(false)
@@ -285,13 +287,21 @@ export default function Attend() {
     setErr('')
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setErr('Enter a valid email address.'); return }
     setBusy(true)
-    const { data, error } = await supabase.rpc('attend_login', { p_email: email.trim() })
+    // Send the password only when one was typed. PostgREST resolves the
+    // function by the arguments given, so an email-only call matches both the
+    // old single-argument version and the new one (whose password defaults to
+    // null) — which keeps seventeen people punching in while the migration is
+    // still pending, rather than locking them out the moment this deploys.
+    const args = { p_email: email.trim() }
+    if (password.trim()) args.p_password = password.trim()
+    const { data, error } = await supabase.rpc('attend_login', args)
     setBusy(false)
     if (error) { setErr(error.message); return }
     const v = Array.isArray(data) ? data[0] : data
     if (!v || !v.token) { setErr('Could not sign in — check the email and try again.'); return }
     try { localStorage.setItem(TOKEN_KEY, v.token) } catch { /* noop */ }
     tokenRef.current = v.token
+    setPassword('')
     enterPortal(v)
   }
 
@@ -433,11 +443,21 @@ export default function Attend() {
       <Shell>
         <div>
           <div style={{ fontSize: 18, fontWeight: 700 }}>Vendor sign in</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted, #6b6d82)', marginTop: 3, lineHeight: 1.5 }}>Enter the email you gave at onboarding to sign in.</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted, #6b6d82)', marginTop: 3, lineHeight: 1.5 }}>Enter the email you gave at onboarding, and the password the office gave you.</div>
         </div>
         <Field label="Email"><Input value={email} onChange={setEmail} placeholder="you@example.com" type="email" inputMode="email" autoCorrect="off" /></Field>
+        {/* Optional until the office has issued one. Two people can share an
+            inbox, but not a password — so this is also what tells them apart
+            at sign-in, rather than the email quietly picking one of them. */}
+        <Field label="Password">
+          <Input value={password} onChange={setPassword} placeholder="Leave blank if you have not been given one"
+            type="password" autoCorrect="off" autoCapitalize="characters" />
+        </Field>
         {err && <RedStrip title="Couldn’t sign in">{err}</RedStrip>}
         <button type="button" onClick={login} disabled={busy} style={bigBtn('primary', busy)}>{busy ? 'Signing in…' : 'Sign in →'}</button>
+        <div style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', textAlign: 'center', lineHeight: 1.6 }}>
+          Forgotten it? The office can issue a new one — it cannot be looked up.
+        </div>
       </Shell>
     )
   }
@@ -678,11 +698,7 @@ export default function Attend() {
 
           {/* ── PAYROLL ──────────────────────────────────────────────────── */}
           {tab === 'payroll' && (
-            <div style={{ padding: '48px 24px', textAlign: 'center', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 12 }}>
-              <div style={{ fontSize: 30, marginBottom: 10 }}>₹</div>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>Payroll — coming soon</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', marginTop: 6, lineHeight: 1.5, maxWidth: 300, marginLeft: 'auto', marginRight: 'auto' }}>Your earnings, payment history and payslips will appear here once payroll goes live.</div>
-            </div>
+            <PortalPayroll token={tokenRef.current} vendorName={vendor?.full_name || profile?.full_name || ''} />
           )}
         </div>
       </div>
