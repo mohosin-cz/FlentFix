@@ -4,6 +4,7 @@ import { initials, avatarColor } from '../../utils/vendorHub'
 import InvoiceDoc from '../../components/vendor/InvoiceDoc'
 import InvoiceFlow from './InvoiceFlow'
 import ShareLinks from '../../components/vendor/ShareLinks'
+import InvoicePrintSheet from '../../components/vendor/InvoicePrintSheet'
 import { INVOICE_STATUS, STATUS_ORDER, inr, sumLines, sendBlockers, monthLabel } from '../../utils/vendorInvoice'
 
 // The signature stage: reviewed → invoiced → signed → final.
@@ -241,6 +242,8 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
   // on a screen, which several open rows would undo.
   const [expanded, setExpanded] = useState(null)
   const [queueOpen, setQueueOpen] = useState(false)
+  const [printOpen, setPrintOpen] = useState(false)
+  const [markedSent, setMarkedSent] = useState(() => new Set())
 
   const load = useCallback(async () => {
     const [{ data: inv, error: iErr }, { data: props }, { data: vends }] = await Promise.all([
@@ -309,6 +312,7 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
   const readyToSend = rows.filter(r => r.invoice && r.invoice.status === 'draft' && r.blockers.length === 0)
   // Issued but not yet signed — the links still waiting to be passed on.
   const pendingSend = rows.filter(r => ['sent', 'viewed'].includes(r.status) && r.link)
+  const signedRows = rows.filter(r => r.status === 'signed' && r.invoice?.snapshot)
   const missing = (payouts || []).length - (invoices || []).length
   const allSigned = rows.length > 0 && rows.every(r => r.status === 'signed' || r.status === 'void')
 
@@ -352,6 +356,24 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
     setFlowOpen(true)
   }
 
+  // Editing after issue is allowed, but never quietly: reopening withdraws the
+  // link that is already out there and, if it was signed, discards a signature
+  // somebody gave against numbers that are about to change.
+  async function reopen(r) {
+    const inv = r.invoice
+    const warn = inv.status === 'signed'
+      ? `${r.name} signed this on ${new Date(inv.signed_at).toLocaleDateString('en-IN')}.\n\n` +
+        `Editing discards that signature and withdraws their link — they will have to sign again. ` +
+        `The signed copy is kept on the record.\n\nEdit anyway?`
+      : `This withdraws the link already sent to ${r.name} and issues a new one.\n\nEdit anyway?`
+    if (!window.confirm(warn)) return
+    setErr('')
+    const { error } = await supabase.rpc('invoice_reopen', { p_invoice_id: inv.id, p_reason: 'edited by staff' })
+    if (error) { setErr(error.message); return }
+    await load()
+    setEditing({ ...inv, status: 'draft', _name: r.name })
+  }
+
   async function voidInvoice(inv) {
     if (!window.confirm(`Void ${inv.invoice_no}? The vendor's link stops working and you can raise a fresh one.`)) return
     setErr('')
@@ -369,6 +391,30 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
     load()
   }
 
+
+  // Bulk delivery, within what a browser allows. WhatsApp and mailto each open
+  // one window, and popup blockers stop the second — so "send all" is a list
+  // you work down, with the ones you have done ticked off, plus two exports
+  // for anyone who would rather do it from a mail-merge or a phone.
+  function copyAllLinks() {
+    const text = pendingSend
+      .map(r => `${r.name} — ${r.invoice.invoice_no} — ${inr(r.invoice.net_payable)}\n${r.link}`)
+      .join('\n\n')
+    navigator.clipboard?.writeText(text)
+      .then(() => setNote(`Copied ${pendingSend.length} links.`), () => setErr('Could not copy.'))
+  }
+
+  function downloadLinksCsv() {
+    const cols = ['vendor', 'invoice_no', 'net_payable', 'phone', 'email', 'link']
+    const esc = v => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
+    const body = pendingSend.map(r => [r.name, r.invoice.invoice_no, Math.round(r.invoice.net_payable), r.phone, r.email, r.link])
+    const csv = [cols.join(','), ...body.map(x => x.map(esc).join(','))].join('\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `invoice-links-${String(period.period_month).slice(0, 7)}.csv`
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url)
+  }
 
   if (invoices === null) {
     return <div style={{ padding: 22, fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Loading invoices…</div>
@@ -400,6 +446,11 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
           {readyToSend.length > 0 && (
             <button type="button" onClick={() => issue(readyToSend.map(r => r.invoice.id))} disabled={busy === 'send'} style={actBtn}>
               {busy === 'send' ? 'Issuing…' : `Issue ${readyToSend.length} for signing`}
+            </button>
+          )}
+          {signedRows.length > 0 && (
+            <button type="button" onClick={() => setPrintOpen(true)} style={actBtn}>
+              ⤓ Download {signedRows.length} signed
             </button>
           )}
           {pendingSend.length > 0 && (
@@ -480,9 +531,16 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
 
                   {r.invoice && (
                     <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <button type="button" onClick={() => setEditing({ ...r.invoice, _name: r.name })} style={actBtn}>
-                        {r.invoice.status === 'draft' ? 'Edit PIDs' : 'View split'}
+                      <button type="button"
+                        onClick={() => r.invoice.status === 'draft'
+                          ? setEditing({ ...r.invoice, _name: r.name })
+                          : reopen(r)}
+                        style={actBtn}>
+                        {r.invoice.status === 'draft' ? 'Edit PIDs' : 'Edit'}
                       </button>
+                      {r.invoice.status !== 'draft' && (
+                        <button type="button" onClick={() => setEditing({ ...r.invoice, _name: r.name })} style={actBtn}>View split</button>
+                      )}
                       {canSend && (
                         <button type="button" onClick={() => issue([r.invoice.id])} disabled={busy === 'send'} style={primaryBtn}>
                           {busy === 'send' ? 'Issuing…' : 'Issue for signing'}
@@ -526,14 +584,24 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
           onClose={() => setQueueOpen(false)}>
           <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.55 }}>
             Each goes from your own WhatsApp or mail client, so the vendor sees it
-            from you. Signed ones drop off this list on their own.
+            from you. Tick them off as you go — signed ones drop off this list on
+            their own.
           </div>
+          {pendingSend.length > 1 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button type="button" onClick={copyAllLinks} style={actBtn}>Copy all {pendingSend.length} links</button>
+              <button type="button" onClick={downloadLinksCsv} style={actBtn}>⤓ CSV</button>
+              <span style={{ marginInlineStart: 'auto', fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
+                {pendingSend.filter(r => markedSent.has(r.payout.id)).length} of {pendingSend.length} done
+              </span>
+            </div>
+          )}
           {pendingSend.length === 0 ? (
             <div style={{ padding: '22px 4px', textAlign: 'center', fontSize: 12.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
               Everything issued has been signed.
             </div>
           ) : pendingSend.map(r => (
-            <div key={r.payout.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '11px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
+            <div key={r.payout.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '11px 0', borderTop: '1px solid var(--border, #2e3040)', opacity: markedSent.has(r.payout.id) ? 0.55 : 1, transition: 'opacity .15s' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                 <Ava name={r.name} size={28} />
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -542,6 +610,14 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
                     {r.invoice.invoice_no} · {inr(r.invoice.net_payable)}
                   </div>
                 </div>
+                <button type="button" onClick={() => setMarkedSent(s => { const n = new Set(s); n.has(r.payout.id) ? n.delete(r.payout.id) : n.add(r.payout.id); return n })}
+                  title="Mark as sent"
+                  style={{ minHeight: 40, minWidth: 40, borderRadius: 9, cursor: 'pointer', fontFamily: MONO, fontSize: 13,
+                    border: `1px solid ${markedSent.has(r.payout.id) ? 'var(--green, #3dba7a)' : 'var(--border, #2e3040)'}`,
+                    background: markedSent.has(r.payout.id) ? 'rgba(61,186,122,0.12)' : 'var(--bg-input, #252731)',
+                    color: markedSent.has(r.payout.id) ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }}>
+                  {markedSent.has(r.payout.id) ? '✓' : '○'}
+                </button>
                 <Chip status={r.status} />
               </div>
               <ShareLinks sharedEmail={r.sharedEmail}
@@ -551,6 +627,7 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
           ))}
         </Sheet>
       )}
+      {printOpen && <InvoicePrintSheet period={period} rows={signedRows} onClose={() => setPrintOpen(false)} />}
       {entityOpen && <BillingEntitySheet onClose={() => setEntityOpen(false)} />}
     </div>
   )
