@@ -1,3 +1,4 @@
+import { useIsMobile } from '../../hooks/useIsMobile'
 import { inr, amountInWords, monthLabel, dateLabel } from '../../utils/vendorInvoice'
 
 // The invoice itself, rendered from a snapshot.
@@ -50,11 +51,17 @@ function Total({ label, value, strong, negative }) {
 }
 
 export default function InvoiceDoc({ data, signature, signedName, signedAt, compact }) {
+  // A4 proportions are a desktop habit. This is opened on a phone, from a
+  // WhatsApp message, by someone standing outside a flat — so on a narrow
+  // screen the document reflows rather than shrinking: the two parties stack,
+  // the row number column goes (it numbers three lines nobody refers to), and
+  // the PID moves under its description instead of fighting for a column.
+  const phone = useIsMobile(560)
   if (!data) return null
   const from = data.from || {}
   const to = data.bill_to || {}
   const lines = data.lines || []
-  const pad = compact ? 20 : 34
+  const pad = phone ? 16 : compact ? 20 : 34
 
   return (
     <div style={{ background: PAPER, color: INK, fontFamily: SANS, borderRadius: 10, padding: pad,
@@ -62,13 +69,13 @@ export default function InvoiceDoc({ data, signature, signedName, signedAt, comp
 
       {/* masthead */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap', paddingBottom: 18, borderBottom: `2px solid ${INK}` }}>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={{ fontSize: 25, fontWeight: 800, letterSpacing: '0.16em', color: INK }}>INVOICE</div>
+        <div style={{ flex: 1, minWidth: phone ? 0 : 180 }}>
+          <div style={{ fontSize: phone ? 20 : 25, fontWeight: 800, letterSpacing: '0.16em', color: INK }}>INVOICE</div>
           <div style={{ fontSize: 11.5, color: MUTED, fontFamily: MONO, marginTop: 3 }}>
             For services rendered · {monthLabel(data.period_month)}
           </div>
         </div>
-        <div style={{ minWidth: 208 }}>
+        <div style={{ minWidth: phone ? '100%' : 208, width: phone ? '100%' : undefined }}>
           <Meta label="Invoice no." value={data.invoice_no || '—'} />
           <Meta label="Invoice date" value={dateLabel(data.invoice_date)} />
           <Meta label="Period" value={monthLabel(data.period_month)} />
@@ -76,7 +83,7 @@ export default function InvoiceDoc({ data, signature, signedName, signedAt, comp
       </div>
 
       {/* parties */}
-      <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', padding: '20px 0', borderBottom: `1px solid ${RULE}` }}>
+      <div style={{ display: 'flex', gap: phone ? 16 : 28, flexWrap: 'wrap', padding: phone ? '14px 0' : '20px 0', borderBottom: `1px solid ${RULE}` }}>
         <Party title="From">
           <div style={{ fontWeight: 700, fontSize: 14 }}>{from.name || '—'}</div>
           {from.trade && <div style={{ color: MUTED }}>{from.trade}{from.code ? ` · ${from.code}` : ''}</div>}
@@ -98,19 +105,26 @@ export default function InvoiceDoc({ data, signature, signedName, signedAt, comp
       <table style={{ width: '100%', borderCollapse: 'collapse', margin: '18px 0 0' }}>
         <thead>
           <tr>
-            {['#', 'Description', 'PID', 'Amount'].map((h, i) => (
-              <th key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: MUTED, fontFamily: MONO,
-                textTransform: 'uppercase', textAlign: i >= 2 ? 'right' : 'left', padding: '0 0 9px',
-                borderBottom: `1px solid ${RULE}`, width: i === 0 ? 26 : i === 2 ? 70 : i === 3 ? 108 : 'auto' }}>{h}</th>
-            ))}
+            {(phone ? ['Description', 'Amount'] : ['#', 'Description', 'PID', 'Amount']).map((h) => {
+              const right = h === 'Amount' || h === 'PID'
+              return (
+                <th key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: MUTED, fontFamily: MONO,
+                  textTransform: 'uppercase', textAlign: right ? 'right' : 'left', padding: '0 0 9px',
+                  borderBottom: `1px solid ${RULE}`,
+                  width: h === '#' ? 26 : h === 'PID' ? 70 : h === 'Amount' ? (phone ? 96 : 108) : 'auto' }}>{h}</th>
+              )
+            })}
           </tr>
         </thead>
         <tbody>
           {lines.map((l, i) => (
             <tr key={i}>
-              <td style={{ padding: '11px 0', borderBottom: `1px solid ${RULE}`, fontSize: 11.5, color: MUTED, fontFamily: MONO, verticalAlign: 'top' }}>{i + 1}</td>
-              <td style={{ padding: '11px 10px 11px 0', borderBottom: `1px solid ${RULE}`, fontSize: 12.5, color: INK, verticalAlign: 'top' }}>{l.description || '—'}</td>
-              <td style={{ padding: '11px 0', borderBottom: `1px solid ${RULE}`, fontSize: 12, color: INK, fontFamily: MONO, textAlign: 'right', verticalAlign: 'top', whiteSpace: 'nowrap' }}>{l.pid || '—'}</td>
+              {!phone && <td style={{ padding: '11px 0', borderBottom: `1px solid ${RULE}`, fontSize: 11.5, color: MUTED, fontFamily: MONO, verticalAlign: 'top' }}>{i + 1}</td>}
+              <td style={{ padding: '11px 10px 11px 0', borderBottom: `1px solid ${RULE}`, fontSize: 12.5, color: INK, verticalAlign: 'top' }}>
+                {l.description || '—'}
+                {phone && <div style={{ fontSize: 11, color: MUTED, fontFamily: MONO, marginTop: 3 }}>PID {l.pid || '—'}</div>}
+              </td>
+              {!phone && <td style={{ padding: '11px 0', borderBottom: `1px solid ${RULE}`, fontSize: 12, color: INK, fontFamily: MONO, textAlign: 'right', verticalAlign: 'top', whiteSpace: 'nowrap' }}>{l.pid || '—'}</td>}
               <td style={{ padding: '11px 0', borderBottom: `1px solid ${RULE}`, fontSize: 12.5, color: INK, fontFamily: MONO, textAlign: 'right', verticalAlign: 'top', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{inr(l.amount)}</td>
             </tr>
           ))}
@@ -119,7 +133,7 @@ export default function InvoiceDoc({ data, signature, signedName, signedAt, comp
 
       {/* totals */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
-        <div style={{ width: '100%', maxWidth: 288 }}>
+        <div style={{ width: '100%', maxWidth: phone ? '100%' : 288 }}>
           <Total label="Subtotal" value={data.subtotal} />
           {Number(data.advance_recovered) > 0 && (
             <Total label="Less: advance recovered" value={data.advance_recovered} negative />
@@ -144,12 +158,12 @@ export default function InvoiceDoc({ data, signature, signedName, signedAt, comp
       )}
 
       {/* signature */}
-      <div style={{ marginTop: 26, paddingTop: 16, borderTop: `1px solid ${RULE}`, display: 'flex', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div style={{ fontSize: 10.5, color: MUTED, lineHeight: 1.6, maxWidth: 330 }}>
+      <div style={{ marginTop: phone ? 18 : 26, paddingTop: 16, borderTop: `1px solid ${RULE}`, display: 'flex', justifyContent: 'space-between', gap: phone ? 14 : 20, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ fontSize: 10.5, color: MUTED, lineHeight: 1.6, maxWidth: phone ? '100%' : 330 }}>
           I confirm the work described above was carried out by me and that the
           net payable shown is correct and fully settles my dues for this period.
         </div>
-        <div style={{ textAlign: 'right', minWidth: 190 }}>
+        <div style={{ textAlign: 'right', minWidth: 190, width: phone ? '100%' : undefined }}>
           {signature
             ? <img src={signature} alt="Signature" style={{ height: 56, maxWidth: 210, objectFit: 'contain', display: 'block', marginLeft: 'auto' }} />
             : <div style={{ height: 56 }} />}

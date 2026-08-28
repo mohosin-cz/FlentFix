@@ -262,6 +262,18 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
   // One row per payout line, whether or not it has an invoice yet — otherwise a
   // vendor who was never invoiced quietly vanishes from the stage that exists
   // to catch exactly that.
+  // An address on two vendor records means an emailed link could reach the
+  // wrong person's pay. There is one such pair in the roster today.
+  const sharedEmails = useMemo(() => {
+    const seen = {}, dupes = new Set()
+    for (const v of Object.values(vendors)) {
+      const e = (v.email || '').trim().toLowerCase()
+      if (!e) continue
+      if (seen[e]) dupes.add(e); else seen[e] = true
+    }
+    return dupes
+  }, [vendors])
+
   const rows = useMemo(() => {
     const byPayout = {}
     for (const i of invoices || []) byPayout[i.payout_id] = i
@@ -277,11 +289,12 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
         payout: p, invoice: inv, lines: ln, status, drifted,
         name: p.beneficiary_name || v.full_name || '—',
         phone: v.phone, email: v.email,
+        sharedEmail: sharedEmails.has((v.email || '').trim().toLowerCase()),
         link: inv?.token ? `${window.location.origin}/vi/${inv.token}` : null,
         blockers: inv ? sendBlockers(inv, ln) : ['No invoice raised'],
       }
     }).sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) || a.name.localeCompare(b.name))
-  }, [payouts, invoices, lines, vendors])
+  }, [payouts, invoices, lines, vendors, sharedEmails])
 
   const counts = useMemo(() => {
     const c = { none: 0, draft: 0, sent: 0, viewed: 0, signed: 0, void: 0 }
@@ -429,8 +442,9 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
               )}
 
               {['sent', 'viewed'].includes(r.status) && r.link && (
-                <ShareLinks row={{ link: r.link, name: r.name, phone: r.phone, email: r.email,
-                  invoiceNo: r.invoice.invoice_no, periodMonth: period.period_month, net: r.invoice.net_payable }} />
+                <ShareLinks sharedEmail={r.sharedEmail}
+                  row={{ link: r.link, name: r.name, phone: r.phone, email: r.email,
+                    invoiceNo: r.invoice.invoice_no, periodMonth: period.period_month, net: r.invoice.net_payable }} />
               )}
 
               {r.invoice && (
