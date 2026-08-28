@@ -381,8 +381,23 @@ export default function Properties() {
           <span style={s.headerSub}>{loading ? '…' : `${grouped.length} unit${grouped.length !== 1 ? 's' : ''}`}</span>
         </div>
         {/* Archive + bin, as a pair. Both are places things go when they leave
-            this list, so they sit together rather than in separate corners. */}
+            this list, so they sit together rather than in separate corners.
+            Payments sits ahead of them — it is about the live list, not about
+            what has left it. */}
         <div style={s.headerBtns}>
+          <button
+            style={s.binHeaderBtn}
+            onClick={() => navigate('/properties/payments')}
+            title="Payments across every property"
+            aria-label="Payments across every property"
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent, #c8963e)'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border, #2e3040)'}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </button>
+
           <button
             style={s.binHeaderBtn}
             onClick={() => navigate('/properties/archive')}
