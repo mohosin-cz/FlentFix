@@ -33,6 +33,60 @@ function Ava({ name, path, size = 34 }) {
     : <span style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: avatarColor(name || '?') + '22', color: avatarColor(name || '?'), fontWeight: 700, fontSize: size * 0.38, fontFamily: 'var(--font-mono, monospace)', border: `1px solid ${avatarColor(name || '?')}55` }}>{initials(name || '?')}</span>
 }
 function Err({ children }) { return <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-word' }}>⚠ {children}</div> }
+
+// ── one month, as a tile ─────────────────────────────────────────────────────
+// A month row was a name at one end, two figures in the middle and a pill at
+// the far edge — a whole line to carry what fits in a quarter of one. As a tile
+// the figures stack into a footer where they can be read as figures, and the
+// room that buys pays for the two things you actually came to check: what it
+// costs and how many have signed.
+function TileStat({ label, value, color }) {
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: color || 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
+      <div style={{ ...lbl, marginTop: 2 }}>{label}</div>
+    </div>
+  )
+}
+
+function MonthTile({ p, sig, onOpen }) {
+  const rows = p.payouts || []
+  const total = rows.reduce((a, r) => a + Number(r.total_payout || 0), 0)
+  const draft = p.status === 'draft'
+  const tone = draft ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)'
+  // draft | locked | paid are all real states, and 'paid' is not 'final' — only
+  // 'locked' is renamed, because that is the word the rest of the screen uses.
+  const statusLabel = p.status === 'locked' ? 'final' : p.status
+  const allSigned = sig && sig.signed >= sig.total
+  return (
+    <button type="button" onClick={() => onOpen(p)}
+      style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', textAlign: 'left', padding: '14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: 600, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{monthLabel(p.period_month)}</div>
+        {/* Signatures ride in the header rather than taking a third of the
+            figure row: how many have signed is a state of the month, like
+            draft/final, not a number you do arithmetic on. Only once invoices
+            exist — "0/16" before any are issued reads as a failure rather than
+            as not-yet-started. */}
+        {sig && sig.issued > 0 && (
+          <span title={`${sig.signed} of ${sig.total} invoices signed`}
+            style={{ fontSize: 10, fontWeight: 700, color: allSigned ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>
+            ✎ {sig.signed}/{sig.total}
+          </span>
+        )}
+        <span style={{ fontSize: 10, fontWeight: 700, color: tone, border: `1px solid ${tone}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>{statusLabel}</span>
+      </div>
+      <div style={{ display: 'flex', gap: 10, paddingTop: 10, borderTop: '1px solid var(--border, #2e3040)' }}>
+        <TileStat label="Vendors" value={rows.length} />
+        <TileStat label={rows.length ? 'Total payout' : 'Nothing filled'} value={money(Math.round(total))} color="var(--accent, #c8963e)" />
+      </div>
+      <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: -4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {!draft && p.locked_at ? `Finalized ${new Date(p.locked_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : draft ? 'Draft — not finalized' : 'Finalized'}
+        {rows.length > 0 && ` · avg ${money(Math.round(total / rows.length))}`}
+      </div>
+    </button>
+  )
+}
 const lbl = { fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono, monospace)' }
 const inp = { width: '100%', padding: '9px 12px', fontSize: 16, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, outline: 'none', fontFamily: 'inherit' }
 const primary = (busy) => ({ width: '100%', minHeight: 46, borderRadius: 8, border: 'none', background: busy ? 'var(--accent-dim, #8a6428)' : 'var(--accent, #c8963e)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' })
@@ -96,10 +150,26 @@ export default function PayrollTab() {
   }
   const [signed, setSigned] = useState(null)      // { signed, total } for the finalize gate
 
+  const [sigByPeriod, setSigByPeriod] = useState(null)
+
   const loadPeriods = useCallback(async () => {
     setLoading(true); setError('')
     const { data, error } = await supabase.from('vendor_payroll_periods').select('*, payouts:vendor_payouts(total_payout)').order('period_month', { ascending: false })
     if (error) { setError(error.message); setPeriods(null) } else setPeriods(data)
+    // Signature progress per month, so the tiles can show it without opening
+    // each one. Same tolerance as the detail view: a missing invoices table is
+    // a migration that hasn't run, not a reason the payroll list can't render.
+    const { data: inv } = await supabase.from('vendor_invoices').select('period_id, status')
+    if (inv) {
+      const m = {}
+      for (const i of inv) {
+        const g = m[i.period_id] || (m[i.period_id] = { issued: 0, signed: 0 })
+        g.issued++
+        if (i.status === 'signed') g.signed++
+      }
+      for (const p of data || []) if (m[p.id]) m[p.id].total = (p.payouts || []).length
+      setSigByPeriod(m)
+    } else setSigByPeriod(null)
     setLoading(false)
   }, [])
   useEffect(() => { loadPeriods() }, [loadPeriods])
@@ -222,19 +292,10 @@ export default function PayrollTab() {
             <div style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', fontWeight: 600 }}>No payroll months yet</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', marginTop: 4 }}>Set rates, then create a month.</div>
           </div>
-        : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {periods.map(p => {
-              const total = (p.payouts || []).reduce((a, r) => a + Number(r.total_payout || 0), 0)
-              return (
-                <button key={p.id} type="button" onClick={() => openPeriod(p)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', padding: '14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, cursor: 'pointer' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{monthLabel(p.period_month)}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 3 }}>{(p.payouts || []).length} vendors · {money(total)}</div>
-                  </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: p.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)', border: `1px solid ${p.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)'}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{p.status === 'locked' ? 'final' : p.status}</span>
-                </button>
-              )
-            })}
+        : <div className="month-grid" style={{ display: 'grid', gap: 12 }}>
+            {periods.map(p => (
+              <MonthTile key={p.id} p={p} sig={sigByPeriod?.[p.id]} onOpen={openPeriod} />
+            ))}
           </div>)}
       {sheet === 'newperiod' && <NewPeriodSheet onClose={() => setSheet('')} onCreated={(p) => { setSheet(''); openPeriod(p) }} />}
       {sheet === 'rates' && <RatesSheet onClose={() => setSheet('')} />}

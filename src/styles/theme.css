@@ -252,6 +252,12 @@ a[href]:not(.tct):active {
 .vendor-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
 @media (max-width: 560px) { .vendor-grid { grid-template-columns: 1fr; } }
 
+/* Payroll months — the same idea with a lower floor. A month tile is a name,
+   three figures and a status where a vendor tile is a person, so 260px is
+   enough to read one and it puts a year of payroll on a single screen. */
+.month-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+@media (max-width: 460px) { .month-grid { grid-template-columns: 1fr; } }
+
 /* ── hover lift ─────────────────────────────────────────────────────────────
    Cards and pills rise slightly under the cursor. Scale alone on a card full
    of small mono text resamples every glyph and reads as a blur, so the lift is
@@ -262,10 +268,10 @@ a[href]:not(.tct):active {
    from latching the effect on after a tap, which looks like a stuck selection.
    And it defers to prefers-reduced-motion, since this is decoration. */
 @media (any-hover: hover) {
-  .hov-card, .vendor-grid > *, .vd-grid > * {
+  .hov-card, .vendor-grid > *, .month-grid > *, .vd-grid > * {
     transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
   }
-  .hov-card:hover, .vendor-grid > *:hover {
+  .hov-card:hover, .vendor-grid > *:hover, .month-grid > *:hover {
     transform: translateY(-2px) scale(1.012);
     box-shadow: 0 10px 26px rgba(0, 0, 0, 0.38);
     border-color: var(--border-dash, #3a3d52);
@@ -287,7 +293,7 @@ a[href]:not(.tct):active {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hov-card, .vendor-grid > *, .vd-grid > * { transition: none; }
-  .hov-card:hover, .vendor-grid > *:hover { transform: none; }
+  .hov-card, .vendor-grid > *, .month-grid > *, .vd-grid > * { transition: none; }
+  .hov-card:hover, .vendor-grid > *:hover, .month-grid > *:hover { transform: none; }
   .tct:hover:not(:active) { transform: none; }
 }
