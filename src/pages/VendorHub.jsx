@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { TabBar } from '../components/ui'
 import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -36,7 +36,19 @@ function ComingSoon({ label }) {
 
 export default function VendorHub() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState(0)
+  // The tab lives in the URL, not in state. It used to reset to Onroll on every
+  // reload, which on a page people keep open all day means losing your place
+  // for a refresh. It also makes a tab linkable — /vendors?tab=payroll.
+  const [params, setParams] = useSearchParams()
+  const fromUrl = TABS.findIndex(t => t.key === params.get('tab'))
+  const tab = fromUrl >= 0 ? fromUrl : 0
+  const setTab = (i) => {
+    // replace, not push: switching tabs should not stack up history entries
+    // that Back then has to walk through to leave the page.
+    const next = new URLSearchParams(params)
+    next.set('tab', TABS[i].key)
+    setParams(next, { replace: true })
+  }
   const [sharing, setSharing] = useState(false)
   const [showReq, setShowReq] = useState(false)
   const [reqCount, setReqCount] = useState(0)

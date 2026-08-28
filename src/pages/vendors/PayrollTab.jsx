@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { initials, avatarColor } from '../../utils/vendorHub'
 import InvoiceStage from './InvoiceStage'
 
@@ -85,7 +85,15 @@ export default function PayrollTab() {
   const [sheet, setSheet] = useState('')          // 'newperiod' | 'rates' | ''
   const [actErr, setActErr] = useState('')        // month action errors (finalize/delete)
   const [reviewing, setReviewing] = useState(false)
-  const [stage, setStage] = useState('review')    // 'review' | 'invoices'
+  // Which month is open, and which stage of it, ride in the URL for the same
+  // reason the hub tab does: a reload in the middle of issuing sixteen invoices
+  // should not drop you back at the list of months.
+  const [params, setParams] = useSearchParams()
+  const stage = params.get('pstage') === 'invoices' ? 'invoices' : 'review'
+  const setStage = (k) => {
+    const n = new URLSearchParams(params); n.set('pstage', k)
+    setParams(n, { replace: true })
+  }
   const [signed, setSigned] = useState(null)      // { signed, total } for the finalize gate
 
   const loadPeriods = useCallback(async () => {
@@ -98,6 +106,7 @@ export default function PayrollTab() {
 
   const openPeriod = useCallback(async (p) => {
     setPeriod(p); setPayouts(null); setRowsLoading(true); setActErr('')
+    setParams(prev => { const n = new URLSearchParams(prev); n.set('month', p.id); return n }, { replace: true })
     const { data } = await supabase.from('vendor_payouts').select('*, vendor:vendors(full_name,avatar_path)').eq('period_id', p.id).order('total_payout', { ascending: false, nullsFirst: false })
     setPayouts(data || []); setRowsLoading(false)
     // Signature progress drives the finalize gate. A missing invoices table
@@ -105,7 +114,26 @@ export default function PayrollTab() {
     // means there is nothing to gate on.
     const { data: inv } = await supabase.from('vendor_invoices').select('status').eq('period_id', p.id)
     setSigned(inv ? { signed: inv.filter(i => i.status === 'signed').length, total: (data || []).length } : null)
-  }, [])
+  }, [setParams])
+
+  // Restore the month named in the URL — once, on first load.
+  //
+  // Guarding on `period` alone was not enough. Backing out clears the state and
+  // the URL together, but the router commits its navigation separately from
+  // React's own updates, so there was a moment with period already null and the
+  // param still present: this fired and re-opened the month you had just left.
+  // A one-shot ref removes the race rather than trying to win it.
+  const wantMonth = params.get('month')
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (restoredRef.current || !wantMonth || period || !periods) return
+    const p = periods.find(x => x.id === wantMonth)
+    if (!p) return
+    restoredRef.current = true
+    const t = setTimeout(() => openPeriod(p), 0)
+    return () => clearTimeout(t)
+  }, [wantMonth, period, periods, openPeriod])
+
 
   // Finalising a month with unsigned invoices is allowed but never accidental:
   // the count of who hasn't signed is put in front of you first.
@@ -123,7 +151,11 @@ export default function PayrollTab() {
     const total = (payouts || []).reduce((a, r) => a + Number(r.total_payout || 0), 0)
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <button type="button" onClick={() => { setPeriod(null); setPayouts(null); loadPeriods() }} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 0 }}>‹ All months</button>
+        <button type="button" onClick={() => {
+          setPeriod(null); setPayouts(null)
+          setParams(prev => { const n = new URLSearchParams(prev); n.delete('month'); n.delete('pstage'); return n }, { replace: true })
+          loadPeriods()
+        }} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 0 }}>‹ All months</button>
         <div style={{ padding: '14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ flex: 1, fontSize: 16, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{monthLabel(period.period_month)}</div>
