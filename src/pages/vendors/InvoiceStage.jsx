@@ -242,7 +242,10 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
   // on a screen, which several open rows would undo.
   const [expanded, setExpanded] = useState(null)
   const [queueOpen, setQueueOpen] = useState(false)
-  const [printOpen, setPrintOpen] = useState(false)
+  // Which invoices to print — the whole signed set, or a single one. Same
+  // sheet either way; "download all" and "download this one" are the same
+  // action with a different list.
+  const [printRows, setPrintRows] = useState(null)
   const [markedSent, setMarkedSent] = useState(() => new Set())
 
   const load = useCallback(async () => {
@@ -449,8 +452,8 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
             </button>
           )}
           {signedRows.length > 0 && (
-            <button type="button" onClick={() => setPrintOpen(true)} style={actBtn}>
-              ⤓ Download {signedRows.length} signed
+            <button type="button" onClick={() => setPrintRows(signedRows)} style={actBtn}>
+              ⤓ Download all {signedRows.length}
             </button>
           )}
           {pendingSend.length > 0 && (
@@ -549,6 +552,9 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
                       {r.invoice.snapshot && (
                         <button type="button" onClick={() => setPreview(r)} style={actBtn}>Preview</button>
                       )}
+                      {r.invoice.snapshot && (
+                        <button type="button" onClick={() => setPrintRows([r])} style={actBtn}>⤓ PDF</button>
+                      )}
                       {r.invoice.status === 'draft' && (
                         <button type="button" onClick={() => reraise(r.invoice)} style={{ ...actBtn, marginInlineStart: 'auto' }}>Re-raise</button>
                       )}
@@ -572,6 +578,8 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
         <Sheet wide title={`${preview.invoice.invoice_no}`} subtitle={preview.name} onClose={() => setPreview(null)}>
           <InvoiceDoc data={preview.invoice.snapshot} compact
             signature={preview.invoice.signature_png} signedName={preview.invoice.signed_name} signedAt={preview.invoice.signed_at} />
+          <button type="button" onClick={() => { const r = preview; setPreview(null); setPrintRows([r]) }}
+            style={{ ...primaryBtn, minHeight: 46, fontSize: 13.5 }}>⤓ Download this invoice</button>
         </Sheet>
       )}
       {flowOpen && (
@@ -627,7 +635,7 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
           ))}
         </Sheet>
       )}
-      {printOpen && <InvoicePrintSheet period={period} rows={signedRows} onClose={() => setPrintOpen(false)} />}
+      {printRows && <InvoicePrintSheet period={period} rows={printRows} onClose={() => setPrintRows(null)} />}
       {entityOpen && <BillingEntitySheet onClose={() => setEntityOpen(false)} />}
     </div>
   )
