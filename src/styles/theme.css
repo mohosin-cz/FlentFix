@@ -237,3 +237,10 @@ a[href]:not(.tct):active {
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-dash); border-radius: 2px; }
+
+/* Vendor profile fields — three across, narrowing with the sheet.
+   In a stylesheet rather than inline because this needs media queries, and the
+   sheet is a fixed 640px panel that also has to work at 390px on a phone. */
+.vd-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 720px) { .vd-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 460px) { .vd-grid { grid-template-columns: 1fr; } }
