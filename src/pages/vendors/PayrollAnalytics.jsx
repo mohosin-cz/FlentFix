@@ -3,173 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import LogoSpinner from '../../components/LogoSpinner'
-
-const SANS = 'var(--font-sans, Poppins, sans-serif)'
-const MONO = 'var(--font-mono, monospace)'
-const money = (n) => '₹' + Math.round(Number(n || 0)).toLocaleString('en-IN')
-const compact = (n) => {
-  const v = Math.abs(Number(n || 0))
-  if (v >= 1e7) return '₹' + (n / 1e7).toFixed(2) + 'Cr'
-  if (v >= 1e5) return '₹' + (n / 1e5).toFixed(2) + 'L'
-  if (v >= 1e3) return '₹' + Math.round(n / 1e3) + 'k'
-  return '₹' + Math.round(n)
-}
-const mLabel = (d) => new Date(d).toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
-const mShort = (d) => new Date(d).toLocaleDateString('en-IN', { month: 'short' })
-const pct = (a, b) => (!b ? null : ((a - b) / b) * 100)
-
-// Categorical slots 1–3 of the reference palette, dark steps. Validated against
-// this app's panel surface (#1e2028): all-pairs CVD ΔE 9.4, normal-vision 20.9,
-// contrast ≥ 3:1 — see scripts/validate_palette.js.
-const S1 = '#3987e5'   // earned
-const S2 = '#d95926'   // overtime
-const S3 = '#199e70'   // advances
-const GRID = 'var(--border, #2e3040)'
-const SURFACE = 'var(--bg-panel, #1e2028)'
-
-// ── shell pieces ─────────────────────────────────────────────────────────────
-function Card({ title, sub, children, right }) {
-  return (
-    <section style={{ background: SURFACE, border: `1px solid ${GRID}`, borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, letterSpacing: '0.1em', textTransform: 'uppercase', margin: 0 }}>{title}</h2>
-        {sub && <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{sub}</span>}
-        {right && <div style={{ marginLeft: 'auto' }}>{right}</div>}
-      </div>
-      {children}
-    </section>
-  )
-}
-
-function Stat({ label, value, delta, tone, sub }) {
-  const d = delta == null ? null : Math.round(delta)
-  const up = d > 0
-  return (
-    <div style={{ minWidth: 0, background: SURFACE, border: `1px solid ${GRID}`, borderRadius: 12, padding: '13px 15px' }}>
-      <div style={{ fontSize: 21, fontWeight: 800, color: tone || 'var(--text, #e8e8f0)', fontFamily: MONO, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
-      <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4 }}>{label}</div>
-      {d != null && (
-        <div style={{ fontSize: 10.5, fontFamily: MONO, marginTop: 5, color: d === 0 ? 'var(--text-muted, #6b6d82)' : up ? 'var(--red, #e05c6a)' : 'var(--green, #3dba7a)' }}>
-          {d === 0 ? 'flat' : `${up ? '▲' : '▼'} ${Math.abs(d)}%`} <span style={{ color: 'var(--text-muted, #6b6d82)' }}>vs prev</span>
-        </div>
-      )}
-      {sub && <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 5 }}>{sub}</div>}
-    </div>
-  )
-}
-
-function Legend({ items }) {
-  return (
-    <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-      {items.map(i => (
-        <span key={i.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: MONO }}>
-          <span style={{ width: 9, height: 9, borderRadius: 2, background: i.color, flexShrink: 0 }} />{i.label}
-        </span>
-      ))}
-    </div>
-  )
-}
-
-// ── column chart ─────────────────────────────────────────────────────────────
-// One or more stacked series. Bars capped at 24px with a 4px rounded cap and a
-// 2px surface gap between segments; gridlines hairline and recessive.
-function Columns({ rows, series, height = 170, fmt = compact, labelLast = true }) {
-  const [hover, setHover] = useState(null)
-  const max = Math.max(1, ...rows.map(r => series.reduce((a, s) => a + (r[s.key] || 0), 0)))
-  const ticks = [0, max / 2, max]
-  const stacked = series.length > 1
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <div style={{ display: 'flex', gap: 10 }}>
-        {/* y axis */}
-        <div style={{ width: 44, flexShrink: 0, height, position: 'relative' }}>
-          {ticks.map((t, i) => (
-            <span key={i} style={{ position: 'absolute', right: 0, bottom: `${(t / max) * 100}%`, transform: 'translateY(50%)', fontSize: 9, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, whiteSpace: 'nowrap' }}>{fmt(t)}</span>
-          ))}
-        </div>
-        <div style={{ flex: 1, minWidth: 0, position: 'relative', height }}>
-          {ticks.map((t, i) => (
-            <div key={i} style={{ position: 'absolute', left: 0, right: 0, bottom: `${(t / max) * 100}%`, height: 1, background: GRID, opacity: i === 0 ? 1 : 0.55 }} />
-          ))}
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end', gap: 6 }}>
-            {rows.map((r, i) => {
-              const total = series.reduce((a, s) => a + (r[s.key] || 0), 0)
-              const isLast = i === rows.length - 1
-              return (
-                <div key={r.label} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
-                  style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', position: 'relative', cursor: 'default' }}>
-                  {labelLast && isLast && total > 0 && (
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: MONO, marginBottom: 4, whiteSpace: 'nowrap' }}>{fmt(total)}</span>
-                  )}
-                  <div style={{ width: '100%', maxWidth: 24, height: `${(total / max) * 100}%`, display: 'flex', flexDirection: 'column-reverse', gap: stacked ? 2 : 0, opacity: hover == null || hover === i ? 1 : 0.45, transition: 'opacity .12s' }}>
-                    {series.map((s, si) => {
-                      const v = r[s.key] || 0
-                      if (!v) return null
-                      const topMost = series.slice(si + 1).every(x => !(r[x.key] || 0))
-                      return <div key={s.key} title={`${s.label}: ${money(v)}`}
-                        style={{ height: `${(v / total) * 100}%`, background: s.color, borderRadius: topMost ? '4px 4px 0 0' : 0, minHeight: 2 }} />
-                    })}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-      {/* x axis */}
-      <div style={{ display: 'flex', gap: 10, marginTop: 7 }}>
-        <div style={{ width: 44, flexShrink: 0 }} />
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: 6 }}>
-          {rows.map(r => (
-            <span key={r.label} style={{ flex: 1, minWidth: 0, textAlign: 'center', fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, whiteSpace: 'nowrap', overflow: 'hidden' }}>{r.axis || r.label}</span>
-          ))}
-        </div>
-      </div>
-      {hover != null && (
-        <div style={{ marginTop: 10, padding: '9px 11px', background: 'var(--bg-input, #252731)', border: `1px solid ${GRID}`, borderRadius: 9, fontSize: 11.5, fontFamily: MONO, color: 'var(--text-dim, #9394a8)', display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-          <span style={{ color: 'var(--text, #e8e8f0)', fontWeight: 700 }}>{rows[hover].label}</span>
-          {series.map(s => (rows[hover][s.key] ? <span key={s.key}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: s.color, marginRight: 5 }} />{s.label} {money(rows[hover][s.key])}</span> : null))}
-          {rows[hover].note && <span>{rows[hover].note}</span>}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── horizontal bars, one series ──────────────────────────────────────────────
-function HBars({ rows, fmt = money }) {
-  const max = Math.max(1, ...rows.map(r => r.value))
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {rows.map(r => (
-        <div key={r.label} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 11.5, fontFamily: MONO }}>
-            <span style={{ color: 'var(--text-dim, #9394a8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</span>
-            {r.sub && <span style={{ color: 'var(--text-muted, #6b6d82)', flexShrink: 0 }}>· {r.sub}</span>}
-            <span style={{ marginLeft: 'auto', fontWeight: 700, color: 'var(--text, #e8e8f0)', flexShrink: 0 }}>{fmt(r.value)}</span>
-          </div>
-          <div style={{ height: 6, borderRadius: 3, background: 'var(--bg-input, #252731)', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${Math.max(2, (r.value / max) * 100)}%`, background: S1, borderRadius: 3 }} />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function Flag({ n, label, detail, tone = 'amber' }) {
-  const c = tone === 'red' ? 'var(--red, #e05c6a)' : tone === 'green' ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)'
-  return (
-    <div style={{ display: 'flex', gap: 11, padding: '11px 12px', background: 'var(--bg-input, #252731)', border: `1px solid ${GRID}`, borderRadius: 10 }}>
-      <span style={{ fontSize: 17, fontWeight: 800, color: c, fontFamily: MONO, minWidth: 30, flexShrink: 0 }}>{n}</span>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, color: 'var(--text, #e8e8f0)', fontFamily: SANS }}>{label}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 2, lineHeight: 1.5 }}>{detail}</div>
-      </div>
-    </div>
-  )
-}
+import {
+  SANS, MONO, GRID, SURFACE, S1, S2, S3,
+  money, compact, mLabel, mShort, pctChange as pct, downloadCsv,
+} from '../../utils/analytics'
+import { Card, Stat, Legend, Columns, HBars, Flag } from '../../components/analytics'
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function PayrollAnalytics() {
@@ -294,13 +132,8 @@ export default function PayrollAnalytics() {
   function exportCsv() {
     if (!a) return
     const cols = ['name', 'team', 'cost_centre', 'months_paid', 'latest', 'average', 'total', 'change_pct']
-    const esc = v => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
     const body = peopleRows.map(p => [p.name, p.team, p.cost_centre, p.months, Math.round(p.latest), Math.round(p.avg), Math.round(p.total), p.change == null ? '' : p.change.toFixed(1)])
-    const csv = [cols.join(','), ...body.map(r => r.map(esc).join(','))].join('\n')
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
-    const el = document.createElement('a')
-    el.href = url; el.download = `payroll-analytics-${a.latest.ym}.csv`
-    document.body.appendChild(el); el.click(); document.body.removeChild(el); URL.revokeObjectURL(url)
+    downloadCsv(`payroll-analytics-${a.latest.ym}.csv`, cols, body)
   }
 
   const chipSty = { padding: '8px 13px', fontSize: 12, lineHeight: 1, whiteSpace: 'nowrap', flexShrink: 0 }

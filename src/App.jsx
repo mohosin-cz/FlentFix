@@ -34,6 +34,7 @@ import EstimateWorkspace from './pages/EstimateWorkspace'
 import PropertyWorkOrders from './pages/PropertyWorkOrders'
 import WorkOrderReport from './pages/WorkOrderReport'
 import PropertyPayments from './pages/PropertyPayments'
+import PaymentsAnalytics from './pages/PaymentsAnalytics'
 import PaymentsImport from './pages/PaymentsImport'
 import VendorWorkOrder from './pages/VendorWorkOrder'
 import LandlordEstimate from './pages/LandlordEstimate'
@@ -178,6 +179,9 @@ export default function App() {
           <Route path="/properties/:pid/raw" element={<ProtectedRoute><RawInspectionData /></ProtectedRoute>} />
           <Route path="/properties/:pid/work-orders" element={<ProtectedRoute><PropertyWorkOrders /></ProtectedRoute>} />
           <Route path="/properties/:pid/work-orders/report" element={<ProtectedRoute><WorkOrderReport /></ProtectedRoute>} />
+          {/* Static before dynamic — /properties/payments is the portfolio-wide
+              view, not a property whose pid is "payments". */}
+          <Route path="/properties/payments" element={<ProtectedRoute><PaymentsAnalytics /></ProtectedRoute>} />
           <Route path="/properties/:pid/payments" element={<ProtectedRoute><PropertyPayments /></ProtectedRoute>} />
           <Route path="/properties/:pid/payments/import" element={<ProtectedRoute><PaymentsImport /></ProtectedRoute>} />
           <Route path="/properties/:pid/estimates" element={<ProtectedRoute><EstimateWorkspace /></ProtectedRoute>} />
