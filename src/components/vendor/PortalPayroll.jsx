@@ -242,11 +242,20 @@ function SignSheet({ month, token, vendorName, onClose, onSigned }) {
           style={{ width: 40, height: 40, borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 15, cursor: 'pointer' }}>✕</button>
       </div>
 
-      <div style={{ padding: '14px 12px calc(30px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 760, margin: '0 auto' }}>
+      {/* Their own copy, saveable. The same browser print dialogue the receipt
+          uses — a vendor asked for "my invoice" means a file they can keep. */}
+      <style>{`@media print { body > *:not(.pinv-root) { display:none !important } .pinv-root { position:static !important; background:#fff !important } .pinv-bar, .pinv-sign { display:none !important } }`}</style>
+      <div className="pinv-root" style={{ padding: '14px 12px calc(30px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 760, margin: '0 auto' }}>
         <InvoiceDoc data={inv.snapshot} signature={inv.signature_png} signedName={inv.signed_name} signedAt={inv.signed_at} />
+        {signed && (
+          <button type="button" onClick={() => window.print()} className="pinv-bar"
+            style={{ minHeight: 46, borderRadius: 10, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 13, fontFamily: MONO, cursor: 'pointer' }}>
+            ⤓ Save a copy
+          </button>
+        )}
 
         {!signed && (
-          <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: 15, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="pinv-sign" style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: 15, display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>Sign to confirm</span>
               <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>

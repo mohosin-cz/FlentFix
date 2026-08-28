@@ -41,9 +41,13 @@ export default function InvoicePrintSheet({ period, rows, onClose }) {
       <div className="inv-print-root" style={{ minHeight: '100%' }}>
         <div className="inv-print-bar" style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
           <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>
-            {rows.length} signed invoice{rows.length === 1 ? '' : 's'} · {monthLabel(period.period_month)}
+            {rows.length === 1
+              ? `${rows[0].invoice.invoice_no} · ${rows[0].name}`
+              : `${rows.length} invoices · ${monthLabel(period.period_month)}`}
             <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 2 }}>
-              Choose “Save as PDF” as the destination to get one file
+              {rows.length === 1
+                ? 'Choose “Save as PDF” as the destination'
+                : 'Choose “Save as PDF” as the destination to get one file'}
             </div>
           </div>
           <button type="button" onClick={() => window.print()}
