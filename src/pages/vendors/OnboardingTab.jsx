@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
-import { signedDocUrls, fmtDate, fmtDateShort, relTime, initials, avatarColor, isAdmin } from '../../utils/vendorHub'
+import { signedDocUrls, fmtDateShort, relTime, initials, avatarColor, isAdmin } from '../../utils/vendorHub'
 import SearchField from '../../components/vendor/SearchField'
 import { useAuth } from '../../contexts/AuthContext'
-import { useIsMobile } from '../../hooks/useIsMobile'
 import VendorDetailSheet from './VendorDetailSheet'
 
 const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })
@@ -33,25 +32,24 @@ function Stat({ label, value, color }) {
 }
 
 // ── onboarded vendor tile (rich) ────────────────────────────────────────────
-function VendorTile({ v, url, properties, onOpen, phone }) {
+function VendorTile({ v, url, properties, onOpen }) {
   return (
     <button type="button" onClick={() => onOpen(v)}
       style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', textAlign: 'left', padding: '14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', transition: 'border-color 0.15s' }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-dash, #3a3d52)' }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border, #2e3040)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-        <Avatar name={v.full_name} url={url} />
+      {/* A third of a row, not a whole one: the vendor code moves under the
+          name rather than fighting it for the same line, and the date drops to
+          a footer where it cannot squeeze the two numbers that matter. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+        <Avatar name={v.full_name} url={url} size={42} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.full_name}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.28)', borderRadius: 6, padding: '1px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{v.trade}</span>
-            {v.pod && <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{v.pod}</span>}
+          <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.full_name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 4, minWidth: 0 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.28)', borderRadius: 6, padding: '1px 7px', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>{v.trade}</span>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.vendor_code || '—'}</span>
+            {v.pod && <span style={{ fontSize: 10.5, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.pod}</span>}
           </div>
-        </div>
-        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>{v.vendor_code || '—'}</div>
-          {/* the onboarding date costs ~120px the name needs on a phone */}
-          {!phone && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 2 }}>{v.reviewed_at ? `onboarded ${fmtDate(v.reviewed_at)}` : ''}</div>}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 10, paddingTop: 10, borderTop: '1px solid var(--border, #2e3040)' }}>
@@ -60,7 +58,10 @@ function VendorTile({ v, url, properties, onOpen, phone }) {
           label={v.monthly_rate ? 'Rate / month' : 'Rate — not set'}
           value={v.monthly_rate ? money(v.monthly_rate) : '₹0'}
           color={v.monthly_rate ? 'var(--text, #e8e8f0)' : 'var(--accent, #c8963e)'} />
-        <Stat label="Joined" value={v.date_of_joining ? (phone ? fmtDateShort(v.date_of_joining) : fmtDate(v.date_of_joining)) : '—'} color="var(--text-dim, #9394a8)" />
+      </div>
+      <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: -4 }}>
+        Joined {v.date_of_joining ? fmtDateShort(v.date_of_joining) : '—'}
+        {v.reviewed_at && ` · onboarded ${fmtDateShort(v.reviewed_at)}`}
       </div>
     </button>
   )
@@ -193,8 +194,6 @@ export default function OnboardingTab() {
 
   const { session } = useAuth()
   const admin = isAdmin(session?.user?.email)
-  const phone = useIsMobile(640)
-
   const load = useCallback(async () => {
     setLoading(true); setError('')
     const [onbRes, candRes, exitRes, archRes, rejRes, statsRes] = await Promise.all([
@@ -305,8 +304,8 @@ export default function OnboardingTab() {
             {list.length === 0 ? (
               <div style={{ padding: '24px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No vendors match your filters.</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {list.map(v => <VendorTile key={v.id} v={v} url={photoOf(v, photos)} properties={stats[v.id]} onOpen={setSelected} phone={phone} />)}
+              <div className="vendor-grid" style={{ display: 'grid', gap: 12 }}>
+                {list.map(v => <VendorTile key={v.id} v={v} url={photoOf(v, photos)} properties={stats[v.id]} onOpen={setSelected} />)}
               </div>
             )}
           </>
