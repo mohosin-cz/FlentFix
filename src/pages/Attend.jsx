@@ -95,7 +95,10 @@ function PRow({ label, children }) {
   )
 }
 
-const PORTAL_TABS = [{ key: 'time', label: 'Time', icon: '⏱' }, { key: 'profile', label: 'Profile', icon: '☰' }, { key: 'payroll', label: 'Payroll', icon: '₹' }]
+// Payroll sits in the middle — it is the thing a vendor now comes here to do
+// besides punching, and the middle of a three-up bar is the easiest reach on a
+// phone. Profile moves right: it is looked at rarely.
+const PORTAL_TABS = [{ key: 'time', label: 'Time', icon: '⏱' }, { key: 'payroll', label: 'Payroll', icon: '₹' }, { key: 'profile', label: 'Profile', icon: '☰' }]
 function PortalNav({ tab, onTab }) {
   return (
     <div style={{ flexShrink: 0, display: 'flex', background: 'var(--bg-panel, #1e2028)', borderTop: '1px solid var(--border, #2e3040)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -286,15 +289,17 @@ export default function Attend() {
   async function login() {
     setErr('')
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setErr('Enter a valid email address.'); return }
+    if (!password.trim()) { setErr('Enter the password the office gave you.'); return }
     setBusy(true)
-    // Send the password only when one was typed. PostgREST resolves the
-    // function by the arguments given, so an email-only call matches both the
-    // old single-argument version and the new one (whose password defaults to
-    // null) — which keeps seventeen people punching in while the migration is
-    // still pending, rather than locking them out the moment this deploys.
-    const args = { p_email: email.trim() }
-    if (password.trim()) args.p_password = password.trim()
-    const { data, error } = await supabase.rpc('attend_login', args)
+    // Password first. If the two-argument function is not there yet the
+    // migration has not run, so fall back to email only rather than locking
+    // seventeen people out of punching in for the gap between deploy and SQL.
+    let { data, error } = await supabase.rpc('attend_login', {
+      p_email: email.trim(), p_password: password.trim(),
+    })
+    if (error && /schema cache|could not find the function/i.test(error.message || '')) {
+      ({ data, error } = await supabase.rpc('attend_login', { p_email: email.trim() }))
+    }
     setBusy(false)
     if (error) { setErr(error.message); return }
     const v = Array.isArray(data) ? data[0] : data
@@ -450,7 +455,7 @@ export default function Attend() {
             inbox, but not a password — so this is also what tells them apart
             at sign-in, rather than the email quietly picking one of them. */}
         <Field label="Password">
-          <Input value={password} onChange={setPassword} placeholder="Leave blank if you have not been given one"
+          <Input value={password} onChange={setPassword} placeholder="From the office"
             type="password" autoCorrect="off" autoCapitalize="characters" />
         </Field>
         {err && <RedStrip title="Couldn’t sign in">{err}</RedStrip>}
