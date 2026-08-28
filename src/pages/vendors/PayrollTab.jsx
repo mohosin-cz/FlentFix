@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { initials, avatarColor } from '../../utils/vendorHub'
 import InvoiceStage from './InvoiceStage'
+import PortalPasswordSheet from '../../components/vendor/PortalPasswordSheet'
 
 const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
 const monthLabel = (d) => d ? new Date(d).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : ''
@@ -82,7 +83,7 @@ export default function PayrollTab() {
   const [period, setPeriod] = useState(null)
   const [payouts, setPayouts] = useState(null)
   const [rowsLoading, setRowsLoading] = useState(false)
-  const [sheet, setSheet] = useState('')          // 'newperiod' | 'rates' | ''
+  const [sheet, setSheet] = useState('')          // 'newperiod' | 'rates' | 'passwords' | ''
   const [actErr, setActErr] = useState('')        // month action errors (finalize/delete)
   const [reviewing, setReviewing] = useState(false)
   // Which month is open, and which stage of it, ride in the URL for the same
@@ -213,6 +214,7 @@ export default function PayrollTab() {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <button type="button" onClick={() => setSheet('newperiod')} style={{ padding: '9px 16px', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>+ New month</button>
         <button type="button" onClick={() => navigate('/vendors/payroll/analytics')} style={{ marginLeft: 'auto', padding: '9px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--accent, #c8963e)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Analytics →</button>
+        <button type="button" onClick={() => setSheet('passwords')} style={{ padding: '9px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-dim, #9394a8)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>🔑 Passwords</button>
         <button type="button" onClick={() => setSheet('rates')} style={{ padding: '9px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-dim, #9394a8)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Rates</button>
       </div>
       {error && <Err>{error}</Err>}
@@ -238,6 +240,7 @@ export default function PayrollTab() {
           </div>)}
       {sheet === 'newperiod' && <NewPeriodSheet onClose={() => setSheet('')} onCreated={(p) => { setSheet(''); openPeriod(p) }} />}
       {sheet === 'rates' && <RatesSheet onClose={() => setSheet('')} />}
+      {sheet === 'passwords' && <PortalPasswordSheet onClose={() => setSheet('')} />}
     </div>
   )
 }

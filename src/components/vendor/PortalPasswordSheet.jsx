@@ -32,17 +32,27 @@ export default function PortalPasswordSheet({ onClose }) {
   const [rows, setRows] = useState(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState('')
-  const [minted, setMinted] = useState({})   // vendor_id → plaintext, this session only
+  const [stored, setStored] = useState({})   // vendor_id → password, from the credentials table
+  const [shown, setShown] = useState(() => new Set())   // revealed, this session only
+  const [editing, setEditing] = useState(null)
+  const [draft, setDraft] = useState('')
+  const [allBusy, setAllBusy] = useState(false)
   const [copied, setCopied] = useState('')
   const [q, setQ] = useState('')
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('vendors')
-      .select('id,full_name,vendor_code,email,phone,portal_password_set_at,portal_last_login_at')
-      .eq('status', 'approved').order('full_name')
+    const [{ data, error }, { data: creds }] = await Promise.all([
+      supabase.from('vendors')
+        .select('id,full_name,vendor_code,email,phone,portal_password_set_at,portal_last_login_at')
+        .eq('status', 'approved').order('full_name'),
+      // Separate table on purpose: a password has no business riding along in
+      // a select on vendors, which the vendor's own profile also reads.
+      supabase.from('vendor_portal_credentials').select('vendor_id,password_plain,updated_at'),
+    ])
     if (error) { setErr(error.message); setRows([]); return }
-    setErr(''); setRows(data || [])
+    setErr('')
+    setRows(data || [])
+    setStored(Object.fromEntries((creds || []).map(c => [c.vendor_id, c.password_plain])))
   }, [])
   useEffect(() => { const t = setTimeout(load, 0); return () => clearTimeout(t) }, [load])
 
@@ -56,17 +66,31 @@ export default function PortalPasswordSheet({ onClose }) {
     if (seen[e]) shared.add(e); else seen[e] = true
   }
 
-  async function generate(v) {
+  async function setPw(v, custom) {
     setBusy(v.id); setErr('')
-    const { data, error } = await supabase.rpc('vendor_generate_portal_password', { p_vendor_id: v.id })
+    const { error } = await supabase.rpc('vendor_set_portal_password', {
+      p_vendor_id: v.id, p_password: custom || null,
+    })
     setBusy('')
     if (error) { setErr(error.message); return }
-    setMinted(m => ({ ...m, [v.id]: data }))
+    setEditing(null); setDraft('')
+    setShown(s => new Set(s).add(v.id))
     load()
   }
 
+  async function generateAll() {
+    if (!window.confirm('Give every vendor without a password one now?')) return
+    setAllBusy(true); setErr('')
+    const { data, error } = await supabase.rpc('vendor_generate_all_portal_passwords')
+    setAllBusy(false)
+    if (error) { setErr(error.message); return }
+    setErr('')
+    load()
+    window.alert(`${data} password${data === 1 ? '' : 's'} generated. Reveal and share each one below.`)
+  }
+
   function copy(v) {
-    const pw = minted[v.id]
+    const pw = stored[v.id]
     const text = `Flent vendor portal\nEmail: ${v.email}\nPassword: ${pw}\n\nSign in at ${window.location.origin}/attend`
     navigator.clipboard?.writeText(text).then(() => {
       setCopied(v.id); setTimeout(() => setCopied(''), 1800)
@@ -95,10 +119,16 @@ export default function PortalPasswordSheet({ onClose }) {
         </div>
 
         <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.55 }}>
-          A password is shown once when you issue it and cannot be looked up afterwards —
-          copy it straight to the vendor. Until someone has one, their email alone still
-          signs them in.
+          Passwords are kept so you can look one up when a vendor forgets, rather than
+          resetting it every time. The portal needs email <b>and</b> password — a vendor
+          without one cannot sign in at all.
         </div>
+        {without > 0 && (
+          <button type="button" onClick={generateAll} disabled={allBusy}
+            style={{ ...btn, minHeight: 44, background: 'var(--accent, #c8963e)', color: '#1a1408', border: 'none', fontWeight: 700 }}>
+            {allBusy ? 'Generating…' : `Generate for the ${without} without one`}
+          </button>
+        )}
 
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, code, email"
           style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: 14, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 9, color: 'var(--text, #e8e8f0)', outline: 'none', fontFamily: 'inherit' }} />
@@ -108,7 +138,8 @@ export default function PortalPasswordSheet({ onClose }) {
         )}
 
         {rows === null ? <div style={{ padding: 18, fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Loading…</div> : list.map(v => {
-          const pw = minted[v.id]
+          const pw = stored[v.id]
+          const isShown = shown.has(v.id)
           const isShared = shared.has((v.email || '').trim().toLowerCase())
           return (
             <div key={v.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '11px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
@@ -123,8 +154,8 @@ export default function PortalPasswordSheet({ onClose }) {
                 {v.portal_password_set_at
                   ? <span style={{ fontSize: 9.5, fontWeight: 700, fontFamily: MONO, color: 'var(--green, #3dba7a)', border: '1px solid var(--green, #3dba7a)', borderRadius: 10, padding: '2px 8px' }}>SET</span>
                   : <span style={{ fontSize: 9.5, fontWeight: 700, fontFamily: MONO, color: 'var(--text-muted, #6b6d82)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, padding: '2px 8px' }}>NONE</span>}
-                <button type="button" onClick={() => generate(v)} disabled={busy === v.id} style={btn}>
-                  {busy === v.id ? '…' : v.portal_password_set_at ? 'Reset' : 'Generate'}
+                <button type="button" onClick={() => setPw(v, null)} disabled={busy === v.id} style={btn}>
+                  {busy === v.id ? '…' : v.portal_password_set_at ? 'New one' : 'Generate'}
                 </button>
               </div>
 
@@ -134,25 +165,39 @@ export default function PortalPasswordSheet({ onClose }) {
                 </div>
               )}
 
-              {pw && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'rgba(61,186,122,0.08)', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 9, flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: 120 }}>
-                    <div style={{ fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Give this to {v.full_name.split(' ')[0]}</div>
-                    <div style={{ fontSize: 19, fontWeight: 700, fontFamily: MONO, color: 'var(--green, #3dba7a)', letterSpacing: '0.12em', marginTop: 2 }}>{pw}</div>
+              {pw ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 9, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 130 }}>
+                    <div style={{ fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Password</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, fontFamily: MONO, color: 'var(--green, #3dba7a)', letterSpacing: '0.12em', marginTop: 2 }}>
+                      {isShown ? pw : '••••••••'}
+                    </div>
                   </div>
-                  <button type="button" onClick={() => copy(v)} style={{ ...btn, color: copied === v.id ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)' }}>
-                    {copied === v.id ? '✓ Copied' : 'Copy message'}
+                  <button type="button" onClick={() => setShown(s => { const n = new Set(s); n.has(v.id) ? n.delete(v.id) : n.add(v.id); return n })} style={btn}>
+                    {isShown ? 'Hide' : 'Reveal'}
                   </button>
-                  {v.phone && (
+                  {isShown && <button type="button" onClick={() => copy(v)} style={{ ...btn, color: copied === v.id ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)' }}>
+                    {copied === v.id ? '✓ Copied' : 'Copy'}
+                  </button>}
+                  {isShown && v.phone && (
                     <a href={`https://wa.me/${String(v.phone).replace(/\D/g, '').slice(-10).padStart(12, '91')}?text=${encodeURIComponent(`Flent vendor portal\nEmail: ${v.email}\nPassword: ${pw}\n\nSign in at ${window.location.origin}/attend`)}`}
                       target="_blank" rel="noreferrer"
                       style={{ ...btn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', background: 'rgba(37,211,102,0.10)', borderColor: 'rgba(37,211,102,0.42)', color: '#25d366' }}>
                       WhatsApp
                     </a>
                   )}
-                  <div style={{ width: '100%', fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.5 }}>
-                    Shown once — it can&rsquo;t be looked up again, only replaced.
-                  </div>
+                  <button type="button" onClick={() => { setEditing(v.id); setDraft('') }} style={btn}>Change</button>
+                </div>
+              ) : null}
+
+              {editing === v.id && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input value={draft} onChange={e => setDraft(e.target.value)} placeholder="New password (6+ characters)"
+                    autoFocus autoCapitalize="characters" autoCorrect="off"
+                    style={{ flex: '1 1 190px', minWidth: 0, padding: '10px 12px', fontSize: 15, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 9, color: 'var(--text, #e8e8f0)', outline: 'none', fontFamily: MONO }} />
+                  <button type="button" onClick={() => setPw(v, draft.trim())} disabled={draft.trim().length < 6 || busy === v.id}
+                    style={{ ...btn, background: draft.trim().length < 6 ? 'var(--bg-input, #252731)' : 'var(--accent, #c8963e)', color: draft.trim().length < 6 ? 'var(--text-muted, #6b6d82)' : '#1a1408', border: 'none', fontWeight: 700 }}>Save</button>
+                  <button type="button" onClick={() => { setEditing(null); setDraft('') }} style={btn}>Cancel</button>
                 </div>
               )}
             </div>
