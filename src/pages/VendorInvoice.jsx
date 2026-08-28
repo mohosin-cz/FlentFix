@@ -172,7 +172,11 @@ export default function VendorInvoice() {
       if (!alive) return
       if (error) { setState({ loading: false, err: error.message, data: null }); return }
       setState({ loading: false, err: '', data })
-      if (data?.signed_name) setName(data.signed_name)
+      // Prefilled from the invoice. It was an empty field behind a placeholder
+      // showing the vendor's own name, which reads as already filled — so the
+      // Sign button sat greyed out with nothing saying why. Still editable:
+      // whoever signs should be able to put their actual name to it.
+      setName(data?.signed_name || data?.invoice?.from?.name || '')
     })
     return () => { alive = false }
   }, [token])
@@ -250,6 +254,13 @@ export default function VendorInvoice() {
                 color: (!name.trim() || !hasInk) ? 'var(--text-muted, #6b6d82)' : '#1a1408' }}>
               {busy ? 'Submitting…' : 'Sign & submit'}
             </button>
+            {(!name.trim() || !hasInk) && (
+              <div style={{ fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: MONO, textAlign: 'center', lineHeight: 1.5 }}>
+                {!name.trim() && !hasInk ? 'Enter your name and draw your signature'
+                  : !name.trim() ? 'Enter your name above'
+                  : 'Draw your signature in the box'}
+              </div>
+            )}
             <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', textAlign: 'center', lineHeight: 1.5 }}>
               This link is personal to you. Please don&rsquo;t forward it.
             </div>
