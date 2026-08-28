@@ -244,3 +244,10 @@ a[href]:not(.tct):active {
 .vd-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 720px) { .vd-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 460px) { .vd-grid { grid-template-columns: 1fr; } }
+
+/* On-roll roster — a wall of vendors, not a column of them. Seventeen
+   full-width rows is a scroll; three or four across is a page. The 320px
+   floor is deliberate — narrower tracks fit six across on a wide monitor, and
+   at that size a card stops being a summary and becomes a thing to squint at. */
+.vendor-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+@media (max-width: 560px) { .vendor-grid { grid-template-columns: 1fr; } }
