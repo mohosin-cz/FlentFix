@@ -237,6 +237,10 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
   const [entityOpen, setEntityOpen] = useState(false)
   const [note, setNote] = useState('')
   const [flowOpen, setFlowOpen] = useState(false)
+  // One open at a time: the point of collapsing is that the whole month fits
+  // on a screen, which several open rows would undo.
+  const [expanded, setExpanded] = useState(null)
+  const [queueOpen, setQueueOpen] = useState(false)
 
   const load = useCallback(async () => {
     const [{ data: inv, error: iErr }, { data: props }, { data: vends }] = await Promise.all([
@@ -303,6 +307,8 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
   }, [rows])
 
   const readyToSend = rows.filter(r => r.invoice && r.invoice.status === 'draft' && r.blockers.length === 0)
+  // Issued but not yet signed — the links still waiting to be passed on.
+  const pendingSend = rows.filter(r => ['sent', 'viewed'].includes(r.status) && r.link)
   const missing = (payouts || []).length - (invoices || []).length
   const allSigned = rows.length > 0 && rows.every(r => r.status === 'signed' || r.status === 'void')
 
@@ -325,8 +331,9 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
     }
     setBusy('')
     if (failed.length) setErr(`${failed.length} couldn't be issued — ${failed[0]}`)
-    if (out.length) setNote(`${out.length} invoice${out.length === 1 ? '' : 's'} issued. Send the links below.`)
+    if (out.length) setNote(`${out.length} invoice${out.length === 1 ? '' : 's'} issued.`)
     await load()
+    if (out.length) setQueueOpen(true)
     return out
   }, [load])
 
@@ -395,6 +402,11 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
               {busy === 'send' ? 'Issuing…' : `Issue ${readyToSend.length} for signing`}
             </button>
           )}
+          {pendingSend.length > 0 && (
+            <button type="button" onClick={() => setQueueOpen(true)} style={{ ...primaryBtn, padding: '10px 16px', fontSize: 13 }}>
+              Send {pendingSend.length} link{pendingSend.length === 1 ? '' : 's'} →
+            </button>
+          )}
           {allSigned && (
             <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>
               ✓ All signed — the month can be marked final
@@ -411,60 +423,81 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
         {rows.map(r => {
           const pids = r.lines.map(l => l.pid).filter(Boolean)
           const canSend = r.invoice && r.invoice.status === 'draft' && r.blockers.length === 0
+          const issued = ['sent', 'viewed'].includes(r.status) && r.link
+          const open = expanded === r.payout.id
+          // Something is wrong and it is not just "not started yet" — worth
+          // showing on the closed row so it can't hide inside an accordion.
+          const alert = r.drifted || (r.invoice?.status === 'draft' && r.blockers.length > 0 && r.invoice)
+
           return (
-            <div key={r.payout.id} style={{ padding: '12px 13px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 11, display: 'flex', flexDirection: 'column', gap: 9 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <Ava name={r.name} />
-                <div style={{ flex: 1, minWidth: 140 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{r.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 2 }}>
-                    {r.invoice?.invoice_no || 'no invoice'} · net {inr(r.payout.total_payout)}
-                    {pids.length > 0 && <> · PID {pids.join(', ')}</>}
+            <div key={r.payout.id}
+              style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${open ? 'var(--border-dash, #3a3d52)' : 'var(--border, #2e3040)'}`, borderRadius: 11, overflow: 'hidden' }}>
+
+              {/* Closed: one line per vendor, so sixteen of them fit on a
+                  screen and reaching the last is not a scroll. */}
+              <button type="button" onClick={() => setExpanded(open ? null : r.payout.id)}
+                aria-expanded={open}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 56,
+                  padding: '9px 12px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                <Ava name={r.name} size={30} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</div>
+                  <div style={{ fontSize: 10.5, color: alert ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {alert
+                      ? (r.drifted ? '⚠ payout changed since issuing' : `⚠ ${r.blockers[0]}`)
+                      : <>{inr(r.payout.total_payout)}{pids.length > 0 && <> · PID {pids.join(', ')}</>}</>}
                   </div>
                 </div>
                 <Chip status={r.status} />
-              </div>
+                <span aria-hidden="true" style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s', flexShrink: 0 }}>›</span>
+              </button>
 
-              {r.drifted && (
-                <div style={{ fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: MONO, lineHeight: 1.5 }}>
-                  ⚠ Payout changed to {inr(r.payout.total_payout)} after this invoice was sent for {inr(r.invoice.net_payable)}. Void and re-raise.
-                </div>
-              )}
-              {r.invoice && r.invoice.status === 'draft' && r.blockers.length > 0 && (
-                <div style={{ fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.5 }}>
-                  {r.blockers.join(' · ')}
-                </div>
-              )}
-              {r.invoice?.send_error && r.invoice.status === 'draft' && (
-                <div style={{ fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: MONO, lineHeight: 1.5 }}>
-                  Last send failed — try again.
-                </div>
-              )}
+              {open && (
+                <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ height: 1, background: 'var(--border, #2e3040)' }} />
 
-              {['sent', 'viewed'].includes(r.status) && r.link && (
-                <ShareLinks sharedEmail={r.sharedEmail}
-                  row={{ link: r.link, name: r.name, phone: r.phone, email: r.email,
-                    invoiceNo: r.invoice.invoice_no, periodMonth: period.period_month, net: r.invoice.net_payable }} />
-              )}
+                  <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.6 }}>
+                    {r.invoice?.invoice_no || 'no invoice raised'} · net {inr(r.payout.total_payout)}
+                    {pids.length > 0 && <> · PID {pids.join(', ')}</>}
+                  </div>
 
-              {r.invoice && (
-                <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                  <button type="button" onClick={() => setEditing({ ...r.invoice, _name: r.name })} style={actBtn}>
-                    {r.invoice.status === 'draft' ? 'Edit PIDs' : 'View split'}
-                  </button>
-                  {canSend && (
-                    <button type="button" onClick={() => issue([r.invoice.id])} disabled={busy === 'send'} style={primaryBtn}>
-                      {busy === 'send' ? 'Issuing…' : 'Issue for signing'}
-                    </button>
+                  {r.drifted && (
+                    <div style={{ fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: MONO, lineHeight: 1.5 }}>
+                      ⚠ Payout changed to {inr(r.payout.total_payout)} after this invoice was issued for {inr(r.invoice.net_payable)}. Void and re-raise.
+                    </div>
                   )}
-                  {r.invoice.snapshot && (
-                    <button type="button" onClick={() => setPreview(r)} style={actBtn}>Preview</button>
+                  {r.invoice && r.invoice.status === 'draft' && r.blockers.length > 0 && (
+                    <div style={{ fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.5 }}>
+                      {r.blockers.join(' · ')}
+                    </div>
                   )}
-                  {r.invoice.status === 'draft' && (
-                    <button type="button" onClick={() => reraise(r.invoice)} style={{ ...actBtn, marginInlineStart: 'auto' }}>Re-raise</button>
+
+                  {issued && (
+                    <ShareLinks sharedEmail={r.sharedEmail}
+                      row={{ link: r.link, name: r.name, phone: r.phone, email: r.email,
+                        invoiceNo: r.invoice.invoice_no, periodMonth: period.period_month, net: r.invoice.net_payable }} />
                   )}
-                  {['sent', 'viewed'].includes(r.invoice.status) && (
-                    <button type="button" onClick={() => voidInvoice(r.invoice)} style={{ ...actBtn, marginInlineStart: 'auto', color: 'var(--red, #e05c6a)' }}>Void</button>
+
+                  {r.invoice && (
+                    <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button type="button" onClick={() => setEditing({ ...r.invoice, _name: r.name })} style={actBtn}>
+                        {r.invoice.status === 'draft' ? 'Edit PIDs' : 'View split'}
+                      </button>
+                      {canSend && (
+                        <button type="button" onClick={() => issue([r.invoice.id])} disabled={busy === 'send'} style={primaryBtn}>
+                          {busy === 'send' ? 'Issuing…' : 'Issue for signing'}
+                        </button>
+                      )}
+                      {r.invoice.snapshot && (
+                        <button type="button" onClick={() => setPreview(r)} style={actBtn}>Preview</button>
+                      )}
+                      {r.invoice.status === 'draft' && (
+                        <button type="button" onClick={() => reraise(r.invoice)} style={{ ...actBtn, marginInlineStart: 'auto' }}>Re-raise</button>
+                      )}
+                      {['sent', 'viewed'].includes(r.invoice.status) && (
+                        <button type="button" onClick={() => voidInvoice(r.invoice)} style={{ ...actBtn, marginInlineStart: 'auto', color: 'var(--red, #e05c6a)' }}>Void</button>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -486,6 +519,37 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
       {flowOpen && (
         <InvoiceFlow period={period} rows={rows} properties={properties}
           onSend={issue} onClose={() => { setFlowOpen(false); load(); onChanged && onChanged() }} />
+      )}
+      {queueOpen && (
+        <Sheet wide title="Send the signing links"
+          subtitle={`${pendingSend.length} issued · not yet signed`}
+          onClose={() => setQueueOpen(false)}>
+          <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.55 }}>
+            Each goes from your own WhatsApp or mail client, so the vendor sees it
+            from you. Signed ones drop off this list on their own.
+          </div>
+          {pendingSend.length === 0 ? (
+            <div style={{ padding: '22px 4px', textAlign: 'center', fontSize: 12.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
+              Everything issued has been signed.
+            </div>
+          ) : pendingSend.map(r => (
+            <div key={r.payout.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '11px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                <Ava name={r.name} size={28} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{r.name}</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
+                    {r.invoice.invoice_no} · {inr(r.invoice.net_payable)}
+                  </div>
+                </div>
+                <Chip status={r.status} />
+              </div>
+              <ShareLinks sharedEmail={r.sharedEmail}
+                row={{ link: r.link, name: r.name, phone: r.phone, email: r.email,
+                  invoiceNo: r.invoice.invoice_no, periodMonth: period.period_month, net: r.invoice.net_payable }} />
+            </div>
+          ))}
+        </Sheet>
       )}
       {entityOpen && <BillingEntitySheet onClose={() => setEntityOpen(false)} />}
     </div>
