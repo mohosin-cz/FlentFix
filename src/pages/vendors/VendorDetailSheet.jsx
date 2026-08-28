@@ -6,6 +6,7 @@ import {
   maskAccount, initials, avatarColor, isAdmin,
 } from '../../utils/vendorHub'
 import DocViewer from '../../components/vendor/DocViewer'
+import PortalPasswordCard from '../../components/vendor/PortalPasswordCard'
 import { useAuth } from '../../contexts/AuthContext'
 import { isEmail } from '../../utils/vendorOnboard'
 import VendorWorkHistory from './VendorWorkHistory'
@@ -603,6 +604,14 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
           {tab === 'time' && onBooks && (
             <Card title="Time log">
               <VendorWorkHistory vendorId={row.id} />
+            </Card>
+          )}
+
+          {/* Portal access — a property of this person, so it lives on them
+              rather than on a payroll screen. */}
+          {showProfile && onBooks && !editing && (
+            <Card title="Portal access">
+              <PortalPasswordCard vendor={row} />
             </Card>
           )}
 

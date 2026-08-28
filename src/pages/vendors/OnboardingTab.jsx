@@ -138,6 +138,42 @@ function FilterChip({ label, active, onClick }) {
   )
 }
 
+
+// Portal passwords are per-vendor and set on each profile, but the first pass
+// is seventeen people at once — and until every one of them has a password,
+// making the portal password-only locks whoever is missing out of punching in.
+// So the roster shows how many are still without, and can issue them in one go.
+function PasswordRollout({ rows, onDone }) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const missing = (rows || []).filter(v => !v.portal_password_set_at)
+  if (!missing.length) return null
+
+  async function generateAll() {
+    if (!window.confirm(`Issue a portal password to the ${missing.length} vendor${missing.length === 1 ? '' : 's'} without one?\n\nReveal and share each from their profile afterwards.`)) return
+    setBusy(true); setErr('')
+    const { data, error } = await supabase.rpc('vendor_generate_all_portal_passwords')
+    setBusy(false)
+    if (error) { setErr(error.message); return }
+    onDone && onDone()
+    window.alert(`${data} issued. Open each vendor to reveal and share theirs.`)
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '11px 13px', background: 'rgba(200,150,62,0.08)', border: '1px solid rgba(200,150,62,0.30)', borderRadius: 11 }}>
+      <span style={{ fontSize: 15 }}>🔑</span>
+      <div style={{ flex: 1, minWidth: 180, fontSize: 12.5, color: 'var(--accent, #c8963e)', lineHeight: 1.5 }}>
+        {missing.length} vendor{missing.length === 1 ? ' has' : 's have'} no portal password — they can&rsquo;t sign in to punch or see their payslips.
+        {err && <div style={{ color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', fontSize: 11.5, marginTop: 4 }}>⚠ {err}</div>}
+      </div>
+      <button type="button" onClick={generateAll} disabled={busy}
+        style={{ minHeight: 40, padding: '0 14px', borderRadius: 8, border: 'none', background: 'var(--accent, #c8963e)', color: '#1a1408', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', cursor: 'pointer' }}>
+        {busy ? 'Issuing…' : 'Issue for all'}
+      </button>
+    </div>
+  )
+}
+
 export default function OnboardingTab() {
   const [rows, setRows] = useState(null)          // onboarded (approved) vendors
   const [candidates, setCandidates] = useState([])
@@ -258,6 +294,8 @@ export default function OnboardingTab() {
               </div>
               <SearchBox value={query} onChange={setQuery} count={list.length} total={source.length} filtered={filtered} />
             </div>
+            {view === 'onroll' && <PasswordRollout rows={rows} onDone={load} />}
+
             {podOptions.length > 2 && (
               <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2, WebkitOverflowScrolling: 'touch' }}>
                 {podOptions.map(p => <FilterChip key={p} label={p === 'all' ? 'All PODs' : p} active={podFilter === p} onClick={() => setPodFilter(p)} />)}
