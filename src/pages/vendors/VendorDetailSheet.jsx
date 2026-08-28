@@ -57,13 +57,13 @@ const SECTIONS = [
     { name: 'phone', label: 'Phone', inputMode: 'tel', placeholder: '10-digit mobile', validate: rules.phone },
     { name: 'alt_phone', label: 'Alt phone', inputMode: 'tel', validate: rules.altPhone },
     { name: 'guardian_phone', label: 'Guardian', inputMode: 'tel', validate: rules.altPhone },
-    { name: 'email', label: 'Email', type: 'email', placeholder: 'name@example.com',
+    { name: 'email', label: 'Email', type: 'email', placeholder: 'name@example.com', wide: true,
       parse: v => v.toLowerCase() || null,
       validate: v => !v || isEmail(v.toLowerCase()) ? null : 'Enter a valid email address.' },
-    { name: 'address_line', label: 'Address', placeholder: 'House, street, area' },
+    { name: 'address_line', label: 'Address', placeholder: 'House, street, area', wide: true },
     { name: 'city', label: 'City' },
     { name: 'pincode', label: 'Pincode', inputMode: 'numeric', validate: rules.pincode },
-    { name: 'permanent_address', label: 'Permanent', placeholder: 'Home-town address' },
+    { name: 'permanent_address', label: 'Permanent', placeholder: 'Home-town address', wide: true },
   ] },
   { title: 'Payout setup', kind: 'payout', fields: [
     { name: 'monthly_rate', label: 'Monthly rate', inputMode: 'decimal', placeholder: 'e.g. 22000',
@@ -71,10 +71,10 @@ const SECTIONS = [
       parse: v => cleanAmount(v) === '' ? null : Number(cleanAmount(v)), validate: rateRule },
     { name: 'cost_centre', label: 'Cost centre', suggestions: COST_CENTRES, placeholder: 'e.g. OPX-FIX' },
     { name: 'team', label: 'Team', suggestions: TEAMS, placeholder: 'e.g. Setup Ops' },
-    { name: 'flent_accommodation', label: 'Accommodation', suggestions: ACCOMMODATION, placeholder: 'e.g. Vendor HQ-1' },
+    { name: 'flent_accommodation', label: 'Accommodation', suggestions: ACCOMMODATION, placeholder: 'e.g. Vendor HQ-1', wide: true },
   ] },
   { title: 'Payment method', kind: 'payment', fields: [
-    { name: 'bank_account_name', label: 'Acct name', placeholder: 'As printed on the passbook' },
+    { name: 'bank_account_name', label: 'Acct name', placeholder: 'As printed on the passbook', wide: true },
     { name: 'bank_account_no', label: 'Account no.', placeholder: 'Account number', secret: true },
     { name: 'bank_ifsc', label: 'IFSC', placeholder: 'HDFC0001234',
       parse: v => v.toUpperCase() || null, validate: rules.ifsc },
@@ -89,7 +89,7 @@ const SECTIONS = [
     { name: 'dl_expiry', label: 'DL expiry', type: 'date', display: fmtDate },
   ] },
   { title: 'Notes', fields: [
-    { name: 'notes', label: 'Notes', placeholder: 'Anything the team should know' },
+    { name: 'notes', label: 'Notes', placeholder: 'Anything the team should know', wide: true },
   ] },
 ]
 const ALL_FIELDS = SECTIONS.flatMap(s => s.fields)
@@ -109,6 +109,24 @@ const TABS = [
 // readable and a whole record is saved in one write.
 function Field({ f, value, editing, draft, error, onChange, children }) {
   const filled = value != null && value !== ''
+
+  // Reading and editing want different shapes. A read-only value is a short
+  // fact and tiles happily three-up; an input needs room for a placeholder and
+  // an error message under it, so editing stays one field per row.
+  if (!editing) {
+    return (
+      <div style={{ gridColumn: f.wide ? '1 / -1' : 'auto', minWidth: 0, padding: '9px 11px', background: 'var(--bg-input, #252731)', borderRadius: 9, border: '1px solid var(--border, #2e3040)' }}>
+        <div style={{ fontSize: 9.5, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{f.label}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 3, minWidth: 0 }}>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: filled ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', wordBreak: f.wide ? 'break-word' : 'normal', overflow: f.wide ? 'visible' : 'hidden', textOverflow: 'ellipsis', whiteSpace: f.wide ? 'normal' : 'nowrap' }}>
+            {filled ? (f.display ? f.display(value) : value) : 'Not provided'}
+          </span>
+          {children}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ display: 'flex', gap: 12, padding: '8px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
       <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', minWidth: 96, flexShrink: 0, paddingTop: editing ? 9 : 1 }}>{f.label}</span>
@@ -209,6 +227,7 @@ function PaySection({ sec, row, hasBank, revealAcct, setRevealAcct }) {
       {sec.kind === 'payment' && !hasBank && !row.upi_id && (
         <Warn tone="red">Neither bank details nor UPI — there is no way to pay this vendor.</Warn>
       )}
+      <FieldGrid editing={false}>
       {sec.fields.map(f => (
         <Field key={f.name} f={f}
           value={f.secret && !revealAcct ? maskAccount(row[f.name]) : row[f.name]}
@@ -218,7 +237,18 @@ function PaySection({ sec, row, hasBank, revealAcct, setRevealAcct }) {
           )}
         </Field>
       ))}
+      </FieldGrid>
     </Card>
+  )
+}
+
+// Three across, dropping to two then one as the sheet narrows. Reading a
+// profile is scanning for one fact — a name, a phone, an IFSC — and a single
+// column of thirty rows makes that a scroll instead of a glance.
+function FieldGrid({ editing, children }) {
+  if (editing) return <>{children}</>
+  return (
+    <div className="vd-grid" style={{ display: 'grid', gap: 8 }}>{children}</div>
   )
 }
 
@@ -570,21 +600,23 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
               {sec.kind === 'payment' && !hasBank && !row.upi_id && (
                 <Warn tone="red">Neither bank details nor UPI — there is no way to pay this vendor.</Warn>
               )}
-              {sec.fields.map(f => (
-                <Field
-                  key={f.name}
-                  f={f}
-                  value={f.secret && !revealAcct && !editing ? maskAccount(row[f.name]) : row[f.name]}
-                  editing={editing}
-                  draft={draft[f.name] ?? ''}
-                  error={errors[f.name]}
-                  onChange={onDraftChange}
-                >
-                  {f.secret && !editing && row[f.name] && (
-                    <button type="button" onClick={() => setRevealAcct(v => !v)} style={{ fontSize: 10, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{revealAcct ? 'hide' : 'reveal'}</button>
-                  )}
-                </Field>
-              ))}
+              <FieldGrid editing={editing}>
+                {sec.fields.map(f => (
+                  <Field
+                    key={f.name}
+                    f={f}
+                    value={f.secret && !revealAcct && !editing ? maskAccount(row[f.name]) : row[f.name]}
+                    editing={editing}
+                    draft={draft[f.name] ?? ''}
+                    error={errors[f.name]}
+                    onChange={onDraftChange}
+                  >
+                    {f.secret && !editing && row[f.name] && (
+                      <button type="button" onClick={() => setRevealAcct(v => !v)} style={{ fontSize: 10, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{revealAcct ? 'hide' : 'reveal'}</button>
+                    )}
+                  </Field>
+                ))}
+              </FieldGrid>
               {sec.kind === 'docs' && (
                 <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
                   <DocThumb label="Aadhaar" doc={docs.aadhaar} />
