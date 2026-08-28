@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { initials, avatarColor } from '../../utils/vendorHub'
 import InvoiceDoc from '../../components/vendor/InvoiceDoc'
 import InvoiceFlow from './InvoiceFlow'
+import ShareLinks from '../../components/vendor/ShareLinks'
 import { INVOICE_STATUS, STATUS_ORDER, inr, sumLines, sendBlockers, monthLabel } from '../../utils/vendorInvoice'
 
 // The signature stage: reviewed → invoiced → signed → final.
@@ -228,6 +229,7 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
   const [invoices, setInvoices] = useState(null)
   const [lines, setLines] = useState({})
   const [properties, setProperties] = useState([])
+  const [vendors, setVendors] = useState({})
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState('')
   const [editing, setEditing] = useState(null)
@@ -237,13 +239,15 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
   const [flowOpen, setFlowOpen] = useState(false)
 
   const load = useCallback(async () => {
-    const [{ data: inv, error: iErr }, { data: props }] = await Promise.all([
+    const [{ data: inv, error: iErr }, { data: props }, { data: vends }] = await Promise.all([
       supabase.from('vendor_invoices').select('*').eq('period_id', period.id),
       supabase.from('properties').select('pid,name').order('pid'),
+      supabase.from('vendors').select('id,full_name,email,phone').eq('status', 'approved'),
     ])
     if (iErr) { setErr(iErr.message); setInvoices([]); return }
     setInvoices(inv || [])
     setProperties(props || [])
+    setVendors(Object.fromEntries((vends || []).map(v => [v.id, v])))
     const ids = (inv || []).map(i => i.id)
     if (ids.length) {
       const { data: ln } = await supabase.from('vendor_invoice_lines').select('*').in('invoice_id', ids).order('sort')
@@ -268,13 +272,16 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
       // A payout edited after its invoice was frozen no longer matches what the
       // vendor was asked to sign. Silent divergence is the whole risk here.
       const drifted = inv && inv.status !== 'draft' && Math.round(Number(inv.net_payable || 0)) !== Math.round(Number(p.total_payout || 0))
+      const v = vendors[p.vendor_id] || {}
       return {
         payout: p, invoice: inv, lines: ln, status, drifted,
-        name: p.beneficiary_name || '—',
+        name: p.beneficiary_name || v.full_name || '—',
+        phone: v.phone, email: v.email,
+        link: inv?.token ? `${window.location.origin}/vi/${inv.token}` : null,
         blockers: inv ? sendBlockers(inv, ln) : ['No invoice raised'],
       }
     }).sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) || a.name.localeCompare(b.name))
-  }, [payouts, invoices, lines])
+  }, [payouts, invoices, lines, vendors])
 
   const counts = useMemo(() => {
     const c = { none: 0, draft: 0, sent: 0, viewed: 0, signed: 0, void: 0 }
@@ -286,31 +293,27 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
   const missing = (payouts || []).length - (invoices || []).length
   const allSigned = rows.length > 0 && rows.every(r => r.status === 'signed' || r.status === 'void')
 
-  // Returns the outcome as well as showing it, because the card flow reports
-  // its own result and shouldn't have to read this component's error strip.
-  const send = useCallback(async (ids) => {
-    if (!ids.length) return { sent: 0, failed: [], error: 'Nothing to send.' }
+  // Freeze the document and hand back its link.
+  //
+  // There is no mail server to hand this to — no function to deploy, no secret
+  // to set, no verified domain — so "send" means: snapshot it, mark it issued,
+  // and give the staff member the link to pass on from their own WhatsApp or
+  // mail client. That is also better deliverability than an unauthenticated
+  // domain would have had, since sixteen of seventeen vendors are on Gmail.
+  const issue = useCallback(async (ids) => {
+    if (!ids.length) return []
     setBusy('send'); setErr(''); setNote('')
-    let out
-    const { data: s } = await supabase.auth.getSession()
-    const token = s?.session?.access_token
-    try {
-      const res = await supabase.functions.invoke('payout-invoice-send', {
-        body: { invoice_ids: ids, origin: window.location.origin },
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      })
-      if (res.error) throw res.error
-      const d = res.data || {}
-      out = { sent: d.sent || 0, failed: d.failed || [], error: (!d.sent && !d.failed?.length) ? (d.error || 'Nothing was sent.') : '' }
-      if (out.sent) setNote(`Sent ${out.sent} invoice${out.sent === 1 ? '' : 's'}.`)
-      if (out.failed.length) setErr(`${out.failed.length} didn't send — ${out.failed[0].error}`)
-      else if (out.error) setErr(out.error)
-    } catch (e) {
-      out = { sent: 0, failed: [], error: e.message || String(e) }
-      setErr(out.error)
+    const out = []
+    const failed = []
+    for (const id of ids) {
+      const { data, error } = await supabase.rpc('invoice_prepare_send', { p_invoice_id: id })
+      if (error) { failed.push(error.message); continue }
+      out.push({ id, token: data?.token, invoiceNo: data?.invoice_no, net: data?.net_payable, snapshot: data?.snapshot })
     }
     setBusy('')
-    load()
+    if (failed.length) setErr(`${failed.length} couldn't be issued — ${failed[0]}`)
+    if (out.length) setNote(`${out.length} invoice${out.length === 1 ? '' : 's'} issued. Send the links below.`)
+    await load()
     return out
   }, [load])
 
@@ -346,10 +349,6 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
     load()
   }
 
-  function copyLink(inv) {
-    const url = `${window.location.origin}/vi/${inv.token}`
-    navigator.clipboard?.writeText(url).then(() => setNote('Link copied.'), () => setErr('Could not copy.'))
-  }
 
   if (invoices === null) {
     return <div style={{ padding: 22, fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Loading invoices…</div>
@@ -379,8 +378,8 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
             </button>
           )}
           {readyToSend.length > 0 && (
-            <button type="button" onClick={() => send(readyToSend.map(r => r.invoice.id))} disabled={busy === 'send'} style={actBtn}>
-              {busy === 'send' ? 'Sending…' : `✉ Send ${readyToSend.length} for signing`}
+            <button type="button" onClick={() => issue(readyToSend.map(r => r.invoice.id))} disabled={busy === 'send'} style={actBtn}>
+              {busy === 'send' ? 'Issuing…' : `Issue ${readyToSend.length} for signing`}
             </button>
           )}
           {allSigned && (
@@ -429,19 +428,20 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
                 </div>
               )}
 
+              {['sent', 'viewed'].includes(r.status) && r.link && (
+                <ShareLinks row={{ link: r.link, name: r.name, phone: r.phone, email: r.email,
+                  invoiceNo: r.invoice.invoice_no, periodMonth: period.period_month, net: r.invoice.net_payable }} />
+              )}
+
               {r.invoice && (
                 <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                   <button type="button" onClick={() => setEditing({ ...r.invoice, _name: r.name })} style={actBtn}>
                     {r.invoice.status === 'draft' ? 'Edit PIDs' : 'View split'}
                   </button>
                   {canSend && (
-                    <button type="button" onClick={() => send([r.invoice.id])} disabled={busy === 'send'} style={actBtn}>✉ Send</button>
-                  )}
-                  {['sent', 'viewed'].includes(r.invoice.status) && (
-                    <>
-                      <button type="button" onClick={() => copyLink(r.invoice)} style={actBtn}>Copy link</button>
-                      <button type="button" onClick={() => send([r.invoice.id])} disabled={busy === 'send'} style={actBtn}>Resend</button>
-                    </>
+                    <button type="button" onClick={() => issue([r.invoice.id])} disabled={busy === 'send'} style={primaryBtn}>
+                      {busy === 'send' ? 'Issuing…' : 'Issue for signing'}
+                    </button>
                   )}
                   {r.invoice.snapshot && (
                     <button type="button" onClick={() => setPreview(r)} style={actBtn}>Preview</button>
@@ -471,7 +471,7 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
       )}
       {flowOpen && (
         <InvoiceFlow period={period} rows={rows} properties={properties}
-          onSend={send} onClose={() => { setFlowOpen(false); load(); onChanged && onChanged() }} />
+          onSend={issue} onClose={() => { setFlowOpen(false); load(); onChanged && onChanged() }} />
       )}
       {entityOpen && <BillingEntitySheet onClose={() => setEntityOpen(false)} />}
     </div>

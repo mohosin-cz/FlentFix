@@ -86,3 +86,27 @@ export function amountInWords(amount) {
   if (paise) s += ' and ' + under1000(paise) + (paise === 1 ? ' paisa' : ' paise')
   return s + ' only'
 }
+
+// ── delivering the link by hand ──────────────────────────────────────────────
+// There is no mail server to hand a signing link to, so it goes out through
+// whatever the staff member already has open. These live here rather than in
+// the share component because a component file that also exports helpers stops
+// fast refresh working for the whole module.
+
+// wa.me wants digits only, country code included. Indian mobiles are stored as
+// ten digits, so 91 is prefixed unless something longer is already there.
+export function waNumber(phone) {
+  const d = String(phone || '').replace(/\D/g, '')
+  if (!d) return ''
+  if (d.length === 10) return '91' + d
+  if (d.length === 11 && d.startsWith('0')) return '91' + d.slice(1)
+  return d
+}
+
+export function invoiceMessage({ name, invoiceNo, periodMonth, net, link }) {
+  return `Hello ${name || ''},\n\n` +
+    `Your invoice ${invoiceNo} for ${monthLabel(periodMonth)} is ready.\n` +
+    `Net payable: ${inr(net)}\n\n` +
+    `Please review and sign here:\n${link}\n\n` +
+    `If the amount looks wrong, don't sign — reply to this message instead.`
+}

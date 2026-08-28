@@ -101,12 +101,11 @@ export default function InvoiceFlow({ period, rows, properties, onSend, onClose 
 
   async function sendAll() {
     const ids = cards.filter(c => c.invoice.status === 'draft' && isReady(c)).map(c => c.invoice.id)
-    if (!ids.length) { setErr('Nothing ready to send.'); return }
+    if (!ids.length) { setErr('Nothing ready to issue.'); return }
     setBusy(true); setErr('')
-    const res = await onSend(ids)
+    const issued = await onSend(ids)
     setBusy(false)
-    setSendResult(res)
-    if (res?.error) { setErr(res.error); return }
+    setSendResult({ count: Array.isArray(issued) ? issued.length : 0 })
     setPhase('sent')
   }
 
@@ -228,8 +227,10 @@ export default function InvoiceFlow({ period, rows, properties, onSend, onClose 
           <div style={cardStyle}>
             <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ All {total} have PIDs</div>
             <div style={{ fontSize: 13, color: muted, lineHeight: 1.55 }}>
-              {cards.filter(c => c.invoice.status === 'draft' && isReady(c)).length} ready to email for signing.
-              Each vendor gets a private link to their own invoice — nobody sees anyone else&rsquo;s.
+              {cards.filter(c => c.invoice.status === 'draft' && isReady(c)).length} ready to issue.
+              Issuing freezes each invoice and creates a private signing link — one per
+              vendor, so nobody sees anyone else&rsquo;s. You then send the links from the
+              list, by WhatsApp or your own mail client.
             </div>
             {err && (
               <div style={{ padding: '9px 11px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {err}</div>
@@ -237,7 +238,7 @@ export default function InvoiceFlow({ period, rows, properties, onSend, onClose 
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" onClick={() => { setPhase('review'); setIdx(0); setErr('') }} style={navBtn}>‹ Back</button>
               <button type="button" onClick={sendAll} disabled={busy} style={{ ...approveBtn, background: 'var(--accent, #c8963e)', color: '#1a1408' }}>
-                {busy ? 'Sending…' : '✉ Send for signing →'}
+                {busy ? 'Issuing…' : 'Issue for signing →'}
               </button>
             </div>
           </div>
@@ -245,11 +246,11 @@ export default function InvoiceFlow({ period, rows, properties, onSend, onClose 
 
         {phase === 'sent' && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ Sent</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ Issued</div>
             <div style={{ fontSize: 13, color: muted, lineHeight: 1.55 }}>
-              {sendResult?.sent ?? 0} invoice{(sendResult?.sent ?? 0) === 1 ? '' : 's'} emailed.
-              {sendResult?.failed?.length ? ` ${sendResult.failed.length} didn't send — they're back as drafts in the list.` : ''}
-              <br />Signatures will appear on the list as they come in.
+              {sendResult?.count ?? 0} invoice{(sendResult?.count ?? 0) === 1 ? '' : 's'} issued.
+              <br />Close this and each one now has WhatsApp / Email / Copy link buttons
+              in the list. Signatures appear there as they come in.
             </div>
             <button type="button" onClick={onClose} style={{ ...approveBtn, background: 'var(--accent, #c8963e)', color: '#1a1408' }}>Done</button>
           </div>
