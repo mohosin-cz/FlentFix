@@ -35,9 +35,7 @@ function Stat({ label, value, color }) {
 function VendorTile({ v, url, properties, onOpen }) {
   return (
     <button type="button" onClick={() => onOpen(v)}
-      style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', textAlign: 'left', padding: '14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', transition: 'border-color 0.15s' }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-dash, #3a3d52)' }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border, #2e3040)' }}>
+      style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', textAlign: 'left', padding: '14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
       {/* A third of a row, not a whole one: the vendor code moves under the
           name rather than fighting it for the same line, and the date drops to
           a footer where it cannot squeeze the two numbers that matter. */}

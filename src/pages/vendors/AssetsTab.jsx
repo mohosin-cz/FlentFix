@@ -43,46 +43,67 @@ function Sel({ label, value, onChange, options }) {
   )
 }
 
-function AssetRow({ a, vendor, onOpen }) {
-  return (
-    <button type="button" onClick={onOpen}
-      style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', minHeight: 60,
-        padding: '11px 13px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)',
-        borderRadius: 10, cursor: 'pointer' }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{a.name}</span>
-          <AssetStatusChip status={a.status} />
-          {a.asset_tag && (
-            <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, padding: '2px 7px', borderRadius: 5, background: 'rgba(200,150,62,0.12)', border: '1px solid rgba(200,150,62,0.30)' }}>
-              <span style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', color: 'var(--accent, #c8963e)', fontFamily: MONO }}>TAG</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: MONO }}>{a.asset_tag}</span>
-            </span>
-          )}
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {[a.category, [a.make, a.model].filter(Boolean).join(' '), a.serial_no ? `SL ${a.serial_no}` : null]
-            .filter(Boolean).join(' · ') || '—'}
-        </div>
-      </div>
 
-      {vendor ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, maxWidth: 190 }}>
-          <span style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, fontFamily: MONO, background: avatarColor(vendor.full_name) + '22', color: avatarColor(vendor.full_name), border: `1px solid ${avatarColor(vendor.full_name)}66` }}>{initials(vendor.full_name)}</span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim, #9394a8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vendor.full_name}</div>
-            {vendor.vendor_code && <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{vendor.vendor_code}</div>}
+
+// ── one vendor, and what they hold ──────────────────────────────────────────
+// A flat list of every asset answers "where is this drill", which is the rarer
+// question. The common one is "what has this person got" — at a handover, an
+// exit, or when something comes back. So the roster leads and the items sit
+// under the holder, collapsed until asked for.
+function VendorAssetCard({ vendor, assets, open, onToggle, onOpenAsset }) {
+  const byStatus = assets.reduce((m, a) => { m[a.status] = (m[a.status] || 0) + 1; return m }, {})
+  const value = assets.reduce((s, a) => s + Number(a.value || 0), 0)
+  const flagged = (byStatus.lost || 0) + (byStatus.damaged || 0)
+  const name = vendor ? vendor.full_name : 'Unassigned'
+  const c = avatarColor(name)
+
+  return (
+    <div className="hov-card" style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${open ? 'var(--border-dash, #3a3d52)' : 'var(--border, #2e3040)'}`, borderRadius: 12, overflow: 'hidden' }}>
+      <button type="button" onClick={onToggle} aria-expanded={open}
+        style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left', padding: '12px 13px', background: 'none', border: 'none', cursor: 'pointer' }}>
+        <span style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, fontFamily: MONO, background: c + '22', color: c, border: `1px solid ${c}55` }}>
+          {vendor ? initials(name) : '—'}
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+          <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {vendor?.vendor_code ? `${vendor.vendor_code} · ` : ''}{vendor?.trade || 'no holder'}
           </div>
         </div>
-      ) : (
-        <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, flexShrink: 0 }}>unassigned</span>
+        <span aria-hidden="true" style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s', flexShrink: 0 }}>›</span>
+      </button>
+
+      <div style={{ display: 'flex', gap: 10, padding: '0 13px 12px' }}>
+        <Tile label="Items" value={assets.length} />
+        <Tile label="Value" value={assetMoney(value) || '₹0'} />
+        {flagged > 0
+          ? <Tile label="Lost / damaged" value={flagged} color="var(--red, #e05c6a)" />
+          : <Tile label="Assigned" value={byStatus.assigned || 0} color="var(--green, #3dba7a)" />}
+      </div>
+
+      {open && (
+        <div style={{ padding: '0 13px 13px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <div style={{ height: 1, background: 'var(--border, #2e3040)' }} />
+          {assets.map(a => (
+            <button key={a.id} type="button" onClick={() => onOpenAsset(a)} className="hov-row"
+              style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', minHeight: 46, padding: '8px 10px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 9, cursor: 'pointer' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {[a.category, a.serial_no ? `SL ${a.serial_no}` : null, a.asset_tag ? `TAG ${a.asset_tag}` : null].filter(Boolean).join(' · ') || '—'}
+                </div>
+              </div>
+              <AssetStatusChip status={a.status} />
+            </button>
+          ))}
+        </div>
       )}
-      <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', flexShrink: 0 }}>›</span>
-    </button>
+    </div>
   )
 }
 
 export default function AssetsTab() {
+  const [openHolder, setOpenHolder] = useState(null)
   const { session } = useAuth()
   const [assets, setAssets] = useState(null)
   const [vendors, setVendors] = useState([])
@@ -129,6 +150,22 @@ export default function AssetsTab() {
         .some(f => (f || '').toLowerCase().includes(needle))
     })
   }, [assets, q, statusF, catF, vendorF, vendorById])
+
+  // Group whatever survived the filters by who holds it. Unassigned last: it
+  // is a pile to clear, not a person to check on.
+  const grouped = useMemo(() => {
+    const by = new Map()
+    for (const a of list) {
+      const key = a.vendor_id || '__none'
+      if (!by.has(key)) by.set(key, { key, vendor: a.vendor_id ? vendorById.get(a.vendor_id) : null, assets: [] })
+      by.get(key).assets.push(a)
+    }
+    return [...by.values()].sort((x, y) => {
+      if (!x.vendor) return 1
+      if (!y.vendor) return -1
+      return y.assets.length - x.assets.length || x.vendor.full_name.localeCompare(y.vendor.full_name)
+    })
+  }, [list, vendorById])
 
   const stats = useMemo(() => {
     const all = assets || []
@@ -237,10 +274,12 @@ export default function AssetsTab() {
           Nothing matches {q ? `“${q.trim()}”` : 'these filters'}.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {list.map(a => (
-            <AssetRow key={a.id} a={a} vendor={a.vendor_id ? vendorById.get(a.vendor_id) : null}
-              onOpen={() => setSheet({ mode: 'edit', asset: a })} />
+        <div className="vendor-grid" style={{ display: 'grid', gap: 12 }}>
+          {grouped.map(g => (
+            <VendorAssetCard key={g.key} vendor={g.vendor} assets={g.assets}
+              open={openHolder === g.key}
+              onToggle={() => setOpenHolder(openHolder === g.key ? null : g.key)}
+              onOpenAsset={a => setSheet({ mode: 'edit', asset: a })} />
           ))}
         </div>
       )}

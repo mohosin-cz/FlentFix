@@ -251,3 +251,43 @@ a[href]:not(.tct):active {
    at that size a card stops being a summary and becomes a thing to squint at. */
 .vendor-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
 @media (max-width: 560px) { .vendor-grid { grid-template-columns: 1fr; } }
+
+/* ── hover lift ─────────────────────────────────────────────────────────────
+   Cards and pills rise slightly under the cursor. Scale alone on a card full
+   of small mono text resamples every glyph and reads as a blur, so the lift is
+   mostly the shadow and the border doing the work, with a scale small enough
+   to feel rather than see.
+
+   Only where a pointer can actually hover: `any-hover: hover` keeps a phone
+   from latching the effect on after a tap, which looks like a stuck selection.
+   And it defers to prefers-reduced-motion, since this is decoration. */
+@media (any-hover: hover) {
+  .hov-card, .vendor-grid > *, .vd-grid > * {
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+  }
+  .hov-card:hover, .vendor-grid > *:hover {
+    transform: translateY(-2px) scale(1.012);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.38);
+    border-color: var(--border-dash, #3a3d52);
+  }
+  .vd-grid > *:hover { border-color: var(--border-dash, #3a3d52); }
+
+  /* Rows and pills sit inside cards, so they lift without the scale — nested
+     scaling compounds and the inner element drifts off its own card. */
+  .hov-row { transition: background .14s ease, border-color .14s ease; }
+  .hov-row:hover {
+    background: var(--bg-panel, #1e2028);
+    border-color: var(--border-dash, #3a3d52);
+  }
+  /* .tct already owns its hover colour, its shadow and a press-down :active,
+     and its transition is tuned. Only the lift is added — excluded while
+     pressed, so the button still travels downward under the finger instead of
+     this rule winning by coming later in the file. */
+  .tct:hover:not(:active) { transform: translateY(-1px) scale(1.015); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hov-card, .vendor-grid > *, .vd-grid > * { transition: none; }
+  .hov-card:hover, .vendor-grid > *:hover { transform: none; }
+  .tct:hover:not(:active) { transform: none; }
+}
