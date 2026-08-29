@@ -58,7 +58,7 @@ function ItemCard({ item, index, busy, error, onDone, onUndo, closed }) {
       listStyle: 'none',
       background: 'var(--bg-panel, #1e2028)',
       border: `1px solid ${sentBack ? 'rgba(200,150,62,0.42)' : done ? 'rgba(61,186,122,0.30)' : 'var(--border, #2e3040)'}`,
-      borderRadius: 12, padding: 13, display: 'flex', flexDirection: 'column', gap: 10,
+      borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 9,
       opacity: done ? 0.78 : 1,
       scrollMarginTop: 96,
     }}>
@@ -138,10 +138,15 @@ function ItemCard({ item, index, busy, error, onDone, onUndo, closed }) {
           {/* Sized for a thumb (44px) but not a slab — a checklist of thirty
               rows should read as the work, not as thirty green buttons. */}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+            {/* Adding a note is the rare case; it was a button the same size
+                and weight as the one action on the row. Still a 44px target,
+                just no longer competing to be read first. */}
             {!noteOpen && (
-              <button type="button" onClick={() => setNoteOpen(true)}
-                style={{ minHeight: 44, padding: '0 13px', borderRadius: 9, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 12.5, cursor: 'pointer', fontFamily: SANS, WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
-                Note
+              <button type="button" onClick={() => setNoteOpen(true)} aria-label="Add a note" title="Add a note"
+                style={{ width: 44, height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 9, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
               </button>
             )}
             <button type="button" onClick={() => onDone(note.trim() || null)} disabled={busy}
@@ -340,21 +345,25 @@ export default function VendorWorkOrder({ token: tokenProp, embedded, onBack }) 
               <div style={{ height: '100%', width: `${pctDone}%`, background: 'var(--green, #3dba7a)', borderRadius: 4, transition: 'width .2s' }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', marginTop: 7 }}>
-              <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
-                {doneCount} of {items.length} done
-              </span>
+              {/* The filter chips already carry every one of these numbers —
+                  "All 10 · To do 10 · Done 0" was being restated as "0 of 10
+                  done" on the same line, in a header that is 29% of a phone
+                  screen before the first item. */}
               {sentBackCount > 0 && (
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', border: '1px solid var(--accent, #c8963e)', borderRadius: 10, padding: '2px 8px', fontFamily: MONO }}>
                   {sentBackCount} sent back
                 </span>
               )}
+              {/* Filling the row rather than huddling at its right end: three
+                  equal segments read as one control and give a thumb a third of
+                  the width each. */}
               {items.length > 3 && (
-                <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: 6 }}>
                   {[{ key: 'all', label: 'All', n: items.length },
                     { key: 'todo', label: 'To do', n: openCount },
                     { key: 'done', label: 'Done', n: doneCount }].map(v => (
                     <button key={v.key} type="button" onClick={() => setView(v.key)} aria-pressed={view === v.key}
-                      style={{ minHeight: 32, padding: '0 10px', borderRadius: 8, fontSize: 11.5, fontFamily: MONO, cursor: 'pointer',
+                      style={{ flex: 1, minHeight: 34, padding: '0 8px', borderRadius: 8, fontSize: 11.5, fontFamily: MONO, cursor: 'pointer',
                         border: `1px solid ${view === v.key ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`,
                         background: view === v.key ? 'rgba(200,150,62,0.14)' : 'transparent',
                         color: view === v.key ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)',

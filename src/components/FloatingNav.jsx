@@ -31,6 +31,17 @@ const HIDE_ON = [
   '/invoice/',
   '/tax-invoice/',
   '/e/',
+  // Vendor-facing pages. Nobody reading these is staff: they arrive on a
+  // tokenised link or a portal password, and the app nav offers them Home,
+  // Inspect and Properties — five doors they cannot open, sitting on top of
+  // the submit bar they came for. /attend only escaped it by covering the nav
+  // with a fixed full-screen shell.
+  '/wo/',
+  '/vi/',
+  '/attend',
+  '/onboard',
+  '/rate-card',
+  '/inventory/public-rc',
 ]
 
 const HIDE_ON_SUFFIX = ['/estimates']
