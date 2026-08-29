@@ -6,6 +6,7 @@ import { getPosition, fmtTime, fmtDate, fmtDuration, fmtElapsed, fmtBreakLeft, m
 import { compressForUpload, newSubmissionId } from '../utils/vendorOnboard'
 import { breakTotals, fmtMs } from '../utils/attendance'
 import FlentWordmark from '../components/FlentWordmark'
+import VendorWorkOrder from './VendorWorkOrder'
 
 const TOKEN_KEY = 'flent_attend_token'
 const avatarUrl = (path) => {
@@ -187,14 +188,59 @@ function PRow({ label, children }) {
   )
 }
 
+// ── work orders assigned to this vendor ─────────────────────────────────────
+// The page a vendor already knows, reached from the portal instead of from a
+// link somebody had to remember to send. Tapping one opens the same component
+// that /wo/:token opens, handed the token from the list.
+const WO_STATE = {
+  assigned:          { label: 'To do',      ink: 'var(--accent, #c8963e)', bg: 'rgba(200,150,62,0.12)', line: 'rgba(200,150,62,0.35)' },
+  in_progress:       { label: 'In progress', ink: 'var(--accent, #c8963e)', bg: 'rgba(200,150,62,0.12)', line: 'rgba(200,150,62,0.35)' },
+  vendor_completed:  { label: 'Submitted',  ink: '#5b8def', bg: 'rgba(91,141,239,0.12)', line: 'rgba(91,141,239,0.35)' },
+  verified:          { label: 'Closed',     ink: 'var(--green, #3dba7a)', bg: 'rgba(61,186,122,0.10)', line: 'rgba(61,186,122,0.30)' },
+}
+function WoCard({ w, onOpen }) {
+  const st = WO_STATE[w.status] || { label: w.status, ink: 'var(--text-dim, #9394a8)', bg: 'var(--bg-input, #252731)', line: 'var(--border, #2e3040)' }
+  const done = Math.max(0, (w.item_count || 0) - (w.open_count || 0))
+  const pct = w.item_count ? Math.round((done / w.item_count) * 100) : 0
+  return (
+    <button type="button" onClick={() => onOpen(w)}
+      style={{ position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 10, width: '100%', textAlign: 'left', padding: '13px 14px', background: 'var(--bg-panel, #1e2028)', border: `1px solid ${st.line}`, borderLeft: `3px solid ${st.ink}`, borderRadius: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.12)', border: '1px solid rgba(200,150,62,0.32)', borderRadius: 6, padding: '3px 8px', fontFamily: 'var(--font-mono, monospace)' }}>PID {w.pid}</span>
+        <span style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{w.trade}</span>
+        <span style={{ marginInlineStart: 'auto', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', color: st.ink, background: st.bg, border: `1px solid ${st.line}`, borderRadius: 6, padding: '3px 8px', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>{st.label}</span>
+      </div>
+      {/* Work sent back is not the same as work not started, and it is the one
+          thing on this card somebody has to act on today. */}
+      {w.disputed_count > 0 && (
+        <span style={{ fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>
+          ⚠ {w.disputed_count} sent back
+        </span>
+      )}
+      <div>
+        <div style={{ height: 6, borderRadius: 3, background: 'var(--bg-input, #252731)', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: st.ink, borderRadius: 3, transition: 'width .2s' }} />
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 6, fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+          <span>{done} of {w.item_count} done</span>
+          {w.scheduled_start && <span>· {fmtDate(w.scheduled_start)}</span>}
+        </div>
+      </div>
+    </button>
+  )
+}
+
 // Payroll sits in the middle — it is the thing a vendor now comes here to do
 // besides punching, and the middle of a three-up bar is the easiest reach on a
 // phone. Profile moves right: it is looked at rarely.
-const PORTAL_TABS = [{ key: 'time', label: 'Time', icon: '⏱' }, { key: 'payroll', label: 'Payroll', icon: '₹' }, { key: 'profile', label: 'Profile', icon: '☰' }]
-function PortalNav({ tab, onTab }) {
+const PORTAL_TABS = [{ key: 'time', label: 'Time', icon: '⏱' }, { key: 'wo', label: 'WO', icon: '▤' }, { key: 'payroll', label: 'Payroll', icon: '₹' }, { key: 'profile', label: 'Profile', icon: '☰' }]
+// The WO tab only exists for vendors who have been given work. A dead tab a
+// cleaner never has anything in is a permanent question they cannot answer.
+function PortalNav({ tab, onTab, woCount }) {
+  const tabs = PORTAL_TABS.filter(t => t.key !== 'wo' || woCount > 0)
   return (
     <div style={{ flexShrink: 0, display: 'flex', background: 'var(--bg-panel, #1e2028)', borderTop: '1px solid var(--border, #2e3040)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      {PORTAL_TABS.map(t => {
+      {tabs.map(t => {
         const on = tab === t.key
         return (
           <button key={t.key} type="button" onClick={() => onTab(t.key)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '9px 0', background: 'none', border: 'none', cursor: 'pointer', color: on ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', WebkitTapHighlightColor: 'transparent' }}>
@@ -286,6 +332,8 @@ export default function Attend() {
   const [editErr, setEditErr] = useState('')
   const [nowTs, setNowTs] = useState(0)              // ticker for the countdown
   const [breaks, setBreaks] = useState(null)         // today's breaks, newest last
+  const [workOrders, setWorkOrders] = useState([])   // assigned to this vendor
+  const [openWo, setOpenWo] = useState(null)         // the one being worked on
   const [breakBusy, setBreakBusy] = useState('')
   const [breakErr, setBreakErr] = useState('')
   const [tick, setTick] = useState(() => Date.now()) // 1s clock, only while on the clock
@@ -306,6 +354,12 @@ export default function Attend() {
     if (!error && data) setProfile(Array.isArray(data) ? data[0] : data)
   }, [])
 
+  const loadWorkOrders = useCallback(async () => {
+    // A portal that predates this RPC must not lose its Time tab over it.
+    const { data, error } = await supabase.rpc('attend_work_orders', { p_token: tokenRef.current })
+    if (!error) setWorkOrders(data || [])
+  }, [])
+
   const loadBreaks = useCallback(async () => {
     const { data, error } = await supabase.rpc('attend_break_status', { p_token: tokenRef.current })
     // A missing RPC means the migration has not been run; say so rather than
@@ -322,8 +376,8 @@ export default function Attend() {
 
   const enterPortal = useCallback(async (v) => {
     setVendor(v); setTab('time'); setStep('portal')
-    loadHistory(); loadProfile(); loadEditStatus(); loadBreaks(); captureLocation()
-  }, [captureLocation, loadHistory, loadProfile, loadEditStatus, loadBreaks])
+    loadHistory(); loadProfile(); loadEditStatus(); loadBreaks(); loadWorkOrders(); captureLocation()
+  }, [captureLocation, loadHistory, loadProfile, loadEditStatus, loadBreaks, loadWorkOrders])
 
   const isGranted = editReq && editReq.status === 'granted' && editReq.expires_at && new Date(editReq.expires_at).getTime() > nowTs
   const minsLeft = editReq && editReq.expires_at ? Math.max(0, Math.ceil((new Date(editReq.expires_at).getTime() - nowTs) / 60000)) : 0
@@ -801,6 +855,27 @@ export default function Attend() {
             </PCard>
           </>}
 
+          {/* ── WORK ORDERS ──────────────────────────────────────────────── */}
+          {tab === 'wo' && (openWo ? (
+            <VendorWorkOrder embedded token={openWo.token}
+              onBack={() => { setOpenWo(null); loadWorkOrders() }} />
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '2px 2px 0' }}>
+                <span style={{ flex: 1, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Work orders</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                  {workOrders.filter(w => w.open_count > 0).length} open
+                </span>
+              </div>
+              {workOrders.length === 0
+                ? <div style={{ padding: '40px 20px', textAlign: 'center', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 12 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>Nothing assigned</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', marginTop: 4, fontFamily: 'var(--font-mono, monospace)' }}>Work given to you shows up here.</div>
+                  </div>
+                : workOrders.map(w => <WoCard key={w.id} w={w} onOpen={setOpenWo} />)}
+            </>
+          ))}
+
           {/* ── PROFILE ──────────────────────────────────────────────────── */}
           {tab === 'profile' && (profile ? <>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '10px 0 4px' }}>
@@ -957,7 +1032,7 @@ export default function Attend() {
         </div>
       )}
 
-      <PortalNav tab={tab} onTab={setTab} />
+      <PortalNav tab={tab} onTab={(k) => { setOpenWo(null); setTab(k) }} woCount={workOrders.length} />
     </div>
   )
 }
