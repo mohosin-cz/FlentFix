@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useIsMobile'
 import LogoSpinner from '../components/LogoSpinner'
 import FlentWordmark from '../components/FlentWordmark'
+import { COMPANY } from '../utils/company'
 
 // ─── Number to words (Indian system) ─────────────────────────────────────────
 
@@ -179,7 +180,7 @@ export default function TaxInvoice() {
               {/* Brand */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <FlentWordmark height={26} variant="light" />
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>GSTIN: 29ABLCS8677C1Z0</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>GSTIN: {COMPANY.gstin}</div>
               </div>
 
               {/* TAX INVOICE badge */}
@@ -212,9 +213,10 @@ export default function TaxInvoice() {
             <div style={{ padding: isMobile ? '16px 20px' : '20px 40px' }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#9b9080', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>From</div>
               <div style={{ fontSize: 13, color: '#555', lineHeight: 1.7, marginBottom: 12 }}>
-                The Mayfair, Binnamangala<br />
-                Indiranagar, Bengaluru 560008<br />
-                <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#888' }}>GSTIN: 29ABLCS8677C1Z0</span>
+                {COMPANY.legal_name}<br />
+                {COMPANY.address_line}<br />
+                {COMPANY.city}, {COMPANY.state} {COMPANY.pincode}<br />
+                <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#888' }}>GSTIN: {COMPANY.gstin}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontSize: 12 }}>
                 <span style={{ color: '#9b9080' }}>Date</span>
@@ -336,7 +338,7 @@ export default function TaxInvoice() {
             <div style={{ textAlign: isMobile ? 'left' : 'right' }}>
               <div style={{ fontSize: 11, color: '#999', marginBottom: 28 }}>Authorised Signatory</div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>Flent</div>
-              <div style={{ fontSize: 11, color: '#999' }}>GSTIN: 29ABLCS8677C1Z0</div>
+              <div style={{ fontSize: 11, color: '#999' }}>GSTIN: {COMPANY.gstin}</div>
             </div>
           </div>
 
