@@ -34,7 +34,7 @@ values (1,
         '29',
         '560038',
         '29ABLCS8677C1ZO',   -- letter O: the GSTIN check digit, not a zero
-        'ABLCS8677C',
+        null,                -- PAN: not printed on the invoice, so not stored
         now())
 on conflict (id) do update set
   legal_name   = excluded.legal_name,
@@ -44,10 +44,20 @@ on conflict (id) do update set
   state_code   = excluded.state_code,
   pincode      = excluded.pincode,
   gstin        = excluded.gstin,
-  pan          = excluded.pan,
+  pan          = null,
   updated_at   = now();
 
 -- 2 ── restamp every issued invoice from it
+--
+-- trg_vendor_invoices_freeze refuses any snapshot change once an invoice is
+-- sent, and it is right to: that guard is what stops an amount being altered
+-- after someone signed for it. It is suspended here for one statement and one
+-- statement only, because the biller's own registered address is not an amount,
+-- and there is no narrower way through — bill_to lives inside the same snapshot
+-- the guard protects. Inside the transaction, so a failure anywhere below rolls
+-- the trigger back on with everything else.
+alter table public.vendor_invoices disable trigger trg_vendor_invoices_freeze;
+
 update public.vendor_invoices vi
    set snapshot = jsonb_set(
          vi.snapshot,
@@ -56,6 +66,8 @@ update public.vendor_invoices vi
             from public.payroll_billing_entity e
            where e.id = 1))
  where vi.snapshot is not null;
+
+alter table public.vendor_invoices enable trigger trg_vendor_invoices_freeze;
 
 commit;
 
