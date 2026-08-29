@@ -89,11 +89,32 @@ function PunchLine({ label, p, ot }) {
   )
 }
 
+// A nine-hour day is the yardstick a supervisor reads a running shift against.
+// Not a rule the system enforces — nothing here caps anyone — just the scale
+// the bar is drawn to, so "how far in are they" is answerable at a glance.
+const SHIFT_MS = 9 * 60 * 60 * 1000
+
+// Regular and overtime were told apart by a nine-pixel "OT" whisper beside the
+// name. They are different money; they get different colour, a chip you can
+// read across a room, and a border down the side of the card.
+const KIND_TONE = {
+  overtime: { ink: '#5b8def', bg: 'rgba(91,141,239,0.12)', line: 'rgba(91,141,239,0.45)', label: 'OVERTIME' },
+  regular:  { ink: 'var(--green, #3dba7a)', bg: 'rgba(61,186,122,0.10)', line: 'rgba(61,186,122,0.40)', label: 'REGULAR' },
+}
+function KindChip({ ot, small }) {
+  const t = KIND_TONE[ot ? 'overtime' : 'regular']
+  return (
+    <span style={{ fontSize: small ? 8.5 : 9.5, fontWeight: 800, letterSpacing: '0.13em', color: t.ink, background: t.bg, border: `1px solid ${t.line}`, borderRadius: 6, padding: small ? '1px 6px' : '3px 9px', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+      {t.label}
+    </span>
+  )
+}
+
 // prominent PID badge (loud, top of a tile)
 function PidBadge({ pid, siteMap }) {
   if (!pid) return null
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10, padding: '6px 11px', background: 'rgba(200,150,62,0.12)', border: '1px solid rgba(200,150,62,0.32)', borderRadius: 8, width: 'fit-content' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 11px', background: 'rgba(200,150,62,0.12)', border: '1px solid rgba(200,150,62,0.32)', borderRadius: 8, width: 'fit-content' }}>
       <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>PID</span>
       <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.02em' }}>{(siteMap && siteMap[pid]) || pid}</span>
     </div>
@@ -111,15 +132,40 @@ function SessionTile({ ses, siteMap, brk, now }) {
   const onBreak = open && !!brk
   const brkOver = onBreak ? Math.max(0, (now - new Date(brk.started_at).getTime()) - (BREAK_MINUTES[brk.kind] || 0) * 60000) : 0
   const brkTone = brkOver > 0 ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)'
+  const elapsed = open ? now - new Date(ses.inP.punched_at).getTime() : (dur || 0)
+  const pct = Math.max(0, Math.min(100, (elapsed / SHIFT_MS) * 100))
+  const pastShift = elapsed > SHIFT_MS
+  const kt = KIND_TONE[ot ? 'overtime' : 'regular']
+  // Past nine hours the bar stops being progress and starts being a flag.
+  const barTone = onBreak ? brkTone : pastShift ? 'var(--accent, #c8963e)' : kt.ink
+
   return (
-    <div style={{ padding: '12px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
-      <PidBadge pid={pid} siteMap={siteMap} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+    // A live card looks live: its own colour down the left edge, the tint of a
+    // filled progress track behind it, and the bar itself along the bottom.
+    // Before this the only thing separating a running shift from a finished one
+    // was that one of the numbers happened to be moving.
+    <div style={{ position: 'relative', overflow: 'hidden', padding: '12px 14px', background: 'var(--bg-panel, #1e2028)', border: `1px solid ${open ? kt.line : 'var(--border, #2e3040)'}`, borderLeft: `3px solid ${open ? kt.ink : 'var(--border, #2e3040)'}`, borderRadius: 12 }}>
+      {open && (
+        <>
+          <div aria-hidden style={{ position: 'absolute', inset: 0, width: `${pct}%`, background: kt.bg, opacity: 0.55, pointerEvents: 'none', transition: 'width 1s linear' }} />
+          <div aria-hidden style={{ position: 'absolute', left: 0, bottom: 0, height: 3, width: `${pct}%`, background: barTone, transition: 'width 1s linear' }} />
+        </>
+      )}
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        <PidBadge pid={pid} siteMap={siteMap} />
+        <KindChip ot={ot} />
+        {open && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginInlineStart: 'auto', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', color: kt.ink, fontFamily: 'var(--font-mono, monospace)' }}>
+            <span className="live-dot" style={{ width: 7, height: 7, borderRadius: 4, background: kt.ink, display: 'inline-block' }} />
+            LIVE
+          </span>
+        )}
+      </div>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 11 }}>
         <Ava v={v} size={34} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v ? v.full_name : 'Unknown'}</span>
-            {ot && <span style={{ fontSize: 9, color: '#5b8def', border: '1px solid #5b8def55', borderRadius: 4, padding: '0 5px', fontFamily: 'var(--font-mono, monospace)' }}>OT</span>}
           </div>
           {v && v.trade && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{v.trade}</span>}
         </div>
@@ -133,13 +179,14 @@ function SessionTile({ ses, siteMap, brk, now }) {
                 <div style={{ fontSize: 15, fontWeight: 700, color: onBreak ? brkTone : statusC, fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}>
                   {fmtElapsed(now - new Date(ses.inP.punched_at).getTime())}
                 </div>
-                <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 1 }}>
-                  {ot ? 'overtime' : 'on site'}
+                <div style={{ fontSize: 9.5, color: pastShift ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.06em', marginTop: 1 }}>
+                  {pastShift ? `past 9h · +${fmtDuration(elapsed - SHIFT_MS)}` : `${Math.round(pct)}% of 9h`}
                 </div>
               </>
             : <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDuration(dur)}</span>}
         </div>
       </div>
+      <div style={{ position: 'relative' }}>
       {ses.inP && <PunchLine label="IN" p={ses.inP} ot={ot} />}
       {ses.outP
         ? <PunchLine label="OUT" p={ses.outP} ot={ot} />
@@ -157,6 +204,7 @@ function SessionTile({ ses, siteMap, brk, now }) {
               <span style={{ fontSize: 10, color: brkOver > 0 ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{brkOver > 0 ? 'over' : 'left'}</span>
             </div>
           : <div style={{ marginTop: 6, fontSize: 11, color: statusC, fontFamily: 'var(--font-mono, monospace)' }}>OUT&nbsp;&nbsp;— still on site</div>}
+      </div>
     </div>
   )
 }
@@ -169,19 +217,31 @@ function RosterRow({ s, siteLabel, onOpen, now }) {
   // exactly what a supervisor looking at this board wants to know.
   const breakOver = onBreak && s.bt.open && s.bt.open.overMs > 0
   const color = breakOver ? 'var(--red, #e05c6a)' : onBreak ? 'var(--accent, #c8963e)' : on ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)'
+  const otRunning = s.openKind === 'overtime'
+  const kt = KIND_TONE[otRunning ? 'overtime' : 'regular']
+  const live = on ? (s.regMs + s.otMs) : 0
+  const pct = Math.max(0, Math.min(100, (live / SHIFT_MS) * 100))
   return (
-    <button type="button" onClick={onOpen} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', padding: '11px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+    <button type="button" onClick={onOpen} style={{ position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', padding: '11px 14px', background: 'var(--bg-panel, #1e2028)', border: `1px solid ${on ? kt.line : 'var(--border, #2e3040)'}`, borderLeft: `3px solid ${on ? kt.ink : 'var(--border, #2e3040)'}`, borderRadius: 12, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+      {on && (
+        <>
+          <div aria-hidden style={{ position: 'absolute', inset: 0, width: `${pct}%`, background: kt.bg, opacity: 0.5, pointerEvents: 'none', transition: 'width 1s linear' }} />
+          <div aria-hidden style={{ position: 'absolute', left: 0, bottom: 0, height: 3, width: `${pct}%`, background: breakOver ? 'var(--red, #e05c6a)' : onBreak ? 'var(--accent, #c8963e)' : kt.ink, transition: 'width 1s linear' }} />
+        </>
+      )}
       <Ava v={s.vendor} size={36} />
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {on && <span className="live-dot" style={{ width: 7, height: 7, borderRadius: 4, background: kt.ink, flexShrink: 0 }} />}
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+          {otRunning && <KindChip ot small />}
           <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>{s.trade}</span>
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           in {fmtTime(s.firstIn && s.firstIn.punched_at)} · out {s.lastOut ? fmtTime(s.lastOut.punched_at) : '—'}{siteLabel ? ` · ${siteLabel}` : ''}
         </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
+      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
         <span style={{ fontSize: 10, fontWeight: 700, color, border: `1px solid ${color}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>
           {onBreak ? `On ${BREAK_LABEL[s.brk.kind].toLowerCase()}` : on ? 'On site' : 'Checked out'}
         </span>
