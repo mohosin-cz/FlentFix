@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import ShareSheet from '../../components/vendor/ShareSheet'
-import { attendUrl, fmtTime, fmtDate, fmtDuration, todayStr, initials, avatarColor } from '../../utils/vendorHub'
-import { summarize } from '../../utils/attendance'
+import { attendUrl, fmtTime, fmtDate, fmtDuration, fmtElapsed, fmtBreakLeft, todayStr, initials, avatarColor } from '../../utils/vendorHub'
+import { summarize, openBreakOf, BREAK_MINUTES, BREAK_LABEL } from '../../utils/attendance'
 
 const avatarUrl = (path) => {
   if (!path) return null
@@ -101,13 +101,14 @@ function PidBadge({ pid, siteMap }) {
 }
 
 // one session (check-in + its check-out) as a tile
-function SessionTile({ ses, siteMap }) {
+function SessionTile({ ses, siteMap, brk, now }) {
   const ot = ses.kind === 'overtime'
   const open = !ses.outP
   const v = ses.vendor
   const pid = (ses.inP && ses.inP.pid) || (ses.outP && ses.outP.pid) || null
   const dur = (ses.inP && ses.outP) ? new Date(ses.outP.punched_at).getTime() - new Date(ses.inP.punched_at).getTime() : null
   const statusC = ot ? '#5b8def' : 'var(--green, #3dba7a)'
+  const onBreak = open && !!brk
   return (
     <div style={{ padding: '12px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
       <PidBadge pid={pid} siteMap={siteMap} />
@@ -122,22 +123,46 @@ function SessionTile({ ses, siteMap }) {
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           {open
-            ? <span style={{ fontSize: 10, fontWeight: 700, color: statusC, border: `1px solid ${statusC}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{ot ? 'Overtime' : 'On site'}</span>
+            ? <>
+                {/* The same seconds the vendor is watching on their own phone.
+                    This used to be a static "On site" pill, so the board could
+                    not tell you how long someone had been there without doing
+                    the arithmetic off the IN time. */}
+                <div style={{ fontSize: 15, fontWeight: 700, color: onBreak ? 'var(--accent, #c8963e)' : statusC, fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}>
+                  {fmtElapsed(now - new Date(ses.inP.punched_at).getTime())}
+                </div>
+                <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 1 }}>
+                  {ot ? 'overtime' : 'on site'}
+                </div>
+              </>
             : <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDuration(dur)}</span>}
         </div>
       </div>
       {ses.inP && <PunchLine label="IN" p={ses.inP} ot={ot} />}
       {ses.outP
         ? <PunchLine label="OUT" p={ses.outP} ot={ot} />
-        : <div style={{ marginTop: 6, fontSize: 11, color: statusC, fontFamily: 'var(--font-mono, monospace)' }}>OUT&nbsp;&nbsp;— still on site</div>}
+        : onBreak
+          ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '7px 10px', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.30)', borderRadius: 8 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                On {BREAK_LABEL[brk.kind].toLowerCase()}
+              </span>
+              <span style={{ marginInlineStart: 'auto', fontSize: 12, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums' }}>
+                {fmtBreakLeft({ ...brk, minutes: BREAK_MINUTES[brk.kind] }, now)}
+              </span>
+              <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>left</span>
+            </div>
+          : <div style={{ marginTop: 6, fontSize: 11, color: statusC, fontFamily: 'var(--font-mono, monospace)' }}>OUT&nbsp;&nbsp;— still on site</div>}
     </div>
   )
 }
 
 // ── one vendor roster row ───────────────────────────────────────────────────
-function RosterRow({ s, siteLabel, onOpen }) {
+function RosterRow({ s, siteLabel, onOpen, now }) {
   const on = s.status === 'on_site'
-  const color = on ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)'
+  const onBreak = on && !!s.brk
+  // A break is its own state, not a flavour of "on site": the difference is
+  // exactly what a supervisor looking at this board wants to know.
+  const color = onBreak ? 'var(--accent, #c8963e)' : on ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)'
   return (
     <button type="button" onClick={onOpen} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', padding: '11px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
       <Ava v={s.vendor} size={36} />
@@ -151,8 +176,18 @@ function RosterRow({ s, siteLabel, onOpen }) {
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color, border: `1px solid ${color}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>{on ? 'On site' : 'Checked out'}</span>
-        <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDuration(s.regMs)}{s.otMs > 0 ? <span style={{ color: '#5b8def' }}> · OT {fmtDuration(s.otMs)}</span> : ''}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color, border: `1px solid ${color}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>
+          {onBreak ? `On ${BREAK_LABEL[s.brk.kind].toLowerCase()}` : on ? 'On site' : 'Checked out'}
+        </span>
+        {onBreak && (
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums' }}>
+            {fmtBreakLeft({ ...s.brk, minutes: BREAK_MINUTES[s.brk.kind] }, now)} left
+          </span>
+        )}
+        <span style={{ fontSize: 11, color: on ? 'var(--text, #e8e8f0)' : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums' }}>
+          {on ? fmtElapsed(s.regMs + s.otMs) : fmtDuration(s.regMs)}
+          {!on && s.otMs > 0 ? <span style={{ color: '#5b8def' }}> · OT {fmtDuration(s.otMs)}</span> : ''}
+        </span>
       </div>
     </button>
   )
@@ -213,18 +248,23 @@ export default function AttendanceTab() {
   const [error, setError] = useState('')
   const [sharing, setSharing] = useState(false)
   const [selected, setSelected] = useState(null)   // vendor summary for detail sheet
+  const [breaks, setBreaks] = useState([])
+  // A running shift is a number that changes every second. The board showed a
+  // frozen one — or none at all — while the vendor's own phone counted up.
+  const [now, setNow] = useState(() => Date.now())
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
     const start = new Date(`${date}T00:00:00`)
     const end = new Date(start); end.setDate(end.getDate() + 1)
-    const [pRes, vRes, sRes] = await Promise.all([
+    const [pRes, vRes, sRes, bRes] = await Promise.all([
       supabase.from('vendor_attendance')
         .select('*, vendor:vendors(full_name,trade,pod,vendor_code,avatar_path)')
         .gte('punched_at', start.toISOString()).lt('punched_at', end.toISOString())
         .order('punched_at', { ascending: true }),
       supabase.from('vendors').select('id,full_name,trade,pod,vendor_code').eq('status', 'approved'),
       supabase.rpc('attend_sites'),
+      supabase.from('vendor_breaks').select('*').eq('break_day', date),
     ])
     const e = pRes.error || vRes.error
     if (e) { setError(e.message); setPunches(null) }
@@ -232,30 +272,51 @@ export default function AttendanceTab() {
       setPunches(pRes.data); setApproved(vRes.data || [])
       const map = {}; for (const s of sRes.data || []) map[s.pid] = s.label
       setSiteMap(map)
+      setBreaks(bRes.data || [])
     }
     setLoading(false)
   }, [date])
 
   useEffect(() => { load() }, [load])
 
-  // realtime: any new punch → refresh (drives the live feed)
+  // realtime: a punch, or a break starting or ending → refresh.
+  //
+  // Breaks need UPDATE as well as INSERT: starting one inserts a row, ending
+  // one sets ended_at on it. Listening only for inserts would show someone
+  // going on lunch and never coming back from it.
   useEffect(() => {
     const ch = supabase.channel('attendance-live')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'vendor_attendance' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendor_breaks' }, () => load())
       .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [load])
 
-  // group punches by vendor → summaries
+  // group punches by vendor → summaries.
+  // `now` is threaded through so an open shift counts up rather than sitting
+  // at the value it had when the page loaded.
   const byVendor = {}
   for (const p of punches || []) { (byVendor[p.vendor_id] = byVendor[p.vendor_id] || []).push(p) }
   const summaries = Object.entries(byVendor).map(([vid, list]) => {
-    const s = summarize(list); const v = list[0].vendor || {}
-    return { vid, name: v.full_name || 'Unknown', trade: v.trade || '', vendor: v, punches: list, ...s }
+    const s = summarize(list, now); const v = list[0].vendor || {}
+    return { vid, name: v.full_name || 'Unknown', trade: v.trade || '', vendor: v, punches: list, brk: openBreakOf(breaks, vid), ...s }
   }).sort((a, b) => (a.status === b.status ? 0 : a.status === 'on_site' ? -1 : 1))
+
+  const anyOnSite = summaries.some(s => s.status === 'on_site')
+  const isTodayLive = date === todayStr()
+
+  // One second, and only while something is actually running on today's board.
+  // A ticker on a past day, or on a day where everyone has gone home, is a
+  // re-render a second for a number that cannot change.
+  useEffect(() => {
+    if (!isTodayLive || !anyOnSite) return
+    const iv = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(iv)
+  }, [isTodayLive, anyOnSite])
 
   const sessions = buildSessions(punches || [])   // in→out pairs, newest first
   const onSite = summaries.filter(s => s.status === 'on_site').length
+  const onBreakNow = summaries.filter(s => s.status === 'on_site' && s.brk).length
   const out = summaries.filter(s => s.status === 'checked_out').length
   const punchedIds = new Set(Object.keys(byVendor))
   const absent = approved.filter(v => !punchedIds.has(v.id)).length
@@ -288,7 +349,7 @@ export default function AttendanceTab() {
       {!loading && !error && punches && (
         <>
           <div style={{ display: 'flex', gap: 10 }}>
-            <Tile label={isToday ? 'On site now' : 'On site'} value={onSite} color="var(--green, #3dba7a)" />
+            <Tile label={isToday ? 'On site now' : 'On site'} value={onSite} sub={onBreakNow > 0 ? `${onBreakNow} on break` : null} color="var(--green, #3dba7a)" />
             <Tile label="Checked out" value={out} color="var(--text-dim, #9394a8)" />
             <Tile label="Not marked" value={absent} color="var(--amber, #c8963e)" />
           </div>
@@ -316,7 +377,8 @@ export default function AttendanceTab() {
               {sessions.length === 0
                 ? <div style={{ padding: '30px 20px', textAlign: 'center', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 12, fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No punches {isToday ? 'yet today' : 'on this day'}.</div>
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {sessions.map((ses, i) => <SessionTile key={(ses.inP || ses.outP).id || i} ses={ses} siteMap={siteMap} />)}
+                    {sessions.map((ses, i) => <SessionTile key={(ses.inP || ses.outP).id || i} ses={ses} siteMap={siteMap} now={now}
+                      brk={openBreakOf(breaks, ses.vendor && (ses.inP || ses.outP).vendor_id)} />)}
                   </div>}
             </>
           )}
@@ -328,7 +390,7 @@ export default function AttendanceTab() {
                   <div style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', fontWeight: 600 }}>No attendance {isToday ? 'yet today' : 'on this day'}</div>
                 </div>
               : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {summaries.map(s => <RosterRow key={s.vid} s={s} siteLabel={s.site ? (siteMap[s.site] || s.site) : ''} onOpen={() => setSelected(s)} />)}
+                  {summaries.map(s => <RosterRow key={s.vid} s={s} now={now} siteLabel={s.site ? (siteMap[s.site] || s.site) : ''} onOpen={() => setSelected(s)} />)}
                 </div>
           )}
         </>

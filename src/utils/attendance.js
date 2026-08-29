@@ -87,3 +87,15 @@ export function fmtHrs(ms) {
   const h = Math.floor(mins / 60)
   return h > 0 ? `${h}h ${String(mins % 60).padStart(2, '0')}m` : `${mins}m`
 }
+
+// Break allowances, in minutes. attend_break_rules() in the database is the
+// authority — this mirrors it so the staff board can count a running break
+// down without a round trip per row. If the SQL changes, change this too.
+export const BREAK_MINUTES = { lunch: 45, snack: 15 }
+export const BREAK_LABEL = { lunch: 'Lunch', snack: 'Snack' }
+
+// The break a vendor is on right now, if any. An unfinished row (no ended_at)
+// is the live one; there is at most one per vendor by construction.
+export function openBreakOf(breaks, vendorId) {
+  return (breaks || []).find(b => b.vendor_id === vendorId && !b.ended_at) || null
+}
