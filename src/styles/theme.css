@@ -67,6 +67,18 @@ input[type="range"] {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* A live indicator breathes rather than blinks. Full blink (opacity 0) on a
+   board somebody watches all day is a distraction; this reads as "running"
+   from the corner of an eye and stops mattering when you look straight at it. */
+@keyframes livePulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%      { opacity: .35; transform: scale(.82); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none !important; }
+}
+.live-dot { animation: livePulse 1.7s ease-in-out infinite; }
+
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0; }

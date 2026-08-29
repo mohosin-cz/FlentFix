@@ -24,6 +24,10 @@ export function summarize(list, now = Date.now()) {
   return {
     firstIn, lastOut,
     status: (open.regular != null || open.overtime != null) ? 'on_site' : 'checked_out',
+    // which kind is still running, so a board can say "on overtime" rather
+    // than "on site" and leave the reader to infer it from a colour
+    openKind: open.overtime != null ? 'overtime' : open.regular != null ? 'regular' : null,
+    openSince: open.overtime != null ? open.overtime : open.regular,
     regMs, otMs,
     site: (firstIn && firstIn.pid) || (last && last.pid) || null,
   }
