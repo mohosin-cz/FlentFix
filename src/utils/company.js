@@ -25,7 +25,8 @@ export const COMPANY = {
   state_code: '29',
   pincode: '560038',
   gstin: '29ABLCS8677C1ZO',
-  pan: 'ABLCS8677C',
+  // No PAN. Nothing prints it, and characters 3–12 of the GSTIN are the PAN in
+  // any case, so carrying it separately bought nothing.
 }
 
 // "The Mayfair, 100 Feet Rd, …, Bengaluru, Karnataka 560038"

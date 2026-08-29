@@ -97,7 +97,10 @@ export default function InvoiceDoc({ data, signature, signedName, signedAt, comp
           {(to.city || to.state || to.pincode) && <div>{[to.city, to.state, to.pincode].filter(Boolean).join(', ')}</div>}
           {to.gstin && <div style={{ fontFamily: MONO, fontSize: 11.5, marginTop: 3 }}>GSTIN {to.gstin}</div>}
           {to.cin && <div style={{ fontFamily: MONO, fontSize: 11.5 }}>CIN {to.cin}</div>}
-          {to.pan && <div style={{ fontFamily: MONO, fontSize: 11.5 }}>PAN {to.pan}</div>}
+          {/* No PAN. The GSTIN is what this document needs, and the PAN is
+              embedded in it anyway — printing it again on a page served over a
+              forwardable link only spreads it further. The vendor's own PAN was
+              already kept out of the snapshot for the same reason. */}
         </Party>
       </div>
 

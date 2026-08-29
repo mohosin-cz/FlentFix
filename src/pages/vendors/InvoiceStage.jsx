@@ -78,7 +78,8 @@ const ENTITY_FIELDS = [
   ['pincode', 'PIN', '560001'],
   ['gstin', 'GSTIN', '29AABCS1234A1Z5'],
   ['cin', 'CIN', 'U72900KA2020PTC123456'],
-  ['pan', 'PAN', 'AABCS1234A'],
+  // No PAN field: it is not printed on the invoice, so asking for it would only
+  // put it into the snapshot that rides on the vendor's public link.
   ['email', 'Email', 'accounts@slaash.com'],
   ['phone', 'Phone', '+91 …'],
 ]
