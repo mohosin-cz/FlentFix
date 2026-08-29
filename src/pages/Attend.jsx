@@ -101,6 +101,48 @@ function ghostBtn(disabled) {
 }
 const linkBtn = { background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 4 }
 
+// ── the punch ───────────────────────────────────────────────────────────────
+// A shutter, because that is what it is: pressing it opens the camera. Shaped
+// like the thing it does, so it needs no caption explaining itself and nothing
+// else on the screen can be mistaken for it — every other control here is a
+// rectangle.
+//
+// 108px across, which is a target you can hit with a glove on, without looking,
+// one-handed. The colour is the state: green to start, red to stop, blue for
+// overtime. The word underneath carries the same colour, so the state is never
+// colour alone.
+const PUNCH_TONE = {
+  go:     { fill: 'var(--green, #3dba7a)', halo: 'rgba(61,186,122,0.16)', ink: 'var(--green, #3dba7a)' },
+  danger: { fill: 'var(--red, #e05c6a)',   halo: 'rgba(224,92,106,0.16)', ink: 'var(--red, #e05c6a)' },
+  ot:     { fill: '#5b8def',               halo: 'rgba(91,141,239,0.16)', ink: '#5b8def' },
+  busy:   { fill: 'var(--bg-input, #252731)', halo: 'transparent',        ink: 'var(--text-muted, #6b6d82)' },
+}
+function Shutter({ tone, label, disabled, onPress }) {
+  const t = PUNCH_TONE[tone] || PUNCH_TONE.go
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 11, padding: '10px 0 4px' }}>
+      <button type="button" onClick={onPress} disabled={disabled} aria-label={label}
+        style={{ width: 108, height: 108, borderRadius: '50%', border: 'none', background: t.fill,
+          boxShadow: `0 0 0 7px ${t.halo}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: disabled ? 'wait' : 'pointer', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
+          transition: 'transform .12s ease, background .16s ease' }}
+        onPointerDown={e => { if (!disabled) e.currentTarget.style.transform = 'scale(0.94)' }}
+        onPointerUp={e => { e.currentTarget.style.transform = 'none' }}
+        onPointerLeave={e => { e.currentTarget.style.transform = 'none' }}>
+        {/* dark ink on the fill, same rule as every other button here */}
+        <svg width="38" height="38" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 8.6A1.6 1.6 0 0 1 5.6 7h2.1l1-1.6A1 1 0 0 1 9.6 5h4.8a1 1 0 0 1 .85.4L16.3 7h2.1A1.6 1.6 0 0 1 20 8.6v7.8a1.6 1.6 0 0 1-1.6 1.6H5.6A1.6 1.6 0 0 1 4 16.4V8.6Z"
+            stroke={disabled ? 'var(--text-muted, #6b6d82)' : '#16171f'} strokeWidth="1.6" strokeLinejoin="round" />
+          <circle cx="12" cy="12.3" r="3.5" stroke={disabled ? 'var(--text-muted, #6b6d82)' : '#16171f'} strokeWidth="1.6" />
+        </svg>
+      </button>
+      <span style={{ fontSize: 15, fontWeight: 700, color: t.ink, fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em' }}>
+        {label}
+      </span>
+    </div>
+  )
+}
+
 // What a vendor actually comes here to fix, in their words rather than the
 // column names. Kept short: the point is that tapping is quicker than typing.
 const EDIT_TOPICS = ['Phone', 'Bank / UPI', 'Address', 'Documents', 'Name spelling', 'Something else']
@@ -627,23 +669,11 @@ export default function Attend() {
               </>
             )}
 
-            {/* Sized to the hand, not to the page. A full-width slab is not a
-                better target than a centred one — a thumb reaches the middle
-                either way — and the width was only ever shouting. The caption
-                moves out from under the label so the button holds one word and
-                the hint still gets said. */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, padding: '2px 0' }}>
-              <button type="button" onClick={() => startPunch(onClock ? 'out' : 'in')} disabled={busy}
-                style={{ ...bigBtn(onClock ? 'danger' : (isOt ? 'ot' : 'go'), busy),
-                  width: 'auto', minWidth: 190, minHeight: 50, padding: '0 32px', borderRadius: 12, fontSize: 16.5, letterSpacing: '0.04em' }}>
-                {busy ? 'Recording…' : onClock ? (isOt ? 'End overtime' : 'Check out') : (isOt ? 'Start overtime' : 'Check in')}
-              </button>
-              {!busy && (
-                <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
-                  opens the camera
-                </span>
-              )}
-            </div>
+            <Shutter
+              tone={busy ? 'busy' : onClock ? 'danger' : (isOt ? 'ot' : 'go')}
+              label={busy ? 'Recording…' : onClock ? (isOt ? 'End overtime' : 'Check out') : (isOt ? 'Start overtime' : 'Check in')}
+              disabled={busy}
+              onPress={() => startPunch(onClock ? 'out' : 'in')} />
 
             <PCard title="Attendance history">
               {history == null ? (
