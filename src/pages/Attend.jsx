@@ -72,11 +72,38 @@ function RedStrip({ title, children }) {
     </div>
   )
 }
+// Dark ink on the fill, not white.
+//
+// Every one of these fills is a mid-tone, and white on a mid-tone is not
+// readable: white on the green was 2.47:1, on the gold 2.66:1, where 4.5 is the
+// floor and 3.0 the concession for large bold text. All four failed. The same
+// fills carry #16171f at 5.0–7.2:1, and that is already how the rest of the app
+// paints an accent button — this page was the outlier, not the standard.
+//
+// It matters most here: this is the screen someone uses outdoors, in sunlight,
+// on a cheap phone, to record that they turned up.
+const BTN_FILL = {
+  danger: 'var(--red, #e05c6a)',
+  ot: '#5b8def',
+  go: 'var(--green, #3dba7a)',
+  primary: 'var(--accent, #c8963e)',
+}
 function bigBtn(kind, disabled) {
-  const bg = disabled ? 'var(--bg-input, #252731)' : kind === 'danger' ? 'var(--red, #e05c6a)' : kind === 'ot' ? '#5b8def' : kind === 'go' ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)'
-  return { width: '100%', minHeight: 52, borderRadius: 10, border: 'none', background: bg, color: disabled ? 'var(--text-muted, #6b6d82)' : '#fff', fontSize: 16, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.02em', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }
+  const bg = disabled ? 'var(--bg-input, #252731)' : (BTN_FILL[kind] || BTN_FILL.primary)
+  return { width: '100%', minHeight: 52, borderRadius: 10, border: 'none', background: bg, color: disabled ? 'var(--text-muted, #6b6d82)' : '#16171f', fontSize: 16, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.02em', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }
+}
+
+// A quiet, outlined button. For actions that are occasional rather than the
+// point of the screen — asking for an edit window is not what a vendor came
+// here to do, and painting it in a solid accent slab said that it was.
+function ghostBtn(disabled) {
+  return { width: '100%', minHeight: 48, borderRadius: 10, border: '1px solid var(--border-dash, #3a3d52)', background: 'transparent', color: disabled ? 'var(--text-muted, #6b6d82)' : 'var(--text, #e8e8f0)', fontSize: 14, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-mono, monospace)', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }
 }
 const linkBtn = { background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 4 }
+
+// What a vendor actually comes here to fix, in their words rather than the
+// column names. Kept short: the point is that tapping is quicker than typing.
+const EDIT_TOPICS = ['Phone', 'Bank / UPI', 'Address', 'Documents', 'Name spelling', 'Something else']
 
 function PCard({ title, children }) {
   return (
@@ -187,6 +214,8 @@ export default function Attend() {
   const [editReq, setEditReq] = useState(null)       // {id,status,expires_at,proposed,decision_note}
   const [editDraft, setEditDraft] = useState(null)   // in-progress edits during a granted window
   const [editReason, setEditReason] = useState('')
+  const [editOpen, setEditOpen] = useState(false)    // the request form, closed until asked for
+  const [editTopics, setEditTopics] = useState([])   // what they say needs changing
   const [editBusy, setEditBusy] = useState(false)
   const [editErr, setEditErr] = useState('')
   const [nowTs, setNowTs] = useState(0)              // ticker for the countdown
@@ -252,10 +281,14 @@ export default function Attend() {
 
   async function requestEdit() {
     setEditBusy(true); setEditErr('')
-    const { error } = await supabase.rpc('attend_request_edit', { p_token: tokenRef.current, p_reason: editReason || null })
+    // The chips are the request; the note only adds to it. Composed into the
+    // one text field the RPC already takes, so staff read a scope rather than a
+    // blank — no schema change to carry a list nobody else reads.
+    const reason = [editTopics.join(', '), editReason.trim()].filter(Boolean).join(' — ')
+    const { error } = await supabase.rpc('attend_request_edit', { p_token: tokenRef.current, p_reason: reason || null })
     setEditBusy(false)
     if (error) { setEditErr(error.message); return }
-    setEditReason(''); loadEditStatus()
+    setEditReason(''); setEditTopics([]); setEditOpen(false); loadEditStatus()
   }
 
   async function submitEdit() {
@@ -594,8 +627,19 @@ export default function Attend() {
               </>
             )}
 
-            <button type="button" onClick={() => startPunch(onClock ? 'out' : 'in')} disabled={busy} style={bigBtn(onClock ? 'danger' : (isOt ? 'ot' : 'go'), busy)}>
-              {busy ? 'Recording…' : `📷 ${onClock ? (isOt ? 'End overtime' : 'Check out') : (isOt ? 'Start overtime' : 'Check in')} →`}
+            {/* The one thing this screen is for. Given the height and the type
+                size to match: a single label a person can hit without looking,
+                and a second line saying what happens when they do — the punch
+                opens the camera, which the old ‘📷 … →’ left them to infer from
+                an emoji between two arrows. */}
+            <button type="button" onClick={() => startPunch(onClock ? 'out' : 'in')} disabled={busy}
+              style={{ ...bigBtn(onClock ? 'danger' : (isOt ? 'ot' : 'go'), busy), minHeight: 64, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+              <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '0.03em' }}>
+                {busy ? 'Recording…' : onClock ? (isOt ? 'End overtime' : 'Check out') : (isOt ? 'Start overtime' : 'Check in')}
+              </span>
+              {!busy && (
+                <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.72 }}>Opens the camera</span>
+              )}
             </button>
 
             <PCard title="Attendance history">
@@ -655,13 +699,65 @@ export default function Attend() {
             ) : editReq && editReq.status === 'submitted' ? (
               <div style={{ padding: '11px 14px', background: 'rgba(91,141,239,0.10)', border: '1px solid rgba(91,141,239,0.30)', borderRadius: 12, fontSize: 12, color: '#5b8def', fontFamily: 'var(--font-mono, monospace)' }}>✓ Changes submitted — pending staff review.</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
+              // Closed until asked for. This is an occasional errand, not what
+              // the page is for, and as a solid accent slab above the profile it
+              // was the loudest thing on screen — louder than the profile it sat
+              // on top of, and the same hue as the "waiting for approval" strip
+              // it turns into.
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
                 {editReq && editReq.status === 'applied' && <span style={{ fontSize: 12, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>✓ Your last update was applied.</span>}
                 {editReq && editReq.status === 'denied' && <span style={{ fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>Your last request was declined{editReq.decision_note ? `: ${editReq.decision_note}` : '.'}</span>}
-                <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>Need to update your phone, bank, UPI or documents? Request a one-time edit window — staff approve it, then review your changes before they go live.</span>
-                <input value={editReason} onChange={e => setEditReason(e.target.value)} placeholder="What do you need to change? (optional)" style={{ padding: '9px 12px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, outline: 'none', fontFamily: 'inherit' }} />
-                {editErr && <RedStrip title="Couldn’t submit">{editErr}</RedStrip>}
-                <button type="button" onClick={requestEdit} disabled={editBusy} style={bigBtn('primary', editBusy)}>{editBusy ? 'Requesting…' : 'Request edit access'}</button>
+
+                {!editOpen ? (
+                  <>
+                    <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>
+                      Something here wrong? You can ask to change it.
+                    </span>
+                    <button type="button" onClick={() => setEditOpen(true)} style={ghostBtn(false)}>✎ Request edit access</button>
+                  </>
+                ) : (
+                  <>
+                    {/* Ask what, not why. The old box was one optional free-text
+                        line, so the honest answer was usually nothing — and
+                        staff approved a request without knowing its scope.
+                        Tapping what you need is faster than typing it on a
+                        phone, and it arrives as something staff can read. */}
+                    <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>
+                      What needs changing? Staff open a one-hour window, then review your changes before they go live.
+                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                      {EDIT_TOPICS.map(t => {
+                        const on = editTopics.includes(t)
+                        return (
+                          <button key={t} type="button"
+                            onClick={() => setEditTopics(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t])}
+                            aria-pressed={on}
+                            style={{ padding: '7px 12px', borderRadius: 999, fontSize: 12.5, fontFamily: 'var(--font-mono, monospace)', cursor: 'pointer',
+                              border: `1px solid ${on ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`,
+                              background: on ? 'rgba(200,150,62,0.12)' : 'var(--bg-input, #252731)',
+                              color: on ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)',
+                              WebkitTapHighlightColor: 'transparent' }}>
+                            {on ? '✓ ' : ''}{t}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <input value={editReason} onChange={e => setEditReason(e.target.value)}
+                      placeholder="Anything to add? (optional)"
+                      style={{ padding: '10px 12px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, outline: 'none', fontFamily: 'inherit' }} />
+                    {editErr && <RedStrip title="Couldn’t submit">{editErr}</RedStrip>}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" onClick={() => { setEditOpen(false); setEditErr('') }} disabled={editBusy}
+                        style={{ ...ghostBtn(editBusy), width: 'auto', padding: '0 16px', flexShrink: 0 }}>Cancel</button>
+                      {/* Enabled only once they have said what — a request with
+                          no scope is what staff were being asked to approve. */}
+                      <button type="button" onClick={requestEdit} disabled={editBusy || editTopics.length === 0}
+                        style={bigBtn('primary', editBusy || editTopics.length === 0)}>
+                        {editBusy ? 'Requesting…' : 'Send request'}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
