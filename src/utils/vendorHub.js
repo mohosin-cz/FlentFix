@@ -22,7 +22,14 @@ export function attendUrl() {
 }
 
 // getCurrentPosition wrapped in a promise, with friendly permission errors.
-export function getPosition() {
+// `opts` lets the punch path ask for a fast fix instead of a perfect one.
+//
+// The defaults here were enableHighAccuracy with maximumAge 0 and a twenty
+// second timeout: every call refused any cached fix and sat waiting for GPS,
+// inside the punch, with the vendor staring at a button that had gone quiet.
+// A fix from a minute ago proves you are at the same doorway as a fix from
+// this second, so the punch asks for that instead and gives up in eight.
+export function getPosition(opts) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) { reject(new Error('Location is not supported on this device.')); return }
     navigator.geolocation.getCurrentPosition(
@@ -33,7 +40,7 @@ export function getPosition() {
         else if (err.code === 3) reject(new Error('Getting location timed out — retry.'))
         else reject(new Error(err.message || 'Could not get location.'))
       },
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0, ...(opts || {}) },
     )
   })
 }

@@ -99,3 +99,53 @@ export const BREAK_LABEL = { lunch: 'Lunch', snack: 'Snack' }
 export function openBreakOf(breaks, vendorId) {
   return (breaks || []).find(b => b.vendor_id === vendorId && !b.ended_at) || null
 }
+
+// What each break actually cost, against what it was allowed.
+//
+// The start and the end were already being stored — nothing recorded the
+// duration because nothing ever subtracted them. This does, in one place, so
+// the vendor's phone and the staff board cannot disagree about whether a lunch
+// ran over.
+//
+// A break still running counts to `now`, the same way an open shift does: a
+// lunch that is forty minutes over is over by forty minutes whether or not
+// anyone has pressed end yet. That is the case that most needs saying, and the
+// one that a duration computed only on close would never show at all.
+export function breakLedger(breaks, now = Date.now()) {
+  return (breaks || [])
+    .slice()
+    .sort((a, b) => new Date(a.started_at) - new Date(b.started_at))
+    .map(b => {
+      const startedAt = new Date(b.started_at).getTime()
+      const open = !b.ended_at
+      const takenMs = Math.max(0, (open ? now : new Date(b.ended_at).getTime()) - startedAt)
+      // vendor rows carry the allowance from the RPC; raw table rows do not
+      const allowedMs = ((b.minutes ?? BREAK_MINUTES[b.kind]) || 0) * 60000
+      return {
+        id: b.id, kind: b.kind, label: BREAK_LABEL[b.kind] || b.kind,
+        vendor_id: b.vendor_id, startedAt, endedAt: open ? null : new Date(b.ended_at).getTime(),
+        open, takenMs, allowedMs, overMs: Math.max(0, takenMs - allowedMs),
+      }
+    })
+}
+
+// One day's breaks rolled up. `over` is the list that needs somebody's
+// attention — running long right now, or finished long and now on the record.
+export function breakTotals(breaks, now = Date.now()) {
+  const rows = breakLedger(breaks, now)
+  return {
+    rows,
+    count: rows.length,
+    takenMs: rows.reduce((a, r) => a + r.takenMs, 0),
+    allowedMs: rows.reduce((a, r) => a + r.allowedMs, 0),
+    overMs: rows.reduce((a, r) => a + r.overMs, 0),
+    over: rows.filter(r => r.overMs > 0),
+    open: rows.find(r => r.open) || null,
+  }
+}
+
+// mm:ss, for a duration that a person is watching rather than filing.
+export function fmtMs(ms) {
+  const s = Math.max(0, Math.round(ms / 1000))
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+}

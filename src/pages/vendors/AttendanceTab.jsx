@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import ShareSheet from '../../components/vendor/ShareSheet'
 import { attendUrl, fmtTime, fmtDate, fmtDuration, fmtElapsed, fmtBreakLeft, todayStr, initials, avatarColor } from '../../utils/vendorHub'
-import { summarize, openBreakOf, BREAK_MINUTES, BREAK_LABEL } from '../../utils/attendance'
+import { summarize, openBreakOf, breakTotals, fmtMs, BREAK_MINUTES, BREAK_LABEL } from '../../utils/attendance'
 
 const avatarUrl = (path) => {
   if (!path) return null
@@ -109,6 +109,8 @@ function SessionTile({ ses, siteMap, brk, now }) {
   const dur = (ses.inP && ses.outP) ? new Date(ses.outP.punched_at).getTime() - new Date(ses.inP.punched_at).getTime() : null
   const statusC = ot ? '#5b8def' : 'var(--green, #3dba7a)'
   const onBreak = open && !!brk
+  const brkOver = onBreak ? Math.max(0, (now - new Date(brk.started_at).getTime()) - (BREAK_MINUTES[brk.kind] || 0) * 60000) : 0
+  const brkTone = brkOver > 0 ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)'
   return (
     <div style={{ padding: '12px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
       <PidBadge pid={pid} siteMap={siteMap} />
@@ -128,7 +130,7 @@ function SessionTile({ ses, siteMap, brk, now }) {
                     This used to be a static "On site" pill, so the board could
                     not tell you how long someone had been there without doing
                     the arithmetic off the IN time. */}
-                <div style={{ fontSize: 15, fontWeight: 700, color: onBreak ? 'var(--accent, #c8963e)' : statusC, fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: onBreak ? brkTone : statusC, fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}>
                   {fmtElapsed(now - new Date(ses.inP.punched_at).getTime())}
                 </div>
                 <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 1 }}>
@@ -142,14 +144,17 @@ function SessionTile({ ses, siteMap, brk, now }) {
       {ses.outP
         ? <PunchLine label="OUT" p={ses.outP} ot={ot} />
         : onBreak
-          ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '7px 10px', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.30)', borderRadius: 8 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '7px 10px', background: brkOver > 0 ? 'rgba(224,92,106,0.12)' : 'rgba(200,150,62,0.10)', border: `1px solid ${brkOver > 0 ? 'rgba(224,92,106,0.40)' : 'rgba(200,150,62,0.30)'}`, borderRadius: 8 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: brkTone, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 On {BREAK_LABEL[brk.kind].toLowerCase()}
               </span>
-              <span style={{ marginInlineStart: 'auto', fontSize: 12, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ marginInlineStart: 'auto', fontSize: 12, fontWeight: 700, color: brkTone, fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums' }}>
                 {fmtBreakLeft({ ...brk, minutes: BREAK_MINUTES[brk.kind] }, now)}
               </span>
-              <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>left</span>
+              {/* fmtBreakLeft returns +mm:ss once the allowance is gone, so the
+                  word after it has to turn too — "+20:02 left" reads as twenty
+                  minutes in hand when it means twenty minutes over. */}
+              <span style={{ fontSize: 10, color: brkOver > 0 ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{brkOver > 0 ? 'over' : 'left'}</span>
             </div>
           : <div style={{ marginTop: 6, fontSize: 11, color: statusC, fontFamily: 'var(--font-mono, monospace)' }}>OUT&nbsp;&nbsp;— still on site</div>}
     </div>
@@ -162,7 +167,8 @@ function RosterRow({ s, siteLabel, onOpen, now }) {
   const onBreak = on && !!s.brk
   // A break is its own state, not a flavour of "on site": the difference is
   // exactly what a supervisor looking at this board wants to know.
-  const color = onBreak ? 'var(--accent, #c8963e)' : on ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)'
+  const breakOver = onBreak && s.bt.open && s.bt.open.overMs > 0
+  const color = breakOver ? 'var(--red, #e05c6a)' : onBreak ? 'var(--accent, #c8963e)' : on ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)'
   return (
     <button type="button" onClick={onOpen} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', padding: '11px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
       <Ava v={s.vendor} size={36} />
@@ -180,8 +186,8 @@ function RosterRow({ s, siteLabel, onOpen, now }) {
           {onBreak ? `On ${BREAK_LABEL[s.brk.kind].toLowerCase()}` : on ? 'On site' : 'Checked out'}
         </span>
         {onBreak && (
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums' }}>
-            {fmtBreakLeft({ ...s.brk, minutes: BREAK_MINUTES[s.brk.kind] }, now)} left
+          <span style={{ fontSize: 11, fontWeight: 700, color, fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums' }}>
+            {fmtBreakLeft({ ...s.brk, minutes: BREAK_MINUTES[s.brk.kind] }, now)} {breakOver ? 'over' : 'left'}
           </span>
         )}
         <span style={{ fontSize: 11, color: on ? 'var(--text, #e8e8f0)' : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums' }}>
@@ -214,10 +220,35 @@ function VendorDayDetail({ s, dateLabel, siteMap, onClose }) {
         <div style={{ display: 'flex', gap: 10, padding: '12px 18px', flexShrink: 0 }}>
           <Tile label="Regular" value={fmtDuration(s.regMs)} color="var(--green, #3dba7a)" />
           <Tile label="Overtime" value={fmtDuration(s.otMs)} color="#5b8def" />
-          <Tile label="Punches" value={s.punches.length} color="var(--text, #e8e8f0)" />
+          {/* Time on site includes the breaks inside it, so the break total is
+              shown beside it rather than quietly deducted. Changing what a
+              shift pays is a decision for payroll, not for a display — but
+              nobody can make that decision from a number they cannot see. */}
+          <Tile label="On break" value={fmtDuration(s.bt.takenMs)}
+            sub={s.bt.overMs > 0 ? `+${fmtMs(s.bt.overMs)} over` : (s.bt.count ? 'within allowance' : null)}
+            color={s.bt.overMs > 0 ? 'var(--red, #e05c6a)' : 'var(--text, #e8e8f0)'} />
         </div>
 
         <div style={{ overflowY: 'auto', padding: '0 18px 18px', flex: 1, minHeight: 0 }}>
+          {s.bt.count > 0 && (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '4px 0 2px' }}>Breaks</div>
+              {s.bt.rows.map(r => (
+                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: '1px solid var(--border, #2e3040)', fontFamily: 'var(--font-mono, monospace)' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: r.overMs > 0 ? 'var(--red, #e05c6a)' : r.open ? 'var(--accent, #c8963e)' : 'var(--green, #3dba7a)' }} />
+                  <span style={{ width: 54, flexShrink: 0, fontSize: 12, color: 'var(--text, #e8e8f0)' }}>{r.label}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: 'var(--text-muted, #6b6d82)' }}>
+                    {fmtTime(new Date(r.startedAt).toISOString())}
+                    {r.endedAt ? ` – ${fmtTime(new Date(r.endedAt).toISOString())}` : ' – never ended'}
+                    <span style={{ marginInlineStart: 8 }}>allowed {Math.round(r.allowedMs / 60000)}m</span>
+                  </span>
+                  <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: r.overMs > 0 ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}>
+                    {fmtMs(r.takenMs)}{r.overMs > 0 ? ` +${fmtMs(r.overMs)}` : ''}
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '4px 0 2px' }}>Punch log</div>
           {[...s.punches].reverse().map((p, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
@@ -299,7 +330,7 @@ export default function AttendanceTab() {
   for (const p of punches || []) { (byVendor[p.vendor_id] = byVendor[p.vendor_id] || []).push(p) }
   const summaries = Object.entries(byVendor).map(([vid, list]) => {
     const s = summarize(list, now); const v = list[0].vendor || {}
-    return { vid, name: v.full_name || 'Unknown', trade: v.trade || '', vendor: v, punches: list, brk: openBreakOf(breaks, vid), ...s }
+    return { vid, name: v.full_name || 'Unknown', trade: v.trade || '', vendor: v, punches: list, brk: openBreakOf(breaks, vid), bt: breakTotals((breaks || []).filter(b => b.vendor_id === vid), now), ...s }
   }).sort((a, b) => (a.status === b.status ? 0 : a.status === 'on_site' ? -1 : 1))
 
   const anyOnSite = summaries.some(s => s.status === 'on_site')
@@ -317,6 +348,10 @@ export default function AttendanceTab() {
   const sessions = buildSessions(punches || [])   // in→out pairs, newest first
   const onSite = summaries.filter(s => s.status === 'on_site').length
   const onBreakNow = summaries.filter(s => s.status === 'on_site' && s.brk).length
+  // Anyone over their allowance today — running long now, or finished long and
+  // now on the record. This is the notification: it sits at the top of the
+  // board staff already watch, and the realtime subscription keeps it current.
+  const overrun = summaries.filter(s => s.bt.overMs > 0)
   const out = summaries.filter(s => s.status === 'checked_out').length
   const punchedIds = new Set(Object.keys(byVendor))
   const absent = approved.filter(v => !punchedIds.has(v.id)).length
@@ -353,6 +388,28 @@ export default function AttendanceTab() {
             <Tile label="Checked out" value={out} color="var(--text-dim, #9394a8)" />
             <Tile label="Not marked" value={absent} color="var(--amber, #c8963e)" />
           </div>
+          {overrun.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '11px 13px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.38)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13 }}>⚠</span>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em' }}>
+                  {overrun.length} break{overrun.length === 1 ? '' : 's'} over allowance
+                </span>
+              </div>
+              {overrun.map(s => (
+                <div key={s.vid} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, fontFamily: 'var(--font-mono, monospace)' }}>
+                  <span style={{ flex: 1, minWidth: 0, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                  <span style={{ color: 'var(--text-muted, #6b6d82)' }}>
+                    {s.bt.over.map(r => r.label.toLowerCase()).join(', ')}
+                  </span>
+                  <span style={{ fontWeight: 700, color: 'var(--red, #e05c6a)', fontVariantNumeric: 'tabular-nums' }}>
+                    +{fmtMs(s.bt.overMs)}{s.bt.open && s.bt.open.overMs > 0 ? ' · still out' : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'center', gap: 16, fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>
             <span>Logged: <b style={{ color: 'var(--green, #3dba7a)' }}>{fmtDuration(totalReg)}</b> regular</span>
             <span><b style={{ color: '#5b8def' }}>{fmtDuration(totalOt)}</b> overtime</span>

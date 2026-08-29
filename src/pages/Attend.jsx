@@ -4,6 +4,7 @@ import PortalPayroll from '../components/vendor/PortalPayroll'
 import { Field, Input } from '../components/ui'
 import { getPosition, fmtTime, fmtDate, fmtDuration, fmtElapsed, fmtBreakLeft, maskAccount, initials, avatarColor } from '../utils/vendorHub'
 import { compressForUpload, newSubmissionId } from '../utils/vendorOnboard'
+import { breakTotals, fmtMs } from '../utils/attendance'
 import FlentWordmark from '../components/FlentWordmark'
 
 const TOKEN_KEY = 'flent_attend_token'
@@ -13,17 +14,41 @@ const avatarUrl = (path) => {
 }
 
 // light + quick selfie: downscale on a canvas → small JPEG (no worker, no webp).
+// A punch selfie is proof that a person stood somewhere, not a portrait. It is
+// shrunk hard and encoded fast: createImageBitmap decodes off the main thread
+// where the browser has it, which on a cheap phone is the difference between a
+// second of frozen UI and none — a 12MP camera file decoded through an <img>
+// tag blocks everything, including the spinner meant to say it is working.
 async function selfieBlob(file) {
+  let bitmap = null
+  if (typeof createImageBitmap === 'function') {
+    try { bitmap = await createImageBitmap(file) } catch { bitmap = null }
+  }
+  if (bitmap) {
+    const max = 640
+    let w = bitmap.width, h = bitmap.height
+    if (w > h && w > max) { h = Math.round(h * max / w); w = max }
+    else if (h >= w && h > max) { w = Math.round(w * max / h); h = max }
+    const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h)
+    bitmap.close && bitmap.close()
+    const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.62))
+    if (blob) return blob
+  }
+  return selfieBlobFallback(file)
+}
+
+async function selfieBlobFallback(file) {
   const url = URL.createObjectURL(file)
   try {
     const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('Could not read the photo')); im.src = url })
-    const max = 720
+    const max = 640
     let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height
     if (w > h && w > max) { h = Math.round(h * max / w); w = max }
     else if (h >= w && h > max) { w = Math.round(w * max / h); h = max }
     const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h
     canvas.getContext('2d').drawImage(img, 0, 0, w, h)
-    const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.7))
+    const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.62))
     if (!blob) throw new Error('Could not process the photo')
     return blob
   } finally { URL.revokeObjectURL(url) }
@@ -242,6 +267,7 @@ export default function Attend() {
   const [geoErr, setGeoErr] = useState('')
   const [geoBusy, setGeoBusy] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [busyNote, setBusyNote] = useState('')   // what the punch is doing right now
   const [err, setErr] = useState('')
   const [confirm, setConfirm] = useState(null)
   const [tab, setTab] = useState('time')
@@ -413,11 +439,7 @@ export default function Attend() {
 
   const openBreak = (breaks || []).find(b => !b.ended_at) || null
   const takenKinds = new Set((breaks || []).map(b => b.kind))
-  const breakMinsUsed = (breaks || []).reduce((sum, b) => {
-    const end = b.ended_at ? new Date(b.ended_at).getTime() : tick
-    return sum + Math.max(0, (end - new Date(b.started_at).getTime()) / 60000)
-  }, 0)
-
+  const bt = breakTotals(breaks, tick)
   function breakState(kind) {
     const r = BREAK_RULES[kind]
     if (takenKinds.has(kind) && !(openBreak && openBreak.kind === kind)) return { can: false, why: 'Taken today' }
@@ -428,19 +450,34 @@ export default function Attend() {
     return { can: true, why: '' }
   }
 
+  // Breaks move the screen first and reconcile after.
+  //
+  // Both of these used to be two round trips before anything happened: the RPC,
+  // then a full reload of the break list, and only then did the countdown
+  // appear. On a site connection that is a button that does nothing for a
+  // couple of seconds, which is how you get people pressing it twice.
+  //
+  // The server is still the authority — loadBreaks() follows and overwrites
+  // this — and a failure puts the old state straight back.
   async function startBreak(kind) {
     setBreakBusy(kind); setBreakErr('')
+    const before = breaks
+    const now = new Date().toISOString()
+    setBreaks([...(breaks || []), { id: `pending-${kind}`, kind, started_at: now, ended_at: null, minutes: BREAK_RULES[kind].mins, is_open: true }])
     const { error } = await supabase.rpc('attend_break_start', { p_token: tokenRef.current, p_kind: kind })
     setBreakBusy('')
-    if (error) { setBreakErr(error.message); return }
+    if (error) { setBreaks(before); setBreakErr(error.message); return }
     loadBreaks()
   }
 
   async function endBreak() {
     setBreakBusy('end'); setBreakErr('')
+    const before = breaks
+    const now = new Date().toISOString()
+    setBreaks((breaks || []).map(b => (b.ended_at ? b : { ...b, ended_at: now })))
     const { error } = await supabase.rpc('attend_break_end', { p_token: tokenRef.current })
     setBreakBusy('')
-    if (error) { setBreakErr(error.message); return }
+    if (error) { setBreaks(before); setBreakErr(error.message); return }
     loadBreaks()
   }
 
@@ -463,11 +500,20 @@ export default function Attend() {
 
   async function punch(type, selfieFile) {
     setErr(''); setConfirm(null); setBusy(true)
+    // A fix from the last two minutes is the same doorway as a fix from this
+    // second, and eight seconds is as long as anybody should stand still for
+    // one. Without a location the punch still goes through — a recorded
+    // arrival with no coordinates beats no recorded arrival.
     let g = geo
-    if (!g) { try { g = await getPosition(); setGeo(g) } catch (e) { setGeoErr(e.message) } }
+    if (!g) {
+      setBusyNote('Finding you…')
+      try { g = await getPosition({ maximumAge: 120000, timeout: 8000 }); setGeo(g) } catch (e) { setGeoErr(e.message) }
+    }
     let selfiePath = null
     try {
+      setBusyNote('Preparing the photo…')
       const blob = await selfieBlob(selfieFile)
+      setBusyNote('Uploading…')
       selfiePath = `selfies/${newSubmissionId()}.jpg`
       const { error: upErr } = await supabase.storage.from('vendor-avatars').upload(selfiePath, blob, { contentType: 'image/jpeg' })
       if (upErr) throw upErr
@@ -477,17 +523,28 @@ export default function Attend() {
     if (type === 'out' && (breaks || []).some(b => !b.ended_at)) {
       await supabase.rpc('attend_break_end', { p_token: tokenRef.current })
     }
+    setBusyNote('Recording…')
     const { data, error } = await supabase.rpc('attend_punch', {
       p_token: tokenRef.current, p_type: type, p_kind: kind,
       p_pid: type === 'in' ? pid.trim() : (pid.trim() || null),
       p_lat: g ? g.lat : null, p_lng: g ? g.lng : null, p_accuracy: g ? g.accuracy : null,
       p_selfie: selfiePath,
     })
-    setBusy(false)
+    setBusy(false); setBusyNote('')
     if (error) { setErr(error.message); return }
     const r = Array.isArray(data) ? data[0] : data
     setConfirm(r)
     if (type === 'out') setPid('')
+    // The clock starts here, not one round trip later.
+    //
+    // `onClock` and the running timer are both derived from `history`, so
+    // waiting for loadHistory() to come back meant the screen sat on "Not
+    // checked in" after the punch had already been recorded — the gap people
+    // were describing as the lag. The RPC hands back the row it wrote; put it
+    // straight in front. loadHistory() still follows and replaces it.
+    if (r && r.punched_at) {
+      setHistory(h => [{ ...r, kind: r.kind || kind, punch_type: r.punch_type || type }, ...(h || [])])
+    }
     loadHistory(); loadBreaks()
   }
 
@@ -576,8 +633,8 @@ export default function Attend() {
               <div style={{ padding: onClock ? '16px 16px 18px' : '14px 16px', background: onClock ? (isOt ? 'rgba(91,141,239,0.07)' : 'rgba(61,186,122,0.07)') : 'transparent' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: onClock ? (isOt ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)' }} />
-                  <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'var(--font-mono, monospace)', color: onClock ? (isOt ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)' }}>
-                    {openBreak ? `On ${BREAK_RULES[openBreak.kind].label.toLowerCase()} break` : onClock ? (isOt ? 'Overtime running' : 'On site') : (isOt ? 'No overtime running' : 'Not checked in')}
+                  <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'var(--font-mono, monospace)', color: openBreak ? (bt.open && bt.open.overMs > 0 ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)') : onClock ? (isOt ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)' }}>
+                    {openBreak ? `On ${BREAK_RULES[openBreak.kind].label.toLowerCase()} break${bt.open && bt.open.overMs > 0 ? ' · over' : ''}` : onClock ? (isOt ? 'Overtime running' : 'On site') : (isOt ? 'No overtime running' : 'Not checked in')}
                   </span>
                   {onClock && activeOpen.pid && (
                     <span style={{ marginInlineStart: 'auto', fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>PID {activeOpen.pid}</span>
@@ -585,7 +642,7 @@ export default function Attend() {
                 </div>
                 {onClock && (
                   <div style={{ marginTop: 10 }}>
-                    <span style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, letterSpacing: '0.02em', fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', color: openBreak ? 'var(--accent, #c8963e)' : 'var(--text, #e8e8f0)' }}>
+                    <span style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, letterSpacing: '0.02em', fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', color: openBreak ? (bt.open && bt.open.overMs > 0 ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)') : 'var(--text, #e8e8f0)' }}>
                       {openBreak ? fmtBreakLeft(openBreak, tick) : fmtElapsed(tick - new Date(activeOpen.punched_at).getTime())}
                     </span>
                     <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 5 }}>
@@ -645,14 +702,45 @@ export default function Attend() {
 
                 {breakErr && <RedStrip title="Break">{breakErr}</RedStrip>}
 
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, paddingTop: 2 }}>
-                  <span style={{ fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
-                    Break allowance · today
-                  </span>
-                  <span style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', color: breakMinsUsed > 60 ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)' }}>
-                    {Math.round(breakMinsUsed)} / 60 min used
-                  </span>
+                {/* What each break actually cost.
+                    The start and the end were already stored; nothing had ever
+                    subtracted them, so "how long was lunch" was a question the
+                    system held the answer to and never showed. */}
+                <div style={{ background: 'var(--bg-input, #252731)', border: `1px solid ${bt.overMs > 0 ? 'rgba(224,92,106,0.40)' : 'var(--border, #2e3040)'}`, borderRadius: 12, padding: '11px 13px', display: 'flex', flexDirection: 'column', gap: 9 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                    <span style={{ flex: 1, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                      Breaks · today
+                    </span>
+                    <span style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', color: bt.overMs > 0 ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}>
+                      {Math.round(bt.takenMs / 60000)} / {Math.round(bt.allowedMs / 60000) || 60} min
+                    </span>
+                  </div>
+                  {bt.rows.length === 0 && (
+                    <span style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>None yet.</span>
+                  )}
+                  {bt.rows.map(r => (
+                    <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 11.5, fontFamily: 'var(--font-mono, monospace)' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: r.overMs > 0 ? 'var(--red, #e05c6a)' : r.open ? 'var(--accent, #c8963e)' : 'var(--green, #3dba7a)' }} />
+                      <span style={{ width: 52, flexShrink: 0, color: 'var(--text, #e8e8f0)' }}>{r.label}</span>
+                      <span style={{ flex: 1, minWidth: 0, color: 'var(--text-muted, #6b6d82)' }}>
+                        {fmtTime(new Date(r.startedAt).toISOString())}{r.endedAt ? `–${fmtTime(new Date(r.endedAt).toISOString())}` : ' · running'}
+                      </span>
+                      <span style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums', color: r.overMs > 0 ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}>
+                        {fmtMs(r.takenMs)}{r.overMs > 0 ? ` +${fmtMs(r.overMs)}` : ''}
+                      </span>
+                    </div>
+                  ))}
                 </div>
+
+                {/* Said while it can still be acted on, not filed afterwards. */}
+                {bt.open && bt.open.overMs > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', borderRadius: 10, background: 'rgba(224,92,106,0.12)', border: '1px solid rgba(224,92,106,0.40)' }}>
+                    <span style={{ fontSize: 16 }}>⚠</span>
+                    <span style={{ flex: 1, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.45 }}>
+                      Your {bt.open.label.toLowerCase()} is <b>{fmtMs(bt.open.overMs)}</b> over — the office can see this. End it to stop the clock.
+                    </span>
+                  </div>
+                )}
 
                 {openBreak ? (
                   <button type="button" onClick={endBreak} disabled={breakBusy === 'end'}
@@ -862,7 +950,7 @@ export default function Attend() {
           <div style={{ maxWidth: 480, margin: '0 auto' }}>
             <PunchButton
               tone={busy ? 'busy' : onClock ? 'danger' : (isOt ? 'ot' : 'go')}
-              label={busy ? 'Recording…' : onClock ? (isOt ? 'End overtime' : 'Check out') : (isOt ? 'Start overtime' : 'Check in')}
+              label={busy ? (busyNote || 'Recording…') : onClock ? (isOt ? 'End overtime' : 'Check out') : (isOt ? 'Start overtime' : 'Check in')}
               disabled={busy}
               onPress={() => startPunch(onClock ? 'out' : 'in')} />
           </div>
