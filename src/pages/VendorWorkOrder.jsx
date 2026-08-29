@@ -164,8 +164,17 @@ const VIEWS = [
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
-export default function VendorWorkOrder() {
-  const { token } = useParams()
+// Two ways in, one page.
+//
+// On /wo/:token it is the whole screen, opened from a link. Inside the vendor
+// portal it is handed the token directly and drops its own full-height shell so
+// it sits in the portal's scroller under the portal's nav. Everything below
+// this line — every fetch, every action, every rule — is identical either way;
+// a second implementation of a page a vendor signs work off on is how the two
+// come to disagree about what was signed.
+export default function VendorWorkOrder({ token: tokenProp, embedded, onBack }) {
+  const params = useParams()
+  const token = tokenProp || params.token
   const [state, setState] = useState('loading')   // loading | ok | invalid | error
   const [wo, setWo] = useState(null)
   const [loadErr, setLoadErr] = useState('')
@@ -298,11 +307,17 @@ export default function VendorWorkOrder() {
   const pctDone = items.length ? Math.round((doneCount / items.length) * 100) : 0
 
   return (
-    <div style={shell}>
+    <div style={embedded ? { background: 'transparent' } : shell}>
       {/* Sticky: on a long list the vendor should always be able to see how much
           is left without scrolling back up. */}
       <header style={{ background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', paddingTop: 'env(safe-area-inset-top)', position: 'sticky', top: 0, zIndex: 20 }}>
         <div style={{ ...wrap, padding: '12px 14px 11px' }}>
+          {embedded && onBack && (
+            <button type="button" onClick={onBack}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, padding: 0, background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: MONO }}>
+              ‹ All work orders
+            </button>
+          )}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 18, fontWeight: 700 }}>{wo.trade}</span>
             <span style={{ fontSize: 12.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>PID {wo.pid}</span>
@@ -418,8 +433,10 @@ export default function VendorWorkOrder() {
         )}
       </main>
 
+      {/* The submit bar is fixed to the viewport, so inside the portal it has
+          to clear the portal's own tab bar rather than sit on top of it. */}
       {!closed && items.length > 0 && (
-        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, background: 'var(--bg-panel, #1e2028)', borderTop: '1px solid var(--border, #2e3040)', padding: '11px 14px calc(11px + env(safe-area-inset-bottom))', zIndex: 20 }}>
+        <div style={{ position: 'fixed', left: 0, right: 0, bottom: embedded ? 'calc(53px + env(safe-area-inset-bottom))' : 0, background: 'var(--bg-panel, #1e2028)', borderTop: '1px solid var(--border, #2e3040)', padding: embedded ? '11px 14px' : '11px 14px calc(11px + env(safe-area-inset-bottom))', zIndex: 20 }}>
           <div style={{ maxWidth: 620, margin: '0 auto' }}>
             {submitErr && <div style={{ marginBottom: 9 }}><Banner>{submitErr}</Banner></div>}
             {/* A dead disabled button wastes the most reachable control on the
