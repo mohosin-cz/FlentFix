@@ -36,8 +36,13 @@ set search_path = public, extensions
 as $$
 declare s public.attend_session;
 begin
-  select * into s from public.attend_session
-   where token = p_token and expires_at > now();
+  -- Alias the table. This function returns a column called `token` (the work
+  -- order's), so a bare `where token = ...` is ambiguous between that output
+  -- column and attend_session.token, and Postgres refuses it at call time
+  -- rather than at create time — the function creates cleanly and then throws
+  -- 42702 the first time anybody runs it.
+  select * into s from public.attend_session a
+   where a.token = p_token and a.expires_at > now();
   if s.token is null then
     raise exception 'Session expired — sign in again';
   end if;

@@ -355,9 +355,13 @@ export default function Attend() {
   }, [])
 
   const loadWorkOrders = useCallback(async () => {
-    // A portal that predates this RPC must not lose its Time tab over it.
+    // A portal that predates this RPC must not lose its Time tab over it — but
+    // swallowing the error outright meant a broken RPC looked exactly like a
+    // vendor with no work assigned, which is how a 42702 hid behind a missing
+    // tab instead of showing up as a fault.
     const { data, error } = await supabase.rpc('attend_work_orders', { p_token: tokenRef.current })
-    if (!error) setWorkOrders(data || [])
+    if (error) { console.warn('[attend] work orders unavailable:', error.message); setWorkOrders([]); return }
+    setWorkOrders(data || [])
   }, [])
 
   const loadBreaks = useCallback(async () => {
