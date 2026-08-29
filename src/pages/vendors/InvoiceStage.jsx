@@ -236,6 +236,11 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
   const [editing, setEditing] = useState(null)
   const [preview, setPreview] = useState(null)
   const [entityOpen, setEntityOpen] = useState(false)
+  // The bill-to block is stamped into each invoice's snapshot at send time, so
+  // whatever is blank when you press send is blank on that invoice for good.
+  // Once a month has gone out, the only fix is a data patch — hence the warning
+  // in front of it rather than a note in the sheet nobody opens.
+  const [entity, setEntity] = useState(null)
   const [note, setNote] = useState('')
   const [flowOpen, setFlowOpen] = useState(false)
   // One open at a time: the point of collapsing is that the whole month fits
@@ -249,11 +254,13 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
   const [markedSent, setMarkedSent] = useState(() => new Set())
 
   const load = useCallback(async () => {
-    const [{ data: inv, error: iErr }, { data: props }, { data: vends }] = await Promise.all([
+    const [{ data: inv, error: iErr }, { data: props }, { data: vends }, { data: ent }] = await Promise.all([
       supabase.from('vendor_invoices').select('*').eq('period_id', period.id),
       supabase.from('properties').select('pid,name').order('pid'),
       supabase.from('vendors').select('id,full_name,email,phone').eq('status', 'approved'),
+      supabase.from('payroll_billing_entity').select('*').eq('id', 1).maybeSingle(),
     ])
+    setEntity(ent || {})
     if (iErr) { setErr(iErr.message); setInvoices([]); return }
     setInvoices(inv || [])
     setProperties(props || [])
@@ -419,6 +426,14 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url)
   }
 
+  // One list drives both the warning and its sentence. Computing the two
+  // separately let them disagree — the first cut could show a banner reading
+  // "Your is not set", because whether to warn and what to name were different
+  // expressions over the same fields.
+  const entityGaps = entity
+    ? [!entity.address_line && 'registered address', !entity.gstin && 'GSTIN'].filter(Boolean)
+    : []
+
   if (invoices === null) {
     return <div style={{ padding: 22, fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Loading invoices…</div>
   }
@@ -434,6 +449,22 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
           </span>
           <button type="button" onClick={() => setEntityOpen(true)} style={{ ...actBtn, marginInlineStart: 'auto' }}>Bill-to details</button>
         </div>
+
+        {entityGaps.length > 0 && (
+          <button type="button" onClick={() => setEntityOpen(true)}
+            style={{ display: 'flex', gap: 10, textAlign: 'left', width: '100%', padding: '11px 13px', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 9, cursor: 'pointer', color: 'inherit', font: 'inherit' }}>
+            <span style={{ fontSize: 14, color: 'var(--accent, #c8963e)', flexShrink: 0 }}>⚠</span>
+            <span style={{ minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--accent, #c8963e)' }}>
+                Your {entityGaps.join(' and ')} {entityGaps.length > 1 ? 'are' : 'is'} not set
+              </span>
+              <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 3, lineHeight: 1.5 }}>
+                Every invoice is frozen when it is sent, so anything missing now stays missing on that invoice.
+                Fill it in before issuing this month — tap to open Bill-to details.
+              </span>
+            </span>
+          </button>
+        )}
 
         <div style={{ height: 6, background: 'var(--bg-input, #252731)', borderRadius: 4, overflow: 'hidden', display: 'flex' }}>
           <div style={{ width: `${rows.length ? (counts.signed / rows.length) * 100 : 0}%`, background: 'var(--green, #3dba7a)', transition: 'width .2s' }} />
@@ -636,7 +667,8 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
         </Sheet>
       )}
       {printRows && <InvoicePrintSheet period={period} rows={printRows} onClose={() => setPrintRows(null)} />}
-      {entityOpen && <BillingEntitySheet onClose={() => setEntityOpen(false)} />}
+      {/* reload on close so the warning clears the moment it is answered */}
+      {entityOpen && <BillingEntitySheet onClose={() => { setEntityOpen(false); load() }} />}
     </div>
   )
 }
