@@ -101,51 +101,49 @@ function ghostBtn(disabled) {
 }
 const linkBtn = { background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 4 }
 
-// ── the punch ───────────────────────────────────────────────────────────────
-// A shutter, because that is what it is: pressing it opens the camera. Shaped
-// like the thing it does, so it needs no caption explaining itself and nothing
-// else on the screen can be mistaken for it — every other control here is a
-// rectangle.
-//
-// 108px across, which is a target you can hit with a glove on, without looking,
-// one-handed. The colour is the state: green to start, red to stop, blue for
-// overtime. The word underneath carries the same colour, so the state is never
-// colour alone.
-const PUNCH_TONE = {
-  go:     { fill: 'var(--green, #3dba7a)', halo: 'rgba(61,186,122,0.16)', ink: 'var(--green, #3dba7a)' },
-  danger: { fill: 'var(--red, #e05c6a)',   halo: 'rgba(224,92,106,0.16)', ink: 'var(--red, #e05c6a)' },
-  ot:     { fill: '#5b8def',               halo: 'rgba(91,141,239,0.16)', ink: '#5b8def' },
-  busy:   { fill: 'var(--bg-input, #252731)', halo: 'transparent',        ink: 'var(--text-muted, #6b6d82)' },
-}
-function Shutter({ tone, label, disabled, onPress }) {
-  const t = PUNCH_TONE[tone] || PUNCH_TONE.go
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 11, padding: '10px 0 4px' }}>
-      <button type="button" onClick={onPress} disabled={disabled} aria-label={label}
-        style={{ width: 108, height: 108, borderRadius: '50%', border: 'none', background: t.fill,
-          boxShadow: `0 0 0 7px ${t.halo}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: disabled ? 'wait' : 'pointer', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
-          transition: 'transform .12s ease, background .16s ease' }}
-        onPointerDown={e => { if (!disabled) e.currentTarget.style.transform = 'scale(0.94)' }}
-        onPointerUp={e => { e.currentTarget.style.transform = 'none' }}
-        onPointerLeave={e => { e.currentTarget.style.transform = 'none' }}>
-        {/* dark ink on the fill, same rule as every other button here */}
-        <svg width="38" height="38" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M4 8.6A1.6 1.6 0 0 1 5.6 7h2.1l1-1.6A1 1 0 0 1 9.6 5h4.8a1 1 0 0 1 .85.4L16.3 7h2.1A1.6 1.6 0 0 1 20 8.6v7.8a1.6 1.6 0 0 1-1.6 1.6H5.6A1.6 1.6 0 0 1 4 16.4V8.6Z"
-            stroke={disabled ? 'var(--text-muted, #6b6d82)' : '#16171f'} strokeWidth="1.6" strokeLinejoin="round" />
-          <circle cx="12" cy="12.3" r="3.5" stroke={disabled ? 'var(--text-muted, #6b6d82)' : '#16171f'} strokeWidth="1.6" />
-        </svg>
-      </button>
-      <span style={{ fontSize: 15, fontWeight: 700, color: t.ink, fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em' }}>
-        {label}
-      </span>
-    </div>
-  )
-}
-
 // What a vendor actually comes here to fix, in their words rather than the
 // column names. Kept short: the point is that tapping is quicker than typing.
 const EDIT_TOPICS = ['Phone', 'Bank / UPI', 'Address', 'Documents', 'Name spelling', 'Something else']
+
+// ── the punch ───────────────────────────────────────────────────────────────
+// Pinned above the tab bar, in the app's own button language: a light catch
+// along the top edge, a shadow beneath, and a press that cuts a recess rather
+// than just changing colour. Every other control in this app is built that way;
+// this page was using flat slabs, which is why it never looked like it belonged.
+//
+// Colour is the state — green to start, red to stop, blue for overtime — and
+// the lens says a photo follows, which is the part people were surprised by.
+const PUNCH_TONE = {
+  go:     'var(--green, #3dba7a)',
+  danger: 'var(--red, #e05c6a)',
+  ot:     '#5b8def',
+  busy:   'var(--bg-input, #252731)',
+}
+const PUNCH_REST = 'inset 0 1px 0 rgba(255,255,255,.30), inset 0 -2px 0 rgba(0,0,0,.14), 0 3px 10px rgba(0,0,0,.5)'
+const PUNCH_DOWN = 'inset 0 3px 7px rgba(0,0,0,.42)'
+function PunchButton({ tone, label, disabled, onPress }) {
+  const fill = PUNCH_TONE[tone] || PUNCH_TONE.go
+  const ink = disabled ? 'var(--text-muted, #6b6d82)' : '#16171f'
+  return (
+    <button type="button" onClick={onPress} disabled={disabled} aria-label={label}
+      style={{ width: '100%', minHeight: 56, borderRadius: 12, border: 'none', background: fill,
+        color: ink, fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, fontSize: 16.5,
+        letterSpacing: '0.045em', cursor: disabled ? 'wait' : 'pointer', display: 'flex',
+        alignItems: 'center', justifyContent: 'center', gap: 12,
+        WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
+        transition: 'box-shadow .12s, transform .1s, background .16s',
+        boxShadow: disabled ? 'none' : PUNCH_REST }}
+      onPointerDown={e => { if (!disabled) { e.currentTarget.style.transform = 'translateY(1px)'; e.currentTarget.style.boxShadow = PUNCH_DOWN } }}
+      onPointerUp={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = disabled ? 'none' : PUNCH_REST }}
+      onPointerLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = disabled ? 'none' : PUNCH_REST }}>
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 8.6A1.6 1.6 0 0 1 5.6 7h2.1l1-1.6A1 1 0 0 1 9.6 5h4.8a1 1 0 0 1 .85.4L16.3 7h2.1A1.6 1.6 0 0 1 20 8.6v7.8a1.6 1.6 0 0 1-1.6 1.6H5.6A1.6 1.6 0 0 1 4 16.4V8.6Z" stroke={ink} strokeWidth="1.6" strokeLinejoin="round" />
+        <circle cx="12" cy="12.3" r="3.5" stroke={ink} strokeWidth="1.6" />
+      </svg>
+      {label}
+    </button>
+  )
+}
 
 function PCard({ title, children }) {
   return (
@@ -568,36 +566,62 @@ export default function Attend() {
 
           {/* ── TIME ─────────────────────────────────────────────────────── */}
           {tab === 'time' && <>
-            <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 10 }}>
-              {[{ k: 'regular', l: 'Regular' }, { k: 'overtime', l: 'Overtime' }].map(o => {
-                const on = kind === o.k
-                const c = o.k === 'overtime' ? '#5b8def' : 'var(--accent, #c8963e)'
-                return <button key={o.k} type="button" onClick={() => { setKind(o.k); setConfirm(null); setErr('') }} style={{ flex: 1, padding: '9px 8px', fontSize: 13, fontWeight: on ? 700 : 500, border: 'none', borderRadius: 8, cursor: 'pointer', background: on ? 'var(--bg-input, #252731)' : 'transparent', color: on ? c : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', boxShadow: on ? `inset 0 0 0 1px ${c}55` : 'none' }}>{o.l}</button>
-              })}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 10, background: onClock ? (isOt ? 'rgba(91,141,239,0.10)' : 'rgba(61,186,122,0.10)') : 'var(--bg-input, #252731)', border: `1px solid ${onClock ? (isOt ? 'rgba(91,141,239,0.35)' : 'rgba(61,186,122,0.35)') : 'var(--border, #2e3040)'}` }}>
-              <span style={{ width: 8, height: 8, borderRadius: 4, background: onClock ? (isOt ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)' }} />
-              <span style={{ fontSize: 13, color: onClock ? (isOt ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>
-                {onClock ? `${isOt ? 'Overtime' : 'On site'} since ${fmtTime(activeOpen.punched_at)}${activeOpen.pid ? ` · ${activeOpen.pid}` : ''}` : (isOt ? 'No overtime running' : 'Not checked in')}
-              </span>
-            </div>
-
-            {!onClock && (
-              <Field label="Site / property ID">
-                <div style={{ display: 'flex', alignItems: 'stretch', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, overflow: 'hidden' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.10)', borderRight: '1px solid var(--border, #2e3040)', fontFamily: 'var(--font-mono, monospace)' }}>PID</span>
-                  <input value={pid} onChange={e => setPid(e.target.value)} placeholder="enter the number" autoCapitalize="characters" autoCorrect="off"
-                    style={{ flex: 1, minWidth: 0, padding: '13px 12px', fontSize: 16, color: 'var(--text, #e8e8f0)', background: 'none', border: 'none', outline: 'none', fontFamily: 'inherit' }} />
+            {/* One object, not four stacked boxes.
+                Where you stand, and everything you set before punching, on a
+                single card with its own hierarchy — the state large at the top,
+                the setup small underneath. The old screen gave the mode switch,
+                the status, the PID and the location a box each, all the same
+                weight, so nothing on it was the point. */}
+            <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${onClock ? (isOt ? 'rgba(91,141,239,0.35)' : 'rgba(61,186,122,0.35)') : 'var(--border, #2e3040)'}`, borderRadius: 16, overflow: 'hidden' }}>
+              <div style={{ padding: onClock ? '16px 16px 18px' : '14px 16px', background: onClock ? (isOt ? 'rgba(91,141,239,0.07)' : 'rgba(61,186,122,0.07)') : 'transparent' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: onClock ? (isOt ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)' }} />
+                  <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'var(--font-mono, monospace)', color: onClock ? (isOt ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)' }}>
+                    {openBreak ? `On ${BREAK_RULES[openBreak.kind].label.toLowerCase()} break` : onClock ? (isOt ? 'Overtime running' : 'On site') : (isOt ? 'No overtime running' : 'Not checked in')}
+                  </span>
+                  {onClock && activeOpen.pid && (
+                    <span style={{ marginInlineStart: 'auto', fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>PID {activeOpen.pid}</span>
+                  )}
                 </div>
-              </Field>
-            )}
+                {onClock && (
+                  <div style={{ marginTop: 10 }}>
+                    <span style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, letterSpacing: '0.02em', fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', color: openBreak ? 'var(--accent, #c8963e)' : 'var(--text, #e8e8f0)' }}>
+                      {openBreak ? fmtBreakLeft(openBreak, tick) : fmtElapsed(tick - new Date(activeOpen.punched_at).getTime())}
+                    </span>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 5 }}>
+                      since {fmtTime(activeOpen.punched_at)}
+                    </div>
+                  </div>
+                )}
+              </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10 }}>
-              <span style={{ fontSize: 15 }}>📍</span>
-              <span style={{ flex: 1, fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{geo ? `Location captured · ±${Math.round(geo.accuracy)}m` : geoBusy ? 'Getting location…' : 'Location not captured'}</span>
-              {!geoBusy && <button type="button" onClick={captureLocation} style={{ fontSize: 11, color: 'var(--accent, #c8963e)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{geo ? 'refresh' : 'retry'}</button>}
+              {/* setup — only worth showing before a punch */}
+              {!onClock && (
+                <div style={{ borderTop: '1px solid var(--border, #2e3040)', padding: 12, display: 'flex', flexDirection: 'column', gap: 9 }}>
+                  <div style={{ display: 'flex', gap: 4, padding: 3, background: 'var(--bg, #16171f)', borderRadius: 9 }}>
+                    {[{ k: 'regular', l: 'Regular' }, { k: 'overtime', l: 'Overtime' }].map(o => {
+                      const on = kind === o.k
+                      const c = o.k === 'overtime' ? '#5b8def' : 'var(--green, #3dba7a)'
+                      return <button key={o.k} type="button" onClick={() => { setKind(o.k); setConfirm(null); setErr('') }}
+                        style={{ flex: 1, padding: '8px', fontSize: 12.5, fontWeight: on ? 700 : 500, border: 'none', borderRadius: 7, cursor: 'pointer', background: on ? 'var(--bg-input, #252731)' : 'transparent', color: on ? c : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', boxShadow: on ? `inset 0 0 0 1px ${c}55` : 'none' }}>{o.l}</button>
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'stretch', background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 9, overflow: 'hidden' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', color: 'var(--text-muted, #6b6d82)', borderRight: '1px solid var(--border, #2e3040)', fontFamily: 'var(--font-mono, monospace)' }}>PID</span>
+                    <input value={pid} onChange={e => setPid(e.target.value)} placeholder="which property?" autoCapitalize="characters" autoCorrect="off"
+                      style={{ flex: 1, minWidth: 0, padding: '12px', fontSize: 16, color: 'var(--text, #e8e8f0)', background: 'none', border: 'none', outline: 'none', fontFamily: 'inherit' }} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px' }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: geo ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }} />
+                    <span style={{ flex: 1, fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                      {geo ? `Location ±${Math.round(geo.accuracy)}m` : geoBusy ? 'Getting location…' : 'No location'}
+                    </span>
+                    {!geoBusy && <button type="button" onClick={captureLocation} style={{ fontSize: 11, color: 'var(--accent, #c8963e)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', padding: 0 }}>{geo ? 'refresh' : 'retry'}</button>}
+                  </div>
+                </div>
+              )}
             </div>
+
             {geoErr && <RedStrip title="Location">{geoErr}</RedStrip>}
             {confirm && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 10 }}>
@@ -609,17 +633,6 @@ export default function Attend() {
             {/* Shift timer + breaks. Only while actually on the clock. */}
             {onClock && (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <span style={{ fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
-                      {openBreak ? `On ${BREAK_RULES[openBreak.kind].label.toLowerCase()} break` : (isOt ? 'Overtime running' : 'Shift running')}
-                    </span>
-                    <span style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, letterSpacing: '0.04em', fontFamily: 'var(--font-mono, monospace)', color: openBreak ? 'var(--accent, #c8963e)' : 'var(--green, #3dba7a)', fontVariantNumeric: 'tabular-nums' }}>
-                      {openBreak ? fmtBreakLeft(openBreak, tick) : fmtElapsed(tick - new Date(activeOpen.punched_at).getTime())}
-                    </span>
-                  </div>
-                </div>
-
                 {/* 6 pm: nudge to punch out. */}
                 {istHour >= 18 && !openBreak && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', borderRadius: 10, background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.35)' }}>
@@ -668,12 +681,6 @@ export default function Attend() {
                 )}
               </>
             )}
-
-            <Shutter
-              tone={busy ? 'busy' : onClock ? 'danger' : (isOt ? 'ot' : 'go')}
-              label={busy ? 'Recording…' : onClock ? (isOt ? 'End overtime' : 'Check out') : (isOt ? 'Start overtime' : 'Check in')}
-              disabled={busy}
-              onPress={() => startPunch(onClock ? 'out' : 'in')} />
 
             <PCard title="Attendance history">
               {history == null ? (
@@ -843,6 +850,24 @@ export default function Attend() {
           )}
         </div>
       </div>
+
+      {/* The punch is pinned, not scrolled to.
+          It used to sit fourth in a stack of six boxes, and further down still
+          once the shift timer and the break controls appeared — so the one
+          thing this screen exists for could be off-screen while you were
+          standing at the door. Here it is always in the same place, always in
+          the thumb's reach, and the history scrolls underneath it. */}
+      {tab === 'time' && (
+        <div style={{ flexShrink: 0, background: 'var(--bg-panel, #1e2028)', borderTop: '1px solid var(--border, #2e3040)', padding: '11px 16px' }}>
+          <div style={{ maxWidth: 480, margin: '0 auto' }}>
+            <PunchButton
+              tone={busy ? 'busy' : onClock ? 'danger' : (isOt ? 'ot' : 'go')}
+              label={busy ? 'Recording…' : onClock ? (isOt ? 'End overtime' : 'Check out') : (isOt ? 'Start overtime' : 'Check in')}
+              disabled={busy}
+              onPress={() => startPunch(onClock ? 'out' : 'in')} />
+          </div>
+        </div>
+      )}
 
       <PortalNav tab={tab} onTab={setTab} />
     </div>
