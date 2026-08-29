@@ -627,20 +627,23 @@ export default function Attend() {
               </>
             )}
 
-            {/* The one thing this screen is for. Given the height and the type
-                size to match: a single label a person can hit without looking,
-                and a second line saying what happens when they do — the punch
-                opens the camera, which the old ‘📷 … →’ left them to infer from
-                an emoji between two arrows. */}
-            <button type="button" onClick={() => startPunch(onClock ? 'out' : 'in')} disabled={busy}
-              style={{ ...bigBtn(onClock ? 'danger' : (isOt ? 'ot' : 'go'), busy), minHeight: 64, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-              <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '0.03em' }}>
+            {/* Sized to the hand, not to the page. A full-width slab is not a
+                better target than a centred one — a thumb reaches the middle
+                either way — and the width was only ever shouting. The caption
+                moves out from under the label so the button holds one word and
+                the hint still gets said. */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, padding: '2px 0' }}>
+              <button type="button" onClick={() => startPunch(onClock ? 'out' : 'in')} disabled={busy}
+                style={{ ...bigBtn(onClock ? 'danger' : (isOt ? 'ot' : 'go'), busy),
+                  width: 'auto', minWidth: 190, minHeight: 50, padding: '0 32px', borderRadius: 12, fontSize: 16.5, letterSpacing: '0.04em' }}>
                 {busy ? 'Recording…' : onClock ? (isOt ? 'End overtime' : 'Check out') : (isOt ? 'Start overtime' : 'Check in')}
-              </span>
+              </button>
               {!busy && (
-                <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.72 }}>Opens the camera</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                  opens the camera
+                </span>
               )}
-            </button>
+            </div>
 
             <PCard title="Attendance history">
               {history == null ? (
@@ -710,10 +713,17 @@ export default function Attend() {
 
                 {!editOpen ? (
                   <>
-                    <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>
-                      Something here wrong? You can ask to change it.
-                    </span>
-                    <button type="button" onClick={() => setEditOpen(true)} style={ghostBtn(false)}>✎ Request edit access</button>
+                    {/* One row: the reason to tap on the left, the tap on the
+                        right. A full-width button for something used once in
+                        months was still overstating it. */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.45 }}>
+                        Something here wrong?
+                      </span>
+                      <button type="button" onClick={() => setEditOpen(true)} style={{ ...ghostBtn(false), width: 'auto', minHeight: 36, padding: '0 14px', fontSize: 12.5, flexShrink: 0 }}>
+                        ✎ Ask to change
+                      </button>
+                    </div>
                   </>
                 ) : (
                   <>
@@ -746,13 +756,13 @@ export default function Attend() {
                       placeholder="Anything to add? (optional)"
                       style={{ padding: '10px 12px', fontSize: 13, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, outline: 'none', fontFamily: 'inherit' }} />
                     {editErr && <RedStrip title="Couldn’t submit">{editErr}</RedStrip>}
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
                       <button type="button" onClick={() => { setEditOpen(false); setEditErr('') }} disabled={editBusy}
-                        style={{ ...ghostBtn(editBusy), width: 'auto', padding: '0 16px', flexShrink: 0 }}>Cancel</button>
+                        style={{ ...ghostBtn(editBusy), width: 'auto', minHeight: 40, padding: '0 16px', fontSize: 13, flexShrink: 0 }}>Cancel</button>
                       {/* Enabled only once they have said what — a request with
                           no scope is what staff were being asked to approve. */}
                       <button type="button" onClick={requestEdit} disabled={editBusy || editTopics.length === 0}
-                        style={bigBtn('primary', editBusy || editTopics.length === 0)}>
+                        style={{ ...bigBtn('primary', editBusy || editTopics.length === 0), width: 'auto', minHeight: 40, padding: '0 20px', fontSize: 13.5, flexShrink: 0 }}>
                         {editBusy ? 'Requesting…' : 'Send request'}
                       </button>
                     </div>
