@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, anonSupabase } from '../lib/supabase'
 import PortalPayroll from '../components/vendor/PortalPayroll'
 import { Field, Input } from '../components/ui'
 import { getPosition, fmtTime, fmtDate, fmtDuration, fmtElapsed, fmtBreakLeft, maskAccount, initials, avatarColor } from '../utils/vendorHub'
@@ -573,7 +573,7 @@ export default function Attend() {
       const blob = await selfieBlob(selfieFile)
       setBusyNote('Uploading…')
       selfiePath = `selfies/${newSubmissionId()}.jpg`
-      const { error: upErr } = await supabase.storage.from('vendor-avatars').upload(selfiePath, blob, { contentType: 'image/jpeg' })
+      const { error: upErr } = await anonSupabase.storage.from('vendor-avatars').upload(selfiePath, blob, { contentType: 'image/jpeg' })
       if (upErr) throw upErr
     } catch (e) { setBusy(false); setErr('Selfie upload failed: ' + (e && e.message ? e.message : 'try again')); return }
     // Checking out while still on a break would leave that break open for
@@ -614,7 +614,7 @@ export default function Attend() {
     try {
       const { file: img, ext } = await compressForUpload(file)
       const path = `av/${newSubmissionId()}.${ext}`
-      const { error: upErr } = await supabase.storage.from('vendor-avatars').upload(path, img, { contentType: img.type || 'image/jpeg' })
+      const { error: upErr } = await anonSupabase.storage.from('vendor-avatars').upload(path, img, { contentType: img.type || 'image/jpeg' })
       if (upErr) throw upErr
       const { error } = await supabase.rpc('attend_set_avatar', { p_token: tokenRef.current, p_path: path })
       if (error) throw error
