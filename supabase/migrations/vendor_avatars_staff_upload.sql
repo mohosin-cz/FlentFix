@@ -17,11 +17,20 @@
 -- This is the other half, and nothing else changes: the anon policy stays as
 -- it is, so nothing a vendor does today is affected.
 
+-- storage.objects is owned by supabase_storage_admin, not postgres, so a plain
+-- CREATE POLICY in the SQL editor fails with "must be owner of table objects".
+-- Become the owner for the statement. If this role change is refused, use the
+-- dashboard instead: Storage → Policies → vendor-avatars → New policy, INSERT,
+-- target role authenticated, check bucket_id = 'vendor-avatars'.
+set role supabase_storage_admin;
+
 drop policy if exists "staff upload vendor avatars" on storage.objects;
 create policy "staff upload vendor avatars"
   on storage.objects for insert
   to authenticated
   with check (bucket_id = 'vendor-avatars');
+
+reset role;
 
 -- check: vendor-avatars should now read like vendor-docs — one anon policy and
 -- one authenticated policy
