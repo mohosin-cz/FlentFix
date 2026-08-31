@@ -212,6 +212,14 @@ on conflict (series_code, fin_year)
   do update set last_no = greatest(vendor_invoice_series.last_no, excluded.last_no),
                 updated_at = now();
 
+-- Counters keyed on anything that is not a vendor's prefix are left over from
+-- an earlier numbering — this migration is safe to run over the vendor_code
+-- version of itself, and those rows would otherwise sit there for ever
+-- counting a series nothing issues.
+delete from public.vendor_invoice_series s
+ where not exists (select 1 from public.vendors v where v.invoice_prefix = s.series_code)
+   and s.series_code <> 'NA';
+
 -- ── 6. the GST limit, enforced ──────────────────────────────────────────────
 alter table public.vendor_invoices drop constraint if exists vendor_invoices_no_len;
 alter table public.vendor_invoices add constraint vendor_invoices_no_len
