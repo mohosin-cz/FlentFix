@@ -4,8 +4,13 @@
 -- first, so it can regenerate a draft month. Repo source of truth.
 --
 -- Model: per_day = salary / 30. earned = per_day × days_worked (default 30 =
--- full month; staff reduce for absentees on review). OT = per_day × ot_days
--- (1 OT day = 1 day's pay). total = earned + allowance + OT − advances.
+-- full month; staff reduce for absentees on review). OT = per_day × 1.5 ×
+-- ot_days (1 OT day pays one and a half days). total = earned + allowance + OT
+-- − advances.
+--
+-- The 1.5 also lives in PayrollTab.jsx as OT_RATE, which recomputes a row when
+-- staff edit it. The two have to move together or a generated month and an
+-- edited one disagree about the same overtime.
 create or replace function public.payroll_fill_month(p_period_id uuid)
 returns int
 language plpgsql security invoker set search_path = public
@@ -39,7 +44,7 @@ begin
       from public.vendor_attendance
      where vendor_id = rec.id and (punched_at at time zone 'Asia/Kolkata')::date between p_start and p_end;
 
-    v_otamt  := round(coalesce(v_otdays,0) * v_fixed / 30);   -- 1 OT day = 1 day's pay
+    v_otamt  := round(coalesce(v_otdays,0) * 1.5 * v_fixed / 30);  -- 1 OT day = 1.5 days' pay
     v_earned := round(v_fixed / 30 * 30);                     -- full month (days_worked = 30 default)
 
     insert into public.vendor_payouts(

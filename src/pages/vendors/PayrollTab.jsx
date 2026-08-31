@@ -12,7 +12,19 @@ const avatarUrl = (p) => { if (!p) return null; try { return supabase.storage.fr
 const perDayOf = (f) => Number(f.fixed_pay || 0) / 30
 const daysWorkedOf = (f) => (f.days_worked === '' || f.days_worked == null) ? 30 : Number(f.days_worked)
 const earnedOf = (f) => Math.round(perDayOf(f) * daysWorkedOf(f))
-const otAmtOf = (f) => Math.round(perDayOf(f) * Number(f.ot_days || 0))
+// An overtime day pays one and a half days.
+//
+// The same figure lives in payroll_fill_month(), which computes OT when a month
+// is first generated; this recomputes it whenever staff edit a row. They have
+// to move together or a generated month and an edited one will disagree about
+// the same overtime.
+//
+// Months already finalised are unaffected: a locked month renders its stored
+// total_payout rather than recomputing, so nothing anybody has already been
+// paid changes underneath them. Reopening an old month and saving it will
+// recalculate at the new rate, which is the point of reopening it.
+const OT_RATE = 1.5
+const otAmtOf = (f) => Math.round(perDayOf(f) * OT_RATE * Number(f.ot_days || 0))
 const totalOf = (f) => earnedOf(f) + Number(f.allowance || 0) + otAmtOf(f) - Number(f.advance_recovered || 0)
 
 const CSV_COLS = ['beneficiary_name', 'team', 'cost_centre', 'fixed_pay', 'allowance', 'days_worked', 'ot_days', 'ot_amount', 'advance_given', 'advance_recovered', 'total_payout', 'upi_id', 'bank_account_name', 'bank_account_no', 'bank_ifsc', 'utr']
@@ -583,7 +595,7 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '11px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, fontFamily: mono, fontSize: 12, color: muted }}>
               <div style={brkRow}><span>Per day (÷30)</span><span>{money(Math.round(perDayOf(cur)))}</span></div>
               <div style={brkRow}><span>Earned · {daysWorkedOf(cur)} days</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(earnedOf(cur))}</span></div>
-              <div style={brkRow}><span>Overtime · {Number(cur.ot_days || 0)} × 1 day</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(otAmtOf(cur))}</span></div>
+              <div style={brkRow}><span>Overtime · {Number(cur.ot_days || 0)} × {OT_RATE} days</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(otAmtOf(cur))}</span></div>
               {Number(cur.advance_recovered) > 0 && <div style={brkRow}><span>Advance recovered</span><span style={{ color: 'var(--red, #e05c6a)' }}>− {money(Number(cur.advance_recovered))}</span></div>}
               <div style={{ ...brkRow, borderTop: '1px solid var(--border, #2e3040)', paddingTop: 7 }}><span style={{ color: 'var(--text, #e8e8f0)', fontWeight: 700 }}>Total payout</span><span style={{ color: 'var(--accent, #c8963e)', fontWeight: 700, fontSize: 15 }}>{money(totalOf(cur))}</span></div>
             </div>
