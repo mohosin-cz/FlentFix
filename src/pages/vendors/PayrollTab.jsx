@@ -417,6 +417,7 @@ function ReviewTable({ period, rows: initialRows, onReload }) {
           fixed_pay: Number(r.fixed_pay || 0), allowance: Number(r.allowance || 0),
           days_worked: (r.days_worked === '' || r.days_worked == null) ? null : Number(r.days_worked),
           ot_days: Number(r.ot_days || 0), ot_amount: otAmtOf(r),
+          advance_given: Number(r.advance_given || 0),
           advance_recovered: Number(r.advance_recovered || 0), total_payout: totalOf(r),
         }
         if (String(r.id).startsWith('new-')) {
@@ -445,7 +446,7 @@ function ReviewTable({ period, rows: initialRows, onReload }) {
       <div style={{ overflowX: 'auto', border: '1px solid var(--border, #2e3040)', borderRadius: 12, background: 'var(--bg-panel, #1e2028)' }}>
         <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 900 }}>
           <thead><tr>
-            <th style={thL}>Beneficiary</th><th style={th}>Salary</th><th style={th}>Days/30</th><th style={th}>OT&nbsp;d</th><th style={th}>Allow.</th><th style={th}>Adv&nbsp;rec.</th><th style={th}>Total</th><th style={thL}>Bank A/C</th><th style={thL}>IFSC</th><th style={thL}>UPI</th>{!locked && <th style={th}></th>}
+            <th style={thL}>Beneficiary</th><th style={th}>Salary</th><th style={th}>Days/30</th><th style={th}>OT&nbsp;d</th><th style={th}>Allow.</th><th style={th}>Adv&nbsp;paid</th><th style={th}>Adv&nbsp;rec.</th><th style={th}>Total</th><th style={thL}>Bank A/C</th><th style={thL}>IFSC</th><th style={thL}>UPI</th>{!locked && <th style={th}></th>}
           </tr></thead>
           <tbody>
             {rows.map(r => (
@@ -455,6 +456,7 @@ function ReviewTable({ period, rows: initialRows, onReload }) {
                 <td style={td}><input value={r.days_worked ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { days_worked: num(e.target.value) })} style={cellIn(58)} /></td>
                 <td style={td}><input value={r.ot_days ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { ot_days: num(e.target.value) })} style={cellIn(52)} /></td>
                 <td style={td}><input value={r.allowance ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { allowance: num(e.target.value) })} style={cellIn(80)} /></td>
+                <td style={td}><input value={r.advance_given ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { advance_given: num(e.target.value) })} style={cellIn(80)} /></td>
                 <td style={td}><input value={r.advance_recovered ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { advance_recovered: num(e.target.value) })} style={cellIn(80)} /></td>
                 <td style={{ ...td, textAlign: 'right', padding: '9px 8px', fontFamily: 'var(--font-mono, monospace)', fontSize: 13, fontWeight: 700, color: 'var(--accent, #c8963e)', whiteSpace: 'nowrap' }}>{money(totalRow(r))}</td>
                 <td style={td}><input value={r.bank_account_no || ''} readOnly={locked} onChange={e => upd(r.id, { bank_account_no: e.target.value })} placeholder="—" style={cellIn(140, true)} /></td>
@@ -466,7 +468,7 @@ function ReviewTable({ period, rows: initialRows, onReload }) {
           </tbody>
           <tfoot><tr>
             <td style={{ padding: '11px 8px', fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--text-muted, #6b6d82)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Grand total</td>
-            <td colSpan={5}></td>
+            <td colSpan={6}></td>
             <td style={{ padding: '11px 8px', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)', fontSize: 15, fontWeight: 700, color: 'var(--accent, #c8963e)', whiteSpace: 'nowrap' }}>{money(grand)}</td>
             <td colSpan={locked ? 3 : 4}></td>
           </tr></tfoot>
@@ -536,6 +538,7 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
           fixed_pay: Number(r.fixed_pay || 0), allowance: Number(r.allowance || 0),
           days_worked: (r.days_worked === '' || r.days_worked == null) ? null : Number(r.days_worked),
           ot_days: Number(r.ot_days || 0), ot_amount: otAmtOf(r),
+          advance_given: Number(r.advance_given || 0),
           advance_recovered: Number(r.advance_recovered || 0), total_payout: totalOf(r),
         }
         const { error } = await supabase.from('vendor_payouts').update(patch).eq('id', r.id); if (error) throw error
@@ -585,6 +588,7 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
             <div style={{ display: 'flex', gap: 8 }}>
               <NumField label="OT days" value={cur.ot_days} onChange={v => upd({ ot_days: v })} />
               <NumField label="Allowance" prefix="₹" value={cur.allowance} onChange={v => upd({ allowance: v })} />
+              <NumField label="Advance paid" prefix="₹" value={cur.advance_given} onChange={v => upd({ advance_given: v })} />
               <NumField label="Advance rec." prefix="₹" value={cur.advance_recovered} onChange={v => upd({ advance_recovered: v })} />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -597,6 +601,13 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
               <div style={brkRow}><span>Earned · {daysWorkedOf(cur)} days</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(earnedOf(cur))}</span></div>
               <div style={brkRow}><span>Overtime · {Number(cur.ot_days || 0)} × {OT_RATE} days</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(otAmtOf(cur))}</span></div>
               {Number(cur.advance_recovered) > 0 && <div style={brkRow}><span>Advance recovered</span><span style={{ color: 'var(--red, #e05c6a)' }}>− {money(Number(cur.advance_recovered))}</span></div>}
+              {/* Paid out separately, so it is recorded here and deliberately
+                  left out of the total — it comes back off a later month as
+                  Advance recovered. Adding it to this payout would pay it
+                  twice; leaving it unrecorded is how it never comes back. */}
+              {Number(cur.advance_given) > 0 && (
+                <div style={brkRow}><span>Advance paid this month</span><span style={{ color: 'var(--text-muted, #6b6d82)' }}>{money(Number(cur.advance_given))} · not in total</span></div>
+              )}
               <div style={{ ...brkRow, borderTop: '1px solid var(--border, #2e3040)', paddingTop: 7 }}><span style={{ color: 'var(--text, #e8e8f0)', fontWeight: 700 }}>Total payout</span><span style={{ color: 'var(--accent, #c8963e)', fontWeight: 700, fontSize: 15 }}>{money(totalOf(cur))}</span></div>
             </div>
             {err && <Err>{err}</Err>}
@@ -635,8 +646,8 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
 }
 
 const mkRowId = () => 'new-' + Date.now() + '-' + Math.round(Math.random() * 1e6)
-const vendorToRow = (v) => ({ id: mkRowId(), vendor_id: v.id, beneficiary_name: v.full_name, team: v.pod, fixed_pay: Number(v.monthly_rate || 0), allowance: 0, days_worked: 30, ot_days: 0, ot_amount: 0, advance_recovered: 0, upi_id: v.upi_id, bank_account_name: v.bank_account_name, bank_account_no: v.bank_account_no, bank_ifsc: v.bank_ifsc })
-const blankRow = () => ({ id: mkRowId(), vendor_id: null, beneficiary_name: '', team: '', fixed_pay: 0, allowance: 0, days_worked: 30, ot_days: 0, ot_amount: 0, advance_recovered: 0, upi_id: '', bank_account_name: '', bank_account_no: '', bank_ifsc: '' })
+const vendorToRow = (v) => ({ id: mkRowId(), vendor_id: v.id, beneficiary_name: v.full_name, team: v.pod, fixed_pay: Number(v.monthly_rate || 0), allowance: 0, days_worked: 30, ot_days: 0, ot_amount: 0, advance_given: 0, advance_recovered: 0, upi_id: v.upi_id, bank_account_name: v.bank_account_name, bank_account_no: v.bank_account_no, bank_ifsc: v.bank_ifsc })
+const blankRow = () => ({ id: mkRowId(), vendor_id: null, beneficiary_name: '', team: '', fixed_pay: 0, allowance: 0, days_worked: 30, ot_days: 0, ot_amount: 0, advance_given: 0, advance_recovered: 0, upi_id: '', bank_account_name: '', bank_account_no: '', bank_ifsc: '' })
 
 function AddPersonSheet({ existingVendorIds, onAdd, onClose }) {
   const [vendors, setVendors] = useState(null)
