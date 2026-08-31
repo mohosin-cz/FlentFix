@@ -12,7 +12,7 @@ const avatarUrl = (p) => { if (!p) return null; try { return supabase.storage.fr
 const perDayOf = (f) => Number(f.fixed_pay || 0) / 30
 const daysWorkedOf = (f) => (f.days_worked === '' || f.days_worked == null) ? 30 : Number(f.days_worked)
 const earnedOf = (f) => Math.round(perDayOf(f) * daysWorkedOf(f))
-// An overtime day pays one and a half days.
+// An overtime day pays a day and a quarter.
 //
 // The same figure lives in payroll_fill_month(), which computes OT when a month
 // is first generated; this recomputes it whenever staff edit a row. They have
@@ -23,7 +23,7 @@ const earnedOf = (f) => Math.round(perDayOf(f) * daysWorkedOf(f))
 // total_payout rather than recomputing, so nothing anybody has already been
 // paid changes underneath them. Reopening an old month and saving it will
 // recalculate at the new rate, which is the point of reopening it.
-const OT_RATE = 1.5
+const OT_RATE = 1.25
 const otAmtOf = (f) => Math.round(perDayOf(f) * OT_RATE * Number(f.ot_days || 0))
 const totalOf = (f) => earnedOf(f) + Number(f.allowance || 0) + otAmtOf(f) - Number(f.advance_recovered || 0)
 
