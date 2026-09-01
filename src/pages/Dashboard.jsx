@@ -241,6 +241,8 @@ function DropItem({ icon, label, onClick, danger }) {
 // ─── Quick-action config ───────────────────────────────────────────────────────
 const QUICK_ACTIONS = [
   { icon: '+', label: 'New Inspection', path: '/inspections/new' },
+  { icon: '◷', label: 'Attendance',     path: '/vendors?tab=attendance' },
+  { icon: '₹', label: 'Payroll',        path: '/vendors?tab=payroll' },
   { icon: '⚡', label: 'Utilities',      path: '/utilities' },
   { icon: '↗', label: 'Log Usage',      path: '/inventory/usage' },
   { icon: '₹', label: 'Rate Card',      path: '/inventory/public-rc' },
@@ -347,11 +349,39 @@ export default function Dashboard() {
       const woRes  = await supabase.from('work_orders').select('status')
       const woOpen = (woRes.data || []).filter(w => w.status !== 'verified').length
 
+      // Who is on site right now, and where payroll stands. Both are things
+      // somebody opens the app to check, and both were four taps away behind
+      // the vendor hub — on a phone they were behind a tab bar that does not
+      // even show quick actions.
+      const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0)
+      const [attRes, perRes] = await Promise.all([
+        supabase.from('vendor_attendance').select('vendor_id,punch_type,kind,punched_at')
+          .gte('punched_at', dayStart.toISOString()).order('punched_at', { ascending: true }),
+        supabase.from('vendor_payroll_periods')
+          .select('id,period_month,status,payouts:vendor_payouts(total_payout)')
+          .order('period_month', { ascending: false }).limit(1),
+      ])
+
+      // last punch per vendor per kind wins: still 'in' means still on site
+      const openBy = {}
+      for (const a of attRes.data || []) openBy[`${a.vendor_id}|${a.kind || 'regular'}`] = a.punch_type
+      const onSiteNow = new Set(
+        Object.entries(openBy).filter(([, t]) => t === 'in').map(([k]) => k.split('|')[0]),
+      ).size
+
+      const per = (perRes.data || [])[0]
+      const perTotal = per ? (per.payouts || []).reduce((a, r) => a + Number(r.total_payout || 0), 0) : 0
+
       setStats({
         inspMonth:   inspThisMonth,
         activeProps: props.length,
         invValue:    invTotal ? `₹${invTotal.toLocaleString('en-IN')}` : '₹0',
         openWorkOrders: woRes.error ? '—' : woOpen,
+        onSiteNow:   attRes.error ? '—' : onSiteNow,
+        payrollLabel: per
+          ? `${new Date(per.period_month).toLocaleDateString('en-IN', { month: 'short' })} payroll · ${per.status === 'locked' ? 'final' : per.status}`
+          : 'Payroll',
+        payrollValue: per ? (perTotal >= 1e5 ? `₹${(perTotal / 1e5).toFixed(2)}L` : `₹${Math.round(perTotal).toLocaleString('en-IN')}`) : '—',
       })
 
       // Activity feed (parallel)
@@ -403,6 +433,8 @@ export default function Dashboard() {
     { n: stats.activeProps, label: 'Active properties' },
     { n: stats.openWorkOrders, label: 'Open work orders', to: '/work-order' },
     { n: stats.invValue,    label: 'Inventory value' },
+    { n: stats.onSiteNow,   label: 'On site now', to: '/vendors?tab=attendance' },
+    { n: stats.payrollValue, label: stats.payrollLabel || 'Payroll', to: '/vendors?tab=payroll' },
   ]
 
   // TEST-* filter — applied in render
