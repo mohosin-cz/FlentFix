@@ -20,6 +20,18 @@ const hhmm = (m) => {
   return r ? `${h}h ${r}m` : `${h}h`
 }
 
+const mediaUrl = (p) => {
+  try { return supabase.storage.from('inspection-media').getPublicUrl(p).data.publicUrl } catch { return null }
+}
+
+// How sure it was. Shown because a low-confidence proposal is not a worse
+// proposal, it is one to read her quote for before ticking.
+const CONF = {
+  high:   { label: 'stated',   color: 'var(--green, #3dba7a)' },
+  medium: { label: 'read',     color: 'var(--accent, #c8963e)' },
+  low:    { label: 'inferred', color: 'var(--text-muted, #6b6d82)' },
+}
+
 const inp = {
   width: '100%', boxSizing: 'border-box', padding: '9px 11px', fontSize: 14,
   color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)',
@@ -42,7 +54,7 @@ function BriefAnswers({ brief }) {
     return out
   }, [brief])
 
-  const url = (p) => { try { return supabase.storage.from('inspection-media').getPublicUrl(p).data.publicUrl } catch { return null } }
+  const url = mediaUrl
   const LABEL = {
     furniture: 'Furniture', light_points: 'Light points', switch_points: 'Switch points',
     wall_items: 'Wall fixed', complications: 'Complicated', windows: 'Windows',
@@ -100,6 +112,8 @@ export default function DesignScopeSection({ pid }) {
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState('')
   const [adding, setAdding] = useState(null)   // { task_id, area, quantity, note }
+  const [proposals, setProposals] = useState(null)  // null = never read; [] = read, nothing found
+  const [reading, setReading] = useState(false)
 
   const reload = useCallback(() => setReloadKey(k => k + 1), [])
 
@@ -155,6 +169,39 @@ export default function DesignScopeSection({ pid }) {
     setBusy('')
     if (error) { setErr(error.message); return }
     setLines(ls => ls.filter(l => l.id !== line.id))
+  }
+
+  // Read her brief and propose the lines. Nothing is written by this — what
+  // comes back sits below until somebody accepts it, one line at a time.
+  async function readBrief() {
+    if (!brief) return
+    setReading(true); setErr(''); setProposals(null)
+    const { data, error } = await supabase.functions.invoke('design-scope-extract', {
+      body: { brief_id: brief.id },
+    })
+    setReading(false)
+    // Two failure shapes: the call itself failed, or it returned ok:false with
+    // something worth reading. Both end up in the same strip.
+    if (error) { setErr(error.message || 'Could not read the brief.'); return }
+    if (!data?.ok) { setErr(data?.error || 'Could not read the brief.'); return }
+    setProposals(data.proposals || [])
+  }
+
+  // Accept one. Her words ride along as the note, so the vendor's line says
+  // "Wall shelf — three floating shelves over the desk" and not just the task.
+  async function accept(p, i) {
+    setBusy(`p${i}`); setErr('')
+    const { error } = await supabase.rpc('design_scope_add', {
+      p_pid: pid, p_task_id: p.catalogue_id,
+      p_area: p.area || 'Whole property',
+      p_quantity: Number(p.quantity) || 1,
+      p_note: p.label || null,
+      p_brief_id: brief?.id || null,
+    })
+    setBusy('')
+    if (error) { setErr(error.message); return }
+    setProposals(ps => (ps || []).filter((_, n) => n !== i))
+    reload()
   }
 
   async function add() {
@@ -232,6 +279,69 @@ export default function DesignScopeSection({ pid }) {
         </div>
       ))}
 
+      {proposals && (
+        <div style={{ border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 11, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', background: 'var(--bg-input, #252731)' }}>
+            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim, #9394a8)', fontFamily: MONO }}>Read from her brief</span>
+            <span style={{ marginInlineStart: 'auto', fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
+              {proposals.length} proposed
+            </span>
+            <button type="button" onClick={() => setProposals(null)} aria-label="Dismiss all proposals"
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontSize: 13, padding: '2px 0' }}>✕</button>
+          </div>
+
+          {proposals.length === 0 && (
+            <div style={{ padding: '12px', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.6 }}>
+              Nothing to propose from what she wrote.
+            </div>
+          )}
+
+          {proposals.map((p, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderTop: '1px solid var(--border, #2e3040)' }}>
+              {p.source_photo && (
+                <a href={mediaUrl(p.source_photo)} target="_blank" rel="noreferrer" style={{ lineHeight: 0, flexShrink: 0 }}>
+                  <img src={mediaUrl(p.source_photo)} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 7, border: '1px solid var(--border, #2e3040)' }} />
+                </a>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, wordBreak: 'break-word' }}>{p.label}</div>
+                <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 2 }}>
+                  {p.area} · {p.quantity} × {p.unit || 'each'}
+                  {p.catalogue_id
+                    ? <> · {p.task_name} · {p.trade}</>
+                    : <span style={{ color: 'var(--accent, #c8963e)' }}> · not in the catalogue</span>}
+                  {' · '}
+                  <span style={{ color: (CONF[p.confidence] || CONF.low).color }}>{(CONF[p.confidence] || CONF.low).label}</span>
+                </div>
+                {p.source_quote && (
+                  <div style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', marginTop: 4, lineHeight: 1.5, borderInlineStart: '2px solid var(--border, #2e3040)', paddingInlineStart: 8, wordBreak: 'break-word' }}>
+                    “{p.source_quote}”
+                  </div>
+                )}
+                {/* No duration on an unmatched line, because nothing has set one.
+                    Typing it into the catalogue is the step, and it is a step on
+                    purpose — a made-up number would get rostered against. */}
+                {!p.catalogue_id && (
+                  <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 4, lineHeight: 1.5 }}>
+                    Add it in /admin/tasks with a duration, then read the brief again.
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                {p.catalogue_id && (
+                  <button type="button" onClick={() => accept(p, i)} disabled={busy === `p${i}`}
+                    style={{ minHeight: 32, padding: '0 12px', borderRadius: 8, border: 'none', background: 'var(--green, #3dba7a)', color: '#16171f', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>
+                    {busy === `p${i}` ? '…' : 'Add'}
+                  </button>
+                )}
+                <button type="button" onClick={() => setProposals(ps => ps.filter((_, n) => n !== i))} aria-label="Discard this proposal"
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontSize: 13, padding: '4px 2px' }}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {adding ? (
         <div style={{ border: '1px solid var(--accent, #c8963e)', borderRadius: 11, padding: 12, display: 'flex', flexDirection: 'column', gap: 9 }}>
           <select style={{ ...inp, cursor: 'pointer' }} value={adding.task_id || ''}
@@ -265,15 +375,24 @@ export default function DesignScopeSection({ pid }) {
           </div>
         </div>
       ) : (
-        <button type="button" onClick={() => setAdding({ quantity: 1 })}
-          style={{ alignSelf: 'flex-start', minHeight: 40, padding: '0 15px', borderRadius: 9, border: '1px solid var(--border-dash, #3a3d52)', background: 'transparent', color: 'var(--text, #e8e8f0)', fontSize: 13, cursor: 'pointer', fontFamily: MONO }}>
-          + Add from the catalogue
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => setAdding({ quantity: 1 })}
+            style={{ minHeight: 40, padding: '0 15px', borderRadius: 9, border: '1px solid var(--border-dash, #3a3d52)', background: 'transparent', color: 'var(--text, #e8e8f0)', fontSize: 13, cursor: 'pointer', fontFamily: MONO }}>
+            + Add from the catalogue
+          </button>
+          {brief && (
+            <button type="button" onClick={readBrief} disabled={reading}
+              style={{ minHeight: 40, padding: '0 15px', borderRadius: 9, border: '1px solid var(--border-dash, #3a3d52)', background: 'transparent', color: reading ? 'var(--text-muted, #6b6d82)' : 'var(--text, #e8e8f0)', fontSize: 13, cursor: reading ? 'default' : 'pointer', fontFamily: MONO }}>
+              {reading ? 'Reading her brief…' : 'Read her brief'}
+            </button>
+          )}
+        </div>
       )}
 
       <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.55 }}>
         Ticked lines go to the vendor with the rest of their work order. Unticked ones stay here.
         Adding a task for a trade with no work order on this property raises one, unassigned.
+        “Read her brief” proposes lines from her words and photos — it never sets a duration and never adds anything by itself.
       </div>
     </section>
   )
