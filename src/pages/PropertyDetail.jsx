@@ -7,6 +7,7 @@ import { advanceStage, STAGES, MAIN_SEQUENCE } from '../utils/propertyJourney'
 import { logActivity } from '../utils/activityUtils'
 import LogoSpinner from '../components/LogoSpinner'
 import StageRail from '../components/property/StageRail'
+import ShareSheet from '../components/vendor/ShareSheet'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -99,6 +100,21 @@ const TILES = [
     color: '#9b6de6',
     bg: 'rgba(155,109,230,0.08)',
     border: 'rgba(155,109,230,0.25)',
+  },
+  {
+    key: 'design-brief',
+    title: 'Design brief',
+    sub: 'Send to the designer',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M4 19.5V6a2 2 0 0 1 2-2h9l5 5v10.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+        <path d="M15 4v5h5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+        <path d="M8 13h8M8 16.5h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
+    color: '#e6a1c8',
+    bg: 'rgba(230,161,200,0.08)',
+    border: 'rgba(230,161,200,0.25)',
   },
   {
     key: 'payments',
@@ -314,6 +330,7 @@ export default function PropertyDetail() {
   const [inspections, setInspections] = useState([])
   const [loading, setLoading]         = useState(true)
   const [toast, setToast]             = useState('')
+  const [designLink, setDesignLink]   = useState(null)
   const [stats, setStats]             = useState({ totalItems: 0, issues: 0, totalCost: 0 })
   const [showAllInspections, setShowAllInspections] = useState(false)
   const [quickNote, setQuickNote]     = useState(null)
@@ -437,6 +454,14 @@ export default function PropertyDetail() {
       navigate(`/properties/${pid}/work-orders`)
     } else if (key === 'payments') {
       navigate(`/properties/${pid}/payments`)
+    } else if (key === 'design-brief') {
+      // The room list comes from the inspection, so the RPC refuses before one
+      // exists rather than handing her a form with no rooms in it.
+      setToast('Preparing the link…')
+      const { data, error } = await supabase.rpc('designer_brief_start', { p_pid: pid })
+      if (error) { setToast(error.message); return }
+      setToast('')
+      setDesignLink(`${window.location.origin}/db/${data.token}`)
     } else {
       setToast('Coming soon')
     }
@@ -773,6 +798,13 @@ export default function PropertyDetail() {
         />
       )}
 
+      {designLink && (
+        <ShareSheet
+          title="Design brief"
+          subtitle={`Send this to the designer for PID ${pid}. It saves as she fills it.`}
+          url={designLink}
+          onClose={() => setDesignLink(null)} />
+      )}
       {toast && <Toast msg={toast} onClose={() => setToast('')} />}
 
     </div>

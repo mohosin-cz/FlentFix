@@ -37,6 +37,7 @@ const HIDE_ON = [
   // the submit bar they came for. /attend only escaped it by covering the nav
   // with a fixed full-screen shell.
   '/wo/',
+  '/db/',
   '/vi/',
   '/attend',
   '/onboard',
