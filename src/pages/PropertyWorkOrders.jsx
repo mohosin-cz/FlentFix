@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import WorkOrdersSection from '../components/property/WorkOrdersSection'
+import DesignScopeSection from '../components/property/DesignScopeSection'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
 const MONO = 'var(--font-mono, monospace)'
@@ -35,6 +36,7 @@ export default function PropertyWorkOrders() {
 
       <main style={{ flex: 1, width: '100%', maxWidth: 860, margin: '0 auto', padding: '4px 16px calc(90px + env(safe-area-inset-bottom))', boxSizing: 'border-box' }}>
         <WorkOrdersSection pid={pid} heading={null} />
+        <DesignScopeSection pid={pid} />
       </main>
     </div>
   )
