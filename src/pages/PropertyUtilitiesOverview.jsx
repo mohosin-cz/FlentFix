@@ -7,7 +7,7 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import LogoSpinner from '../components/LogoSpinner'
 import UtilitiesAnalytics from '../components/UtilitiesAnalytics'
 import UtilitiesByMonth from '../components/UtilitiesByMonth'
-import { UTILITY_TYPES, typeLabel, typeColor, dueInfo, dueBucket, monthlyCost, installsInMonth } from '../utils/propertyUtils'
+import { UTILITY_TYPES, typeLabel, typeColor, dueInfo, dueBucket, monthlyCost, installsInMonth, pidQuery } from '../utils/propertyUtils'
 import UtilityIcon from '../components/UtilityIcon'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
@@ -81,18 +81,47 @@ export default function PropertyUtilitiesOverview() {
 
   const presentTypes = useMemo(() => { const set = new Set(rows.map(r => r.utility_type)); return UTILITY_TYPES.filter(t => set.has(t.key)) }, [rows])
 
-  const filtered = useMemo(() => {
+  // A typed PID is the whole query. "228" means PID 228 — not every account
+  // number that happens to contain 228, and not PID 1228.
+  const pidQ = useMemo(() => pidQuery(q), [q])
+  const pidHits = useMemo(
+    () => (pidQ ? rows.filter(r => String(r.pid) === pidQ) : []),
+    [rows, pidQ],
+  )
+
+  // Three readings of a number, in order of how sure we are:
+  //   exact  — a property has this PID. That is the answer, alone.
+  //   prefix — no property yet, but one starts with it: she is still typing.
+  //   text   — no PID could match, so it was never a PID. Account numbers are
+  //            all digits too, and searching one should not dead-end on
+  //            "no property with PID 9845012345".
+  const mode = useMemo(() => {
+    if (!q.trim()) return 'text'
+    if (!pidQ) return 'text'
+    if (pidHits.length) return 'exact'
+    return rows.some(r => String(r.pid).startsWith(pidQ)) ? 'prefix' : 'text'
+  }, [q, pidQ, pidHits, rows])
+  const exactPid = mode === 'exact'
+
+  const matchesText = useCallback((r) => {
     const needle = q.trim().toLowerCase()
-    return rows.filter(r => {
-      if (typeF !== 'all' && r.utility_type !== typeF) return false
-      if (dueF !== 'all' && r.bucket !== dueF) return false
-      if (needle) {
-        const hay = [r.pid, r.prop && r.prop.name, r.prop && r.prop.address, r.provider, r.plan_type, r.account_number, typeLabel(r)].filter(Boolean).join(' ').toLowerCase()
-        if (!hay.includes(needle)) return false
-      }
-      return true
-    })
-  }, [rows, q, typeF, dueF])
+    if (!needle) return true
+    if (mode === 'exact') return String(r.pid) === pidQ
+    if (mode === 'prefix') return String(r.pid).startsWith(pidQ)
+    const hay = [r.pid, r.prop && r.prop.name, r.prop && r.prop.address, r.provider, r.plan_type, r.account_number, typeLabel(r)].filter(Boolean).join(' ').toLowerCase()
+    return hay.includes(needle)
+  }, [q, pidQ, mode])
+
+  const filtered = useMemo(() => rows.filter(r => {
+    if (typeF !== 'all' && r.utility_type !== typeF) return false
+    if (dueF !== 'all' && r.bucket !== dueF) return false
+    return matchesText(r)
+  }), [rows, typeF, dueF, matchesText])
+
+  // The chips can hide an exact PID's rows entirely, which reads as "this
+  // property has no utilities" when it has three. Count them without the chips
+  // so the empty state can say which it is.
+  const hiddenByChips = exactPid && filtered.length === 0 ? pidHits.length : 0
 
   // Same treatment as the vendor filters and the Home nav — see .tct in theme.css
   const chipCls = (on) => `tct tct-bare${on ? ' is-on' : ''}`
@@ -132,9 +161,29 @@ export default function PropertyUtilitiesOverview() {
       <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 8, marginBottom: 12, WebkitOverflowScrolling: 'touch' }}>
         {DUE_FILTERS.map(f => <button key={f.key} onClick={() => setDueF(f.key)} className={chipCls(dueF === f.key)} style={chipSty}>{f.label}</button>)}
       </div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginBottom: 10 }}>{filtered.length} of {rows.length}{(q || typeF !== 'all' || dueF !== 'all') ? ' · filtered' : ''}</div>
+      {/* Name the property when a PID resolves, so an exact hit is confirmed
+          rather than assumed — "228" and "1228" are one keystroke apart. */}
+      <div style={{ fontSize: 11, color: exactPid ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginBottom: 10 }}>
+        {exactPid
+          ? `PID ${pidQ}${pidHits[0].prop?.name && pidHits[0].prop.name !== `PID ${pidQ}` ? ` · ${pidHits[0].prop.name}` : ''} · ${filtered.length} of ${pidHits.length}`
+          : `${filtered.length} of ${rows.length}${(q || typeF !== 'all' || dueF !== 'all') ? ' · filtered' : ''}`}
+      </div>
       {filtered.length === 0 ? (
-        <div style={{ padding: '36px 20px', border: '1px dashed rgba(200,150,62,0.2)', borderRadius: 10, textAlign: 'center', color: 'var(--text-muted, #6b6d82)', fontFamily: SANS, lineHeight: 1.7 }}>{rows.length === 0 ? 'No active utilities yet — add them from a property.' : 'Nothing matches these filters.'}</div>
+        <div style={{ padding: '36px 20px', border: '1px dashed rgba(200,150,62,0.2)', borderRadius: 10, textAlign: 'center', color: 'var(--text-muted, #6b6d82)', fontFamily: SANS, lineHeight: 1.7 }}>
+          {rows.length === 0 ? 'No active utilities yet — add them from a property.'
+            : hiddenByChips ? (
+              <>
+                PID {pidQ} has {hiddenByChips} {hiddenByChips === 1 ? 'utility' : 'utilities'}, hidden by the filters above.
+                <br />
+                <button onClick={() => { setTypeF('all'); setDueF('all') }}
+                  style={{ marginTop: 12, padding: '9px 16px', borderRadius: 9, border: '1px solid rgba(200,150,62,0.35)', background: 'rgba(200,150,62,0.1)', color: 'var(--accent, #c8963e)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: SANS }}>
+                  Clear the filters
+                </button>
+              </>
+            )
+            : mode !== 'text' ? `No property with PID ${pidQ} in the active utilities.`
+            : 'Nothing matches these filters.'}
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.map(r => {
