@@ -50,6 +50,7 @@ import Onboard from './pages/Onboard'
 import Attend from './pages/Attend'
 import VendorHub from './pages/VendorHub'
 import PayrollAnalytics from './pages/vendors/PayrollAnalytics'
+import TaskCatalogue from './pages/TaskCatalogue'
 
 function migrateLocalNotes() {
   if (localStorage.getItem('_flent_notes_migrated')) return
@@ -182,6 +183,9 @@ export default function App() {
           {/* Static before dynamic — /properties/payments is the portfolio-wide
               view, not a property whose pid is "payments". */}
           <Route path="/properties/payments" element={<ProtectedRoute><PaymentsAnalytics /></ProtectedRoute>} />
+          {/* Admin only and linked from nowhere — the RLS policy is the gate,
+              this just keeps it out of everyone else's way. */}
+          <Route path="/admin/tasks" element={<ProtectedRoute><TaskCatalogue /></ProtectedRoute>} />
           <Route path="/properties/:pid/payments" element={<ProtectedRoute><PropertyPayments /></ProtectedRoute>} />
           <Route path="/properties/:pid/payments/import" element={<ProtectedRoute><PaymentsImport /></ProtectedRoute>} />
           <Route path="/properties/:pid/estimates" element={<ProtectedRoute><EstimateWorkspace /></ProtectedRoute>} />
