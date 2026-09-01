@@ -22,6 +22,18 @@ export const STATUS_MAP = Object.fromEntries(STATUSES.map(st => [st.key, st]))
 // statuses that count as "live" — they get a recharge countdown + show in the overview
 export const LIVE_STATUSES = new Set(['active', 'unknown'])
 
+// A PID is a bare number — 1, 11, 228 — and the property is named "PID 228", so
+// a plain substring search for "228" also lands on PID 1228, on an account
+// number with 228 in it, and on a phone number. A PID is how a property gets
+// shared, so when somebody types one it has to mean that property and nothing
+// else. This reads the ways people actually write it — "228", "PID 228",
+// "pid-228", "#228" — and returns the digits, or null when it is not a PID at
+// all and the query should be treated as text.
+export function pidQuery(q) {
+  const s = String(q ?? '').trim().toLowerCase().replace(/^#/, '').replace(/^p\.?i\.?d\.?[\s#:_-]*/, '').trim()
+  return /^\d+$/.test(s) ? String(Number(s)) : null   // "0228" and "228" are one property
+}
+
 export function fmtDate(str) {
   if (!str) return '—'
   return new Date(str).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
