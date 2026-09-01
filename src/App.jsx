@@ -51,6 +51,7 @@ import Attend from './pages/Attend'
 import VendorHub from './pages/VendorHub'
 import PayrollAnalytics from './pages/vendors/PayrollAnalytics'
 import TaskCatalogue from './pages/TaskCatalogue'
+import DesignerBrief from './pages/DesignerBrief'
 
 function migrateLocalNotes() {
   if (localStorage.getItem('_flent_notes_migrated')) return
@@ -235,6 +236,7 @@ export default function App() {
           <Route path="/vi/:token" element={<VendorInvoice />} />
           <Route path="/attend" element={<Attend />} />
           <Route path="/wo/:token" element={<VendorWorkOrder />} />
+          <Route path="/db/:token" element={<DesignerBrief />} />
           <Route path="/vendors" element={<ProtectedRoute><VendorHub /></ProtectedRoute>} />
           <Route path="/vendors/payroll/analytics" element={<ProtectedRoute><PayrollAnalytics /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
