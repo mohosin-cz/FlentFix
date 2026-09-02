@@ -84,33 +84,26 @@ export default function PropertyUtilitiesOverview() {
   // A typed PID is the whole query. "228" means PID 228 — not every account
   // number that happens to contain 228, and not PID 1228.
   const pidQ = useMemo(() => pidQuery(q), [q])
-  const pidHits = useMemo(
-    () => (pidQ ? rows.filter(r => String(r.pid) === pidQ) : []),
-    [rows, pidQ],
-  )
+  // A number is an identifier, so it is matched whole or not at all: the PID
+  // first, then the account number. No prefix, no substring, no falling back to
+  // text. Looking up a property that is not here has to come back empty —
+  // offering 300, 301 and 302 because they begin with 30 is worse than nothing,
+  // since the answer looks like a result.
+  const pidHits = useMemo(() => (pidQ ? rows.filter(
+    r => String(r.pid) === pidQ || String(r.account_number ?? '').trim() === pidQ,
+  ) : []), [rows, pidQ])
 
-  // Three readings of a number, in order of how sure we are:
-  //   exact  — a property has this PID. That is the answer, alone.
-  //   prefix — no property yet, but one starts with it: she is still typing.
-  //   text   — no PID could match, so it was never a PID. Account numbers are
-  //            all digits too, and searching one should not dead-end on
-  //            "no property with PID 9845012345".
-  const mode = useMemo(() => {
-    if (!q.trim()) return 'text'
-    if (!pidQ) return 'text'
-    if (pidHits.length) return 'exact'
-    return rows.some(r => String(r.pid).startsWith(pidQ)) ? 'prefix' : 'text'
-  }, [q, pidQ, pidHits, rows])
-  const exactPid = mode === 'exact'
+  const isIdSearch = !!q.trim() && !!pidQ
+  const exactPid = isIdSearch && pidHits.length > 0
+  const foundPid = exactPid ? String(pidHits[0].pid) : pidQ
 
   const matchesText = useCallback((r) => {
     const needle = q.trim().toLowerCase()
     if (!needle) return true
-    if (mode === 'exact') return String(r.pid) === pidQ
-    if (mode === 'prefix') return String(r.pid).startsWith(pidQ)
+    if (pidQ) return String(r.pid) === pidQ || String(r.account_number ?? '').trim() === pidQ
     const hay = [r.pid, r.prop && r.prop.name, r.prop && r.prop.address, r.provider, r.plan_type, r.account_number, typeLabel(r)].filter(Boolean).join(' ').toLowerCase()
     return hay.includes(needle)
-  }, [q, pidQ, mode])
+  }, [q, pidQ])
 
   const filtered = useMemo(() => rows.filter(r => {
     if (typeF !== 'all' && r.utility_type !== typeF) return false
@@ -165,7 +158,7 @@ export default function PropertyUtilitiesOverview() {
           rather than assumed — "228" and "1228" are one keystroke apart. */}
       <div style={{ fontSize: 11, color: exactPid ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginBottom: 10 }}>
         {exactPid
-          ? `PID ${pidQ}${pidHits[0].prop?.name && pidHits[0].prop.name !== `PID ${pidQ}` ? ` · ${pidHits[0].prop.name}` : ''} · ${filtered.length} of ${pidHits.length}`
+          ? `PID ${foundPid}${pidHits[0].prop?.name && pidHits[0].prop.name !== `PID ${foundPid}` ? ` · ${pidHits[0].prop.name}` : ''} · ${filtered.length} of ${pidHits.length}`
           : `${filtered.length} of ${rows.length}${(q || typeF !== 'all' || dueF !== 'all') ? ' · filtered' : ''}`}
       </div>
       {filtered.length === 0 ? (
@@ -173,7 +166,7 @@ export default function PropertyUtilitiesOverview() {
           {rows.length === 0 ? 'No active utilities yet — add them from a property.'
             : hiddenByChips ? (
               <>
-                PID {pidQ} has {hiddenByChips} {hiddenByChips === 1 ? 'utility' : 'utilities'}, hidden by the filters above.
+                PID {foundPid} has {hiddenByChips} {hiddenByChips === 1 ? 'utility' : 'utilities'}, hidden by the filters above.
                 <br />
                 <button onClick={() => { setTypeF('all'); setDueF('all') }}
                   style={{ marginTop: 12, padding: '9px 16px', borderRadius: 9, border: '1px solid rgba(200,150,62,0.35)', background: 'rgba(200,150,62,0.1)', color: 'var(--accent, #c8963e)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: SANS }}>
@@ -181,7 +174,7 @@ export default function PropertyUtilitiesOverview() {
                 </button>
               </>
             )
-            : mode !== 'text' ? `No property with PID ${pidQ} in the active utilities.`
+            : isIdSearch ? `No property with PID ${pidQ} in the active utilities.`
             : 'Nothing matches these filters.'}
         </div>
       ) : (
