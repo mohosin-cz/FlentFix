@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase, anonSupabase } from '../lib/supabase'
 import { compressForUpload, newSubmissionId } from '../utils/vendorOnboard'
+import { fieldsFor } from '../utils/designerBrief'
 
 // The designer's brief, filled standing in the property.
 //
@@ -15,28 +16,6 @@ import { compressForUpload, newSubmissionId } from '../utils/vendorOnboard'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
 const MONO = 'var(--font-mono, monospace)'
-const WHOLE = 'Whole property'
-
-// The same five questions in every room, because a designer walking a flat
-// thinks room by room, not category by category. The two counters are here
-// because those two things come up in every property and are the only things
-// she can state exactly — everything else is words and pictures.
-const ROOM_FIELDS = [
-  { k: 'furniture',     label: 'Furniture going in here',            kind: 'text',  ph: 'Bed, wardrobe, side tables…' },
-  { k: 'light_points',  label: 'Light points to add or change',      kind: 'count' },
-  { k: 'switch_points', label: 'Extra switch points / sockets',      kind: 'count' },
-  { k: 'wall_items',    label: 'Fixed to the walls',                 kind: 'text',  ph: 'Shelves, mirror, curtain rod, TV mount…' },
-  { k: 'complications', label: 'Anything complicated about this room', kind: 'text', ph: 'A beam, a duct, an uneven wall, an odd size…' },
-]
-
-const WHOLE_FIELDS = [
-  { k: 'windows',       label: 'Windows needing curtains',           kind: 'count' },
-  { k: 'ceiling',       label: 'False ceiling, partitions, panelling', kind: 'text', ph: 'Where, and roughly what' },
-  { k: 'painting',      label: 'Painting beyond the usual',          kind: 'text',  ph: 'Accent walls, textures, wallpaper…' },
-  { k: 'furniture',     label: 'Anything else being brought in',     kind: 'text',  ph: 'Things that do not belong to one room' },
-  { k: 'complications', label: 'Anything the vendor must know before arriving', kind: 'text', ph: 'Access, lift size, society timings, water…' },
-]
-
 const inp = {
   width: '100%', boxSizing: 'border-box', padding: '11px 12px', fontSize: 16,
   color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)',
@@ -241,7 +220,7 @@ export default function DesignerBrief() {
 
         {areas.map(area => {
           const isOpen = open === area
-          const fields = area === WHOLE ? WHOLE_FIELDS : ROOM_FIELDS
+          const fields = fieldsFor(area)
           const a = answers[area] || {}
           const done = filled(area)
           return (

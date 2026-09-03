@@ -104,7 +104,7 @@ const TILES = [
   {
     key: 'design-brief',
     title: 'Design brief',
-    sub: 'Send to the designer',
+    sub: 'Her answers · scope',
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
         <path d="M4 19.5V6a2 2 0 0 1 2-2h9l5 5v10.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
@@ -330,7 +330,6 @@ export default function PropertyDetail() {
   const [inspections, setInspections] = useState([])
   const [loading, setLoading]         = useState(true)
   const [toast, setToast]             = useState('')
-  const [designLink, setDesignLink]   = useState(null)
   const [stats, setStats]             = useState({ totalItems: 0, issues: 0, totalCost: 0 })
   const [showAllInspections, setShowAllInspections] = useState(false)
   const [quickNote, setQuickNote]     = useState(null)
@@ -455,13 +454,10 @@ export default function PropertyDetail() {
     } else if (key === 'payments') {
       navigate(`/properties/${pid}/payments`)
     } else if (key === 'design-brief') {
-      // The room list comes from the inspection, so the RPC refuses before one
-      // exists rather than handing her a form with no rooms in it.
-      setToast('Preparing the link…')
-      const { data, error } = await supabase.rpc('designer_brief_start', { p_pid: pid })
-      if (error) { setToast(error.message); return }
-      setToast('')
-      setDesignLink(`${window.location.origin}/db/${data.token}`)
+      // Opens the brief rather than the link. The link is one thing you do with
+      // a brief; reading what she wrote and choosing what reaches a vendor are
+      // the others, and they had nowhere to live.
+      navigate(`/properties/${pid}/design-brief`)
     } else {
       setToast('Coming soon')
     }
@@ -798,13 +794,6 @@ export default function PropertyDetail() {
         />
       )}
 
-      {designLink && (
-        <ShareSheet
-          title="Design brief"
-          subtitle={`Send this to the designer for PID ${pid}. It saves as she fills it.`}
-          url={designLink}
-          onClose={() => setDesignLink(null)} />
-      )}
       {toast && <Toast msg={toast} onClose={() => setToast('')} />}
 
     </div>

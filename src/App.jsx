@@ -21,6 +21,7 @@ import PropertyArchive from './pages/PropertyArchive'
 import AssetRequest from './pages/AssetRequest'
 import VendorInvoice from './pages/VendorInvoice'
 import PropertyUtilities from './pages/PropertyUtilities'
+import PropertyDesignBrief from './pages/PropertyDesignBrief'
 import PropertyUtilitiesOverview from './pages/PropertyUtilitiesOverview'
 import RawInspectionData from './pages/RawInspectionData'
 import RateCard from './pages/RateCard'
@@ -178,6 +179,7 @@ export default function App() {
           />
           <Route path="/utilities" element={<ProtectedRoute><PropertyUtilitiesOverview /></ProtectedRoute>} />
           <Route path="/properties/:pid/utilities" element={<ProtectedRoute><PropertyUtilities /></ProtectedRoute>} />
+          <Route path="/properties/:pid/design-brief" element={<ProtectedRoute><PropertyDesignBrief /></ProtectedRoute>} />
           <Route path="/properties/:pid/raw" element={<ProtectedRoute><RawInspectionData /></ProtectedRoute>} />
           <Route path="/properties/:pid/work-orders" element={<ProtectedRoute><PropertyWorkOrders /></ProtectedRoute>} />
           <Route path="/properties/:pid/work-orders/report" element={<ProtectedRoute><WorkOrderReport /></ProtectedRoute>} />
