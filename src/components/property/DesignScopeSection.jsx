@@ -103,7 +103,7 @@ function BriefAnswers({ brief }) {
   )
 }
 
-export default function DesignScopeSection({ pid }) {
+export default function DesignScopeSection({ pid, showBrief = true }) {
   const [brief, setBrief] = useState(null)
   const [tasks, setTasks] = useState([])
   const [lines, setLines] = useState([])
@@ -161,6 +161,24 @@ export default function DesignScopeSection({ pid }) {
     setBusy('')
     if (error) { setErr(error.message); return }
     setLines(ls => ls.map(l => (l.id === line.id ? { ...l, included: !l.included } : l)))
+  }
+
+  // One trade at a time. Not a single "send everything" — the whole point of
+  // the ticks is that somebody chose — but not forty clicks either when the
+  // carpentry is all in and the painting is all out.
+  async function setTrade(group, on) {
+    const targets = [...group.cats.values()].flat().filter(l => !!l.included !== on)
+    if (!targets.length) return
+    setBusy(`t:${group.trade}`); setErr('')
+    const results = await Promise.all(targets.map(l =>
+      supabase.rpc('design_scope_set_included', { p_item_id: l.id, p_included: on })))
+    setBusy('')
+    const failed = results.filter(r => r.error)
+    // Some may have gone through. Update from what actually succeeded rather
+    // than assuming all-or-nothing, so the screen matches the database.
+    const okIds = new Set(targets.filter((_, i) => !results[i].error).map(l => l.id))
+    setLines(ls => ls.map(l => (okIds.has(l.id) ? { ...l, included: on } : l)))
+    if (failed.length) setErr(`${failed.length} of ${targets.length} didn’t change — ${failed[0].error.message}`)
   }
 
   async function remove(line) {
@@ -241,7 +259,7 @@ export default function DesignScopeSection({ pid }) {
         </span>
       </div>
 
-      {brief && <BriefAnswers brief={brief} />}
+      {showBrief && brief && <BriefAnswers brief={brief} />}
 
       {err && (
         <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {err}</div>
@@ -254,6 +272,15 @@ export default function DesignScopeSection({ pid }) {
             <span style={{ marginInlineStart: 'auto', fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
               {g.on} in · {hhmm(g.minutes)}
             </span>
+            <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+              {[['All in', true], ['None', false]].map(([label, on]) => (
+                <button key={label} type="button" onClick={() => setTrade(g, on)} disabled={busy === `t:${g.trade}`}
+                  title={`${on ? 'Include' : 'Exclude'} every ${g.trade} line`}
+                  style={{ minHeight: 26, padding: '0 9px', borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'transparent', color: 'var(--text-dim, #9394a8)', fontSize: 10.5, cursor: 'pointer', fontFamily: MONO }}>
+                  {busy === `t:${g.trade}` ? '…' : label}
+                </button>
+              ))}
+            </div>
           </div>
           {[...g.cats.entries()].map(([cat, items]) => (
             <div key={cat}>
