@@ -121,6 +121,13 @@ function PidBadge({ pid, siteMap }) {
   )
 }
 
+// A timestamp as the two strings the date and time inputs want, in the
+// browser's own zone — toISOString() would hand back UTC and put an evening
+// shift on the wrong day.
+const pad2 = (n) => String(n).padStart(2, '0')
+const localDay  = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
+const localTime = (ms) => { const d = new Date(ms); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
+
 // Closing a shift the vendor walked away from.
 //
 // The vendor's own page cannot do it — that punches against a session token
@@ -135,20 +142,24 @@ function PidBadge({ pid, siteMap }) {
 // not inferred from two timestamps afterwards.
 function CloseShiftForm({ ses, now, onDone, onCancel }) {
   const inMs = new Date(ses.inP.punched_at).getTime()
+  // Two fields rather than one datetime-local. The native combined control is
+  // the hardest thing on the page to type into — a dark-on-dark widget with a
+  // picker you have to click through — and the time is the part that is
+  // actually in question. The date is separate because a shift can end after
+  // midnight, and then it genuinely is a different day.
+  //
   // `now` rather than Date.now(): the board already keeps one, and reading the
   // clock during a render makes the same render produce different answers.
-  const [at, setAt] = useState(() => {
-    const guess = Math.min(inMs + SHIFT_MS, now)
-    const d = new Date(guess - new Date().getTimezoneOffset() * 60000)
-    return d.toISOString().slice(0, 16)
-  })
+  const guess = Math.min(inMs + SHIFT_MS, now)
+  const [day, setDay]   = useState(() => localDay(guess))
+  const [time, setTime] = useState(() => localTime(guess))
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
-  const outMs = at ? new Date(at).getTime() : NaN
+  const outMs = day && time ? new Date(`${day}T${time}`).getTime() : NaN
   const span  = Number.isFinite(outMs) ? outMs - inMs : NaN
-  const bad   = !Number.isFinite(span) ? 'Enter a check-out time'
+  const bad   = !Number.isFinite(span) ? 'Enter the date and time they left'
     : span <= 0 ? 'The check-out has to be after the check-in'
     : outMs > now ? 'The check-out cannot be in the future'
     : ''
@@ -166,7 +177,11 @@ function CloseShiftForm({ ses, now, onDone, onCancel }) {
     onDone(data)
   }
 
-  const inputCss = { width: '100%', background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, padding: '7px 9px', fontSize: 12, color: 'var(--text, #e8e8f0)', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }
+  // colorScheme tells the browser to draw its own bits — the picker button, the
+  // spinners, the calendar — for a dark surface. Without it they come out
+  // near-invisible on this panel, which is most of why the old single field
+  // read as something you could not type into.
+  const inputCss = { width: '100%', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, padding: '8px 9px', fontSize: 13, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', colorScheme: 'dark', outline: 'none', boxSizing: 'border-box' }
 
   return (
     <div style={{ position: 'relative', marginTop: 10, padding: '11px 12px', background: 'var(--bg, #16171f)', border: '1px solid var(--accent, #c8963e)', borderRadius: 9, display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -174,10 +189,16 @@ function CloseShiftForm({ ses, now, onDone, onCancel }) {
         Close this shift
       </div>
 
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Left at</span>
-        <input type="datetime-local" value={at} onChange={e => setAt(e.target.value)} style={inputCss} />
-      </label>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 130px', minWidth: 0 }}>
+          <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Date left</span>
+          <input type="date" value={day} onChange={e => setDay(e.target.value)} style={inputCss} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '0 1 110px', minWidth: 0 }}>
+          <span style={{ fontSize: 10, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>Time left</span>
+          <input type="time" value={time} onChange={e => setTime(e.target.value)} style={inputCss} />
+        </label>
+      </div>
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Reason · required</span>
@@ -294,9 +315,10 @@ function SessionTile({ ses, siteMap, brk, now, onClosed }) {
             </div>
           : <div style={{ marginTop: 6, fontSize: 11, color: statusC, fontFamily: 'var(--font-mono, monospace)' }}>OUT&nbsp;&nbsp;— still on site</div>}
 
-      {/* Only on an open shift, and only past the length of one: a shift that
-          is simply still running is not a shift anybody forgot to close. */}
-      {open && !closing && pastShift && (
+      {/* Every open shift, not only one already past nine hours. Somebody who
+          left at two and forgot to punch out should be fixable at three, and
+          the nine hour gate mostly meant the control could not be found. */}
+      {open && !closing && (
         <button type="button" onClick={() => setClosing(true)}
           style={{ marginTop: 9, fontSize: 11, fontFamily: 'var(--font-mono, monospace)', color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 7, padding: '5px 11px', cursor: 'pointer' }}>
           Close this shift
