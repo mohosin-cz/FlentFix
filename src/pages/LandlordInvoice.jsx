@@ -75,8 +75,12 @@ async function fetchVerifiedWorkOrderLines(pid, skipWoItemIds = new Set()) {
     // wins over the inspector's original wording.
     const what  = (it.description || '').trim() || (src?.issue_description || '').trim() || (src?.item_name || '').trim()
     const area  = (it.area || src?.area || '').trim()
+    const raw   = [area && area.toLowerCase() !== 'custom' ? area : '', what].filter(Boolean).join(' — ') || what
     return {
-      description: [area && area.toLowerCase() !== 'custom' ? area : '', what].filter(Boolean).join(' — ') || what,
+      description: raw,
+      // Kept so the rewrite that arrives a moment later can tell a line nobody
+      // has touched from one somebody has already corrected by hand.
+      _raw: raw,
       category:    it.trade || src?.trade || '',
       qty,
       unit:        'job',
@@ -86,6 +90,30 @@ async function fetchVerifiedWorkOrderLines(pid, skipWoItemIds = new Set()) {
   })
 
   return { lines, verified: verified.length, unpriced: lines.filter(l => !l.unit_price).length }
+}
+
+// ─── Say what was done, not what was wrong ───────────────────────────────────
+// An inspection records a fault in the shorthand of somebody standing in the
+// room with a phone — "Socket dead", "Other", "Needs replacement". Pulled onto
+// an invoice that tells the person paying nothing, so invoice-describe reads the
+// item, the room, the action and the material together and writes the line a
+// landlord can actually read. It is asked for words only: it cannot add a line,
+// drop one, or touch a price.
+//
+// This runs AFTER the lines are on screen, never as part of getting them there.
+// A model call is seconds, and no one should watch a spinner to find out
+// whether their invoice has anything on it. Anything that goes wrong — no key,
+// no network, a line it did not answer for — leaves that line as it was pulled.
+// Vague wording is worth fixing; it is not worth failing a pull over.
+async function describeLines(lines) {
+  const ids = lines.map(l => l.wo_item_id).filter(Boolean)
+  if (!ids.length) return {}
+  const { data, error } = await supabase.functions.invoke('invoice-describe', {
+    body: { wo_item_ids: ids },
+  })
+  if (error) throw error
+  if (!data?.ok) throw new Error(data?.error || 'Nothing came back')
+  return data.descriptions || {}
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -212,6 +240,7 @@ export default function LandlordInvoice() {
   const [copied, setCopied]         = useState(false)
   const [showRateCard, setShowRateCard] = useState(false)
   const [pulling, setPulling]       = useState(false)
+  const [describing, setDescribing] = useState(false)
   // One strip under the action bar for anything the page needs to say: what a
   // pull brought in, and why a save did not go through. A save that fails is
   // the thing this page was worst at — the line item writes were discarded
@@ -313,8 +342,11 @@ export default function LandlordInvoice() {
             .insert(lines.map((l, idx) => sanitizeLineItem({ ...l, invoice_id: newInv.id, sl_no: idx + 1 })))
             .select()
           if (seedErr) throw seedErr
-          setLineItems(createdItems || [])
+          const seeded = createdItems || []
+          setLineItems(seeded)
           setNotice({ tone: 'ok', text: pullSummary(lines.length, verified, unpriced) })
+          // The lines are saved and on screen; the wording catches up.
+          rewriteDescriptions(seeded.map(r => ({ ...r, _raw: r.description })))
         } else {
           setNotice({ tone: 'info', text: 'No verified work orders for this property yet, so the invoice starts empty. Add lines by hand, or pull again once work is signed off.' })
         }
@@ -416,18 +448,57 @@ export default function LandlordInvoice() {
 
       const maxSl = lineItems.reduce((m, i) => Math.max(m, i.sl_no || 0), 0)
       const stamp = Date.now()
-      setLineItems(prev => [...prev, ...lines.map((l, idx) => ({
+      const added = lines.map((l, idx) => ({
         ...l,
         id: `new_${stamp}_${idx}`,
         invoice_id: invoice.id,
         sl_no: maxSl + idx + 1,
-      }))])
+      }))
+      setLineItems(prev => [...prev, ...added])
       setEditing(true)
       setNotice({ tone: 'ok', text: `${pullSummary(lines.length, verified, unpriced)} Save to keep them.` })
+      rewriteDescriptions(added)
     } catch (e) {
       setNotice({ tone: 'err', text: `Could not read the work orders: ${e.message}` })
     } finally {
       setPulling(false)
+    }
+  }
+
+  // Replaces the pulled wording with something a landlord can read, in place,
+  // once it comes back. A line whose description no longer matches what was
+  // pulled has been edited by hand since, and a person's wording wins over a
+  // model's — so it is left alone.
+  async function rewriteDescriptions(pulled) {
+    if (!pulled?.length) return
+    setDescribing(true)
+    try {
+      const written = await describeLines(pulled)
+      // Counted from what came back, not inside the state updater — that runs
+      // when React chooses to, and twice in development.
+      const changed = pulled.filter(p => written[p.wo_item_id]).length
+      const unclear = pulled.filter(p => written[p.wo_item_id]?.confidence === 'low').length
+      setLineItems(prev => prev.map(i => {
+        const w = i.wo_item_id ? written[i.wo_item_id] : null
+        // A description that no longer matches what was pulled has been edited
+        // by hand since; a person's wording beats a model's.
+        if (!w || (i._raw && i.description !== i._raw)) return i
+        return { ...i, description: w.description, unclear: w.confidence === 'low' }
+      }))
+      if (changed) {
+        let text = `${plural(changed, 'description', 'descriptions')} rewritten from what the work orders record.`
+        if (unclear > 0) text += ` ${plural(unclear, 'line was', 'lines were')} logged without an action, so the wording is thin — read ${unclear === 1 ? 'it' : 'them'} before sending.`
+        setNotice(n => ({ tone: n?.tone === 'err' ? 'err' : 'ok', text: `${n?.text ? `${n.text} ` : ''}${text} Save to keep them.` }))
+      }
+    } catch (e) {
+      // Not a failure of the pull. The lines are there; only the wording is the
+      // inspector's rather than the invoice's.
+      setNotice(n => ({
+        tone: n?.tone === 'err' ? 'err' : 'info',
+        text: `${n?.text ? `${n.text} ` : ''}Descriptions are as the inspection recorded them — ${e.message}`,
+      }))
+    } finally {
+      setDescribing(false)
     }
   }
 
@@ -684,13 +755,17 @@ export default function LandlordInvoice() {
                 return (
                   <tr key={item.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                     <td
-                      title={editing && item.wo_item_id ? 'Pulled from verified work — removing it here does not touch the work order' : undefined}
+                      title={editing && item.wo_item_id
+                        ? (item.unclear
+                            ? 'Pulled from verified work, but the inspection recorded no action — check the wording'
+                            : 'Pulled from verified work — removing it here does not touch the work order')
+                        : undefined}
                       style={{ padding: `10px ${cellX}px`, color: '#bbb', fontFamily: MONO, fontSize: 12, whiteSpace: 'nowrap' }}
                     >
                       {String(idx + 1).padStart(2, '0')}
                       {/* Only while editing: on the landlord's copy a marker
                           for where a line came from is noise. */}
-                      {editing && item.wo_item_id && <span style={{ color: '#16a34a', marginLeft: 3 }}>•</span>}
+                      {editing && item.wo_item_id && <span style={{ color: item.unclear ? '#c8963e' : '#16a34a', marginLeft: 3 }}>•</span>}
                     </td>
                     <td style={{ padding: `10px ${cellX}px`, maxWidth: 240 }}>
                       {editing
@@ -741,7 +816,7 @@ export default function LandlordInvoice() {
           {editing && (
             <div style={{ display: 'flex', gap: 10, padding: '14px 8px', flexWrap: 'wrap' }}>
               <button onClick={pullFromWorkOrders} disabled={pulling} style={{ fontSize: 12, color: '#fff', background: '#1a1a1a', border: '1px solid #1a1a1a', borderRadius: 6, padding: '6px 14px', cursor: pulling ? 'wait' : 'pointer', opacity: pulling ? 0.7 : 1, fontWeight: 600 }}>
-                {pulling ? 'Reading work orders…' : '↻ Pull verified work'}
+                {pulling ? 'Reading work orders…' : describing ? 'Writing descriptions…' : '↻ Pull verified work'}
               </button>
               <button onClick={addBlankItem} style={{ fontSize: 12, color: '#555', background: 'none', border: '1px dashed #ddd', borderRadius: 6, padding: '6px 14px', cursor: 'pointer' }}>
                 + Add Item
