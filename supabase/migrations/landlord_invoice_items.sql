@@ -74,5 +74,87 @@ drop policy if exists "anyone with the link reads landlord invoice items" on pub
 create policy "anyone with the link reads landlord invoice items" on public.landlord_invoice_items
   for select to anon using (true);
 
--- Sanity check after running:
+-- ── One save, one transaction ────────────────────────────────────────────────
+-- The page rewrote an invoice by deleting every line and inserting the list
+-- again. Two statements and no transaction: anything that failed in between —
+-- a policy, a dropped connection, one bad row — left the invoice with no lines
+-- at all and the work only still on screen. The header was a third statement,
+-- so a half-failed save could also leave totals describing lines that were no
+-- longer there.
+--
+-- Totals are computed here from the lines rather than taken from the caller,
+-- so a stored total cannot disagree with what the invoice prints.
+--
+-- security invoker on purpose: this is a convenience for one round trip, not a
+-- way around the policies above.
+create or replace function public.landlord_invoice_save(
+  p_invoice_id       uuid,
+  p_landlord_name    text,
+  p_property_address text,
+  p_notes            text,
+  p_tax_rate         numeric,
+  p_status           text,
+  p_items            jsonb
+)
+returns setof public.landlord_invoice_items
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_subtotal numeric;
+  v_tax      numeric;
+begin
+  select coalesce(round(sum(
+           coalesce(nullif(i->>'qty', '')::numeric, 1) *
+           coalesce(nullif(i->>'unit_price', '')::numeric, 0)
+         )), 0)
+    into v_subtotal
+    from jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) i;
+
+  v_tax := round(v_subtotal * coalesce(p_tax_rate, 0) / 100);
+
+  update public.landlord_invoices
+     set landlord_name    = p_landlord_name,
+         property_address = p_property_address,
+         notes            = p_notes,
+         tax_rate         = coalesce(p_tax_rate, 0),
+         status           = coalesce(p_status, 'draft'),
+         subtotal         = v_subtotal,
+         tax_amount       = v_tax,
+         total            = v_subtotal + v_tax,
+         updated_at       = now()
+   where id = p_invoice_id;
+
+  if not found then
+    raise exception 'No invoice with id %', p_invoice_id;
+  end if;
+
+  delete from public.landlord_invoice_items where invoice_id = p_invoice_id;
+
+  -- Row order is the order the page sent, which is the order on screen.
+  return query
+  insert into public.landlord_invoice_items
+    (invoice_id, sl_no, description, category, qty, unit, unit_price, wo_item_id)
+  select p_invoice_id,
+         t.ord::int,
+         coalesce(t.i->>'description', ''),
+         coalesce(t.i->>'category', ''),
+         coalesce(nullif(t.i->>'qty', '')::numeric, 1),
+         coalesce(nullif(t.i->>'unit', ''), 'job'),
+         coalesce(nullif(t.i->>'unit_price', '')::numeric, 0),
+         nullif(t.i->>'wo_item_id', '')::uuid
+    from jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) with ordinality as t(i, ord)
+  returning *;
+end $$;
+
+revoke all on function public.landlord_invoice_save(uuid, text, text, text, numeric, text, jsonb) from public;
+grant execute on function public.landlord_invoice_save(uuid, text, text, text, numeric, text, jsonb) to authenticated;
+
+-- Applied to the project on 2026-09-08. Verified by saving two lines, reading
+-- back sl_no order and totals (2 × 750 + 1000 = 2500, +18% = 2950), then
+-- saving a single line over the top and getting one row and 354 — all inside a
+-- transaction that was rolled back.
+--
+-- Sanity check:
 --   select count(*) from public.landlord_invoice_items;
