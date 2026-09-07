@@ -220,7 +220,6 @@ export default function LandlordInvoice() {
 
   // Editable invoice fields
   const [landlordName, setLandlordName]   = useState('')
-  const [landlordPhone, setLandlordPhone] = useState('')
   // Held separately because it is the only thing left in Property Details now
   // that the PID has come off, and older invoices were written without it.
   const [propertyAddress, setPropertyAddress] = useState('')
@@ -332,8 +331,7 @@ export default function LandlordInvoice() {
 
   function applyInvoice(inv) {
     setInvoice(inv)
-    setLandlordName(inv.landlord_name  || '')
-    setLandlordPhone(inv.landlord_phone || '')
+    setLandlordName(inv.landlord_name || '')
     setPropertyAddress(inv.property_address || '')
     setNotes(inv.notes || '')
     setTaxRate(inv.tax_rate ?? 18)
@@ -441,27 +439,7 @@ export default function LandlordInvoice() {
       const sub = lineItems.reduce((s, i) => s + (Number(i.qty) || 1) * (Number(i.unit_price) || 0), 0)
       const tax = sub * (Number(taxRate) / 100)
 
-      const { error: headErr } = await supabase.from('landlord_invoices')
-        .update(sanitizeInvoice({
-          landlord_name:  landlordName,
-          landlord_phone: landlordPhone,
-          property_address: propertyAddress,
-          notes,
-          tax_rate:   Number(taxRate),
-          status,
-          subtotal:   Math.round(sub),
-          tax_amount: Math.round(tax),
-          total:      Math.round(sub + tax),
-        }))
-        .eq('id', invoice.id)
-      if (headErr) throw headErr
-
-      // Delete all existing items and re-insert (handles deletes + reorders cleanly)
-      const { error: delErr } = await supabase.from('landlord_invoice_items').delete().eq('invoice_id', invoice.id)
-      if (delErr) throw delErr
-
       const numbered = lineItems.map((item, idx) => sanitizeLineItem({
-        invoice_id:  invoice.id,
         sl_no:       idx + 1,
         description: item.description || '',
         category:    item.category || '',
@@ -473,16 +451,25 @@ export default function LandlordInvoice() {
         wo_item_id:  item.wo_item_id || null,
       }))
 
-      if (numbered.length > 0) {
-        const { data: saved, error: insErr } = await supabase
-          .from('landlord_invoice_items')
-          .insert(numbered)
-          .select()
-        if (insErr) throw insErr
-        setLineItems([...(saved || [])].sort((a, b) => (a.sl_no || 0) - (b.sl_no || 0)))
-      } else {
-        setLineItems([])
-      }
+      // One statement, one transaction. Rewriting the lines used to be a delete
+      // followed by an insert, so anything that failed in between left the
+      // invoice with no lines at all and the work only still on screen. The
+      // function also updates the header and derives the totals from the lines
+      // it just wrote, so a stored total cannot describe a line that is not
+      // there.
+      const { data: saved, error: saveErr } = await supabase.rpc('landlord_invoice_save', {
+        p_invoice_id:       invoice.id,
+        p_landlord_name:    landlordName,
+        p_property_address: propertyAddress,
+        p_notes:            notes,
+        p_tax_rate:         Number(taxRate) || 0,
+        p_status:           status,
+        p_items:            numbered,
+      })
+      if (saveErr) throw saveErr
+
+      setLineItems([...(saved || [])].sort((a, b) => (a.sl_no || 0) - (b.sl_no || 0)))
+      setInvoice(prev => (prev ? { ...prev, subtotal: Math.round(sub), tax_amount: Math.round(tax), total: Math.round(sub + tax) } : prev))
 
       if (isNewInvoice.current && invoice?.pid) {
         advanceStage(supabase, invoice.pid, 'invoice_created', null)
@@ -647,30 +634,23 @@ export default function LandlordInvoice() {
           </div>
         </div>
 
-        {/* ── BILL TO + PROPERTY DETAILS ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', borderBottom: '1px solid #e8e8e8' }}>
-          <div style={{ padding: isMobile ? '20px 18px' : '24px 48px', borderRight: isMobile ? 'none' : '1px solid #e8e8e8', borderBottom: isMobile ? '1px solid #e8e8e8' : 'none' }}>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#999', marginBottom: 12 }}>Bill To</div>
-            {editing ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input className="inv-input" placeholder="Landlord name" value={landlordName} onChange={e => setLandlordName(e.target.value)} style={{ fontSize: 14, fontWeight: 600 }} />
-                <input className="inv-input" placeholder="Phone number" value={landlordPhone} onChange={e => setLandlordPhone(e.target.value)} style={{ fontSize: 12, color: '#555' }} />
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.8 }}>
-                <div style={{ fontWeight: 600 }}>{landlordName || <span style={{ color: '#bbb' }}>—</span>}</div>
-                {landlordPhone && <div style={{ color: '#555', fontSize: 12 }}>{landlordPhone}</div>}
-              </div>
-            )}
-          </div>
-          <div style={{ padding: isMobile ? '20px 18px' : '24px 48px' }}>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#999', marginBottom: 12 }}>Property Details</div>
-            <div style={{ fontSize: 13, color: '#555', lineHeight: 1.7 }}>
-              {editing
-                ? <input className="inv-input" placeholder="Property address" value={propertyAddress} onChange={e => setPropertyAddress(e.target.value)} style={{ fontSize: 13 }} />
-                : (propertyAddress || <span style={{ color: '#bbb' }}>—</span>)}
+        {/* ── BILL TO ── */}
+        {/* The name and the address of the property the work was done at, one
+            under the other. Property Details had held nothing else since the
+            PID came off, so a second panel for a heading alone went with it. */}
+        <div style={{ padding: isMobile ? '20px 18px' : '24px 48px', borderBottom: '1px solid #e8e8e8' }}>
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#999', marginBottom: 12 }}>Bill To</div>
+          {editing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 420 }}>
+              <input className="inv-input" placeholder="Landlord name" value={landlordName} onChange={e => setLandlordName(e.target.value)} style={{ fontSize: 14, fontWeight: 600 }} />
+              <input className="inv-input" placeholder="Property address" value={propertyAddress} onChange={e => setPropertyAddress(e.target.value)} style={{ fontSize: 13, color: '#555' }} />
             </div>
-          </div>
+          ) : (
+            <div style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.7, maxWidth: 420 }}>
+              <div style={{ fontWeight: 600 }}>{landlordName || <span style={{ color: '#bbb' }}>—</span>}</div>
+              {propertyAddress && <div style={{ color: '#555', marginTop: 2 }}>{propertyAddress}</div>}
+            </div>
+          )}
         </div>
 
         {/* ── DATE STRIP ── */}
