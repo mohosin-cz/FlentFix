@@ -342,7 +342,26 @@ export default function LandlordInvoice() {
 
   // ── Line item helpers ──
   function updateItem(id, field, value) {
-    setLineItems(prev => prev.map(i => i.id === id ? { ...i, [field]: value } : i))
+    setLineItems(prev => prev.map(i => {
+      if (i.id !== id) return i
+      const next = { ...i, [field]: value }
+      // The amount field holds what was typed while it is being typed. Change
+      // the quantity and that keystroke is no longer the answer, so it goes and
+      // the amount is derived from the rate again.
+      if (field === 'qty') delete next._amountRaw
+      return next
+    }))
+  }
+
+  // The document shows a quantity and a line total; the rate is what those two
+  // imply, and it is no longer a column. A total is also what staff actually
+  // have in hand, so that is what the field takes and the per-unit price is
+  // worked back out — qty × unit_price still equals the printed figure.
+  function updateAmount(item, raw) {
+    const qty = Number(item.qty) > 0 ? Number(item.qty) : 1
+    setLineItems(prev => prev.map(i => i.id === item.id
+      ? { ...i, _amountRaw: raw, unit_price: raw === '' ? 0 : Number(raw) / qty }
+      : i))
   }
 
   function addBlankItem() {
@@ -519,10 +538,10 @@ export default function LandlordInvoice() {
   const st = STATUS_STYLES[status] || STATUS_STYLES.draft
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#f0f0f0', fontFamily: SANS }}>
+    <div style={{ minHeight: '100dvh', background: '#f0f0f0', fontFamily: SANS, color: '#1a1a1a' }}>
       <style>{`
         *, *::before, *::after { box-sizing: border-box; }
-        .inv-input { border: none; border-bottom: 1px solid #ddd; background: transparent; outline: none; font-family: inherit; font-size: inherit; color: inherit; padding: 2px 0; width: 100%; }
+        .inv-input { border: none; border-bottom: 1px solid #ddd; background: transparent; outline: none; font-family: inherit; font-size: inherit; color: #1a1a1a; padding: 2px 0; width: 100%; }
         .inv-input:focus { border-bottom-color: #1a1a1a; }
         .inv-input-num { text-align: right; font-family: var(--font-mono, 'JetBrains Mono', 'Fira Mono', monospace); }
         .rc-row:hover { background: #fafafa !important; }
@@ -671,11 +690,11 @@ export default function LandlordInvoice() {
         {/* ── LINE ITEMS TABLE ── */}
         <div style={{ padding: isMobile ? '0 18px 0' : '0 48px 0' }}>
           <div className="inv-table-wrap">
-          <table style={{ width: '100%', minWidth: isMobile && lineItems.length > 0 ? 540 : undefined, borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', minWidth: isMobile && lineItems.length > 0 ? 440 : undefined, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #1a1a1a' }}>
-                {['Sl', 'Description', 'Category', 'Qty', 'Unit', 'Rate', 'Amount', ...(editing ? [''] : [])].map(h => (
-                  <th key={h} style={{ padding: `12px ${cellX}px`, textAlign: h === 'Amount' || h === 'Rate' ? 'right' : h === 'Qty' ? 'center' : 'left', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', whiteSpace: 'nowrap' }}>{h}</th>
+                {['Sl', 'Description', 'Category', 'Qty', 'Amount', ...(editing ? [''] : [])].map(h => (
+                  <th key={h} style={{ padding: `12px ${cellX}px`, textAlign: h === 'Amount' ? 'right' : h === 'Qty' ? 'center' : 'left', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -708,18 +727,10 @@ export default function LandlordInvoice() {
                         ? <input className="inv-input inv-input-num" type="number" value={item.qty} onChange={e => updateItem(item.id, 'qty', e.target.value)} style={{ width: 48 }} />
                         : <span>{item.qty}</span>}
                     </td>
-                    <td style={{ padding: `10px ${cellX}px` }}>
-                      {editing
-                        ? <input className="inv-input" value={item.unit} onChange={e => updateItem(item.id, 'unit', e.target.value)} style={{ width: 44 }} />
-                        : <span style={{ color: '#888', fontSize: 12 }}>{item.unit}</span>}
-                    </td>
-                    <td style={{ padding: `10px ${cellX}px`, textAlign: 'right', fontFamily: MONO }}>
-                      {editing
-                        ? <input className="inv-input inv-input-num" type="number" value={item.unit_price} onChange={e => updateItem(item.id, 'unit_price', e.target.value)} style={{ width: 80 }} />
-                        : `₹${fmt(item.unit_price)}`}
-                    </td>
                     <td style={{ padding: `10px ${cellX}px`, textAlign: 'right', fontFamily: MONO, fontWeight: 600, color: '#1a1a1a' }}>
-                      ₹{fmt(amount)}
+                      {editing
+                        ? <input className="inv-input inv-input-num" type="number" value={item._amountRaw ?? (amount || '')} onChange={e => updateAmount(item, e.target.value)} placeholder="0" style={{ width: 96 }} />
+                        : `₹${fmt(amount)}`}
                     </td>
                     {editing && (
                       <td style={{ padding: `10px ${cellX}px`, textAlign: 'center' }}>
@@ -734,7 +745,7 @@ export default function LandlordInvoice() {
               })}
               {lineItems.length === 0 && (
                 <tr>
-                  <td colSpan={editing ? 8 : 7} style={{ padding: '30px 8px', textAlign: 'center', color: '#bbb', fontSize: 12.5, lineHeight: 1.7 }}>
+                  <td colSpan={editing ? 6 : 5} style={{ padding: '30px 8px', textAlign: 'center', color: '#bbb', fontSize: 12.5, lineHeight: 1.7 }}>
                     Nothing on this invoice yet.<br />
                     {editing
                       ? 'Pull the verified work from this property’s work orders, or add a line by hand.'
