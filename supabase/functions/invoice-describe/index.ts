@@ -9,8 +9,14 @@
 // The work is already in the record, just spread across columns the invoice was
 // never reading: item_name says WHAT ("AC Point", "Tap / Basin Mixer"), action
 // and fix_type say WHAT WAS DONE ("Replace", "Tighten the screws and change the
-// filter"), material_description says WITH WHAT ("6in SS Tower Bolt"), area says
-// WHERE. This reads those together and writes the one line an invoice wants.
+// filter"), material_description says WITH WHAT ("6in SS Tower Bolt"). This
+// reads those together and writes the one line an invoice wants. The area is
+// read but never printed: a landlord knows their own rooms, and "in Bedroom 2"
+// on every line is noise on a bill.
+//
+// It rewrites a symptom, not a sentence that already works. "Cabinet hinge
+// replacement" is already an invoice line and comes back untouched; "Socket
+// dead" and "Misaligned" are what this is for.
 //
 // THE RULE THIS FILE EXISTS TO ENFORCE: it may only re-describe. It cannot add
 // a line, remove a line, change a price, or decide anything is billable — the
@@ -54,10 +60,10 @@ const Line = z.object({
   // Echoed back so a description cannot land on the wrong row. Anything that is
   // not an id we sent is dropped below.
   id: z.string(),
-  // The invoice line. What was done, to what, where.
+  // The invoice line: what was done, and to what. Never where.
   description: z.string(),
   // low when the record named no action and the sentence is carrying the item
-  // and the room alone — those are the ones worth a human's eye before sending.
+  // alone — those are the ones worth a human's eye before sending.
   confidence: z.enum(["high", "medium", "low"]),
 });
 const Rewrite = z.object({ lines: z.array(Line) });
@@ -69,20 +75,20 @@ Each input record is one job a vendor did and a staff member signed off. The rec
 
 The facts are spread across the fields:
 - item is the thing ("AC Point", "Tap / Basin Mixer", "Cabinet Hinge")
-- area is the room
-- fault is what was wrong, in the inspector's words
+- fault is what the record says, which is sometimes already the job and sometimes only a symptom
 - action is what was done about it, when it was recorded
 - material is what was fitted, when something was
 
 Rules:
-- Describe the work, not the complaint. item "AC Point", area "Bedroom 2", fault "Socket dead", action "Repair" becomes "Repaired AC point socket in Bedroom 2" — never "Socket dead".
-- Use ONLY what the record contains. If no action was recorded, do not invent one: name the item, the room and the plainest thing the fault implies was needed, and mark the line low confidence. "Requires inspection" with no action is not a repair and must not be written as one.
-- Name the room when the area is a room. "Cleaning", "Whole property" and similar are not rooms — leave them out rather than writing "in Cleaning".
-- Include what was fitted when material says: "Replaced shower head in the bathroom — 4 inch round". Keep it to the part, not the invoice code.
-- Plain English, not trade shorthand. A landlord knows 'tower bolt on the bathroom door', not '6in SS TB'. Expand abbreviations. Do not use a brand name unless the material field gives one.
+- LEAVE A GOOD LINE ALONE. Many records already name the job: "Cabinet hinge replacement", "Geyser descaling and tank cleaning", "Door stopper installation", "Chimney service". Return those EXACTLY as they are. You are here for the ones that do not — a symptom where the work should be.
+- Rewrite a symptom into the work. fault "Socket dead" with item "AC Point" and action "Repair" becomes "AC point socket repaired". "Noise" on a chimney being serviced becomes "Chimney serviced". "Misaligned" on a wardrobe shutter becomes "Wardrobe shutter realigned". Never leave "Socket dead", "Not working", "Other" or "Needs replacement" standing on their own.
+- NEVER name the room, the area or where in the property anything was. No "in Bedroom 2", no "bathroom", no "kitchen". The line is about the work, not its location — the area is deliberately not on the invoice.
+- Use ONLY what the record contains. If no action was recorded, do not invent one: name the item and the plainest thing the fault implies was needed, and mark the line low confidence. "Requires inspection" with no action is not a repair and must not be written as one.
+- Include what was fitted when material says: "Shower head replaced — 4 inch round". Keep it to the part, not the invoice code.
+- Plain English, not trade shorthand. A landlord knows 'door tower bolt', not '6in SS TB'. Expand abbreviations. Do not use a brand name unless the material field gives one.
 - One line, 4 to 12 words, sentence case, no full stop at the end.
 - Never mention costs, rates, quantities, vendors, work order numbers or dates. Never write anything the record does not support.
-- confidence: high when the action was recorded and is specific; medium when the action is a bare word like "Replace" and the item makes it obvious; low when no action was recorded at all, or the fault is uninformative ("Other", "Requires inspection").
+- confidence: high when the record already named the job, or the action was recorded and is specific; medium when the action is a bare word like "Replace" and the item makes it obvious; low when no action was recorded at all, or the fault is uninformative ("Other", "Requires inspection").
 
 Return exactly one line for every record, with the id copied back unchanged.`;
 
@@ -109,31 +115,49 @@ Deno.serve(async (req: Request) => {
     }, 200);
   }
 
-  let ids: string[] = [];
+  // Two sources, two id lists. A line drawn from a work order and one drawn
+  // from an approved estimate need the same sentence written; only where the
+  // facts are read from differs.
+  let woIds: string[] = [], estIds: string[] = [];
   try {
     const body = await req.json();
-    ids = Array.isArray(body?.wo_item_ids) ? body.wo_item_ids.map(String) : [];
+    woIds  = Array.isArray(body?.wo_item_ids)       ? body.wo_item_ids.map(String)       : [];
+    estIds = Array.isArray(body?.estimate_item_ids) ? body.estimate_item_ids.map(String) : [];
   } catch { /* handled by the empty check */ }
 
   // A UUID or it does not go into a query string.
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  ids = [...new Set(ids.filter((id) => UUID.test(id)))];
-  const skipped = Math.max(0, ids.length - MAX_LINES);
-  ids = ids.slice(0, MAX_LINES);
-  if (!ids.length) return json({ ok: true, descriptions: {}, empty: true });
+  woIds  = [...new Set(woIds.filter((id) => UUID.test(id)))];
+  estIds = [...new Set(estIds.filter((id) => UUID.test(id)))];
+  const skipped = Math.max(0, woIds.length + estIds.length - MAX_LINES);
+  woIds  = woIds.slice(0, MAX_LINES);
+  estIds = estIds.slice(0, Math.max(0, MAX_LINES - woIds.length));
+  if (!woIds.length && !estIds.length) return json({ ok: true, descriptions: {}, empty: true });
 
   // ── read, as the caller ───────────────────────────────────────────────────
   const rest = (path: string) =>
     fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { Authorization: auth, apikey: ANON } });
 
-  const inList = `(${ids.join(",")})`;
-  const iRes = await rest(
-    `work_order_items?id=in.${inList}` +
-      `&select=id,area,description,fix_type,material,inspection_line_item_id,work_orders(trade)`,
-  );
-  if (!iRes.ok) return json({ ok: false, error: `Could not read the work orders (${iRes.status})` }, 200);
-  const items: Array<Record<string, any>> = await iRes.json();
-  if (!items.length) return json({ ok: true, descriptions: {}, empty: true });
+  let items: Array<Record<string, any>> = [];
+  if (woIds.length) {
+    const iRes = await rest(
+      `work_order_items?id=in.(${woIds.join(",")})` +
+        `&select=id,area,description,fix_type,material,inspection_line_item_id,work_orders(trade)`,
+    );
+    if (!iRes.ok) return json({ ok: false, error: `Could not read the work orders (${iRes.status})` }, 200);
+    items = await iRes.json();
+  }
+
+  let estItems: Array<Record<string, any>> = [];
+  if (estIds.length) {
+    const eRes = await rest(
+      `estimate_items?id=in.(${estIds.join(",")})` +
+        `&select=id,item_name,trade,issue_description,action,material_description`,
+    );
+    if (!eRes.ok) return json({ ok: false, error: `Could not read the estimate (${eRes.status})` }, 200);
+    estItems = await eRes.json();
+  }
+  if (!items.length && !estItems.length) return json({ ok: true, descriptions: {}, empty: true });
 
   // No foreign key from a work order item to the inspection row it was
   // snapshotted from, so this is a second read joined here rather than embedded.
@@ -151,24 +175,32 @@ Deno.serve(async (req: Request) => {
 
   const clean = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").trim();
 
-  const records = items.map((it) => {
-    const src = it.inspection_line_item_id ? byInsp.get(String(it.inspection_line_item_id)) : null;
-    return {
+  const records = [
+    ...items.map((it) => {
+      const src = it.inspection_line_item_id ? byInsp.get(String(it.inspection_line_item_id)) : null;
+      return {
+        id: String(it.id),
+        trade: clean(it.work_orders?.trade || src?.trade),
+        item: clean(src?.item_name),
+        fault: clean(it.description || src?.issue_description),
+        action: clean(it.fix_type || src?.action),
+        material: clean(it.material || src?.material_description),
+      };
+    }),
+    ...estItems.map((it) => ({
       id: String(it.id),
-      trade: clean(it.work_orders?.trade || src?.trade),
-      area: clean(it.area || src?.area),
-      item: clean(src?.item_name),
-      fault: clean(it.description || src?.issue_description),
-      action: clean(it.fix_type || src?.action),
-      material: clean(it.material || src?.material_description),
-    };
-  });
+      trade: clean(it.trade),
+      item: clean(it.item_name),
+      fault: clean(it.issue_description),
+      action: clean(it.action),
+      material: clean(it.material_description),
+    })),
+  ];
 
   const asText = records.map((r) =>
     [
       `id: ${r.id}`,
       r.trade && `trade: ${r.trade}`,
-      r.area && `area: ${r.area}`,
       r.item && `item: ${r.item}`,
       r.fault && `fault: ${r.fault}`,
       r.action && `action: ${r.action}`,
@@ -205,7 +237,7 @@ Deno.serve(async (req: Request) => {
   // An id we did not send is dropped rather than mapped to its nearest match: a
   // description on the wrong line is a wrong invoice, and a missing one just
   // leaves that line as it was pulled.
-  const known = new Set(ids);
+  const known = new Set([...woIds, ...estIds]);
   const descriptions: Record<string, { description: string; confidence: string }> = {};
   for (const l of parsed.lines || []) {
     const id = String(l.id || "");

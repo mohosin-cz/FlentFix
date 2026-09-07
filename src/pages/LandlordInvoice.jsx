@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { advanceStage } from '../utils/propertyJourney'
+import { belongsInEstimate } from '../utils/generateEstimate'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { COMPANY } from '../utils/company'
 import FlentWordmark from '../components/FlentWordmark'
@@ -17,7 +18,7 @@ const sanitizeInvoice = (data) => Object.fromEntries(
   Object.entries(data).filter(([k]) => INVOICE_COLUMNS.includes(k))
 )
 
-const LINE_ITEM_COLUMNS = ['invoice_id', 'sl_no', 'description', 'category', 'qty', 'unit', 'unit_price', 'wo_item_id']
+const LINE_ITEM_COLUMNS = ['invoice_id', 'sl_no', 'description', 'category', 'qty', 'unit', 'unit_price', 'wo_item_id', 'estimate_item_id']
 const sanitizeLineItem = (data) => Object.fromEntries(
   Object.entries(data).filter(([k]) => LINE_ITEM_COLUMNS.includes(k))
 )
@@ -38,7 +39,25 @@ const sanitizeLineItem = (data) => Object.fromEntries(
 // landlord pays. material_cost + labour_cost on the inspection row is the total
 // for that line rather than a rate, so it is divided back out by quantity —
 // that is what keeps qty × unit_price equal to the figure the estimate used.
-async function fetchVerifiedWorkOrderLines(pid, skipWoItemIds = new Set()) {
+// ─── Where a line can come from ──────────────────────────────────────────────
+// Two sources, and they answer different questions. A work order says a vendor
+// did the job and staff signed it off. An estimate says the landlord approved
+// the job and agreed a price. Most invoices want one or the other; some want
+// both, and then the same job must not be billed twice — so both sources are
+// keyed back to the inspection row they came from and deduped on it.
+//
+// Neither carries a line the inspection only observed. "Functional" and "Not
+// available" at zero cost are findings, not work: they belong on the work order
+// so a vendor can see the whole room, and nowhere near an invoice. That rule is
+// belongsInEstimate, imported rather than rewritten — its own comment says the
+// estimate and the work order must not drift apart, and an invoice makes three.
+const SOURCES = {
+  wo:       { label: 'Work orders', note: 'verified work' },
+  estimate: { label: 'Estimate',    note: 'approved, priced items' },
+  both:     { label: 'Both',        note: 'verified work and approved items, deduped' },
+}
+
+async function fetchWorkOrderLines(pid, skipWoItemIds = new Set()) {
   const { data: wos, error: woErr } = await supabase
     .from('work_orders')
     .select('id, trade, work_order_items(id, area, description, quantity, status, source, inspection_line_item_id, sort_order)')
@@ -54,28 +73,32 @@ async function fetchVerifiedWorkOrderLines(pid, skipWoItemIds = new Set()) {
   )
 
   const fresh = verified.filter(i => !skipWoItemIds.has(i.id))
-  if (fresh.length === 0) return { lines: [], verified: verified.length, unpriced: 0 }
+  if (fresh.length === 0) return { lines: [], available: verified.length, observations: 0 }
 
   const inspIds = [...new Set(fresh.map(i => i.inspection_line_item_id).filter(Boolean))]
-  let costs = new Map()
+  let rows = new Map()
   if (inspIds.length) {
-    const { data: rows, error: cErr } = await supabase
+    const { data: got, error: cErr } = await supabase
       .from('inspection_line_items')
-      .select('id, area, item_name, trade, issue_description, qty, material_cost, labour_cost')
+      .select('id, area, item_name, trade, issue_description, qty, material_cost, labour_cost, excluded_from_estimate')
       .in('id', inspIds)
     if (cErr) throw cErr
-    costs = new Map((rows || []).map(r => [r.id, r]))
+    rows = new Map((got || []).map(r => [r.id, r]))
   }
 
-  const lines = fresh.map(it => {
-    const src   = costs.get(it.inspection_line_item_id)
+  // An item with no inspection row behind it cannot be judged, so it stays.
+  const billable = fresh.filter(it => {
+    const src = rows.get(it.inspection_line_item_id)
+    return src ? belongsInEstimate(src) : true
+  })
+
+  const lines = billable.map(it => {
+    const src   = rows.get(it.inspection_line_item_id)
     const total = (Number(src?.material_cost) || 0) + (Number(src?.labour_cost) || 0)
     const qty   = Number(it.quantity) > 0 ? Number(it.quantity) : 1
     // The vendor's copy of the description is the one that was worked to, so it
     // wins over the inspector's original wording.
-    const what  = (it.description || '').trim() || (src?.issue_description || '').trim() || (src?.item_name || '').trim()
-    const area  = (it.area || src?.area || '').trim()
-    const raw   = [area && area.toLowerCase() !== 'custom' ? area : '', what].filter(Boolean).join(' — ') || what
+    const raw = (it.description || '').trim() || (src?.issue_description || '').trim() || (src?.item_name || '').trim()
     return {
       description: raw,
       // Kept so the rewrite that arrives a moment later can tell a line nobody
@@ -86,10 +109,78 @@ async function fetchVerifiedWorkOrderLines(pid, skipWoItemIds = new Set()) {
       unit:        'job',
       unit_price:  total ? +(total / qty).toFixed(2) : 0,
       wo_item_id:  it.id,
+      _insp_id:    it.inspection_line_item_id || null,
     }
   })
 
-  return { lines, verified: verified.length, unpriced: lines.filter(l => !l.unit_price).length }
+  return { lines, available: verified.length, observations: fresh.length - billable.length }
+}
+
+// The estimate the landlord actually saw — the most recent one for the
+// property. Approved and priced only: an approved line with cost_type
+// 'actuals' has no agreed figure yet, and the tax invoice has always drawn the
+// same line (see generateInvoice.js).
+async function fetchEstimateLines(pid, skipEstimateItemIds = new Set()) {
+  const { data: est, error: eErr } = await supabase
+    .from('estimates')
+    .select('id')
+    .eq('pid', pid)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (eErr) throw eErr
+  if (!est) return { lines: [], available: 0, observations: 0 }
+
+  const { data: items, error: iErr } = await supabase
+    .from('estimate_items')
+    .select('id, line_item_id, area, item_name, trade, issue_description, action, material_description, qty, material_cost, labour_cost, sort_order')
+    .eq('estimate_id', est.id)
+    .eq('status', 'approved')
+    .eq('cost_type', 'priced')
+    .order('sort_order')
+  if (iErr) throw iErr
+
+  const fresh = (items || []).filter(i => !skipEstimateItemIds.has(i.id))
+  const lines = fresh.map(it => {
+    const total = (Number(it.material_cost) || 0) + (Number(it.labour_cost) || 0)
+    const qty   = Number(it.qty) > 0 ? Number(it.qty) : 1
+    const raw   = (it.issue_description || '').trim() || (it.item_name || '').trim()
+    return {
+      description: raw,
+      _raw: raw,
+      category: it.trade || '',
+      qty,
+      unit: 'job',
+      unit_price: total ? +(total / qty).toFixed(2) : 0,
+      estimate_item_id: it.id,
+      _insp_id: it.line_item_id || null,
+    }
+  })
+
+  return { lines, available: (items || []).length, observations: 0 }
+}
+
+// Both sources, with the work order winning any tie. It records what was
+// actually done; the estimate records what was agreed beforehand, and where the
+// two describe the same inspection row the first is the truer line to bill.
+async function fetchPullLines(pid, source, { woIds = new Set(), estimateIds = new Set() } = {}) {
+  const wantWo  = source === 'wo' || source === 'both'
+  const wantEst = source === 'estimate' || source === 'both'
+
+  const wo  = wantWo  ? await fetchWorkOrderLines(pid, woIds)       : { lines: [], available: 0, observations: 0 }
+  const est = wantEst ? await fetchEstimateLines(pid, estimateIds)  : { lines: [], available: 0, observations: 0 }
+
+  const seen = new Set(wo.lines.map(l => l._insp_id).filter(Boolean))
+  const estFresh = est.lines.filter(l => !l._insp_id || !seen.has(l._insp_id))
+  const lines = [...wo.lines, ...estFresh]
+
+  return {
+    lines,
+    available:    wo.available + est.available,
+    observations: wo.observations,
+    duplicates:   est.lines.length - estFresh.length,
+    unpriced:     lines.filter(l => !l.unit_price).length,
+  }
 }
 
 // ─── Say what was done, not what was wrong ───────────────────────────────────
@@ -106,10 +197,11 @@ async function fetchVerifiedWorkOrderLines(pid, skipWoItemIds = new Set()) {
 // no network, a line it did not answer for — leaves that line as it was pulled.
 // Vague wording is worth fixing; it is not worth failing a pull over.
 async function describeLines(lines) {
-  const ids = lines.map(l => l.wo_item_id).filter(Boolean)
-  if (!ids.length) return {}
+  const wo_item_ids       = lines.map(l => l.wo_item_id).filter(Boolean)
+  const estimate_item_ids = lines.map(l => l.estimate_item_id).filter(Boolean)
+  if (!wo_item_ids.length && !estimate_item_ids.length) return {}
   const { data, error } = await supabase.functions.invoke('invoice-describe', {
-    body: { wo_item_ids: ids },
+    body: { wo_item_ids, estimate_item_ids },
   })
   if (error) throw error
   if (!data?.ok) throw new Error(data?.error || 'Nothing came back')
@@ -142,11 +234,13 @@ const MONO = "var(--font-mono, 'JetBrains Mono', 'Fira Mono', monospace)"
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 
-function pullSummary(added, verified, unpriced) {
-  const already = verified - added
-  let text = `Added ${plural(added, 'verified item', 'verified items')} from the work orders`
-  if (already > 0) text += ` · ${already} already on this invoice`
-  if (unpriced > 0) text += ` · ${plural(unpriced, 'line has', 'lines have')} no cost on the inspection, so price ${unpriced === 1 ? 'it' : 'them'} before sending`
+function pullSummary(added, source, { available = 0, observations = 0, duplicates = 0, unpriced = 0 } = {}) {
+  const already = Math.max(0, available - observations - duplicates - added)
+  let text = `Added ${plural(added, 'line', 'lines')} from ${source === 'both' ? 'the work orders and the estimate' : source === 'estimate' ? 'the estimate' : 'the work orders'}`
+  if (already > 0)     text += ` · ${already} already on this invoice`
+  if (observations > 0) text += ` · ${observations} left on the work order as ${observations === 1 ? 'an observation' : 'observations'}, not billed`
+  if (duplicates > 0)   text += ` · ${plural(duplicates, 'estimate line', 'estimate lines')} skipped as already covered by the work order`
+  if (unpriced > 0)     text += ` · ${plural(unpriced, 'line has', 'lines have')} no cost, so price ${unpriced === 1 ? 'it' : 'them'} before sending`
   return `${text}.`
 }
 
@@ -241,6 +335,9 @@ export default function LandlordInvoice() {
   const [showRateCard, setShowRateCard] = useState(false)
   const [pulling, setPulling]       = useState(false)
   const [describing, setDescribing] = useState(false)
+  // Which side of the job to bill from. Work orders by default: what a vendor
+  // actually did is the safer thing to put in front of a landlord.
+  const [source, setSource]         = useState('wo')
   // One strip under the action bar for anything the page needs to say: what a
   // pull brought in, and why a save did not go through. A save that fails is
   // the thing this page was worst at — the line item writes were discarded
@@ -335,7 +432,7 @@ export default function LandlordInvoice() {
     // after this.
     if (insp?.pid) {
       try {
-        const { lines, verified, unpriced } = await fetchVerifiedWorkOrderLines(insp.pid)
+        const { lines, ...counts } = await fetchPullLines(insp.pid, 'wo')
         if (lines.length > 0) {
           const { data: createdItems, error: seedErr } = await supabase
             .from('landlord_invoice_items')
@@ -344,7 +441,7 @@ export default function LandlordInvoice() {
           if (seedErr) throw seedErr
           const seeded = createdItems || []
           setLineItems(seeded)
-          setNotice({ tone: 'ok', text: pullSummary(lines.length, verified, unpriced) })
+          setNotice({ tone: 'ok', text: pullSummary(lines.length, 'wo', counts) })
           // The lines are saved and on screen; the wording catches up.
           rewriteDescriptions(seeded.map(r => ({ ...r, _raw: r.description })))
         } else {
@@ -434,15 +531,19 @@ export default function LandlordInvoice() {
     setPulling(true)
     setNotice(null)
     try {
-      const already = new Set(lineItems.map(i => i.wo_item_id).filter(Boolean))
-      const { lines, verified, unpriced } = await fetchVerifiedWorkOrderLines(invoice.pid, already)
+      const { lines, ...counts } = await fetchPullLines(invoice.pid, source, {
+        woIds:       new Set(lineItems.map(i => i.wo_item_id).filter(Boolean)),
+        estimateIds: new Set(lineItems.map(i => i.estimate_item_id).filter(Boolean)),
+      })
 
-      if (verified === 0) {
-        setNotice({ tone: 'info', text: 'No verified work orders for this property yet. Items appear here once a vendor has done the work and it has been signed off.' })
+      if (counts.available === 0) {
+        setNotice({ tone: 'info', text: source === 'estimate'
+          ? 'Nothing approved and priced on this property’s estimate yet.'
+          : 'No verified work orders for this property yet. Items appear here once a vendor has done the work and it has been signed off.' })
         return
       }
       if (lines.length === 0) {
-        setNotice({ tone: 'info', text: `Nothing new — ${verified === 1 ? 'the one verified item is' : `all ${verified} verified items are`} already on this invoice.` })
+        setNotice({ tone: 'info', text: `Nothing new to add. ${pullSummary(0, source, counts)}` })
         return
       }
 
@@ -456,7 +557,7 @@ export default function LandlordInvoice() {
       }))
       setLineItems(prev => [...prev, ...added])
       setEditing(true)
-      setNotice({ tone: 'ok', text: `${pullSummary(lines.length, verified, unpriced)} Save to keep them.` })
+      setNotice({ tone: 'ok', text: `${pullSummary(lines.length, source, counts)} Save to keep them.` })
       rewriteDescriptions(added)
     } catch (e) {
       setNotice({ tone: 'err', text: `Could not read the work orders: ${e.message}` })
@@ -476,10 +577,11 @@ export default function LandlordInvoice() {
       const written = await describeLines(pulled)
       // Counted from what came back, not inside the state updater — that runs
       // when React chooses to, and twice in development.
-      const changed = pulled.filter(p => written[p.wo_item_id]).length
-      const unclear = pulled.filter(p => written[p.wo_item_id]?.confidence === 'low').length
+      const key = l => l.wo_item_id || l.estimate_item_id
+      const changed = pulled.filter(p => written[key(p)]).length
+      const unclear = pulled.filter(p => written[key(p)]?.confidence === 'low').length
       setLineItems(prev => prev.map(i => {
-        const w = i.wo_item_id ? written[i.wo_item_id] : null
+        const w = written[key(i)] || null
         // A description that no longer matches what was pulled has been edited
         // by hand since; a person's wording beats a model's.
         if (!w || (i._raw && i.description !== i._raw)) return i
@@ -517,9 +619,9 @@ export default function LandlordInvoice() {
         qty:         Number(item.qty) || 1,
         unit:        item.unit || 'job',
         unit_price:  Number(item.unit_price) || 0,
-        // Kept through the rewrite, or a re-pull would bill every verified item
-        // a second time.
-        wo_item_id:  item.wo_item_id || null,
+        // Kept through the rewrite, or a re-pull would bill the same job twice.
+        wo_item_id:       item.wo_item_id || null,
+        estimate_item_id: item.estimate_item_id || null,
       }))
 
       // One statement, one transaction. Rewriting the lines used to be a delete
@@ -803,7 +905,7 @@ export default function LandlordInvoice() {
                   <td colSpan={editing ? 6 : 5} style={{ padding: '30px 8px', textAlign: 'center', color: '#bbb', fontSize: 12.5, lineHeight: 1.7 }}>
                     Nothing on this invoice yet.<br />
                     {editing
-                      ? 'Pull the verified work from this property’s work orders, or add a line by hand.'
+                      ? 'Pull from this property’s work orders or its approved estimate, or add a line by hand.'
                       : 'Press Edit to pull the verified work from this property’s work orders.'}
                   </td>
                 </tr>
@@ -814,9 +916,28 @@ export default function LandlordInvoice() {
 
           {/* Add buttons (edit mode) */}
           {editing && (
-            <div style={{ display: 'flex', gap: 10, padding: '14px 8px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 10, padding: '14px 8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* What to bill from. Named rather than iconised: pulling the
+                  wrong side of a job is not a mistake you notice by eye. */}
+              <div role="group" aria-label="Pull from" style={{ display: 'inline-flex', border: '1px solid #ddd', borderRadius: 6, overflow: 'hidden' }}>
+                {Object.entries(SOURCES).map(([k, v]) => (
+                  <button
+                    key={k}
+                    onClick={() => setSource(k)}
+                    title={v.note}
+                    aria-pressed={source === k}
+                    style={{
+                      fontSize: 11.5, padding: '6px 11px', cursor: 'pointer', border: 'none',
+                      borderLeft: k === 'wo' ? 'none' : '1px solid #ddd',
+                      background: source === k ? '#1a1a1a' : '#fff',
+                      color: source === k ? '#fff' : '#666',
+                      fontWeight: source === k ? 600 : 400,
+                    }}
+                  >{v.label}</button>
+                ))}
+              </div>
               <button onClick={pullFromWorkOrders} disabled={pulling} style={{ fontSize: 12, color: '#fff', background: '#1a1a1a', border: '1px solid #1a1a1a', borderRadius: 6, padding: '6px 14px', cursor: pulling ? 'wait' : 'pointer', opacity: pulling ? 0.7 : 1, fontWeight: 600 }}>
-                {pulling ? 'Reading work orders…' : describing ? 'Writing descriptions…' : '↻ Pull verified work'}
+                {pulling ? 'Reading…' : describing ? 'Writing descriptions…' : '↻ Pull'}
               </button>
               <button onClick={addBlankItem} style={{ fontSize: 12, color: '#555', background: 'none', border: '1px dashed #ddd', borderRadius: 6, padding: '6px 14px', cursor: 'pointer' }}>
                 + Add Item
