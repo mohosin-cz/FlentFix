@@ -15,10 +15,11 @@
   --amber:        #c8963e;
   --red:          #e05c6a;
   --white:        #ffffff;
-  /* Urbanist app-wide, the face the Home header nav introduced. Poppins stays
-     as the fallback and is what the customer-facing estimate and invoice
-     documents pin themselves to — those set their own fonts and are not
-     meant to follow the app. */
+  /* Urbanist app-wide, the face the Home header nav introduced, with Poppins
+     as the fallback. The landlord invoice reads these tokens too, so it looks
+     like the product that issued it. The estimate is the one customer-facing
+     document that still pins its own faces — it is a piece of writing rather
+     than a screen, and reads as one. */
   --font-sans:    'Urbanist', 'Poppins', sans-serif;
   --font-doc:     'Poppins', sans-serif;
   --font-mono:    'JetBrains Mono', 'Fira Mono', monospace;

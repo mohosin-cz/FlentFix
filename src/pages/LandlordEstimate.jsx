@@ -888,7 +888,6 @@ export default function LandlordEstimate() {
   let _plate = 0
   groups.forEach(({ items: gi }) => gi.forEach(item => plateOrder.set(item.id, ++_plate)))
 
-  const pid      = inspection?.pid || estimate?.pid || '—'
   const address  = inspection?.config?.address || ''
   const inspector = estimate?.inspector_name || '—'
 
@@ -927,9 +926,9 @@ export default function LandlordEstimate() {
 
         {/* record line — hairline, no card */}
         <div className="le-record">
-          <span className="le-record-item">{address || `PID ${pid}`}</span>
+          {address && <span className="le-record-item">{address}</span>}
           {inspection?.inspection_date && <>
-            <span className="le-record-sep">·</span>
+            {address && <span className="le-record-sep">·</span>}
             <span className="le-record-item">Inspected {fmtDate(inspection.inspection_date)}</span>
           </>}
           {estimate?.created_at && <>

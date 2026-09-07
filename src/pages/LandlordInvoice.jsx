@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { advanceStage } from '../utils/propertyJourney'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { COMPANY } from '../utils/company'
 import FlentWordmark from '../components/FlentWordmark'
 
 // ─── Column sanitizers ────────────────────────────────────────────────────────
@@ -102,6 +103,15 @@ function addDays(str, n) {
 
 function fmt(n) { return (n || 0).toLocaleString('en-IN') }
 
+// The document was the one surface still rendering in whatever font the OS
+// supplied, so an invoice looked like a different product to the app that
+// issued it. These read the app's own tokens rather than naming faces again:
+// Urbanist for text, JetBrains Mono for anything you read as a number. The
+// fallbacks repeat the token values, for print and for any surface that
+// somehow renders without theme.css.
+const SANS = "var(--font-sans, 'Urbanist', 'Poppins', sans-serif)"
+const MONO = "var(--font-mono, 'JetBrains Mono', 'Fira Mono', monospace)"
+
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 
 function pullSummary(added, verified, unpriced) {
@@ -167,7 +177,7 @@ function RateCardModal({ onAdd, onClose }) {
                 <div style={{ fontSize: 13, fontWeight: 500, color: '#1a1a1a' }}>{r.work_type}</div>
                 <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{r.trade} · per {r.unit}</div>
               </div>
-              <div style={{ fontFamily: 'monospace', fontSize: 13, color: '#1a1a1a', flexShrink: 0, marginLeft: 16 }}>₹{fmt(r.cost_per_unit)}</div>
+              <div style={{ fontFamily: MONO, fontSize: 13, color: '#1a1a1a', flexShrink: 0, marginLeft: 16 }}>₹{fmt(r.cost_per_unit)}</div>
             </div>
           ))}
         </div>
@@ -210,8 +220,10 @@ export default function LandlordInvoice() {
 
   // Editable invoice fields
   const [landlordName, setLandlordName]   = useState('')
-  const [landlordEmail, setLandlordEmail] = useState('')
   const [landlordPhone, setLandlordPhone] = useState('')
+  // Held separately because it is the only thing left in Property Details now
+  // that the PID has come off, and older invoices were written without it.
+  const [propertyAddress, setPropertyAddress] = useState('')
   const [notes, setNotes]                 = useState('')
   const [taxRate, setTaxRate]             = useState(18)
   const [status, setStatus]               = useState('draft')
@@ -240,6 +252,14 @@ export default function LandlordInvoice() {
         .eq('invoice_id', existing.id)
         .order('sl_no')
       setLineItems(items || [])
+      // Invoices made before this was captured have an empty address, and with
+      // the PID gone that would leave the panel blank. The inspection still
+      // knows where the property is.
+      if (!existing.property_address) {
+        const { data: insp } = await supabase
+          .from('inspections').select('config').eq('id', inspectionId).maybeSingle()
+        if (insp?.config?.address) setPropertyAddress(insp.config.address)
+      }
       setLoading(false)
       return
     }
@@ -313,8 +333,8 @@ export default function LandlordInvoice() {
   function applyInvoice(inv) {
     setInvoice(inv)
     setLandlordName(inv.landlord_name  || '')
-    setLandlordEmail(inv.landlord_email || '')
     setLandlordPhone(inv.landlord_phone || '')
+    setPropertyAddress(inv.property_address || '')
     setNotes(inv.notes || '')
     setTaxRate(inv.tax_rate ?? 18)
     setStatus(inv.status || 'draft')
@@ -405,8 +425,8 @@ export default function LandlordInvoice() {
       const { error: headErr } = await supabase.from('landlord_invoices')
         .update(sanitizeInvoice({
           landlord_name:  landlordName,
-          landlord_email: landlordEmail,
           landlord_phone: landlordPhone,
+          property_address: propertyAddress,
           notes,
           tax_rate:   Number(taxRate),
           status,
@@ -485,13 +505,13 @@ export default function LandlordInvoice() {
 
   // ── Loading / Error states ──
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: 'system-ui', color: '#888', fontSize: 14 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: SANS, color: '#888', fontSize: 14 }}>
       Loading invoice…
     </div>
   )
 
   if (error) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: 'system-ui', color: '#c00', fontSize: 14 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: SANS, color: '#c00', fontSize: 14 }}>
       {error}
     </div>
   )
@@ -499,12 +519,12 @@ export default function LandlordInvoice() {
   const st = STATUS_STYLES[status] || STATUS_STYLES.draft
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#f0f0f0', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ minHeight: '100dvh', background: '#f0f0f0', fontFamily: SANS }}>
       <style>{`
         *, *::before, *::after { box-sizing: border-box; }
         .inv-input { border: none; border-bottom: 1px solid #ddd; background: transparent; outline: none; font-family: inherit; font-size: inherit; color: inherit; padding: 2px 0; width: 100%; }
         .inv-input:focus { border-bottom-color: #1a1a1a; }
-        .inv-input-num { text-align: right; font-family: monospace; }
+        .inv-input-num { text-align: right; font-family: var(--font-mono, 'JetBrains Mono', 'Fira Mono', monospace); }
         .rc-row:hover { background: #fafafa !important; }
         .inv-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         @media print {
@@ -586,15 +606,18 @@ export default function LandlordInvoice() {
         <div style={{ padding: isMobile ? '24px 18px 20px' : '40px 48px 32px', borderBottom: '2px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
           <div>
             <FlentWordmark height={30} variant="dark" style={{ marginBottom: 6 }} />
-            <div style={{ fontSize: 12, color: '#666', lineHeight: 1.8 }}>
-              Property Management<br />
-              Bangalore, India<br />
-              hello@flent.in
+            {/* One definition of the entity, in src/utils/company.js — the
+                three hand-written copies this replaced had already drifted. */}
+            <div style={{ fontSize: 12, color: '#666', lineHeight: 1.7, marginTop: 2, maxWidth: 360 }}>
+              <span style={{ color: '#1a1a1a', fontWeight: 600 }}>{COMPANY.legal_name}</span><br />
+              {COMPANY.address_line}<br />
+              {COMPANY.city}, {COMPANY.state} {COMPANY.pincode}<br />
+              <span style={{ fontFamily: MONO, fontSize: 11, color: '#888' }}>GSTIN: {COMPANY.gstin}</span>
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '0.08em', color: '#1a1a1a', marginBottom: 8 }}>INVOICE</div>
-            <div style={{ fontFamily: 'monospace', fontSize: 14, color: '#555', marginBottom: 8 }}>{invoice?.invoice_number}</div>
+            <div style={{ fontFamily: MONO, fontSize: 14, color: '#555', marginBottom: 8 }}>{invoice?.invoice_number}</div>
             <span style={{ display: 'inline-block', padding: '3px 12px', borderRadius: 4, background: st.bg, color: st.color, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em' }}>
               {editing ? (
                 <select value={status} onChange={e => setStatus(e.target.value)} style={{ background: 'transparent', border: 'none', color: st.color, fontWeight: 700, fontSize: 11, letterSpacing: '0.06em', cursor: 'pointer', outline: 'none' }}>
@@ -612,22 +635,21 @@ export default function LandlordInvoice() {
             {editing ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <input className="inv-input" placeholder="Landlord name" value={landlordName} onChange={e => setLandlordName(e.target.value)} style={{ fontSize: 14, fontWeight: 600 }} />
-                <input className="inv-input" placeholder="Email address" value={landlordEmail} onChange={e => setLandlordEmail(e.target.value)} style={{ fontSize: 12, color: '#555' }} />
                 <input className="inv-input" placeholder="Phone number" value={landlordPhone} onChange={e => setLandlordPhone(e.target.value)} style={{ fontSize: 12, color: '#555' }} />
               </div>
             ) : (
               <div style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.8 }}>
                 <div style={{ fontWeight: 600 }}>{landlordName || <span style={{ color: '#bbb' }}>—</span>}</div>
-                {landlordEmail && <div style={{ color: '#555', fontSize: 12 }}>{landlordEmail}</div>}
                 {landlordPhone && <div style={{ color: '#555', fontSize: 12 }}>{landlordPhone}</div>}
               </div>
             )}
           </div>
           <div style={{ padding: isMobile ? '20px 18px' : '24px 48px' }}>
             <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#999', marginBottom: 12 }}>Property Details</div>
-            <div style={{ fontSize: 13, color: '#555', lineHeight: 1.9 }}>
-              <div><span style={{ color: '#999', fontSize: 11 }}>PID</span>  <span style={{ color: '#1a1a1a', fontWeight: 600, marginLeft: 8 }}>{invoice?.pid || '—'}</span></div>
-              {invoice?.property_address && <div style={{ marginTop: 4, fontSize: 12 }}>{invoice.property_address}</div>}
+            <div style={{ fontSize: 13, color: '#555', lineHeight: 1.7 }}>
+              {editing
+                ? <input className="inv-input" placeholder="Property address" value={propertyAddress} onChange={e => setPropertyAddress(e.target.value)} style={{ fontSize: 13 }} />
+                : (propertyAddress || <span style={{ color: '#bbb' }}>—</span>)}
             </div>
           </div>
         </div>
@@ -664,7 +686,7 @@ export default function LandlordInvoice() {
                   <tr key={item.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                     <td
                       title={editing && item.wo_item_id ? 'Pulled from verified work — removing it here does not touch the work order' : undefined}
-                      style={{ padding: `10px ${cellX}px`, color: '#bbb', fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap' }}
+                      style={{ padding: `10px ${cellX}px`, color: '#bbb', fontFamily: MONO, fontSize: 12, whiteSpace: 'nowrap' }}
                     >
                       {String(idx + 1).padStart(2, '0')}
                       {/* Only while editing: on the landlord's copy a marker
@@ -691,12 +713,12 @@ export default function LandlordInvoice() {
                         ? <input className="inv-input" value={item.unit} onChange={e => updateItem(item.id, 'unit', e.target.value)} style={{ width: 44 }} />
                         : <span style={{ color: '#888', fontSize: 12 }}>{item.unit}</span>}
                     </td>
-                    <td style={{ padding: `10px ${cellX}px`, textAlign: 'right', fontFamily: 'monospace' }}>
+                    <td style={{ padding: `10px ${cellX}px`, textAlign: 'right', fontFamily: MONO }}>
                       {editing
                         ? <input className="inv-input inv-input-num" type="number" value={item.unit_price} onChange={e => updateItem(item.id, 'unit_price', e.target.value)} style={{ width: 80 }} />
                         : `₹${fmt(item.unit_price)}`}
                     </td>
-                    <td style={{ padding: `10px ${cellX}px`, textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: '#1a1a1a' }}>
+                    <td style={{ padding: `10px ${cellX}px`, textAlign: 'right', fontFamily: MONO, fontWeight: 600, color: '#1a1a1a' }}>
                       ₹{fmt(amount)}
                     </td>
                     {editing && (
@@ -744,23 +766,23 @@ export default function LandlordInvoice() {
             <div style={{ width: 280, maxWidth: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}>
                 <span style={{ color: '#666' }}>Subtotal</span>
-                <span style={{ fontFamily: 'monospace' }}>₹{fmt(subtotal)}</span>
+                <span style={{ fontFamily: MONO }}>₹{fmt(subtotal)}</span>
               </div>
               {Number(taxRate) > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}>
                   <span style={{ color: '#666', display: 'flex', alignItems: 'center', gap: 6 }}>
                     GST
                     {editing
-                      ? <input type="number" value={taxRate} onChange={e => setTaxRate(e.target.value)} style={{ width: 40, fontFamily: 'monospace', fontSize: 13, border: 'none', borderBottom: '1px solid #ddd', outline: 'none', textAlign: 'center' }} />
+                      ? <input type="number" value={taxRate} onChange={e => setTaxRate(e.target.value)} style={{ width: 40, fontFamily: MONO, fontSize: 13, border: 'none', borderBottom: '1px solid #ddd', outline: 'none', textAlign: 'center' }} />
                       : <span>{taxRate}</span>}
                     %
                   </span>
-                  <span style={{ fontFamily: 'monospace' }}>₹{fmt(Math.round(taxAmount))}</span>
+                  <span style={{ fontFamily: MONO }}>₹{fmt(Math.round(taxAmount))}</span>
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 16px', borderTop: '2px solid #1a1a1a', marginTop: 6 }}>
                 <span style={{ fontWeight: 700, fontSize: 14, letterSpacing: '0.04em' }}>TOTAL</span>
-                <span style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 700 }}>₹{fmt(Math.round(total))}</span>
+                <span style={{ fontFamily: MONO, fontSize: 18, fontWeight: 700 }}>₹{fmt(Math.round(total))}</span>
               </div>
             </div>
           </div>
@@ -778,7 +800,6 @@ export default function LandlordInvoice() {
         <div style={{ padding: isMobile ? '18px 18px 28px' : '20px 48px 32px', borderTop: '1px solid #e8e8e8', background: '#fafafa' }}>
           <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#999', marginBottom: 8 }}>Terms & Conditions</div>
           <div style={{ fontSize: 12, color: '#888', lineHeight: 1.8 }}>
-            Payment due within 15 days of invoice date.<br />
             All amounts in INR. GST included where applicable.
           </div>
           <div style={{ marginTop: 24, textAlign: 'center', fontSize: 13, color: '#aaa' }}>
