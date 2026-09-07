@@ -121,8 +121,97 @@ function PidBadge({ pid, siteMap }) {
   )
 }
 
+// Closing a shift the vendor walked away from.
+//
+// The vendor's own page cannot do it — that punches against a session token
+// that expired with their day — so somebody has to record it for them. Two
+// things are asked for and both are required: when they actually left, which
+// only a person knows, and why this is being recorded by staff, which is the
+// difference between a correction and a quiet edit of somebody's hours.
+//
+// The time is prefilled at nine hours after the check-in because that is the
+// shift, and shown back as a duration as it is typed — the number being
+// recorded is somebody's pay, and it should be on screen before it is saved,
+// not inferred from two timestamps afterwards.
+function CloseShiftForm({ ses, now, onDone, onCancel }) {
+  const inMs = new Date(ses.inP.punched_at).getTime()
+  // `now` rather than Date.now(): the board already keeps one, and reading the
+  // clock during a render makes the same render produce different answers.
+  const [at, setAt] = useState(() => {
+    const guess = Math.min(inMs + SHIFT_MS, now)
+    const d = new Date(guess - new Date().getTimezoneOffset() * 60000)
+    return d.toISOString().slice(0, 16)
+  })
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const outMs = at ? new Date(at).getTime() : NaN
+  const span  = Number.isFinite(outMs) ? outMs - inMs : NaN
+  const bad   = !Number.isFinite(span) ? 'Enter a check-out time'
+    : span <= 0 ? 'The check-out has to be after the check-in'
+    : outMs > now ? 'The check-out cannot be in the future'
+    : ''
+
+  async function submit() {
+    if (bad || !reason.trim()) return
+    setBusy(true); setErr('')
+    const { data, error } = await supabase.rpc('attend_force_punch_out', {
+      p_in_punch_id: ses.inP.id,
+      p_punched_at:  new Date(outMs).toISOString(),
+      p_reason:      reason.trim(),
+    })
+    setBusy(false)
+    if (error) { setErr(error.message); return }
+    onDone(data)
+  }
+
+  const inputCss = { width: '100%', background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, padding: '7px 9px', fontSize: 12, color: 'var(--text, #e8e8f0)', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }
+
+  return (
+    <div style={{ position: 'relative', marginTop: 10, padding: '11px 12px', background: 'var(--bg, #16171f)', border: '1px solid var(--accent, #c8963e)', borderRadius: 9, display: 'flex', flexDirection: 'column', gap: 9 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>
+        Close this shift
+      </div>
+
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Left at</span>
+        <input type="datetime-local" value={at} onChange={e => setAt(e.target.value)} style={inputCss} />
+      </label>
+
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Reason · required</span>
+        <textarea
+          rows={2}
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          placeholder="Forgot to punch out — confirmed with site supervisor"
+          style={{ ...inputCss, resize: 'vertical' }}
+        />
+      </label>
+
+      <div style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', color: bad ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)' }}>
+        {bad || `Records as ${fmtDuration(span)} of ${(ses.kind === 'overtime' ? 'overtime' : 'regular')} time`}
+      </div>
+      {err && <div style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>⚠ {err}</div>}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" onClick={submit} disabled={busy || !!bad || !reason.trim()}
+          style={{ fontSize: 11.5, fontWeight: 700, padding: '7px 13px', borderRadius: 7, border: 'none', cursor: busy || bad || !reason.trim() ? 'not-allowed' : 'pointer', background: 'var(--accent, #c8963e)', color: '#16171f', opacity: busy || bad || !reason.trim() ? 0.5 : 1 }}>
+          {busy ? 'Closing…' : 'Close shift'}
+        </button>
+        <button type="button" onClick={onCancel} disabled={busy}
+          style={{ fontSize: 11.5, padding: '7px 13px', borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text-muted, #6b6d82)', cursor: 'pointer' }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // one session (check-in + its check-out) as a tile
-function SessionTile({ ses, siteMap, brk, now }) {
+function SessionTile({ ses, siteMap, brk, now, onClosed }) {
+  const [closing, setClosing] = useState(false)
   const ot = ses.kind === 'overtime'
   const open = !ses.outP
   const v = ses.vendor
@@ -204,6 +293,23 @@ function SessionTile({ ses, siteMap, brk, now }) {
               <span style={{ fontSize: 10, color: brkOver > 0 ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{brkOver > 0 ? 'over' : 'left'}</span>
             </div>
           : <div style={{ marginTop: 6, fontSize: 11, color: statusC, fontFamily: 'var(--font-mono, monospace)' }}>OUT&nbsp;&nbsp;— still on site</div>}
+
+      {/* Only on an open shift, and only past the length of one: a shift that
+          is simply still running is not a shift anybody forgot to close. */}
+      {open && !closing && pastShift && (
+        <button type="button" onClick={() => setClosing(true)}
+          style={{ marginTop: 9, fontSize: 11, fontFamily: 'var(--font-mono, monospace)', color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 7, padding: '5px 11px', cursor: 'pointer' }}>
+          Close this shift
+        </button>
+      )}
+      {open && closing && (
+        <CloseShiftForm
+          ses={ses}
+          now={now}
+          onCancel={() => setClosing(false)}
+          onDone={(r) => { setClosing(false); onClosed && onClosed(r) }}
+        />
+      )}
       </div>
     </div>
   )
@@ -337,6 +443,8 @@ export default function AttendanceTab() {
   const [siteMap, setSiteMap] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  // What just happened, for the one action on this board that writes anything.
+  const [toast, setToast] = useState('')
   const [sharing, setSharing] = useState(false)
   const [selected, setSelected] = useState(null)   // vendor summary for detail sheet
   const [breaks, setBreaks] = useState([])
@@ -439,6 +547,14 @@ export default function AttendanceTab() {
         </div>
       )}
 
+      {toast && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 13px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.30)', borderRadius: 8, fontFamily: 'var(--font-mono, monospace)' }}>
+          <span style={{ fontSize: 12, color: 'var(--green, #3dba7a)', flex: 1 }}>✓ {toast}</span>
+          <button type="button" onClick={() => setToast('')} aria-label="Dismiss"
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+      )}
+
       {loading && !error && <div style={{ padding: '28px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>}
 
       {!loading && !error && punches && (
@@ -495,7 +611,11 @@ export default function AttendanceTab() {
                 ? <div style={{ padding: '30px 20px', textAlign: 'center', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 12, fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No punches {isToday ? 'yet today' : 'on this day'}.</div>
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {sessions.map((ses, i) => <SessionTile key={(ses.inP || ses.outP).id || i} ses={ses} siteMap={siteMap} now={now}
-                      brk={openBreakOf(breaks, ses.vendor && (ses.inP || ses.outP).vendor_id)} />)}
+                      brk={openBreakOf(breaks, ses.vendor && (ses.inP || ses.outP).vendor_id)}
+                      onClosed={(r) => {
+                        setToast(`Shift closed — ${r?.duration_hours ?? '?'}h recorded${r?.breaks_closed ? `, ${r.breaks_closed} break ended` : ''}`)
+                        load()
+                      }} />)}
                   </div>}
             </>
           )}
