@@ -61,9 +61,26 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
     const approved = live.filter(i => i.status === 'approved').length
     const disputed = live.filter(i => i.status === 'disputed').length
     const pct = (x) => (n > 0 ? Math.round(x / n * 100) : 0)
+
+    // The same arithmetic the Totals card uses, so the two cards cannot
+    // disagree: priced rows only, each one times its quantity.
+    const money = (rows) => rows
+      .filter(i => i.cost_type === 'priced')
+      .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
+    const onTable     = money(live)
+    const approvedVal = money(live.filter(i => i.status === 'approved'))
+    const disputedVal = money(live.filter(i => i.status === 'disputed'))
+
     return {
       live: n, approved, disputed, pending: n - approved - disputed,
       appPct: pct(approved), disPct: pct(disputed), penPct: pct(n - approved - disputed),
+      // Counted decisions and agreed money are not the same story and the card
+      // was only telling the first. Nine of twenty-one items approved reads as
+      // 43%; if those nine are the cheap ones it is 17% of the bill, and the
+      // number somebody needs before they order materials is the second one.
+      onTable, approvedVal, disputedVal,
+      pendingVal: Math.max(0, onTable - approvedVal - disputedVal),
+      valPct: onTable > 0 ? Math.round(approvedVal / onTable * 100) : 0,
       firstViewed: estimate?.first_viewed_at || null,
       sinceFirst: ago(estimate?.first_viewed_at),
       lastViewed: views[0]?.created_at || null,
@@ -153,6 +170,18 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
               {v.disputed > 0 && <span style={{ color:'#e8697a' }}><b>{v.disputed}</b> disputed</span>}
               <span style={{ color:'var(--muted)' }}><b>{v.pending}</b> awaiting</span>
             </div>
+            {v.onTable > 0 && (
+              <div className="valrow" title={`₹${fmt(v.approvedVal)} approved · ₹${fmt(v.disputedVal)} disputed · ₹${fmt(v.pendingVal)} awaiting`}>
+                <span className="valmain">
+                  <b style={{ color:'#6fc47f' }}>₹{fmt(v.approvedVal)}</b>
+                  <span style={{ color:'var(--muted)' }}> of ₹{fmt(v.onTable)} approved</span>
+                </span>
+                <span className="valpct" style={{ color: v.valPct === 100 ? 'var(--good)' : 'var(--ink2)' }}>{v.valPct}%</span>
+                {v.pendingVal > 0 && (
+                  <span className="valrest">₹{fmt(v.pendingVal)} still out{v.disputedVal > 0 ? ` · ₹${fmt(v.disputedVal)} disputed` : ''}</span>
+                )}
+              </div>
+            )}
             <div className="ownerfoot">
               opened {v.sinceFirst} ago · {v.viewCount} view{v.viewCount === 1 ? '' : 's'}
               {v.ownerName ? <> · <span style={{ color:'var(--ink2)' }}>{v.ownerName}</span></> : ''}
