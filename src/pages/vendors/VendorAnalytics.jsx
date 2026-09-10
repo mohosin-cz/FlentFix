@@ -269,9 +269,12 @@ export default function VendorAnalytics() {
       return [...m.values()].sort((x, y) => x.ym.localeCompare(y.ym))
         .map(r => ({ ...r, note: `${r.joined} joined · ${r.left} left` }))
     })()
-    // One joining date of January 1996 spread this across thirty years and
-    // squeezed fourteen real months into hairlines. Windowed rather than
-    // cleaned, and the page says what it left out instead of trimming quietly.
+    // Buckets are one per month that has an event, not one per calendar
+    // month, so a joining date of January 1996 does not stretch the plot — it
+    // just sits at the left end. What made the chart unreadable was ticks
+    // showing only "Oct" beside "Jan", fixed above. The window is here so a
+    // few more years of hiring cannot quietly turn the bars into hairlines,
+    // and the page says what it left out rather than trimming silently.
     const flow = flowAll.slice(-18)
     const flowDropped = flowAll.length - flow.length
     const badJoinDates = raw.vendors.filter(v => v.date_of_joining && String(v.date_of_joining) < '2015-01-01')
@@ -691,7 +694,7 @@ export default function VendorAnalytics() {
                 {!a.workforce.flow.length ? <Empty>No joining dates recorded.</Empty> : <>
                   <Legend items={[{ label: 'Joined', color: S3 }, { label: 'Left', color: S2 }]} />
                   <Columns rows={a.workforce.flow} series={[{ key: 'joined', label: 'Joined', color: S3 }, { key: 'left', label: 'Left', color: S2 }]}
-                    fmt={fmtInt} height={phone ? 150 : 180} minBar={phone ? 30 : 0} labelLast={false} />
+                    fmt={fmtInt} height={phone ? 150 : 180} minBar={phone ? 44 : 0} labelLast={false} />
                   {a.workforce.flowDropped > 0 && (
                     <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.6 }}>
                       Last 18 months. {a.workforce.flowDropped} earlier month{a.workforce.flowDropped === 1 ? '' : 's'} not shown,
@@ -700,7 +703,7 @@ export default function VendorAnalytics() {
                   )}
                   {a.workforce.badJoinDates.length > 0 && (
                     <Flag n={a.workforce.badJoinDates.length} tone="amber" label="Joining date looks wrong"
-                      detail={`${a.workforce.badJoinDates.map(v => `${v.full_name} (${new Date(v.date_of_joining).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })})`).join(', ')} — almost certainly a date of birth typed into the joining field. It is why this chart is windowed.`} />
+                      detail={`${a.workforce.badJoinDates.map(v => `${v.full_name} (${new Date(v.date_of_joining).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })})`).join(', ')} — almost certainly a date of birth typed into the joining field. Worth correcting on their profile: it is counted in "ever onboarded" and sits at the left end of this chart.`} />
                   )}
                 </>}
               </Card>
