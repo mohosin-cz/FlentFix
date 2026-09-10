@@ -50,7 +50,7 @@ const median = (xs) => {
 }
 const days = (a, b) => (new Date(b).getTime() - new Date(a).getTime()) / 86400000
 const isActive = (v) => v.status === 'approved' && !v.exited_at && !v.archived_at
-const fmtDays = (n) => (n == null ? '—' : n < 1 ? `${Math.round(n * 24)}h` : `${n.toFixed(1)}d`)
+const fmtDays = (n) => (n == null ? '—' : n < 0.04 ? 'minutes' : n < 1 ? `${Math.round(n * 24)}h` : `${n.toFixed(1)}d`)
 const fmtInt = (n) => String(Math.round(n))
 
 export default function VendorAnalytics() {
@@ -231,6 +231,7 @@ export default function VendorAnalytics() {
     const woSchedulable = wos.filter(w => w.scheduled_end && w.vendor_completed_at)
     const woOnTime = woSchedulable.filter(w => dayKey(w.vendor_completed_at) <= w.scheduled_end).length
     const woAwaitingVerify = wos.filter(w => w.vendor_completed_at && !w.verified_at).length
+    const woInstant = wos.filter(w => w.issued_at && w.vendor_completed_at && days(w.issued_at, w.vendor_completed_at) < 1 / 24).length
     const woVerifiedNoCompletion = wos.filter(w => w.verified_at && !w.vendor_completed_at).length
     const woByTrade = (() => {
       const m = new Map()
@@ -250,9 +251,17 @@ export default function VendorAnalytics() {
     const invValue = (list) => list.reduce((s, i) => s + Number(i.net_payable || i.subtotal || 0), 0)
 
     // ── workforce flow ──────────────────────────────────────────────────────
-    const flow = (() => {
+    // The axis carries the year. These months span 2024 to 2026, and a tick
+    // reading only "Oct" beside another reading "Jan" is unreadable — worse,
+    // it looks unsorted when it is not.
+    const flowAll = (() => {
       const m = new Map()
-      const touch = (k) => { if (!m.has(k)) m.set(k, { ym: k, label: mLabel(k + '-01'), axis: mShort(k + '-01'), joined: 0, left: 0 }); return m.get(k) }
+      const touch = (k) => {
+        if (!m.has(k)) m.set(k, { ym: k, label: mLabel(k + '-01'),
+          axis: new Date(k + '-01').toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }),
+          joined: 0, left: 0 })
+        return m.get(k)
+      }
       for (const v of raw.vendors) {
         if (v.date_of_joining) touch(String(v.date_of_joining).slice(0, 7)).joined++
         if (v.exited_at) touch(monthKey(v.exited_at)).left++
@@ -260,6 +269,12 @@ export default function VendorAnalytics() {
       return [...m.values()].sort((x, y) => x.ym.localeCompare(y.ym))
         .map(r => ({ ...r, note: `${r.joined} joined · ${r.left} left` }))
     })()
+    // One joining date of January 1996 spread this across thirty years and
+    // squeezed fourteen real months into hairlines. Windowed rather than
+    // cleaned, and the page says what it left out instead of trimming quietly.
+    const flow = flowAll.slice(-18)
+    const flowDropped = flowAll.length - flow.length
+    const badJoinDates = raw.vendors.filter(v => v.date_of_joining && String(v.date_of_joining) < '2015-01-01')
     const byTrade = (() => {
       const m = new Map()
       for (const v of active) {
@@ -287,6 +302,10 @@ export default function VendorAnalytics() {
 
     return {
       active, runRate, months, latest, prevM, reco, recoYm,
+      // Whether any payroll period even overlaps attendance. If the newest
+      // period predates rollout there is no later month to pick, and telling
+      // somebody to pick one is a dead end.
+      recoPossible: months.some(m => m.ym >= ROLLOUT),
       attendance: {
         dayRows, coverageNow, arrivalRows, unclosedPast, openToday,
         punchingVendors: punchDays.size,
@@ -297,11 +316,12 @@ export default function VendorAnalytics() {
         woStatus, woTotal: wos.length, woOnTime, woSchedulable: woSchedulable.length,
         woAwaitingVerify, woVerifiedNoCompletion, woByTrade,
         medIssueToDone: median(woIssueToDone), medDoneToVerify: median(woDoneToVerify),
+        woInstant, woPaired: woIssueToDone.length,
         invTotal: invoices.length, invSigned: invSigned.length,
         invOutstanding: invOutstanding.length, invOutstandingValue: invValue(invOutstanding),
         medTimeToSign: median(timeToSign), invReopened: invoices.filter(i => i.reopened_at).length,
       },
-      workforce: { flow, byTrade, exits, total: raw.vendors.length },
+      workforce: { flow, flowDropped, flowFirst: flowAll[0], byTrade, exits, total: raw.vendors.length, badJoinDates },
       assets: {
         count: assets.length, value: assets.reduce((s, x) => s + Number(x.value || 0), 0),
         withLeavers: assetsWithLeavers,
@@ -393,8 +413,10 @@ export default function VendorAnalytics() {
                 {!a.reco.month ? (
                   <Empty>No payroll period to reconcile.</Empty>
                 ) : !a.reco.anyPunched ? (
-                  <Flag n="—" tone="amber" label={`No punches at all in ${mLabel(a.reco.month)}`}
-                    detail="Payroll ran on typed days for this month and attendance was not in use, so there is nothing to compare. Pick a later month." />
+                  <Flag n="—" tone="amber" label={`Nothing to compare in ${mLabel(a.reco.month)} yet`}
+                    detail={a.recoPossible
+                      ? 'Attendance was not in use that month, so every paid day would read as unmatched. Pick a later month.'
+                      : `Attendance began ${new Date(ROLLOUT).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })} and the newest payroll period is ${mLabel(a.latest.ym)} — they do not overlap yet. This comparison starts working the moment a period covering September is generated.`} />
                 ) : (
                   <>
                     <div style={grid(140)}>
@@ -488,7 +510,9 @@ export default function VendorAnalytics() {
                   </div>}>
                   {!a.reco.anyPunched ? (
                     <Flag n="—" tone="amber" label={`Nothing punched in ${mLabel(a.reco.month)}`}
-                      detail="Attendance was not in use that month, so every day would read as unmatched. Choose a later month." />
+                      detail={a.recoPossible
+                        ? 'Attendance was not in use that month, so every day would read as unmatched. Choose a later month.'
+                        : `No payroll period overlaps attendance yet — the newest is ${mLabel(a.latest.ym)}, and punching began ${new Date(ROLLOUT).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}.`} />
                   ) : <>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, code, trade…"
@@ -575,7 +599,7 @@ export default function VendorAnalytics() {
                   </Card>
 
                   <Card title="Overtime and coverage">
-                    <SplitBar parts={[
+                    <SplitBar fmt={fmtInt} parts={[
                       { label: 'Punching', value: a.attendance.punchingVendors, color: S1 },
                       { label: 'Not yet', value: Math.max(0, a.active.length - a.attendance.punchingVendors), color: 'var(--text-muted, #6b6d82)' },
                     ]} />
@@ -593,7 +617,8 @@ export default function VendorAnalytics() {
             {tab === 'delivery' && <>
               <div style={grid(150)}>
                 <Stat label="Work orders" value={a.delivery.woTotal} sub={`${a.delivery.woStatus.find(s => s.label === 'verified')?.value || 0} verified`} />
-                <Stat label="Issued → done" value={fmtDays(a.delivery.medIssueToDone)} sub="median" />
+                <Stat label="Issued → done" value={fmtDays(a.delivery.medIssueToDone)}
+                  sub={a.delivery.woInstant ? `${a.delivery.woInstant} of ${a.delivery.woPaired} within the hour` : 'median'} />
                 <Stat label="Done → verified" value={fmtDays(a.delivery.medDoneToVerify)} sub="median" />
                 <Stat label="Invoices signed" value={`${a.delivery.invSigned}/${a.delivery.invTotal}`}
                   sub={a.delivery.invOutstanding ? `${money(a.delivery.invOutstandingValue)} outstanding` : 'all signed'} />
@@ -617,7 +642,7 @@ export default function VendorAnalytics() {
                   <Flag n="—" tone="amber" label="Not measurable yet"
                     detail="On-time needs a scheduled end date and a recorded completion. Too few work orders carry both." />
                 ) : <>
-                  <SplitBar parts={[
+                  <SplitBar fmt={fmtInt} parts={[
                     { label: 'On time', value: a.delivery.woOnTime, color: S3 },
                     { label: 'Late', value: a.delivery.woSchedulable - a.delivery.woOnTime, color: S2 },
                   ]} />
@@ -626,12 +651,19 @@ export default function VendorAnalytics() {
                     The rest have no scheduled end to be judged against, so they are left out rather than counted as on time.
                     {a.delivery.woVerifiedNoCompletion > 0 && ` ${a.delivery.woVerifiedNoCompletion} were verified with no vendor completion recorded at all.`}
                   </div>
+                  {a.delivery.woInstant > 0 && (
+                    <div style={{ fontSize: 11, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.6 }}>
+                      Read the turnaround medians with that in mind: {a.delivery.woInstant} of {a.delivery.woPaired} work orders
+                      were marked complete within an hour of being issued. That is a record written after the fact, not work
+                      finished in minutes — so the median measures filing habits more than delivery.
+                    </div>
+                  )}
                 </>}
               </Card>
 
               <Card title="Invoices" sub="sent, then signed">
                 {!a.delivery.invTotal ? <Empty>No vendor invoices yet.</Empty> : <>
-                  <SplitBar parts={[
+                  <SplitBar fmt={fmtInt} parts={[
                     { label: 'Signed', value: a.delivery.invSigned, color: S3 },
                     { label: 'Awaiting signature', value: a.delivery.invOutstanding, color: S2 },
                   ]} />
@@ -659,7 +691,17 @@ export default function VendorAnalytics() {
                 {!a.workforce.flow.length ? <Empty>No joining dates recorded.</Empty> : <>
                   <Legend items={[{ label: 'Joined', color: S3 }, { label: 'Left', color: S2 }]} />
                   <Columns rows={a.workforce.flow} series={[{ key: 'joined', label: 'Joined', color: S3 }, { key: 'left', label: 'Left', color: S2 }]}
-                    fmt={fmtInt} height={phone ? 150 : 180} minBar={phone ? 24 : 0} labelLast={false} />
+                    fmt={fmtInt} height={phone ? 150 : 180} minBar={phone ? 30 : 0} labelLast={false} />
+                  {a.workforce.flowDropped > 0 && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.6 }}>
+                      Last 18 months. {a.workforce.flowDropped} earlier month{a.workforce.flowDropped === 1 ? '' : 's'} not shown,
+                      the oldest being {a.workforce.flowFirst?.label}.
+                    </div>
+                  )}
+                  {a.workforce.badJoinDates.length > 0 && (
+                    <Flag n={a.workforce.badJoinDates.length} tone="amber" label="Joining date looks wrong"
+                      detail={`${a.workforce.badJoinDates.map(v => `${v.full_name} (${new Date(v.date_of_joining).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })})`).join(', ')} — almost certainly a date of birth typed into the joining field. It is why this chart is windowed.`} />
+                  )}
                 </>}
               </Card>
 
@@ -671,7 +713,7 @@ export default function VendorAnalytics() {
                 </Card>
                 <Card title="Assets out" sub={`${a.assets.count} assigned · ${money(a.assets.value)}`}>
                   {!a.assets.count ? <Empty>No assets assigned.</Empty> : <>
-                    <SplitBar parts={[
+                    <SplitBar fmt={fmtInt} parts={[
                       { label: 'With people on roll', value: Math.max(0, a.assets.count - a.assets.withLeavers.length), color: S3 },
                       { label: 'With people who left', value: a.assets.withLeavers.length, color: S2 },
                     ]} />
