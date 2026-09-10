@@ -39,14 +39,19 @@ function BreakForm({ mode, breakRow, vendorId, kind, date, now, onDone, onCancel
   const label = BREAK_LABEL[kind] || kind
   const allowed = BREAK_MINUTES[kind] || 0
 
-  // Sensible starting points rather than blanks: ending a break means now (or
-  // the end of the day being looked at, if it is not today), and recording one
-  // that was missed means the allowance, starting from when it would have.
+  // Sensible starting points rather than blanks — but a break that already has
+  // an end prefills with THAT end, never with a guess. Offering the allowance
+  // instead meant opening Edit to correct a start time silently proposed a new
+  // end as well: a 131-minute lunch came up reading 45, and saving the start
+  // would have quietly erased the overrun it was opened to look at.
   const startMs = breakRow ? new Date(breakRow.startedAt).getTime()
                            : new Date(`${date}T13:00`).getTime()
-  const endGuess = breakRow
-    ? Math.min(startMs + allowed * 60000, now)
-    : startMs + allowed * 60000
+  const endGuess = breakRow && breakRow.endedAt
+    ? new Date(breakRow.endedAt).getTime()
+    : breakRow
+      // still running: the allowance is the likely answer, but never the future
+      ? Math.min(startMs + allowed * 60000, now)
+      : startMs + allowed * 60000
 
   const [sDay,  setSDay]  = useState(() => localDay(startMs))
   const [sTime, setSTime] = useState(() => localTime(startMs))
