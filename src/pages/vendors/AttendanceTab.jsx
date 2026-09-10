@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import ShareSheet from '../../components/vendor/ShareSheet'
 import { attendUrl, fmtTime, fmtDate, fmtDuration, fmtElapsed, fmtBreakLeft, todayStr, initials, avatarColor } from '../../utils/vendorHub'
 import { summarize, openBreakOf, breakTotals, fmtMs, BREAK_MINUTES, BREAK_LABEL, localDay, localTime } from '../../utils/attendance'
-import { BreaksPanel } from './BreakControls'
+import { BreaksPanel, EndBreakControl } from './BreakControls'
 
 const avatarUrl = (path) => {
   if (!path) return null
@@ -229,7 +229,7 @@ function CloseShiftForm({ ses, now, onDone, onCancel }) {
 }
 
 // one session (check-in + its check-out) as a tile
-function SessionTile({ ses, siteMap, brk, now, onClosed }) {
+function SessionTile({ ses, siteMap, brk, now, onClosed, onBreakEnded }) {
   const [closing, setClosing] = useState(false)
   const ot = ses.kind === 'overtime'
   const open = !ses.outP
@@ -316,6 +316,7 @@ function SessionTile({ ses, siteMap, brk, now, onClosed }) {
       {/* Every open shift, not only one already past nine hours. Somebody who
           left at two and forgot to punch out should be fixable at three, and
           the nine hour gate mostly meant the control could not be found. */}
+      {onBreak && !closing && <EndBreakControl brk={brk} now={now} onEnded={onBreakEnded} />}
       {open && !closing && (
         <button type="button" onClick={() => setClosing(true)}
           style={{ marginTop: 9, fontSize: 11, fontFamily: 'var(--font-mono, monospace)', color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 7, padding: '5px 11px', cursor: 'pointer' }}>
@@ -623,6 +624,10 @@ export default function AttendanceTab() {
                       brk={openBreakOf(breaks, ses.vendor && (ses.inP || ses.outP).vendor_id)}
                       onClosed={(r) => {
                         setToast(`Shift closed — ${r?.duration_hours ?? '?'}h recorded${r?.breaks_closed ? `, ${r.breaks_closed} break ended` : ''}`)
+                        load()
+                      }}
+                      onBreakEnded={(r) => {
+                        setToast(`Break ended — ${r?.minutes ?? '?'}m recorded`)
                         load()
                       }} />)}
                   </div>}
