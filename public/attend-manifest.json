@@ -1,0 +1,17 @@
+{
+  "id": "/attend",
+  "name": "Flent Vendor Portal",
+  "short_name": "Flent",
+  "description": "Check in and out, see your work orders and your payslips.",
+  "start_url": "/attend",
+  "scope": "/attend",
+  "display": "standalone",
+  "background_color": "#16171f",
+  "theme_color": "#16171f",
+  "orientation": "portrait",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

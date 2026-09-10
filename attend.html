@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- The vendor portal is its own installable app, so it is its own
+         document. It shares the origin with Pulse, and Pulse's manifest is
+         named "Pulse" and starts at "/" — a vendor who installed the portal
+         from that manifest got an icon that opened the staff login screen.
+         Serving /attend from here means the browser reads the right manifest
+         on the very first load, which is the one it installs from. -->
+    <link rel="manifest" href="/attend-manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#16171f" />
+    <meta name="description" content="Check in and out, see your work orders and your payslips." />
+    <!-- iOS never reads the manifest when you add to the home screen; these
+         are what give the icon its name and the app its own window. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Flent" />
+    <meta name="application-name" content="Flent" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Only the two faces the portal actually uses. Pulse loads six families
+         across three stylesheets; a vendor on a site connection pays for every
+         one of them and sees none. -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&family=Urbanist:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <title>Flent Vendor Portal</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      /* Remove 300ms tap delay on all interactive elements */
+      a, button, [role="button"], input, select, textarea, label { touch-action: manipulation; }
+      /* Prevent iOS input zoom — baseline 16px on form elements */
+      input, textarea, select { font-size: 16px; }
+      /* Smooth momentum scroll on all overflow containers */
+      [style*="overflow-y: auto"], [style*="overflow-y:auto"], [style*="overflowY"] { -webkit-overflow-scrolling: touch; }
+      #root {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+        min-height: 100dvh;
+        background-color: #16171f;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/attend-main.jsx"></script>
+  </body>
+</html>

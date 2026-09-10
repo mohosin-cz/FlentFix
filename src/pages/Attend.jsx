@@ -7,6 +7,7 @@ import { compressForUpload, newSubmissionId } from '../utils/vendorOnboard'
 import { breakTotals, fmtMs } from '../utils/attendance'
 import FlentWordmark from '../components/FlentWordmark'
 import VendorWorkOrder from './VendorWorkOrder'
+import { InstallBanner, InstallRow } from '../components/vendor/InstallApp'
 
 const TOKEN_KEY = 'flent_attend_token'
 const avatarUrl = (path) => {
@@ -638,6 +639,7 @@ export default function Attend() {
           <div style={{ fontSize: 18, fontWeight: 700 }}>Vendor sign in</div>
           <div style={{ fontSize: 13, color: 'var(--text-muted, #6b6d82)', marginTop: 3, lineHeight: 1.5 }}>Enter the email you gave at onboarding, and the password the office gave you.</div>
         </div>
+        <InstallBanner />
         <Field label="Email"><Input value={email} onChange={setEmail} placeholder="you@example.com" type="email" inputMode="email" autoCorrect="off" /></Field>
         {/* Optional until the office has issued one. Two people can share an
             inbox, but not a password — so this is also what tells them apart
@@ -828,6 +830,8 @@ export default function Attend() {
               </>
             )}
 
+            <InstallBanner />
+
             <PCard title="Attendance history">
               {history == null ? (
                 <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>
@@ -1008,6 +1012,7 @@ export default function Attend() {
                 <PRow label="PAN">{profile.pan_number}</PRow>
                 <PRow label="Licence">{profile.dl_number ? `${profile.dl_number}${profile.dl_expiry ? ` · exp ${fmtDate(profile.dl_expiry)}` : ''}` : '—'}</PRow>
               </PCard>
+              <InstallRow />
             </>}
           </> : <div style={{ padding: '30px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading profile…</div>)}
 
