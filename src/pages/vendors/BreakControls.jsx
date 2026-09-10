@@ -283,3 +283,33 @@ export function BreaksPanel({ s, date, now, onChanged }) {
     </>
   )
 }
+
+// ── the end control on its own, for the live feed ───────────────────────────
+// The full set lives in the vendor's day sheet, which is the right home for
+// correcting a record. But the live feed is where staff already are when they
+// notice, and it is where "Close this shift" sits — so a break still running
+// gets its one urgent control in the same place, rather than two views away.
+//
+// Takes a raw vendor_breaks row, since that is what the feed already has, and
+// maps it into the shape the form works in.
+export function EndBreakControl({ brk, now, onEnded }) {
+  const [open, setOpen] = useState(false)
+  if (!brk) return null
+
+  const row = { id: brk.id, kind: brk.kind, startedAt: brk.started_at, endedAt: brk.ended_at || null }
+
+  if (open) {
+    return (
+      <BreakForm mode="end" breakRow={row} kind={brk.kind}
+        date={localDay(new Date(brk.started_at).getTime())} now={now}
+        onDone={(r) => { setOpen(false); onEnded && onEnded(r) }}
+        onCancel={() => setOpen(false)} />
+    )
+  }
+  return (
+    <button type="button" onClick={() => setOpen(true)}
+      style={{ marginTop: 9, marginInlineStart: 8, fontSize: 11, fontFamily: MONO, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 7, padding: '5px 11px', cursor: 'pointer' }}>
+      End this break
+    </button>
+  )
+}
