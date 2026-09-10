@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import ShareSheet from '../../components/vendor/ShareSheet'
 import { attendUrl, fmtTime, fmtDate, fmtDuration, fmtElapsed, fmtBreakLeft, todayStr, initials, avatarColor } from '../../utils/vendorHub'
-import { summarize, openBreakOf, breakTotals, fmtMs, BREAK_MINUTES, BREAK_LABEL } from '../../utils/attendance'
+import { summarize, openBreakOf, breakTotals, fmtMs, BREAK_MINUTES, BREAK_LABEL, localDay, localTime } from '../../utils/attendance'
+import { BreaksPanel } from './BreakControls'
 
 const avatarUrl = (path) => {
   if (!path) return null
@@ -124,9 +125,6 @@ function PidBadge({ pid, siteMap }) {
 // A timestamp as the two strings the date and time inputs want, in the
 // browser's own zone — toISOString() would hand back UTC and put an evening
 // shift on the wrong day.
-const pad2 = (n) => String(n).padStart(2, '0')
-const localDay  = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
-const localTime = (ms) => { const d = new Date(ms); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
 
 // Closing a shift the vendor walked away from.
 //
@@ -388,7 +386,7 @@ function RosterRow({ s, siteLabel, onOpen, now }) {
 }
 
 // ── vendor day detail (bottom sheet): all punches + locations ───────────────
-function VendorDayDetail({ s, dateLabel, siteMap, onClose }) {
+function VendorDayDetail({ s, dateLabel, siteMap, date, now, onChanged, onClose }) {
   const on = s.status === 'on_site'
   const color = on ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)'
   return (
@@ -418,25 +416,8 @@ function VendorDayDetail({ s, dateLabel, siteMap, onClose }) {
         </div>
 
         <div style={{ overflowY: 'auto', padding: '0 18px 18px', flex: 1, minHeight: 0 }}>
-          {s.bt.count > 0 && (
-            <>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '4px 0 2px' }}>Breaks</div>
-              {s.bt.rows.map(r => (
-                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: '1px solid var(--border, #2e3040)', fontFamily: 'var(--font-mono, monospace)' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: r.overMs > 0 ? 'var(--red, #e05c6a)' : r.open ? 'var(--accent, #c8963e)' : 'var(--green, #3dba7a)' }} />
-                  <span style={{ width: 54, flexShrink: 0, fontSize: 12, color: 'var(--text, #e8e8f0)' }}>{r.label}</span>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: 'var(--text-muted, #6b6d82)' }}>
-                    {fmtTime(new Date(r.startedAt).toISOString())}
-                    {r.endedAt ? ` – ${fmtTime(new Date(r.endedAt).toISOString())}` : ' – never ended'}
-                    <span style={{ marginInlineStart: 8 }}>allowed {Math.round(r.allowedMs / 60000)}m</span>
-                  </span>
-                  <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: r.overMs > 0 ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}>
-                    {fmtMs(r.takenMs)}{r.overMs > 0 ? ` +${fmtMs(r.overMs)}` : ''}
-                  </span>
-                </div>
-              ))}
-            </>
-          )}
+          <BreaksPanel s={s} date={date} now={now} onChanged={onChanged} />
+
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '4px 0 2px' }}>Punch log</div>
           {[...s.punches].reverse().map((p, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
@@ -468,7 +449,11 @@ export default function AttendanceTab() {
   // What just happened, for the one action on this board that writes anything.
   const [toast, setToast] = useState('')
   const [sharing, setSharing] = useState(false)
-  const [selected, setSelected] = useState(null)   // vendor summary for detail sheet
+  // The vendor, not a snapshot of their day. Holding the summary object froze
+  // the sheet at the moment it opened: the running timers stopped, and a break
+  // ending underneath it never appeared. It is looked up from the live
+  // summaries on every render instead, so realtime flows straight into it.
+  const [selectedVid, setSelectedVid] = useState(null)
   const [breaks, setBreaks] = useState([])
   // A running shift is a number that changes every second. The board showed a
   // frozen one — or none at all — while the vendor's own phone counted up.
@@ -522,6 +507,8 @@ export default function AttendanceTab() {
     const s = summarize(list, now); const v = list[0].vendor || {}
     return { vid, name: v.full_name || 'Unknown', trade: v.trade || '', vendor: v, punches: list, brk: openBreakOf(breaks, vid), bt: breakTotals((breaks || []).filter(b => b.vendor_id === vid), now), ...s }
   }).sort((a, b) => (a.status === b.status ? 0 : a.status === 'on_site' ? -1 : 1))
+
+  const selected = selectedVid ? (summaries.find(x => x.vid === selectedVid) || null) : null
 
   const anyOnSite = summaries.some(s => s.status === 'on_site')
   const isTodayLive = date === todayStr()
@@ -649,13 +636,14 @@ export default function AttendanceTab() {
                   <div style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', fontWeight: 600 }}>No attendance {isToday ? 'yet today' : 'on this day'}</div>
                 </div>
               : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {summaries.map(s => <RosterRow key={s.vid} s={s} now={now} siteLabel={s.site ? (siteMap[s.site] || s.site) : ''} onOpen={() => setSelected(s)} />)}
+                  {summaries.map(s => <RosterRow key={s.vid} s={s} now={now} siteLabel={s.site ? (siteMap[s.site] || s.site) : ''} onOpen={() => setSelectedVid(s.vid)} />)}
                 </div>
           )}
         </>
       )}
 
-      {selected && <VendorDayDetail s={selected} dateLabel={dateLabel} siteMap={siteMap} onClose={() => setSelected(null)} />}
+      {selected && <VendorDayDetail s={selected} dateLabel={dateLabel} siteMap={siteMap}
+        date={date} now={now} onChanged={load} onClose={() => setSelectedVid(null)} />}
       {sharing && <ShareSheet title="Vendor punch link" subtitle="Vendors check in / out here" url={attendUrl()} onClose={() => setSharing(false)} />}
     </div>
   )
