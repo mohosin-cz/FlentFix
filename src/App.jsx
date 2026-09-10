@@ -51,6 +51,7 @@ import Onboard from './pages/Onboard'
 import Attend from './pages/Attend'
 import VendorHub from './pages/VendorHub'
 import PayrollAnalytics from './pages/vendors/PayrollAnalytics'
+import VendorAnalytics from './pages/vendors/VendorAnalytics'
 import TaskCatalogue from './pages/TaskCatalogue'
 import DesignerBrief from './pages/DesignerBrief'
 
@@ -240,6 +241,7 @@ export default function App() {
           <Route path="/wo/:token" element={<VendorWorkOrder />} />
           <Route path="/db/:token" element={<DesignerBrief />} />
           <Route path="/vendors" element={<ProtectedRoute><VendorHub /></ProtectedRoute>} />
+          <Route path="/vendors/analytics" element={<ProtectedRoute><VendorAnalytics /></ProtectedRoute>} />
           <Route path="/vendors/payroll/analytics" element={<ProtectedRoute><PayrollAnalytics /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
