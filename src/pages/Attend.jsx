@@ -316,6 +316,7 @@ export default function Attend() {
   const [busy, setBusy] = useState(false)
   const [busyNote, setBusyNote] = useState('')   // what the punch is doing right now
   const [err, setErr] = useState('')
+  const [notice, setNotice] = useState('')   // why you are looking at a sign-in form
   const [confirm, setConfirm] = useState(null)
   const [tab, setTab] = useState('time')
   const [password, setPassword] = useState('')
@@ -438,29 +439,38 @@ export default function Attend() {
       const { data, error } = await supabase.rpc('attend_session_info', { p_token: tokenRef.current })
       if (!alive) return
       const v = Array.isArray(data) ? data[0] : data
-      if (error || !v) { try { localStorage.removeItem(TOKEN_KEY) } catch { /* noop */ } tokenRef.current = ''; setStep('email'); return }
+      // Sessions end. Being dropped on a blank sign-in form with no
+      // explanation is what these turn into on the phone — "it will not let me
+      // in" — when the truth is simply that the session lapsed and the
+      // password has not been needed for weeks. Say so.
+      if (error || !v) {
+        try { localStorage.removeItem(TOKEN_KEY) } catch { /* noop */ }
+        tokenRef.current = ''
+        setNotice('You were signed out. Sign in again with the password from the office.')
+        setStep('email')
+        return
+      }
       enterPortal(v)
     })()
     return () => { alive = false }
   }, [step, enterPortal])
 
   async function login() {
-    setErr('')
+    setErr(''); setNotice('')
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setErr('Enter a valid email address.'); return }
     if (!password.trim()) { setErr('Enter the password the office gave you.'); return }
     setBusy(true)
-    // Password first. If the two-argument function is not there yet the
-    // migration has not run, so fall back to email only rather than locking
-    // seventeen people out of punching in for the gap between deploy and SQL.
-    let { data, error } = await supabase.rpc('attend_login', {
+    const { data, error } = await supabase.rpc('attend_login', {
       p_email: email.trim(), p_password: password.trim(),
     })
-    if (error && /schema cache|could not find the function/i.test(error.message || '')) {
-      ({ data, error } = await supabase.rpc('attend_login', { p_email: email.trim() }))
-    }
     setBusy(false)
+    // A refusal now comes back as a row with `error` set, because raising it
+    // rolled the recorded attempt back along with the transaction — so no
+    // failed sign-in was ever logged and the lockout counted nothing. `error`
+    // here is a transport fault, or the older function, which still raised.
     if (error) { setErr(error.message); return }
     const v = Array.isArray(data) ? data[0] : data
+    if (v && v.error) { setErr(v.error); return }
     if (!v || !v.token) { setErr('Could not sign in — check the email and try again.'); return }
     try { localStorage.setItem(TOKEN_KEY, v.token) } catch { /* noop */ }
     tokenRef.current = v.token
@@ -627,7 +637,7 @@ export default function Attend() {
   function signOut() {
     try { localStorage.removeItem(TOKEN_KEY) } catch { /* noop */ }
     tokenRef.current = ''
-    setVendor(null); setProfile(null); setHistory(null); setEmail(''); setPid(''); setConfirm(null); setErr(''); setStep('email')
+    setVendor(null); setProfile(null); setHistory(null); setEmail(''); setPid(''); setConfirm(null); setErr(''); setNotice(''); setStep('email')
   }
 
   if (step === 'resume') return <Shell><div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Restoring your session…</div></Shell>
@@ -639,6 +649,12 @@ export default function Attend() {
           <div style={{ fontSize: 18, fontWeight: 700 }}>Vendor sign in</div>
           <div style={{ fontSize: 13, color: 'var(--text-muted, #6b6d82)', marginTop: 3, lineHeight: 1.5 }}>Enter the email you gave at onboarding, and the password the office gave you.</div>
         </div>
+        {notice && (
+          <div style={{ display: 'flex', gap: 9, padding: '11px 14px', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.30)', borderRadius: 10 }}>
+            <span style={{ fontSize: 12, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>i</span>
+            <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>{notice}</span>
+          </div>
+        )}
         <InstallBanner />
         <Field label="Email"><Input value={email} onChange={setEmail} placeholder="you@example.com" type="email" inputMode="email" autoCorrect="off" /></Field>
         {/* Optional until the office has issued one. Two people can share an

@@ -74,8 +74,43 @@ export function registerAttendSW() {
   // which localhost counts as a secure context for.
   if (import.meta.env.DEV) return
 
+  // Was this page already under a worker before today? If not, the first
+  // controllerchange is only this registration taking charge — not a new
+  // version arriving — and reloading for it would be a pointless flash.
+  const hadController = !!navigator.serviceWorker.controller
+  let refreshing = false
+
+  // Reload, but never out from under a thumb. An installed app that is
+  // reloaded while hidden is simply the new version when the vendor looks at
+  // it again — the same result as closing and reopening it, without a page
+  // vanishing mid-punch.
+  function refreshWhenSafe() {
+    if (refreshing) return
+    refreshing = true
+    if (document.visibilityState === 'hidden') { window.location.reload(); return }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') window.location.reload()
+    }, { once: true })
+  }
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController) refreshWhenSafe()
+  })
+
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/attend-sw.js', { scope: '/attend' })
+      .then((reg) => {
+        // A phone app is not a browser tab: it can sit open on a bench for days
+        // and never navigate, so nothing would ever ask whether a new version
+        // exists. Ask whenever it comes back to the foreground, and hourly for
+        // one that is simply left open.
+        const check = () => {
+          if (document.visibilityState === 'visible') reg.update().catch(() => {})
+        }
+        document.addEventListener('visibilitychange', check)
+        setInterval(check, 60 * 60 * 1000)
+        check()
+      })
       .catch(err => console.warn('[attend] service worker did not register:', err && err.message))
   })
 }

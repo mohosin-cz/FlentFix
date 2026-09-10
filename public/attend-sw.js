@@ -14,7 +14,7 @@
 // or replay out of one — a punch served from cache is a lie about where
 // somebody was. Those requests are left completely alone.
 
-const CACHE = 'flent-attend-v1'
+const CACHE = 'flent-attend-v2'
 
 // The shell, never the data. '/attend' is the document itself (Vercel rewrites
 // it to attend.html); the icons are what the splash screen draws.
