@@ -156,13 +156,16 @@ export function HBars({ rows, fmt = money, color = S1, onPick }) {
 // ── one bar, split into shares ───────────────────────────────────────────────
 // For a whole that adds to 100% — a two- or three-way split reads faster as one
 // bar than as a pie, and keeps the numbers next to the colours.
-export function SplitBar({ parts, height = 12 }) {
+//
+// `fmt` defaults to money because that is what the payments pages split, but a
+// split of counts has to be able to say 14 rather than ₹14.
+export function SplitBar({ parts, height = 12, fmt = money }) {
   const total = parts.reduce((s, p) => s + (p.value || 0), 0)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', gap: 2, height, borderRadius: height / 2, overflow: 'hidden', background: 'var(--bg-input, #252731)' }}>
         {parts.map(p => (p.value > 0 ? (
-          <div key={p.label} title={`${p.label}: ${money(p.value)}`}
+          <div key={p.label} title={`${p.label}: ${fmt(p.value)}`}
             style={{ width: `${(p.value / (total || 1)) * 100}%`, background: p.color, minWidth: 3 }} />
         ) : null))}
       </div>
@@ -171,7 +174,7 @@ export function SplitBar({ parts, height = 12 }) {
           <span key={p.label} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, fontSize: 11.5, fontFamily: MONO, color: 'var(--text-muted, #6b6d82)' }}>
             <span style={{ width: 9, height: 9, borderRadius: 2, background: p.color, flexShrink: 0, alignSelf: 'center' }} />
             <span style={{ color: 'var(--text-dim, #9394a8)' }}>{p.label}</span>
-            <span style={{ color: 'var(--text, #e8e8f0)', fontWeight: 700 }}>{money(p.value)}</span>
+            <span style={{ color: 'var(--text, #e8e8f0)', fontWeight: 700 }}>{fmt(p.value)}</span>
             <span>{share(p.value, total)}%</span>
           </span>
         ))}
