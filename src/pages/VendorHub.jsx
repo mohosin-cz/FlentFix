@@ -77,6 +77,12 @@ export default function VendorHub() {
             {phone ? 'Vendors' : 'Vendor Management'}
           </div>
         </div>
+        {/* The whole of vendor management in one place, rather than payroll
+            being the only area with an analysis behind it. */}
+        <button onClick={() => navigate('/vendors/analytics')} title="Vendor analytics" style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, padding: '8px 11px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-dim, #9394a8)', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)' }}>
+          <span style={{ fontSize: 14 }}>◔</span>
+          {!phone && <span>Analytics</span>}
+        </button>
         <button onClick={() => setShowReq(true)} title="Profile edit requests" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, padding: '8px 11px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-dim, #9394a8)', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)' }}>
           <span style={{ fontSize: 14 }}>🔔</span>
           {!phone && <span>Requests</span>}
