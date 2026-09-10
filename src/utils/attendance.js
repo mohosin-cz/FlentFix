@@ -153,3 +153,11 @@ export function fmtMs(ms) {
   const s = Math.max(0, Math.round(ms / 1000))
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 }
+
+// A local date and a local time, in the shapes <input type="date"> and
+// <input type="time"> want. Shared because two screens now let staff type a
+// time onto somebody's day — a shift's check-out and a break's start or end —
+// and a second copy of this is how one of them ends up a timezone out.
+export const pad2 = (n) => String(n).padStart(2, '0')
+export const localDay  = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
+export const localTime = (ms) => { const d = new Date(ms); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
