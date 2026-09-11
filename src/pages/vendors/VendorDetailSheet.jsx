@@ -7,6 +7,7 @@ import {
 } from '../../utils/vendorHub'
 import DocViewer from '../../components/vendor/DocViewer'
 import PortalPasswordCard from '../../components/vendor/PortalPasswordCard'
+import MilestoneCard from '../../components/vendor/MilestoneCard'
 import { useAuth } from '../../contexts/AuthContext'
 import { isEmail } from '../../utils/vendorOnboard'
 import VendorWorkHistory from './VendorWorkHistory'
@@ -644,6 +645,14 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
           {showProfile && onBooks && !editing && (
             <Card title="Portal access">
               <PortalPasswordCard vendor={row} />
+            </Card>
+          )}
+
+          {/* Sits beside portal access for the same reason: it is a fact
+              about this person that somebody wants while looking at them. */}
+          {showProfile && onBooks && !editing && (
+            <Card title="Work anniversary">
+              <MilestoneCard vendor={row} />
             </Card>
           )}
 
