@@ -89,14 +89,24 @@ function defaultMessage(vendor, m) {
   const name = niceName(vendor.full_name)
   const n = m.mark.n
   const yrs = n === 1 ? 'one year' : `${n} years`
-  const trade = (vendor.trade || '').trim().toLowerCase()
+  // "Other" and "Misc" are placeholders for a trade nobody recorded, not
+  // trades — "thank you for the work you do as an other" is worse than saying
+  // nothing about the role at all.
+  const raw = (vendor.trade || '').trim().toLowerCase()
+  const trade = ['other', 'others', 'misc', 'miscellaneous', 'n/a', 'na', 'unassigned'].includes(raw) ? '' : raw
   return [
     `Congratulations, ${name}! 🎉`,
     '',
     m.mark.tense === 'past'
       ? `You have completed ${yrs} with Flent.`
       : `On ${longDate(m.mark.date)} you complete ${yrs} with Flent.`,
-    trade ? `Thank you for the ${trade} work you do — it keeps our properties running, and the team is glad to have you.` : 'Thank you for the work you put in — the team is glad to have you.',
+    // "the plumber work you do" — trade names are nouns for people, so
+    // carpenter, cleaner and supervisor all read badly in front of "work".
+    // Phrased as a role instead, which is grammatical for every trade
+    // including ones nobody has added yet.
+    trade
+      ? `Thank you for the work you do as ${/^[aeiou]/i.test(trade) ? 'an' : 'a'} ${trade} — it keeps our properties running, and the team is glad to have you.`
+      : 'Thank you for the work you put in — the team is glad to have you.',
     '',
     `Here's to the year ahead.`,
     '',
