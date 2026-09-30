@@ -5,7 +5,8 @@ import InvoiceDoc from '../../components/vendor/InvoiceDoc'
 import InvoiceFlow from './InvoiceFlow'
 import ShareLinks from '../../components/vendor/ShareLinks'
 import InvoicePrintSheet from '../../components/vendor/InvoicePrintSheet'
-import { INVOICE_STATUS, STATUS_ORDER, inr, sumLines, sendBlockers, monthLabel } from '../../utils/vendorInvoice'
+import LoggedPids from '../../components/vendor/LoggedPids'
+import { INVOICE_STATUS, STATUS_ORDER, inr, sumLines, sendBlockers, monthLabel, pidDaysByVendor, allocateByDays } from '../../utils/vendorInvoice'
 
 // The signature stage: reviewed → invoiced → signed → final.
 //
@@ -127,7 +128,7 @@ export function BillingEntitySheet({ onClose }) {
 }
 
 // ── the PID split editor ─────────────────────────────────────────────────────
-function SplitSheet({ invoice, lines: initial, properties, onClose, onSaved }) {
+function SplitSheet({ invoice, lines: initial, properties, logged, propName, onClose, onSaved }) {
   const locked = invoice.status !== 'draft'
   const [lines, setLines] = useState(() =>
     (initial.length ? initial : [{ id: 'new-0', pid: '', description: '', amount: invoice.subtotal, sort: 0 }])
@@ -141,6 +142,22 @@ function SplitSheet({ invoice, lines: initial, properties, onClose, onSaved }) {
   const upd = (i, patch) => setLines(ls => ls.map((l, k) => k === i ? { ...l, ...patch } : l))
   const add = () => setLines(ls => [...ls, { id: 'new-' + Date.now(), pid: '', description: ls[0]?.description || '', amount: Math.max(0, remaining), sort: ls.length }])
   const del = (i) => setLines(ls => ls.filter((_, k) => k !== i))
+
+  // Replace the split with the month's attendance, weighted by days on site.
+  // The description carries over — it names the trade and the month, which is
+  // true of every line regardless of which property it sits against.
+  function fillFromLogged() {
+    const desc = lines[0]?.description || ''
+    setLines(allocateByDays(invoice.subtotal, logged, desc))
+  }
+
+  // One more property, for the month that was nearly right. It takes whatever
+  // is still unallocated, so the total keeps adding up.
+  function pickLogged(e) {
+    setLines(ls => ls.some(l => String(l.pid || '').trim() === e.pid)
+      ? ls
+      : [...ls, { id: 'new-' + e.pid, pid: e.pid, description: ls[0]?.description || '', amount: Math.max(0, remaining), sort: ls.length }])
+  }
 
   // Even split, with the rounding remainder pushed onto the first line so the
   // total still reconciles exactly rather than being a rupee or two out.
@@ -184,6 +201,17 @@ function SplitSheet({ invoice, lines: initial, properties, onClose, onSaved }) {
         {properties.map(p => <option key={p.pid} value={p.pid}>{p.name || ''}</option>)}
       </datalist>
 
+      {!locked && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '11px 12px', background: 'rgba(200,150,62,0.06)', border: '1px solid var(--border, #2e3040)', borderRadius: 10 }}>
+          <LoggedPids logged={logged} propName={propName} onPick={pickLogged} note={logged?.length ? 'tap one to add it' : ''} />
+          {logged?.length > 0 && (
+            <button type="button" onClick={fillFromLogged} style={{ ...actBtn, alignSelf: 'flex-start' }}>
+              ⚡ Use all {logged.length}, split by days
+            </button>
+          )}
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {lines.map((l, i) => (
           <div key={l.id ?? i} style={{ display: 'grid', gridTemplateColumns: '86px 1fr 116px 34px', gap: 8, alignItems: 'center' }}>
@@ -226,11 +254,88 @@ function SplitSheet({ invoice, lines: initial, properties, onClose, onSaved }) {
   )
 }
 
+// ── one press for the whole month's PIDs ─────────────────────────────────────
+// It rewrites every draft split in the month, so it shows exactly what it is
+// about to write first. Rows that already have PIDs are left out unless you
+// say otherwise — somebody's hand-set split is not this button's to overwrite.
+function PidFillSheet({ rows, unlogged, propName, period, busy, onApply, onClose }) {
+  const [replace, setReplace] = useState(false)
+  const already = rows.filter(r => r.lines.some(l => String(l.pid || '').trim()))
+  const targets = replace ? rows : rows.filter(r => !r.lines.some(l => String(l.pid || '').trim()))
+
+  return (
+    <Sheet wide title="Set PIDs from attendance"
+      subtitle={`${monthLabel(period.period_month)} · ${rows.length} draft invoice${rows.length === 1 ? '' : 's'} with punches`}
+      onClose={onClose}>
+      <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.55 }}>
+        Each invoice is split across the properties that vendor punched in at this month,
+        in proportion to the days spent at each. Nothing is issued — these are still drafts
+        you can edit, and a split that looks wrong should be corrected before sending.
+      </div>
+
+      {unlogged > 0 && (
+        <div style={{ fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.5 }}>
+          ⚠ {unlogged} other draft{unlogged === 1 ? '' : 's'} had no PID on any punch this month — those still need setting by hand.
+        </div>
+      )}
+
+      {already.length > 0 && (
+        <label style={{ display: 'flex', gap: 9, alignItems: 'flex-start', padding: '10px 12px', background: 'var(--bg-input, #252731)', borderRadius: 9, cursor: 'pointer' }}>
+          <input type="checkbox" checked={replace} onChange={e => setReplace(e.target.checked)} style={{ marginTop: 2 }} />
+          <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>
+            Also overwrite the {already.length} split{already.length === 1 ? '' : 's'} that already {already.length === 1 ? 'has' : 'have'} PIDs
+            <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 2 }}>
+              Off by default — anything set by hand is left alone.
+            </span>
+          </span>
+        </label>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '46vh', overflowY: 'auto' }}>
+        {rows.map(r => {
+          const skip = !targets.includes(r)
+          const preview = allocateByDays(r.invoice.subtotal, r.logged, '')
+          return (
+            <div key={r.invoice.id} style={{ padding: '11px 12px', border: '1px solid var(--border, #2e3040)', borderRadius: 10, opacity: skip ? 0.45 : 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{r.name}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{r.invoice.invoice_no} · {inr(r.invoice.subtotal)}</span>
+                <span style={{ marginInlineStart: 'auto', fontSize: 11, fontFamily: MONO, color: skip ? 'var(--text-muted, #6b6d82)' : 'var(--green, #3dba7a)' }}>
+                  {skip ? 'kept as is' : `${preview.length} PID${preview.length === 1 ? '' : 's'}`}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                {preview.map(l => (
+                  <span key={l.pid} title={propName?.[l.pid] || ''}
+                    style={{ fontSize: 10.5, fontFamily: MONO, padding: '3px 7px', borderRadius: 6, background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)' }}>
+                    {l.pid} · <span style={{ color: 'var(--accent, #c8963e)' }}>{inr(l.amount)}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <button type="button" onClick={() => onApply(targets)} disabled={busy || targets.length === 0}
+        style={{ ...primaryBtn, minHeight: 46, fontSize: 14, opacity: targets.length === 0 ? 0.5 : 1 }}>
+        {busy ? 'Filling…'
+          : targets.length === 0 ? 'Nothing to fill'
+          : `Set PIDs on ${targets.length} invoice${targets.length === 1 ? '' : 's'}`}
+      </button>
+    </Sheet>
+  )
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 export default function InvoiceStage({ period, payouts, onChanged }) {
   const [invoices, setInvoices] = useState(null)
   const [lines, setLines] = useState({})
   const [properties, setProperties] = useState([])
+  const [propName, setPropName] = useState({})
+  // vendor id → [{ pid, days }] for this month, from their attendance punches.
+  const [logged, setLogged] = useState({})
+  const [pidFillOpen, setPidFillOpen] = useState(false)
   const [vendors, setVendors] = useState({})
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState('')
@@ -254,17 +359,33 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
   const [printRows, setPrintRows] = useState(null)
   const [markedSent, setMarkedSent] = useState(() => new Set())
 
+  // The month's attendance, as a window in IST — the same window payroll used
+  // to count the days being invoiced, so the properties and the pay describe
+  // one month rather than two overlapping ones.
+  const attWindow = useMemo(() => {
+    const from = new Date(`${String(period.period_month).slice(0, 10)}T00:00:00+05:30`)
+    const to = new Date(from)
+    to.setDate(to.getDate() + (Number(period.days_in_month) || 30))
+    return { from: from.toISOString(), to: to.toISOString() }
+  }, [period.period_month, period.days_in_month])
+
   const load = useCallback(async () => {
-    const [{ data: inv, error: iErr }, { data: props }, { data: vends }, { data: ent }] = await Promise.all([
+    const [{ data: inv, error: iErr }, { data: props }, { data: vends }, { data: ent }, { data: punches }] = await Promise.all([
       supabase.from('vendor_invoices').select('*').eq('period_id', period.id),
       supabase.from('properties').select('pid,name').order('pid'),
       supabase.from('vendors').select('id,full_name,email,phone').eq('status', 'approved'),
       supabase.from('payroll_billing_entity').select('*').eq('id', 1).maybeSingle(),
+      supabase.from('vendor_attendance').select('vendor_id,pid,punched_at')
+        .not('pid', 'is', null).gte('punched_at', attWindow.from).lt('punched_at', attWindow.to).limit(20000),
     ])
     setEntity(ent || {})
+    // Attendance is a convenience here, not a dependency: a month with no
+    // punches just means the PIDs are set by hand, as they always were.
+    setLogged(pidDaysByVendor(punches || []))
     if (iErr) { setErr(iErr.message); setInvoices([]); return }
     setInvoices(inv || [])
     setProperties(props || [])
+    setPropName(Object.fromEntries((props || []).map(p => [String(p.pid), p.name || ''])))
     setVendors(Object.fromEntries((vends || []).map(v => [v.id, v])))
     const ids = (inv || []).map(i => i.id)
     if (ids.length) {
@@ -273,7 +394,7 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
       for (const l of ln || []) (m[l.invoice_id] = m[l.invoice_id] || []).push(l)
       setLines(m)
     } else setLines({})
-  }, [period.id])
+  }, [period.id, attWindow])
 
   useEffect(() => { const t = setTimeout(load, 0); return () => clearTimeout(t) }, [load])
 
@@ -305,6 +426,7 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
       const v = vendors[p.vendor_id] || {}
       return {
         payout: p, invoice: inv, lines: ln, status, drifted,
+        logged: logged[p.vendor_id] || [],
         name: p.beneficiary_name || v.full_name || '—',
         phone: v.phone, email: v.email,
         sharedEmail: sharedEmails.has((v.email || '').trim().toLowerCase()),
@@ -312,7 +434,7 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
         blockers: inv ? sendBlockers(inv, ln) : ['No invoice raised'],
       }
     }).sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) || a.name.localeCompare(b.name))
-  }, [payouts, invoices, lines, vendors, sharedEmails])
+  }, [payouts, invoices, lines, vendors, sharedEmails, logged])
 
   const counts = useMemo(() => {
     const c = { none: 0, draft: 0, sent: 0, viewed: 0, signed: 0, void: 0 }
@@ -320,6 +442,13 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
     return c
   }, [rows])
 
+  // Draft invoices whose vendor punched in somewhere this month — the ones a
+  // fill from attendance has anything to say about.
+  const fillable = rows.filter(r => r.invoice && r.invoice.status === 'draft' && r.logged.length > 0)
+  // Drafts attendance can say nothing about — nobody punched a PID for them
+  // this month. They still need setting by hand, and the sheet says so rather
+  // than letting "14 filled" read as "the month is done".
+  const unlogged = rows.filter(r => r.invoice && r.invoice.status === 'draft' && r.logged.length === 0)
   const readyToSend = rows.filter(r => r.invoice && r.invoice.status === 'draft' && r.blockers.length === 0)
   // Issued but not yet signed — the links still waiting to be passed on.
   const pendingSend = rows.filter(r => ['sent', 'viewed'].includes(r.status) && r.link)
@@ -366,6 +495,42 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
     }
     setFlowOpen(true)
   }
+
+  // Write one invoice's split. Lines are replaced wholesale rather than
+  // reconciled: a split is one statement about an invoice, not a set of rows
+  // with their own histories.
+  const writeLines = useCallback(async (invoiceId, newLines) => {
+    const { error: dErr } = await supabase.from('vendor_invoice_lines').delete().eq('invoice_id', invoiceId)
+    if (dErr) throw dErr
+    if (!newLines.length) return
+    const { error: iErr } = await supabase.from('vendor_invoice_lines').insert(
+      newLines.map((l, i) => ({
+        invoice_id: invoiceId, pid: (l.pid || '').trim() || null,
+        description: (l.description || '').trim() || null,
+        amount: Number(l.amount || 0), sort: i,
+      })))
+    if (iErr) throw iErr
+  }, [])
+
+  // The whole month's PIDs in one pass. Each invoice is split across the
+  // properties that vendor punched in at, weighted by days spent at each.
+  const fillPidsFromAttendance = useCallback(async (targets) => {
+    setBusy('pids'); setErr(''); setNote('')
+    let done = 0
+    const failed = []
+    for (const r of targets) {
+      try {
+        const desc = r.lines[0]?.description || `${r.payout.team || 'Services'} — ${monthLabel(period.period_month)}`
+        await writeLines(r.invoice.id, allocateByDays(r.invoice.subtotal, r.logged, desc))
+        done++
+      } catch (e) { failed.push(`${r.name}: ${e.message || e}`) }
+    }
+    setBusy('')
+    if (failed.length) setErr(`${failed.length} couldn't be filled — ${failed[0]}`)
+    if (done) setNote(`PIDs set on ${done} invoice${done === 1 ? '' : 's'} from this month's attendance. Check them before issuing.`)
+    setPidFillOpen(false)
+    await load()
+  }, [writeLines, period.period_month, load])
 
   // Editing after issue is allowed, but never quietly: reopening withdraws the
   // link that is already out there and, if it was signed, discards a signature
@@ -476,6 +641,14 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
           {!allSigned && (
             <button type="button" onClick={startFlow} disabled={busy === 'gen'} style={{ ...primaryBtn, padding: '10px 16px', fontSize: 13 }}>
               {busy === 'gen' ? 'Raising…' : missing > 0 ? `▸ Raise & set PIDs · ${missing}` : '▸ Set PIDs one by one'}
+            </button>
+          )}
+          {/* The manual pass is twelve property numbers per vendor. Attendance
+              already knows all of them, so this is that pass in one press —
+              with a preview, because it rewrites every draft split. */}
+          {fillable.length > 0 && (
+            <button type="button" onClick={() => setPidFillOpen(true)} disabled={busy === 'pids'} style={actBtn}>
+              {busy === 'pids' ? 'Filling…' : `⚡ PIDs from attendance · ${fillable.length}`}
             </button>
           )}
           {readyToSend.length > 0 && (
@@ -604,7 +777,12 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
 
       {editing && (
         <SplitSheet invoice={editing} lines={lines[editing.id] || []} properties={properties}
+          logged={logged[editing.vendor_id] || []} propName={propName}
           onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); onChanged && onChanged() }} />
+      )}
+      {pidFillOpen && (
+        <PidFillSheet rows={fillable} unlogged={unlogged.length} propName={propName} period={period} busy={busy === 'pids'}
+          onApply={fillPidsFromAttendance} onClose={() => setPidFillOpen(false)} />
       )}
       {preview && (
         <Sheet wide title={`${preview.invoice.invoice_no}`} subtitle={preview.name} onClose={() => setPreview(null)}>
@@ -615,7 +793,7 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
         </Sheet>
       )}
       {flowOpen && (
-        <InvoiceFlow period={period} rows={rows} properties={properties}
+        <InvoiceFlow period={period} rows={rows} properties={properties} propName={propName}
           onSend={issue} onClose={() => { setFlowOpen(false); load(); onChanged && onChanged() }} />
       )}
       {queueOpen && (
