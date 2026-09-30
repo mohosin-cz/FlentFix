@@ -52,6 +52,62 @@ export function sendBlockers(invoice, lines) {
   return out
 }
 
+// ── where the work actually happened ────────────────────────────────────────
+// Attendance records a PID on every punch, so a month of punches already says
+// which properties a vendor worked at and roughly how much of the month each
+// one took. That is the same question the PID split asks, answered by data
+// somebody already collected — hence filling the split from it rather than
+// retyping twelve property numbers per vendor, seventeen vendors a month.
+//
+// A day counts once per property: two punches at the same PID on the same date
+// is one day there, and a vendor who moved between two properties in a day is
+// counted at both. The weights are relative, so that double-count is harmless.
+export function pidDaysByVendor(punches, tz = 'Asia/Kolkata') {
+  const seen = {}   // vendor → pid → Set of IST dates
+  for (const p of punches || []) {
+    const pid = String(p.pid ?? '').trim()
+    if (!p.vendor_id || !pid) continue
+    const d = new Date(p.punched_at)
+    if (isNaN(d)) continue
+    const day = d.toLocaleDateString('en-CA', { timeZone: tz })
+    const byPid = seen[p.vendor_id] || (seen[p.vendor_id] = {})
+    ;(byPid[pid] || (byPid[pid] = new Set())).add(day)
+  }
+  const out = {}
+  for (const [vid, byPid] of Object.entries(seen)) {
+    out[vid] = Object.entries(byPid)
+      .map(([pid, days]) => ({ pid, days: days.size }))
+      // Most-worked first: it reads as a ranking, and the rounding remainder
+      // below lands on the property that earned the most of it.
+      .sort((a, b) => b.days - a.days || a.pid.localeCompare(b.pid, undefined, { numeric: true }))
+  }
+  return out
+}
+
+// Split a gross figure across properties in proportion to days worked at each.
+// Nobody is going to hand-price twelve properties a month, and days present is
+// the only weighting the data actually supports.
+export function allocateByDays(gross, entries, description) {
+  const list = (entries || []).filter(e => e && String(e.pid ?? '').trim())
+  if (!list.length) return []
+  const total = Math.round(Number(gross) || 0)
+  const days = list.reduce((s, e) => s + (Number(e.days) || 0), 0)
+  const out = list.map((e, i) => ({
+    id: `att-${e.pid}-${i}`,
+    pid: String(e.pid).trim(),
+    description: description || null,
+    amount: days > 0
+      ? Math.floor(total * (Number(e.days) || 0) / days)
+      : Math.floor(total / list.length),
+    sort: i,
+  }))
+  // The rounding remainder goes onto the first (largest) line, so the split
+  // reconciles to the rupee instead of landing a few short and blocking send.
+  const short = total - out.reduce((s, l) => s + l.amount, 0)
+  if (short) out[0].amount += short
+  return out
+}
+
 // ── amount in words, Indian system ──────────────────────────────────────────
 // Present on every invoice that means anything, and the one field nobody can
 // fudge later: figures can be misread, words can't.

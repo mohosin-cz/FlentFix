@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { initials, avatarColor } from '../../utils/vendorHub'
-import { inr, sumLines, sendBlockers, monthLabel } from '../../utils/vendorInvoice'
+import LoggedPids from '../../components/vendor/LoggedPids'
+import { inr, sumLines, sendBlockers, monthLabel, allocateByDays } from '../../utils/vendorInvoice'
 
 // Setting PIDs, one vendor at a time.
 //
@@ -26,12 +27,12 @@ function Ava({ name, size = 44 }) {
 
 const isReady = (card) => card.invoice && sendBlockers(card.invoice, card.lines).length === 0
 
-export default function InvoiceFlow({ period, rows, properties, onSend, onClose }) {
+export default function InvoiceFlow({ period, rows, properties, propName, onSend, onClose }) {
   // Unallocated first: the flow should open on work, not on things already done.
   const [cards, setCards] = useState(() =>
     [...rows]
       .filter(r => r.invoice)
-      .map(r => ({ invoice: r.invoice, name: r.name, trade: r.payout?.team || '', lines: (r.lines || []).map((l, i) => ({ ...l, sort: i })) }))
+      .map(r => ({ invoice: r.invoice, name: r.name, trade: r.payout?.team || '', logged: r.logged || [], lines: (r.lines || []).map((l, i) => ({ ...l, sort: i })) }))
       .sort((a, b) => (isReady(a) ? 1 : 0) - (isReady(b) ? 1 : 0)))
   const [idx, setIdx] = useState(0)
   const [approved, setApproved] = useState(() => new Set(cards.filter(isReady).map(c => c.invoice.id)))
@@ -60,6 +61,22 @@ export default function InvoiceFlow({ period, rows, properties, onSend, onClose 
   const allocated = cur ? sumLines(cur.lines) : 0
   const gross = cur ? Number(cur.invoice.subtotal || 0) : 0
   const remaining = Math.round(gross - allocated)
+
+  // The PIDs this vendor actually punched in at this month, weighted by days
+  // on each. This is the pass that used to be typed by hand, one property
+  // number at a time, seventeen vendors a month.
+  function fillFromLogged() {
+    if (!cur?.logged?.length) return
+    updLines(ls => allocateByDays(gross, cur.logged, ls[0]?.description || ''))
+  }
+
+  // One property added on its own, for the month that was nearly right. It
+  // takes whatever is still unallocated so the total keeps adding up.
+  function pickLogged(e) {
+    updLines(ls => ls.some(l => String(l.pid || '').trim() === e.pid)
+      ? ls
+      : [...ls, { id: 'new-' + e.pid, pid: e.pid, description: ls[0]?.description || '', amount: Math.max(0, remaining), sort: ls.length }])
+  }
 
   // Rounding remainder onto the first line, so an even split still reconciles
   // to the rupee rather than landing a rupee or two short.
@@ -170,6 +187,19 @@ export default function InvoiceFlow({ period, rows, properties, onSend, onClose 
             <datalist id="flow-pids">
               {properties.map(p => <option key={p.pid} value={p.pid}>{p.name || ''}</option>)}
             </datalist>
+
+            {/* Where this vendor was logged this month. The card used to ask
+                the question and leave you to remember the answer. */}
+            {!locked && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', background: 'rgba(200,150,62,0.06)', border: '1px solid var(--border, #2e3040)', borderRadius: 10 }}>
+                <LoggedPids logged={cur.logged} propName={propName} onPick={pickLogged} note={cur.logged?.length ? 'tap one to add it' : ''} />
+                {cur.logged?.length > 0 && (
+                  <button type="button" onClick={fillFromLogged} style={{ ...smallBtn, alignSelf: 'flex-start' }}>
+                    ⚡ Use all {cur.logged.length}, split by days
+                  </button>
+                )}
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
               {cur.lines.map((l, li) => (
