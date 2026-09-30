@@ -27,6 +27,21 @@ const OT_RATE = 1.25
 const otAmtOf = (f) => Math.round(perDayOf(f) * OT_RATE * Number(f.ot_days || 0))
 const totalOf = (f) => earnedOf(f) + Number(f.allowance || 0) + otAmtOf(f) - Number(f.advance_recovered || 0)
 
+// The editable half of a payout line, ready for an UPDATE. The table and the
+// card flow both write the same row from the same figures, so they build the
+// patch the same way — a column one of them forgot is a column that silently
+// reverts depending on which screen you happened to save from.
+const payoutPatch = (r) => ({
+  beneficiary_name: (r.beneficiary_name || '').trim() || null, team: r.team || null,
+  upi_id: r.upi_id || null, bank_account_name: r.bank_account_name || null,
+  bank_account_no: r.bank_account_no || null, bank_ifsc: r.bank_ifsc || null,
+  fixed_pay: Number(r.fixed_pay || 0), allowance: Number(r.allowance || 0),
+  days_worked: (r.days_worked === '' || r.days_worked == null) ? null : Number(r.days_worked),
+  ot_days: Number(r.ot_days || 0), ot_amount: otAmtOf(r),
+  advance_given: Number(r.advance_given || 0),
+  advance_recovered: Number(r.advance_recovered || 0), total_payout: totalOf(r),
+})
+
 const CSV_COLS = ['beneficiary_name', 'team', 'cost_centre', 'fixed_pay', 'allowance', 'days_worked', 'ot_days', 'ot_amount', 'advance_given', 'advance_recovered', 'total_payout', 'upi_id', 'bank_account_name', 'bank_account_no', 'bank_ifsc', 'utr']
 function downloadCsv(period, rows) {
   const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
@@ -231,6 +246,7 @@ export default function PayrollTab() {
   // ── period detail ────────────────────────────────────────────────────────────
   if (period) {
     const total = (payouts || []).reduce((a, r) => a + Number(r.total_payout || 0), 0)
+    const reviewedCount = (payouts || []).filter(r => r.reviewed_at).length
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <button type="button" onClick={() => {
@@ -253,7 +269,11 @@ export default function PayrollTab() {
                 <button type="button" onClick={async () => { setActErr(''); const { error: rErr } = await supabase.rpc('payroll_fill_month', { p_period_id: period.id }); if (rErr) { setActErr(rErr.message); return } openPeriod(period) }} style={actBtn}>↻ Regenerate</button>
                 <button type="button" onClick={async () => { if (!window.confirm('Delete this draft month and its lines?')) return; await supabase.from('vendor_payouts').delete().eq('period_id', period.id); await supabase.from('vendor_payroll_periods').delete().eq('id', period.id); setPeriod(null); setPayouts(null); loadPeriods() }} style={{ ...actBtn, color: 'var(--red, #e05c6a)' }}>Delete</button>
                 <button type="button" onClick={async () => { if (!confirmFinalize()) return; const at = new Date().toISOString(); const { error: mErr } = await supabase.from('vendor_payroll_periods').update({ status: 'locked', locked_at: at }).eq('id', period.id); if (mErr) { setActErr(mErr.message); return } setActErr(''); setPeriod({ ...period, status: 'locked', locked_at: at }) }} style={{ ...actBtn, color: 'var(--green, #3dba7a)', borderColor: 'var(--green, #3dba7a)' }}>✓ Mark final</button>
-                <button type="button" onClick={() => setReviewing(true)} style={{ ...actBtn, marginLeft: 'auto', color: '#fff', background: 'var(--accent, #c8963e)', border: 'none', fontWeight: 700 }}>▸ Review &amp; finalize</button>
+                {/* A part-done review says so on the button, so you know there
+                    is progress waiting before you open it. */}
+                <button type="button" onClick={() => setReviewing(true)} style={{ ...actBtn, marginLeft: 'auto', color: '#fff', background: 'var(--accent, #c8963e)', border: 'none', fontWeight: 700 }}>
+                  {reviewedCount > 0 && reviewedCount < (payouts || []).length ? `▸ Resume review · ${reviewedCount}/${(payouts || []).length}` : '▸ Review & finalize'}
+                </button>
               </div>
             : <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap', alignItems: 'center', padding: '10px 12px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.30)', borderRadius: 10 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>✓ Finalized{period.locked_at ? ` · ${new Date(period.locked_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}</span>
@@ -271,6 +291,11 @@ export default function PayrollTab() {
               className={`tct tct-raised${stage === k ? ' is-on' : ''}`}
               style={{ padding: '9px 14px', fontSize: 12.5, lineHeight: 1, minHeight: 38, cursor: 'pointer' }}>
               {l}
+              {k === 'review' && reviewedCount > 0 && (
+                <span style={{ marginInlineStart: 7, fontSize: 10.5, fontFamily: 'var(--font-mono, monospace)', color: reviewedCount >= (payouts || []).length ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)' }}>
+                  {reviewedCount}/{(payouts || []).length}
+                </span>
+              )}
               {k === 'invoices' && signed && signed.total > 0 && (
                 <span style={{ marginInlineStart: 7, fontSize: 10.5, fontFamily: 'var(--font-mono, monospace)', color: signed.signed >= signed.total ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)' }}>
                   {signed.signed}/{signed.total}
@@ -410,20 +435,14 @@ function ReviewTable({ period, rows: initialRows, onReload }) {
     try {
       for (const id of delIds) { const { error } = await supabase.from('vendor_payouts').delete().eq('id', id); if (error) throw error }
       for (const r of rows) {
-        const patch = {
-          beneficiary_name: (r.beneficiary_name || '').trim() || null, team: r.team || null,
-          upi_id: r.upi_id || null, bank_account_name: r.bank_account_name || null,
-          bank_account_no: r.bank_account_no || null, bank_ifsc: r.bank_ifsc || null,
-          fixed_pay: Number(r.fixed_pay || 0), allowance: Number(r.allowance || 0),
-          days_worked: (r.days_worked === '' || r.days_worked == null) ? null : Number(r.days_worked),
-          ot_days: Number(r.ot_days || 0), ot_amount: otAmtOf(r),
-          advance_given: Number(r.advance_given || 0),
-          advance_recovered: Number(r.advance_recovered || 0), total_payout: totalOf(r),
-        }
+        const patch = payoutPatch(r)
         if (String(r.id).startsWith('new-')) {
           const { error } = await supabase.from('vendor_payouts').insert({ period_id: period.id, vendor_id: r.vendor_id || null, ...patch }); if (error) throw error
         } else if (dirty.has(r.id)) {
-          const { error } = await supabase.from('vendor_payouts').update(patch).eq('id', r.id); if (error) throw error
+          // Changing a figure here retracts whatever was approved in the card
+          // flow: the tick meant "these numbers are right", and these are no
+          // longer those numbers.
+          const { error } = await supabase.from('vendor_payouts').update({ ...patch, reviewed_at: null, reviewed_by: null }).eq('id', r.id); if (error) throw error
         }
       }
       onReload()
@@ -446,11 +465,16 @@ function ReviewTable({ period, rows: initialRows, onReload }) {
       <div style={{ overflowX: 'auto', border: '1px solid var(--border, #2e3040)', borderRadius: 12, background: 'var(--bg-panel, #1e2028)' }}>
         <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 900 }}>
           <thead><tr>
-            <th style={thL}>Beneficiary</th><th style={th}>Salary</th><th style={th}>Days/30</th><th style={th}>OT&nbsp;d</th><th style={th}>Allow.</th><th style={th}>Adv&nbsp;paid</th><th style={th}>Adv&nbsp;rec.</th><th style={th}>Total</th><th style={thL}>Bank A/C</th><th style={thL}>IFSC</th><th style={thL}>UPI</th>{!locked && <th style={th}></th>}
+            <th style={{ ...th, padding: '10px 4px' }} title="Approved in the card review"></th><th style={thL}>Beneficiary</th><th style={th}>Salary</th><th style={th}>Days/30</th><th style={th}>OT&nbsp;d</th><th style={th}>Allow.</th><th style={th}>Adv&nbsp;paid</th><th style={th}>Adv&nbsp;rec.</th><th style={th}>Total</th><th style={thL}>Bank A/C</th><th style={thL}>IFSC</th><th style={thL}>UPI</th>{!locked && <th style={th}></th>}
           </tr></thead>
           <tbody>
             {rows.map(r => (
               <tr key={r.id}>
+                {/* The tick the card review left behind. Blank is "not looked
+                    at yet", and editing the row clears it on save. */}
+                <td style={{ ...td, padding: '0 4px', textAlign: 'center' }} title={r.reviewed_at ? `Approved ${new Date(r.reviewed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}${r.reviewed_by ? ` by ${r.reviewed_by}` : ''}` : 'Not reviewed yet'}>
+                  <span style={{ fontSize: 12, color: r.reviewed_at && !dirty.has(r.id) ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', opacity: r.reviewed_at && !dirty.has(r.id) ? 1 : 0.35 }}>{r.reviewed_at && !dirty.has(r.id) ? '✓' : '·'}</span>
+                </td>
                 <td style={td}><input value={r.beneficiary_name || ''} readOnly={locked} onChange={e => upd(r.id, { beneficiary_name: e.target.value })} placeholder="Name" style={cellIn(160, true)} /></td>
                 <td style={td}><input value={r.fixed_pay ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { fixed_pay: num(e.target.value) })} style={cellIn(92)} /></td>
                 <td style={td}><input value={r.days_worked ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { days_worked: num(e.target.value) })} style={cellIn(58)} /></td>
@@ -467,7 +491,7 @@ function ReviewTable({ period, rows: initialRows, onReload }) {
             ))}
           </tbody>
           <tfoot><tr>
-            <td style={{ padding: '11px 8px', fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--text-muted, #6b6d82)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Grand total</td>
+            <td colSpan={2} style={{ padding: '11px 8px', fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--text-muted, #6b6d82)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Grand total</td>
             <td colSpan={6}></td>
             <td style={{ padding: '11px 8px', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)', fontSize: 15, fontWeight: 700, color: 'var(--accent, #c8963e)', whiteSpace: 'nowrap' }}>{money(grand)}</td>
             <td colSpan={locked ? 3 : 4}></td>
@@ -483,31 +507,116 @@ function ReviewTable({ period, rows: initialRows, onReload }) {
 }
 
 // ── swipeable card review (blurred backdrop, approve each, then finalize) ─────
+//
+// Approving a card writes that line — figures and all — and stamps it
+// reviewed. Sixteen vendors is not one sitting, so the flow is built to be
+// abandoned and picked up: reopening restores the ticks from the database and
+// puts you on the first person nobody has approved yet.
 function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
-  const [rows, setRows] = useState(() => (initialRows || []).map(r => ({ ...r, days_worked: r.days_worked ?? 30 })))
-  const [idx, setIdx] = useState(0)
-  const [approved, setApproved] = useState(() => new Set())
-  const [phase, setPhase] = useState('review')   // review | done | final
+  const start = (initialRows || []).map(r => ({ ...r, days_worked: r.days_worked ?? 30 }))
+  const [rows, setRows] = useState(start)
+  // Resume where the review was left: first unapproved line, not line one.
+  const [idx, setIdx] = useState(() => { const i = start.findIndex(r => !r.reviewed_at); return i < 0 ? 0 : i })
+  const [approved, setApproved] = useState(() => new Set(start.filter(r => r.reviewed_at).map(r => r.id)))
+  const [phase, setPhase] = useState(() => (start.length > 0 && start.every(r => r.reviewed_at)) ? 'done' : 'review')
+  const [dirty, setDirty] = useState(() => new Set())   // edited since last written
+  const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const touchX = useRef(null)
+  const resumed = useRef(start.filter(r => r.reviewed_at).length).current
   const total = rows.length
   const cur = rows[idx]
 
-  const go = useCallback((d) => setIdx(i => Math.max(0, Math.min(total - 1, i + d))), [total])
+  // Who approved it. Read once; a failure here must not stop anyone reviewing.
+  const actor = useRef(null)
+  useEffect(() => { supabase.auth.getUser().then(({ data }) => { actor.current = data?.user?.email || null }).catch(() => {}) }, [])
+
+  // Write one line. `reviewed` true stamps the approval, false retracts it —
+  // the stamp only ever describes the figures stored beside it.
+  const saveRow = useCallback(async (row, reviewed) => {
+    if (!row || String(row.id).startsWith('new-')) return true
+    const patch = payoutPatch(row)
+    if (reviewed === true) { patch.reviewed_at = new Date().toISOString(); patch.reviewed_by = actor.current }
+    else if (reviewed === false) { patch.reviewed_at = null; patch.reviewed_by = null }
+    setSaving(true)
+    const { error } = await supabase.from('vendor_payouts').update(patch).eq('id', row.id)
+    setSaving(false)
+    if (error) { setErr(error.message); return false }
+    setErr('')
+    setDirty(d => { if (!d.has(row.id)) return d; const n = new Set(d); n.delete(row.id); return n })
+    if (reviewed === true || reviewed === false) {
+      const stamp = reviewed ? { reviewed_at: patch.reviewed_at, reviewed_by: patch.reviewed_by } : { reviewed_at: null, reviewed_by: null }
+      setRows(rs => rs.map(r => r.id === row.id ? { ...r, ...stamp } : r))
+    }
+    return true
+  }, [])
+
+  // Everything that leaves the card — arrows, swipe, close — goes through
+  // here first, so an edit you typed and then navigated past is not lost.
+  const flush = useCallback(async () => {
+    const row = rows[idx]
+    if (!row || !dirty.has(row.id)) return true
+    return saveRow(row, false)
+  }, [rows, idx, dirty, saveRow])
+
+  const go = useCallback(async (d) => {
+    const next = Math.max(0, Math.min(total - 1, idx + d))
+    if (next === idx) return
+    if (!(await flush())) return
+    setIdx(next)
+  }, [idx, total, flush])
+
+  // Closing saves first. If that save fails, say so rather than closing over
+  // the top of it — but never trap someone in the overlay either.
+  const closeFlow = useCallback(async () => {
+    const ok = await flush()
+    if (!ok && !window.confirm('This card’s edits could not be saved.\n\nClose anyway and lose them?')) return
+    onClose()
+  }, [flush, onClose])
+
+  // The key handler is bound once; it reaches the current handlers through a
+  // ref rather than re-binding on every edit.
+  const keys = useRef(null)
+  keys.current = { go, closeFlow, phase }
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'ArrowRight') go(1); else if (e.key === 'ArrowLeft') go(-1); else if (e.key === 'Escape') onClose() }
+    const onKey = (e) => {
+      if (keys.current.phase !== 'review') { if (e.key === 'Escape') keys.current.closeFlow(); return }
+      if (e.key === 'ArrowRight') keys.current.go(1)
+      else if (e.key === 'ArrowLeft') keys.current.go(-1)
+      else if (e.key === 'Escape') keys.current.closeFlow()
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [go, onClose])
+  }, [])
 
-  const upd = (patch) => setRows(rs => rs.map((r, i) => i === idx ? { ...r, ...patch } : r))
+  // Editing an approved card retracts the tick: it was given to the figures
+  // that were on screen then, and these are different figures. Re-approving
+  // saves and re-stamps in one go.
+  const upd = (patch) => {
+    setRows(rs => rs.map((r, i) => i === idx ? { ...r, ...patch } : r))
+    setDirty(d => { const n = new Set(d); n.add(cur.id); return n })
+    setApproved(a => { if (!a.has(cur.id)) return a; const n = new Set(a); n.delete(cur.id); return n })
+  }
   const grand = rows.reduce((a, r) => a + totalOf(r), 0)
 
-  function approveCurrent() {
+  async function approveCurrent() {
+    if (saving) return
+    if (!(await saveRow(cur, true))) return
     const nextSet = new Set(approved); nextSet.add(cur.id); setApproved(nextSet)
     if (nextSet.size >= total) { setPhase('done'); return }
     for (let k = 1; k <= total; k++) { const cand = (idx + k) % total; if (!nextSet.has(rows[cand].id)) { setIdx(cand); break } }
+  }
+
+  // Start the month's review over — the ticks go, the figures stay.
+  async function resetApprovals() {
+    if (!window.confirm('Clear every approval for this month and review from the start?\n\nEdited figures stay as they are.')) return
+    setBusy(true)
+    const { error } = await supabase.from('vendor_payouts').update({ reviewed_at: null, reviewed_by: null }).eq('period_id', period.id)
+    setBusy(false)
+    if (error) { setErr(error.message); return }
+    setErr(''); setApproved(new Set()); setIdx(0); setPhase('review')
+    setRows(rs => rs.map(r => ({ ...r, reviewed_at: null, reviewed_by: null })))
   }
 
   async function removeCurrent() {
@@ -520,6 +629,7 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
     }
     setErr('')
     setApproved(prev => { const n = new Set(prev); n.delete(id); return n })
+    setDirty(prev => { const n = new Set(prev); n.delete(id); return n })
     const nr = rows.filter(r => r.id !== id)
     setRows(nr)
     if (nr.length === 0) { onClose(); return }
@@ -530,21 +640,16 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
     if (confirmFinalize && !confirmFinalize()) return
     setBusy(true); setErr('')
     try {
+      const at = new Date().toISOString()
       for (const r of rows) {
         if (String(r.id).startsWith('new-')) continue
-        const patch = {
-          beneficiary_name: (r.beneficiary_name || '').trim() || null, upi_id: r.upi_id || null,
-          bank_account_name: r.bank_account_name || null, bank_account_no: r.bank_account_no || null, bank_ifsc: r.bank_ifsc || null,
-          fixed_pay: Number(r.fixed_pay || 0), allowance: Number(r.allowance || 0),
-          days_worked: (r.days_worked === '' || r.days_worked == null) ? null : Number(r.days_worked),
-          ot_days: Number(r.ot_days || 0), ot_amount: otAmtOf(r),
-          advance_given: Number(r.advance_given || 0),
-          advance_recovered: Number(r.advance_recovered || 0), total_payout: totalOf(r),
-        }
-        const { error } = await supabase.from('vendor_payouts').update(patch).eq('id', r.id); if (error) throw error
+        const { error } = await supabase.from('vendor_payouts')
+          .update({ ...payoutPatch(r), reviewed_at: r.reviewed_at || at, reviewed_by: r.reviewed_by || actor.current })
+          .eq('id', r.id)
+        if (error) throw error
       }
-      const at = new Date().toISOString()
       const { error: pErr } = await supabase.from('vendor_payroll_periods').update({ status: 'locked', locked_at: at }).eq('id', period.id); if (pErr) throw pErr
+      setDirty(new Set())
       setPhase('final')
     } catch (e) { setErr(e.message || String(e)) }
     setBusy(false)
@@ -559,17 +664,27 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
   const brkRow = { display: 'flex', justifyContent: 'space-between' }
 
   return (
-    <div style={overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div style={overlay} onClick={e => { if (e.target === e.currentTarget) closeFlow() }}>
       <style>{`@keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}`}</style>
       <div style={{ width: '100%', maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: mono }}>Review · {monthLabel(period.period_month)}</div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.72)', fontFamily: mono }}>{approved.size} / {total} approved</div>
-          <button type="button" onClick={onClose} style={closeBtn}>✕</button>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.72)', fontFamily: mono }}>{saving ? 'Saving…' : `${approved.size} / ${total} approved`}</div>
+          <button type="button" onClick={closeFlow} style={closeBtn}>✕</button>
         </div>
         <div style={{ height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 4, overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${total ? Math.round(approved.size / total * 100) : 0}%`, background: 'var(--green, #3dba7a)', transition: 'width .2s' }} />
         </div>
+        {/* Say out loud that the ticks came back, and that leaving is safe —
+            the last version lost everything on exit, and nobody trusts a
+            progress bar that has burned them once. */}
+        {phase === 'review' && approved.size > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 11, color: 'rgba(255,255,255,0.78)', fontFamily: mono }}>
+            <span style={{ flex: 1, minWidth: 0 }}>{resumed > 0 ? `↩ Resumed · ${resumed} approved earlier, picking up where you left off` : '✓ Saved as you go — closing keeps every approval'}</span>
+            <button type="button" onClick={resetApprovals} disabled={busy}
+              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', textDecoration: 'underline', cursor: 'pointer', fontSize: 11, fontFamily: mono, padding: 0, flexShrink: 0 }}>Start over</button>
+          </div>
+        )}
 
         {phase === 'review' && cur && (
           <div key={idx} style={cardStyle} onTouchStart={e => { touchX.current = e.touches[0].clientX }} onTouchEnd={e => { const dx = e.changedTouches[0].clientX - (touchX.current ?? 0); if (dx < -50) go(1); else if (dx > 50) go(-1) }}>
@@ -612,9 +727,14 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
             </div>
             {err && <Err>{err}</Err>}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button type="button" onClick={() => go(-1)} disabled={idx === 0} style={{ ...navBtn, opacity: idx === 0 ? 0.4 : 1 }}>‹</button>
-              <button type="button" onClick={approveCurrent} style={approveBtn}>{approved.has(cur.id) ? '✓ Approved · next' : '✓ Approve'}</button>
-              <button type="button" onClick={() => go(1)} disabled={idx === total - 1} style={{ ...navBtn, opacity: idx === total - 1 ? 0.4 : 1 }}>›</button>
+              <button type="button" onClick={() => go(-1)} disabled={idx === 0 || saving} style={{ ...navBtn, opacity: idx === 0 ? 0.4 : 1 }}>‹</button>
+              <button type="button" onClick={approveCurrent} disabled={saving} style={{ ...approveBtn, cursor: saving ? 'wait' : 'pointer' }}>{saving ? 'Saving…' : approved.has(cur.id) ? '✓ Approved · next' : '✓ Approve & save'}</button>
+              <button type="button" onClick={() => go(1)} disabled={idx === total - 1 || saving} style={{ ...navBtn, opacity: idx === total - 1 ? 0.4 : 1 }}>›</button>
+            </div>
+            <div style={{ fontSize: 10.5, color: muted, fontFamily: mono, textAlign: 'center', lineHeight: 1.5 }}>
+              {dirty.has(cur.id)
+                ? 'Edited — saved when you approve or move to the next card.'
+                : 'Approvals are saved as you go. Close any time and pick up here.'}
             </div>
             <button type="button" onClick={removeCurrent} style={{ background: 'none', border: 'none', color: 'var(--red, #e05c6a)', cursor: 'pointer', fontSize: 12, fontFamily: mono, padding: '2px', alignSelf: 'center' }}>✕ Remove this person from the month</button>
           </div>
@@ -623,12 +743,13 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
         {phase === 'done' && (
           <div style={cardStyle}>
             <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: mono }}>✓ All {total} approved</div>
-            <div style={{ fontSize: 13, color: muted, lineHeight: 1.5 }}>Grand total <b style={{ color: 'var(--accent, #c8963e)' }}>{money(grand)}</b>. Submit to save all changes and finalize the month — then you can export.</div>
+            <div style={{ fontSize: 13, color: muted, lineHeight: 1.5 }}>Grand total <b style={{ color: 'var(--accent, #c8963e)' }}>{money(grand)}</b>. Every line is saved and approved already — submitting locks the month so it can be exported and invoiced.</div>
             {err && <Err>{err}</Err>}
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" onClick={() => { setPhase('review'); setIdx(0) }} style={navBtn}>‹ Back</button>
               <button type="button" onClick={submitFinal} disabled={busy} style={{ ...approveBtn, background: 'var(--accent, #c8963e)' }}>{busy ? 'Submitting…' : 'Submit & finalize →'}</button>
             </div>
+            <button type="button" onClick={resetApprovals} disabled={busy} style={{ background: 'none', border: 'none', color: muted, cursor: 'pointer', fontSize: 11.5, fontFamily: mono, padding: '2px', alignSelf: 'center' }}>Clear approvals and review again</button>
           </div>
         )}
 
