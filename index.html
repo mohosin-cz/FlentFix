@@ -46,7 +46,7 @@
             p = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
           }
           document.documentElement.dataset.theme = p;
-          var c = p === 'light' ? '#f3f4f8' : '#16171f';
+          var c = p === 'light' ? '#fcfbf7' : '#16171f';
           document.documentElement.style.setProperty('--boot-bg', c);
           var m = document.querySelector('meta[name="theme-color"]');
           if (m) m.setAttribute('content', c);

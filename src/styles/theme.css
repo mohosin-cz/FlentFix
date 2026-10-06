@@ -61,44 +61,53 @@
   --shadow-md:    0 4px 16px rgba(0,0,0,0.5);
 }
 
-/* Light. Not an inversion — the greys are rebuilt so panels lift off the page
-   instead of sinking into it, and the gold comes down far enough to be read as
-   text on white: #c8963e on white is 2.3:1, which is not a colour you can
-   write in. The hue is kept, so the product still looks like itself. */
+/* Light, taken from flent.in rather than invented: a warm cream page, white
+   cards sitting on it, and one deep indigo ink — #15102E — doing the work of
+   both the text and the hairlines, at full strength for headings and at 74%
+   and 63% for the two steps below. That ink-at-opacity trick is why the site
+   reads as crisp rather than washed: a grey border on a grey page disappears,
+   while the same ink everything else is drawn in does not.
+
+   The first attempt here was cool grey on cooler grey, and it looked exactly
+   like what it was — an inversion rather than a palette. */
 [data-theme='light'] {
   color-scheme: light;
-  --bg:           #f3f4f8;
+  --bg:           #fcfbf7;
   --bg-panel:     #ffffff;
-  --bg-input:     #eceef4;
-  --bg-sunken:    #e2e5ee;
-  --border:       #d9dce6;
-  --border-dash:  #b9bdcc;
-  --text:         #1b1d26;
-  --text-muted:   #71748a;
-  --text-dim:     #4e5162;
-  --accent:       #9a6c18;
-  --accent-dim:   #c0a06a;
+  --bg-input:     #f6f5ef;
+  --bg-sunken:    #eceade;
+  --border:       rgba(21, 16, 46, 0.16);
+  --border-dash:  rgba(21, 16, 46, 0.34);
+  --text:         #15102e;
+  --text-dim:     rgba(21, 16, 46, 0.74);
+  --text-muted:   rgba(21, 16, 46, 0.63);
+  /* The gold stays — it is the product — but comes down to where it can be
+     read as text on cream, and warms slightly to sit with the ink. */
+  --accent:       #8f6514;
+  --accent-dim:   #c2a869;
   --on-accent:    #ffffff;
-  --green:        #1c8a52;
-  --amber:        #9a6c18;
-  --red:          #c2384a;
+  --green:        #006b57;
+  --amber:        #8f6514;
+  --red:          #b3261e;
   --white:        #ffffff;
 
-  --hi:           rgba(255,255,255,.9);
-  --hi-faint:     rgba(255,255,255,.65);
-  --shadow-key:   rgba(27,29,38,.13);
-  --shadow-press: rgba(27,29,38,.18);
-  --shadow-card:  rgba(27,29,38,0.12);
-  --title-shadow: 0 1px 0 rgba(255,255,255,.8);
-  --hover-filter: brightness(.965);
-  --press-filter: brightness(.93);
+  --hi:           rgba(255,255,255,.95);
+  --hi-faint:     rgba(255,255,255,.7);
+  --shadow-key:   rgba(21,16,46,.12);
+  --shadow-press: rgba(21,16,46,.16);
+  --shadow-card:  rgba(21,16,46,.10);
+  --title-shadow: 0 1px 0 rgba(255,255,255,.9);
+  --hover-filter: brightness(.97);
+  --press-filter: brightness(.94);
 
-  --logo-lit:     #a9761c;
-  --logo-dim:     #c9ccd6;
+  --logo-lit:     #9a6c18;
+  /* Opaque, not an alpha: the logo applies its own 13% opacity on top, and a
+     translucent colour under that is a dot you cannot see at all. */
+  --logo-dim:     #cfcbd9;
 
-  --shadow-xs:    0 1px 3px rgba(27,29,38,0.08);
-  --shadow-sm:    0 2px 8px rgba(27,29,38,0.10);
-  --shadow-md:    0 4px 16px rgba(27,29,38,0.14);
+  --shadow-xs:    0 1px 3px rgba(21,16,46,0.07);
+  --shadow-sm:    0 2px 8px rgba(21,16,46,0.09);
+  --shadow-md:    0 4px 16px rgba(21,16,46,0.13);
 }
 
 :root {

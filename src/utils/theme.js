@@ -44,7 +44,7 @@ export function watchSystemTheme(onChange) {
 export function applyTheme(theme) {
   if (typeof document === 'undefined') return
   document.documentElement.dataset.theme = theme
-  const chrome = theme === 'light' ? '#f3f4f8' : '#16171f'
+  const chrome = theme === 'light' ? '#fcfbf7' : '#16171f'
   document.documentElement.style.setProperty('--boot-bg', chrome)
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', chrome)
 }
