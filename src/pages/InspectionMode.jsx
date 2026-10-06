@@ -449,6 +449,12 @@ export default function InspectionMode() {
           { onConflict: 'pid' }
         )
 
+      // That upsert un-deletes the property, so it must also leave the bin.
+      // A bin row for a property that is live again is not just untidy: the
+      // bin's "delete permanently" erases by PID, so the stale entry would
+      // offer to destroy the inspection that had just been completed.
+      await supabase.from('properties_bin').delete().eq('pid', pid)
+
       // Sync quick note to Supabase on end
       const noteText = localStorage.getItem(`flent_quick_notes_${pid}`)
       if (noteText && noteText.trim()) {
