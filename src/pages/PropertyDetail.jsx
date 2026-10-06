@@ -6,6 +6,7 @@ import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import { advanceStage, STAGES, MAIN_SEQUENCE } from '../utils/propertyJourney'
 import { logActivity } from '../utils/activityUtils'
 import { pidStatus, pidStatusMessage, purgeBinnedPid } from '../utils/pidStatus'
+import { realName } from '../utils/propertyName'
 import LogoSpinner from '../components/LogoSpinner'
 import StageRail from '../components/property/StageRail'
 import ShareSheet from '../components/vendor/ShareSheet'
@@ -373,6 +374,7 @@ export default function PropertyDetail() {
   const [stats, setStats]             = useState({ totalItems: 0, issues: 0, totalCost: 0 })
   const [showAllInspections, setShowAllInspections] = useState(false)
   const [quickNote, setQuickNote]     = useState(null)
+  const [propName, setPropName]       = useState(null)
   const [currentStage, setCurrentStage] = useState('T-5')
   const [journey, setJourney]           = useState([])
   const [userEmail, setUserEmail]       = useState(null)
@@ -389,13 +391,14 @@ export default function PropertyDetail() {
     // Fetch inspections, stage, journey, and notes in parallel
     const [{ data: inspData }, { data: propData }, { data: journeyData }] = await Promise.all([
       supabase.from('inspections').select('*').eq('pid', pid).order('created_at', { ascending: false }),
-      supabase.from('properties').select('stage').eq('pid', pid).maybeSingle(),
+      supabase.from('properties').select('stage, name').eq('pid', pid).maybeSingle(),
       supabase.from('property_journey').select('*').eq('pid', pid).order('changed_at', { ascending: true }),
     ])
 
     setInspections(inspData || [])
     setLoading(false)
     setJourney(journeyData || [])
+    setPropName(realName(propData ? { ...propData, pid } : null))
 
     // Bug 2 fix: fall back to latest journey stage if properties.stage is null
     const latestJourneyStage = journeyData?.length ? journeyData[journeyData.length - 1]?.stage : null
@@ -471,8 +474,8 @@ export default function PropertyDetail() {
 
   async function handleManualAdvance(stageName) {
     await advanceStage(supabase, pid, stageName, userEmail)
-    supabase.from('properties').select('stage').eq('pid', pid).maybeSingle()
-      .then(({ data }) => setCurrentStage(data?.stage || stageName))
+    supabase.from('properties').select('stage, name').eq('pid', pid).maybeSingle()
+      .then(({ data }) => { setCurrentStage(data?.stage || stageName); setPropName(realName(data ? { ...data, pid } : null)) })
     supabase.from('property_journey').select('*').eq('pid', pid).order('changed_at', { ascending: true })
       .then(({ data }) => setJourney(data || []))
   }
@@ -540,7 +543,11 @@ export default function PropertyDetail() {
         </button>
         <div style={s.headerCenter}>
           <span style={s.headerTitle}>PID {pid}</span>
-          <span style={s.headerSub}>
+          {/* The name leads the second line, ahead of type and date: it is the
+              thing that tells you which property this is. Truncated rather
+              than wrapped — the header is one line tall on a phone. */}
+          <span style={s.headerSub} title={propName || undefined}>
+            {propName ? `${propName} · ` : ''}
             {houseType ? titleCase(houseType) : '—'}
             {latest ? ` · ${fmtDate(latest.inspection_date)}` : ''}
           </span>
@@ -866,7 +873,10 @@ const s = {
   },
   headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 },
   headerTitle: { fontSize: 14, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' },
-  headerSub: { fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' },
+  headerSub: {
+    fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)',
+    maxWidth: 'min(62vw, 420px)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+  },
   heroStrip: {
     background: 'var(--bg-panel, #1e2028)',
     borderBottom: '1px solid var(--border, #2e3040)',
