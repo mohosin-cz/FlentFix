@@ -97,8 +97,10 @@
   --shadow-press: rgba(21,16,46,.16);
   --shadow-card:  rgba(21,16,46,.10);
   --title-shadow: 0 1px 0 rgba(255,255,255,.9);
-  --hover-filter: brightness(.97);
-  --press-filter: brightness(.94);
+  /* Weaker than it looks: .97 on near-white is a change you cannot see,
+     and hover is the only confirmation a control gives before it is pressed. */
+  --hover-filter: brightness(.955);
+  --press-filter: brightness(.92);
 
   --logo-lit:     #9a6c18;
   /* Opaque, not an alpha: the logo applies its own 13% opacity on top, and a
@@ -288,6 +290,43 @@ input[type="range"]::-moz-range-thumb {
 @media (prefers-reduced-motion: reduce) {
   .tct { transition: color .16s, background .16s; }
   .tct:active { transform: none; }
+}
+
+/* ─── Light-theme corrections ─────────────────────────────────────────────── */
+/* Three places where the dark design does not simply recolour.
+
+   A chosen control is drawn dark by cutting it INTO the surface: a black inset
+   shadow with a lit gold floor. Cut into white, that same shadow reads as a
+   smudge rather than a recess, so on light the chosen item is lifted instead —
+   a wash of the accent it is already lettered in, with the gold underline kept
+   so the two themes still agree about what "chosen" looks like. */
+[data-theme='light'] .tct[aria-current="page"],
+[data-theme='light'] .tct[aria-selected="true"],
+[data-theme='light'] .tct.is-on {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent),
+              inset 0 -2px 0 var(--accent);
+}
+[data-theme='light'] .tct:active {
+  box-shadow: inset 0 2px 4px var(--shadow-press);
+}
+
+/* A white card on a cream page, separated by a 16% hairline, is a rectangle
+   you have to look for. Dark gets its separation free — a panel is lighter
+   than the page behind it — so light has to buy it with a shadow. Small, and
+   at rest rather than only on hover, because the point is that the card reads
+   as an object before the cursor arrives. */
+[data-theme='light'] .hov-card,
+[data-theme='light'] .vendor-grid > *,
+[data-theme='light'] .month-grid > * {
+  box-shadow: 0 1px 2px rgba(21,16,46,.05), 0 2px 8px rgba(21,16,46,.045);
+}
+@media (any-hover: hover) {
+  [data-theme='light'] .hov-card:hover,
+  [data-theme='light'] .vendor-grid > *:hover,
+  [data-theme='light'] .month-grid > *:hover {
+    box-shadow: 0 4px 10px rgba(21,16,46,.09), 0 12px 28px rgba(21,16,46,.07);
+  }
 }
 
 /* ─── Page titles ─────────────────────────────────────────────────────────── */
