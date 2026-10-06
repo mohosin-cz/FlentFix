@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { purgeBinnedPid, restoreBinnedPid } from '../utils/pidStatus'
 import LogoSpinner from '../components/LogoSpinner'
 
 function fmtDate(str) {
@@ -47,24 +48,27 @@ export default function PropertyBin() {
       })
   }, [])
 
+  // Both actions go through the shared helpers, so erasing a PID from here and
+  // reclaiming one from the rename modal leave the same state behind. They also
+  // report failures now: a restore that silently did nothing left a property
+  // missing from both the bin and the list.
   async function handleRestore() {
     if (!modal) return
     setWorking(true)
-    await supabase.from('properties').update({ deleted_at: null, deleted_by: null }).eq('pid', modal.pid)
-    await supabase.from('properties_bin').delete().eq('pid', modal.pid)
-    setRows(prev => prev.filter(r => r.pid !== modal.pid))
+    const { error } = await restoreBinnedPid(modal.pid)
     setWorking(false)
+    if (error) { alert('Restore failed: ' + error); return }
+    setRows(prev => prev.filter(r => r.pid !== modal.pid))
     setModal(null)
   }
 
   async function handlePermanentDelete() {
     if (!modal) return
     setWorking(true)
-    await supabase.from('inspections').delete().eq('pid', modal.pid)
-    await supabase.from('properties').delete().eq('pid', modal.pid)
-    await supabase.from('properties_bin').delete().eq('pid', modal.pid)
-    setRows(prev => prev.filter(r => r.pid !== modal.pid))
+    const { error } = await purgeBinnedPid(modal.pid)
     setWorking(false)
+    if (error) { alert('Delete failed: ' + error); return }
+    setRows(prev => prev.filter(r => r.pid !== modal.pid))
     setModal(null)
   }
 

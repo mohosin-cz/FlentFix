@@ -116,31 +116,31 @@ export default function QuickNotes({ pid }) {
     setNotes(saved)
   }, [pid])
 
-  // Persist on every change — localStorage + Supabase
+  // Persist on every change — localStorage now, Supabase a moment later.
+  //
+  // This used to read the row, then insert or update depending on what it
+  // found, and it ran on every keystroke. Typing four characters started four
+  // of those, all of which looked before any of them wrote, so all four decided
+  // to insert and three came back with
+  //   duplicate key value violates unique constraint "quick_notes_pid_unique"
+  // A single upsert cannot lose that race: the database decides whether the row
+  // exists, at the moment it writes. The debounce is the other half — a note is
+  // typed, not committed per character, and one request per keystroke was
+  // always going to collide with itself eventually.
+  //
+  // created_by is deliberately left out: on an existing note it would overwrite
+  // whoever wrote it with 'anonymous', and the column is nullable.
   useEffect(() => {
     if (!pid) return
     localStorage.setItem(STORAGE_KEY(pid), notes)
 
-    const save = async () => {
-      const { data: existing } = await supabase
+    const t = setTimeout(() => {
+      supabase
         .from('quick_notes')
-        .select('id')
-        .eq('pid', pid)
-        .maybeSingle()
-
-      if (existing) {
-        await supabase
-          .from('quick_notes')
-          .update({ note: notes, updated_at: new Date().toISOString() })
-          .eq('pid', pid)
-      } else {
-        await supabase
-          .from('quick_notes')
-          .insert({ pid, note: notes, created_by: 'anonymous' })
-      }
-    }
-
-    save().catch(console.error)
+        .upsert({ pid, note: notes, updated_at: new Date().toISOString() }, { onConflict: 'pid' })
+        .then(({ error }) => { if (error) console.error('quick_notes save failed:', error.message) })
+    }, 600)
+    return () => clearTimeout(t)
   }, [notes, pid])
 
   // Focus textarea when panel opens
