@@ -45,13 +45,16 @@ export async function pidStatus(pid) {
   return { ...out, state: 'free' }
 }
 
-// Give up a binned PID for good, so it can be used again.
+// Give up a PID for good, so it can be used again.
 //
-// Deliberately the same three deletes the bin's own "delete permanently" does,
-// in the same order: a PID reclaimed from somewhere else must leave exactly the
-// state the bin would have left, or the old property comes back as a ghost —
-// the properties list is built from inspections as well as properties, so an
-// inspection left behind would re-materialise the thing that was just erased.
+// The one definition of erasing a property — the bin's "delete permanently"
+// calls this too, so a PID reclaimed from the rename modal and one erased from
+// the bin leave exactly the same state behind. Order matters: the properties
+// list is built from inspections as well as properties, so an inspection left
+// behind would re-materialise the thing that was just erased.
+//
+// The quick note goes with it. PIDs get reused, and a note written about one
+// property must not reappear on the next property to take the number.
 //
 // Destructive, and never silent: every caller asks first.
 export async function purgeBinnedPid(pid) {
@@ -61,6 +64,7 @@ export async function purgeBinnedPid(pid) {
     supabase.from('inspections').delete().eq('pid', v),
     supabase.from('properties').delete().eq('pid', v),
     supabase.from('properties_bin').delete().eq('pid', v),
+    supabase.from('quick_notes').delete().eq('pid', v),
   ]) {
     const { error } = await q
     if (error) return { error: error.message }

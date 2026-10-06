@@ -455,25 +455,20 @@ export default function InspectionMode() {
       // offer to destroy the inspection that had just been completed.
       await supabase.from('properties_bin').delete().eq('pid', pid)
 
-      // Sync quick note to Supabase on end
+      // Sync quick note to Supabase on end.
+      //
+      // One upsert, not a read followed by an insert: the notes panel is saving
+      // the same row while this runs, and two writers that each check before
+      // they write both decide to insert — which is the duplicate key on
+      // quick_notes_pid_unique.
       const noteText = localStorage.getItem(`flent_quick_notes_${pid}`)
       if (noteText && noteText.trim()) {
-        const { data: existingNote } = await supabase
+        const { error: noteErr } = await supabase
           .from('quick_notes')
-          .select('id')
-          .eq('pid', pid)
-          .maybeSingle()
-
-        if (existingNote) {
-          await supabase
-            .from('quick_notes')
-            .update({ note: noteText, updated_at: new Date().toISOString() })
-            .eq('pid', pid)
-        } else {
-          await supabase
-            .from('quick_notes')
-            .insert({ pid, note: noteText, created_by: 'anonymous' })
-        }
+          .upsert({ pid, note: noteText, updated_at: new Date().toISOString() }, { onConflict: 'pid' })
+        // A note that failed to sync must not lose the inspection behind it —
+        // it is still in localStorage, and the app flushes it on next load.
+        if (noteErr) console.error('quick_notes sync failed:', noteErr.message)
       }
 
       setShowEndModal(false)
