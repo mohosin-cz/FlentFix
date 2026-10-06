@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { realName } from '../utils/propertyName'
 import { useAuth } from '../contexts/AuthContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -569,6 +570,11 @@ export default function Properties() {
                 >
                   <div style={s.cardTop}>
                     <div style={s.pidText}>PID {row.pid}</div>
+                    {/* The name sits with the PID rather than replacing it:
+                        staff say "two six six" to each other, and the estate
+                        sheet says Saikrupa. One line each, and nothing at all
+                        for a property whose name is still a placeholder. */}
+                    {realName(row) && <div style={s.nameText} title={realName(row)}>{realName(row)}</div>}
                     {row.type && <span style={s.houseTypeBadge}>{titleCase(row.type)}</span>}
                     <div style={s.dateLine}>inspected: {fmtDate(row.inspection_date)}</div>
                     {row.property_created_at && <div style={s.dateLine}>created: {fmtDate(row.property_created_at)}</div>}
@@ -766,6 +772,13 @@ const s = {
   pidText: {
     fontSize: 18, fontWeight: 700, color: 'var(--text, #e8e8f0)',
     fontFamily: 'var(--font-mono, monospace)', letterSpacing: '-0.3px',
+  },
+  // Sans, not mono: it is a name, and names of forty characters need the
+  // narrower face and somewhere to be cut off.
+  nameText: {
+    fontSize: 12.5, fontWeight: 600, color: 'var(--text-dim, #9394a8)',
+    lineHeight: 1.35, marginTop: -1, marginBottom: 1,
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
   houseTypeBadge: {
     alignSelf: 'flex-start', fontSize: 10, fontWeight: 600,
