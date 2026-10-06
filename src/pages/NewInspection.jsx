@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
 import { NavBar, StepBar, Field, Input, CardToggle, PillGroup, StickyFooter, BtnPrimary } from '../components/ui'
+import { pidStatus, pidStatusMessage, purgeBinnedPid } from '../utils/pidStatus'
 
 const INSPECTION_TYPES = [
   { value: 'exploratory', label: 'Exploratory',
@@ -38,6 +38,12 @@ export default function NewInspection() {
   const [propertyType,   setPropertyType]   = useState('')
   const [layout,         setLayout]         = useState('')
   const [errors,         setErrors]         = useState({})
+  // What is holding the PID, when something is. Kept apart from `errors`
+  // because a PID in the bin is not a mistake to correct — it is a decision to
+  // make, and the screen has to offer both halves of it.
+  const [held,           setHeld]           = useState(null)
+  const [checking,       setChecking]       = useState(false)
+  const [purging,        setPurging]        = useState(false)
 
   const rooms = layout ? roomsForLayout(layout) : []
 
@@ -51,20 +57,41 @@ export default function NewInspection() {
     return Object.keys(e).length === 0
   }
 
+  // Erase the binned property so this PID starts clean. Same three deletes the
+  // bin's own "delete permanently" performs, and asked for in those words.
+  async function purgeHeld() {
+    if (!held || held.state !== 'binned') return
+    const n = held.inspections?.length
+    if (!window.confirm(
+      `Permanently delete the binned property ${held.pid}${n ? ` and its ${n} inspection${n === 1 ? '' : 's'}` : ''}, ` +
+      `so this PID starts fresh?\n\nThis cannot be undone. To keep the old record instead, continue without deleting — ` +
+      `it comes back out of the bin as you inspect.`)) return
+    setPurging(true)
+    const { error } = await purgeBinnedPid(held.pid)
+    setPurging(false)
+    if (error) { setErrors(p => ({ ...p, pid: error })); return }
+    setHeld(null)
+  }
+
   async function handleContinue() {
     if (!validate()) return
     const trimmed = pid.trim()
 
-    const [{ data: existingInspection }, { data: existingProperty }, { data: binnedProperty }] = await Promise.all([
-      supabase.from('inspections').select('id').eq('pid', trimmed).maybeSingle(),
-      supabase.from('properties').select('pid').eq('pid', trimmed).is('deleted_at', null).maybeSingle(),
-      supabase.from('properties_bin').select('pid').eq('pid', trimmed).maybeSingle(),
-    ])
+    setChecking(true)
+    const st = await pidStatus(trimmed)
+    setChecking(false)
 
-    // if the PID was deleted (in bin), allow recreation
-    if (!binnedProperty && (existingInspection || existingProperty)) {
-      setErrors(p => ({ ...p, pid: `PID "${trimmed}" already exists — each property must have a unique ID` }))
+    // A PID sitting in the bin is free to use again — that is what deleting it
+    // was for. It is said out loud first, because continuing takes that
+    // property back out of the bin rather than starting an empty one.
+    if (st.state === 'binned') {
+      if (!held) { setHeld(st); return }
+    } else if (st.state !== 'free') {
+      setHeld(st)
+      setErrors(p => ({ ...p, pid: pidStatusMessage(st) }))
       return
+    } else {
+      setHeld(null)
     }
 
     const state = { pid: trimmed, inspectionType, propertyType, layout, rooms }
@@ -87,10 +114,26 @@ export default function NewInspection() {
           <Field label="Property ID (PID)" error={errors.pid} hint="Unique identifier for this property">
             <Input
               value={pid}
-              onChange={v => { setPid(v); setErrors(p => ({ ...p, pid: '' })) }}
+              onChange={v => { setPid(v); setErrors(p => ({ ...p, pid: '' })); setHeld(null) }}
               placeholder="e.g. FLT-2024-001"
               error={errors.pid}
             />
+            {/* A PID in the bin is the one held state with a way forward from
+                here: reuse that record, or erase it and start clean. */}
+            {held?.state === 'binned' && (
+              <div style={{ marginTop: 10, padding: '11px 13px', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 9, display: 'flex', flexDirection: 'column', gap: 9 }}>
+                <span style={{ fontSize: 12, color: 'var(--accent, #c8963e)', lineHeight: 1.55, fontFamily: 'var(--font-mono, monospace)' }}>
+                  {pidStatusMessage(held)} Continuing brings it back out of the bin and inspects that same property.
+                </span>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" onClick={purgeHeld} disabled={purging}
+                    style={{ padding: '7px 11px', background: 'var(--bg-input, #252731)', border: '1px solid #f87171', borderRadius: 7, fontSize: 11.5, color: '#f87171', cursor: purging ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                    {purging ? 'Deleting…' : 'Delete the old one for good first'}
+                  </button>
+                  {held.inBin && <a href="/properties/bin" style={{ padding: '7px 11px', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 7, fontSize: 11.5, color: 'var(--text-dim, #9394a8)', textDecoration: 'none', fontFamily: 'var(--font-mono, monospace)' }}>Open the bin</a>}
+                </div>
+              </div>
+            )}
           </Field>
 
           {/* Inspection Type */}
@@ -144,8 +187,8 @@ export default function NewInspection() {
           <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>basic details</div>
         </div>
       }>
-        <BtnPrimary onClick={handleContinue}>
-          Continue →
+        <BtnPrimary onClick={handleContinue} disabled={checking || purging}>
+          {checking ? 'Checking PID…' : held?.state === 'binned' ? 'Continue with it →' : 'Continue →'}
         </BtnPrimary>
       </StickyFooter>
     </div>

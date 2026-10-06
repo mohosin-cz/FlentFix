@@ -351,13 +351,23 @@ export default function Properties() {
       .update({ deleted_at: new Date().toISOString(), deleted_by: deletedBy })
       .eq('pid', confirmPid)
     if (error) { alert('Delete failed: ' + error.message); setDeleting(false); return }
-    await supabase.from('properties_bin').insert({
+    // The two writes are not one transaction, and a bin row that never lands
+    // leaves the worst of both: the property gone from the list, the PID still
+    // held, and nothing in the bin to restore or erase. Put the property back
+    // rather than leaving it in that state.
+    const { error: binErr } = await supabase.from('properties_bin').insert({
       pid:           confirmPid,
       name:          prop?.name || confirmPid,
       type:          prop?.type,
       deleted_by:    deletedBy,
       original_data: prop,
     })
+    if (binErr) {
+      await supabase.from('properties').update({ deleted_at: null, deleted_by: null }).eq('pid', confirmPid)
+      alert('Delete failed: ' + binErr.message)
+      setDeleting(false)
+      return
+    }
     setRows(prev => prev.filter(r => r.pid !== confirmPid))
     setBinCount(c => c + 1)
     setDeleting(false)

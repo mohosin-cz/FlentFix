@@ -5,6 +5,7 @@ import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import { advanceStage, STAGES, MAIN_SEQUENCE } from '../utils/propertyJourney'
 import { logActivity } from '../utils/activityUtils'
+import { pidStatus, pidStatusMessage, purgeBinnedPid } from '../utils/pidStatus'
 import LogoSpinner from '../components/LogoSpinner'
 import StageRail from '../components/property/StageRail'
 import ShareSheet from '../components/vendor/ShareSheet'
@@ -179,8 +180,12 @@ const TILES = [
 function ChangePidModal({ pid, userEmail, onClose, onSuccess }) {
   const [screen, setScreen]           = useState('setup')
   const [newPid, setNewPid]           = useState('')
-  const [pidInUse, setPidInUse]       = useState(false)
+  // What is holding the typed PID, not merely whether something is. A PID sat
+  // in the bin used to read as "already in use" — true of the database, and
+  // useless to someone looking at a list the property is no longer on.
+  const [held, setHeld]               = useState(null)
   const [checking, setChecking]       = useState(false)
+  const [reclaiming, setReclaiming]   = useState(false)
   const [confirmInput, setConfirmInput] = useState('')
   const [submitting, setSubmitting]   = useState(false)
   const [error, setError]             = useState(null)
@@ -188,20 +193,37 @@ function ChangePidModal({ pid, userEmail, onClose, onSuccess }) {
 
   function onNewPidChange(val) {
     setNewPid(val)
-    setPidInUse(false)
+    setHeld(null)
     const v = val.trim()
     if (!v || v === pid) { setChecking(false); return }
     setChecking(true)
     clearTimeout(timerRef.current)
     timerRef.current = setTimeout(async () => {
-      const { data } = await supabase.from('properties').select('pid').eq('pid', v).maybeSingle()
-      setPidInUse(!!data)
+      const st = await pidStatus(v)
+      setHeld(st.state === 'free' ? null : st)
       setChecking(false)
     }, 400)
   }
 
+  // Take a binned PID back. The old property is erased for good — the same
+  // three deletes the bin's own "delete permanently" performs — so it is asked
+  // for in those words rather than slipped in behind a rename.
+  async function reclaim() {
+    if (!held || held.state !== 'binned') return
+    const insp = held.inspections?.length
+    if (!window.confirm(
+      `Permanently delete the binned property ${held.pid}${insp ? ` and its ${insp} inspection${insp === 1 ? '' : 's'}` : ''}, ` +
+      `so this property can take the PID?\n\nThis cannot be undone. To keep that property instead, restore it from the bin.`)) return
+    setReclaiming(true); setError(null)
+    const { error: pErr } = await purgeBinnedPid(held.pid)
+    setReclaiming(false)
+    if (pErr) { setError(pErr); return }
+    setHeld(null)
+  }
+
   const cleanNew = newPid.trim()
   const sameAsCurrent = cleanNew === pid
+  const pidInUse = !!held
   const canContinue = cleanNew && !sameAsCurrent && !pidInUse && !checking
 
   async function handleConfirm() {
@@ -262,7 +284,25 @@ function ChangePidModal({ pid, userEmail, onClose, onSuccess }) {
                 onBlur={e  => { e.target.style.borderColor = pidInUse ? '#f87171' : 'var(--border, #2e3040)' }}
               />
               {checking && <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Checking…</span>}
-              {!checking && pidInUse && <span style={{ fontSize: 11, color: '#f87171', fontFamily: 'var(--font-mono, monospace)' }}>PID already in use</span>}
+              {!checking && held && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.28)', borderRadius: 8 }}>
+                  <span style={{ fontSize: 11.5, color: '#f87171', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.55 }}>{pidStatusMessage(held)}</span>
+                  {/* A binned PID is the one case with a way forward from here:
+                      either keep that property, or give it up on purpose. */}
+                  {held.state === 'binned' && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button type="button" onClick={reclaim} disabled={reclaiming}
+                        style={{ padding: '7px 11px', background: 'var(--bg-input, #252731)', border: '1px solid #f87171', borderRadius: 7, fontSize: 11.5, color: '#f87171', cursor: reclaiming ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                        {reclaiming ? 'Deleting…' : 'Delete it for good & take the PID'}
+                      </button>
+                      {held.inBin && <a href="/properties/bin" style={{ padding: '7px 11px', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 7, fontSize: 11.5, color: 'var(--text-dim, #9394a8)', textDecoration: 'none', fontFamily: 'var(--font-mono, monospace)' }}>Open the bin</a>}
+                    </div>
+                  )}
+                  {held.state === 'archived' && (
+                    <a href="/properties/archive" style={{ alignSelf: 'flex-start', padding: '7px 11px', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 7, fontSize: 11.5, color: 'var(--text-dim, #9394a8)', textDecoration: 'none', fontFamily: 'var(--font-mono, monospace)' }}>Open the archive</a>
+                  )}
+                </div>
+              )}
               {!checking && !pidInUse && sameAsCurrent && cleanNew && <span style={{ fontSize: 11, color: '#f87171', fontFamily: 'var(--font-mono, monospace)' }}>Same as current PID</span>}
             </div>
 
