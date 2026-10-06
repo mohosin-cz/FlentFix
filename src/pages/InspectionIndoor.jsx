@@ -1343,7 +1343,7 @@ function YesNoControl({ value, onChange }) {
               fontSize: 12, fontWeight: 700, cursor: 'pointer',
               fontFamily: 'var(--font-mono, monospace)',
               background: sel ? (opt.val ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)') : 'transparent',
-              color: sel ? (opt.val ? '#000' : 'var(--text, #e8e8f0)') : 'var(--text-muted, #6b6d82)',
+              color: sel ? (opt.val ? 'var(--on-accent, #000)' : 'var(--text, #e8e8f0)') : 'var(--text-muted, #6b6d82)',
               transition: 'background 0.15s, color 0.15s',
             }}
           >{opt.label}</button>

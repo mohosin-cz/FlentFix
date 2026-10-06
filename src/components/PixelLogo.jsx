@@ -35,8 +35,13 @@ const GROW = 0.10     // dot swell where the glass is thickest
 const RADIUS = 0.28   // dot corner rounding; square reads blocky, circular reads soft
 const FIELD = 0.13    // unlit dot opacity — a panel you can sense, not a grid you read
 
-const AMBER = '#E0A93F'
-const DIM = '#3A3324'
+// The lit dot and the unlit field, as tokens. The unlit colour is the one that
+// has to move with the theme: a dark brown at 13% opacity reads as a panel you
+// can sense behind dark letters, and as a grey haze competing with them on
+// white. The lit gold darkens on light for the same reason every other gold in
+// the app does — #E0A93F on white is 2:1.
+const AMBER = 'var(--logo-lit, #E0A93F)'
+const DIM = 'var(--logo-dim, #3A3324)'
 
 function buildCells() {
   const lit = new Set()

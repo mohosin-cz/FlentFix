@@ -210,7 +210,7 @@ export default function PaymentsImport() {
 
             <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', marginTop: 14 }}>
               <button onClick={() => navigate(`/properties/${pid}/payments`)}
-                style={{ minHeight: 42, padding: '0 18px', borderRadius: 10, border: 'none', background: 'var(--accent, #c8963e)', color: '#1a1408', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: SANS }}>
+                style={{ minHeight: 42, padding: '0 18px', borderRadius: 10, border: 'none', background: 'var(--accent, #c8963e)', color: 'var(--on-accent, #1a1408)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: SANS }}>
                 See the payments
               </button>
               <button onClick={() => { setResult(null); setRaw(''); setTouched(false) }}
@@ -364,7 +364,7 @@ export default function PaymentsImport() {
                     alignSelf: 'flex-start', minHeight: 46, padding: '0 20px', borderRadius: 10, border: 'none',
                     fontSize: 14, fontWeight: 700, fontFamily: SANS,
                     background: good.length ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)',
-                    color: good.length ? '#1a1408' : 'var(--text-muted, #6b6d82)',
+                    color: good.length ? 'var(--on-accent, #1a1408)' : 'var(--text-muted, #6b6d82)',
                     cursor: importing ? 'wait' : good.length ? 'pointer' : 'not-allowed',
                   }}>
                   {importing ? 'Importing…' : `Import ${good.length} payment${good.length === 1 ? '' : 's'} · ${inr(goodTotal)}`}

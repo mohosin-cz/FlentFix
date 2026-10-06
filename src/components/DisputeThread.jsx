@@ -111,7 +111,7 @@ export default function DisputeThread({ itemId, estimateId, item, userEmail, onR
                 maxWidth: '85%', padding: '8px 12px', borderRadius: 8,
                 fontSize: 12, lineHeight: 1.6,
                 background: isFlent ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)',
-                color: isFlent ? '#000' : 'var(--text, #e8e8f0)',
+                color: isFlent ? 'var(--on-accent, #000)' : 'var(--text, #e8e8f0)',
                 border: isFlent ? 'none' : '1px solid var(--border, #2e3040)',
               }}>
                 {msg.message || `[${REASON_LABELS[msg.reason_tag] || msg.reason_tag}]`}

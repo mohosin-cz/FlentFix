@@ -267,7 +267,7 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
             )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" onClick={() => { setPhase('review'); setIdx(0); setErr('') }} style={navBtn}>‹ Back</button>
-              <button type="button" onClick={sendAll} disabled={busy} style={{ ...approveBtn, background: 'var(--accent, #c8963e)', color: '#1a1408' }}>
+              <button type="button" onClick={sendAll} disabled={busy} style={{ ...approveBtn, background: 'var(--accent, #c8963e)', color: 'var(--on-accent, #1a1408)' }}>
                 {busy ? 'Issuing…' : 'Issue for signing →'}
               </button>
             </div>
@@ -282,7 +282,7 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
               <br />Close this and each one now has WhatsApp / Email / Copy link buttons
               in the list. Signatures appear there as they come in.
             </div>
-            <button type="button" onClick={onClose} style={{ ...approveBtn, background: 'var(--accent, #c8963e)', color: '#1a1408' }}>Done</button>
+            <button type="button" onClick={onClose} style={{ ...approveBtn, background: 'var(--accent, #c8963e)', color: 'var(--on-accent, #1a1408)' }}>Done</button>
           </div>
         )}
       </div>

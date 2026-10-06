@@ -28,7 +28,7 @@ const chip = (tone) => ({
   fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 7, cursor: 'pointer',
   fontFamily: MONO, border: tone === 'solid' ? 'none' : '1px solid var(--border, #2e3040)',
   background: tone === 'solid' ? 'var(--accent, #c8963e)' : 'none',
-  color: tone === 'solid' ? '#16171f' : tone === 'danger' ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)',
+  color: tone === 'solid' ? 'var(--on-accent, #16171f)' : tone === 'danger' ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)',
 })
 
 // ── the form behind every control ───────────────────────────────────────────

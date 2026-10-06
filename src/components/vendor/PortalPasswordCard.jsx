@@ -120,14 +120,14 @@ export default function PortalPasswordCard({ vendor }) {
             autoFocus autoCapitalize="characters" autoCorrect="off"
             style={{ flex: '1 1 180px', minWidth: 0, padding: '10px 12px', fontSize: 15, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 9, color: 'var(--text, #e8e8f0)', outline: 'none', fontFamily: MONO }} />
           <button type="button" onClick={() => issue(draft.trim())} disabled={draft.trim().length < 6 || busy}
-            style={{ ...btn, border: 'none', fontWeight: 700, background: draft.trim().length < 6 ? 'var(--bg-input, #252731)' : 'var(--accent, #c8963e)', color: draft.trim().length < 6 ? 'var(--text-muted, #6b6d82)' : '#1a1408' }}>
+            style={{ ...btn, border: 'none', fontWeight: 700, background: draft.trim().length < 6 ? 'var(--bg-input, #252731)' : 'var(--accent, #c8963e)', color: draft.trim().length < 6 ? 'var(--text-muted, #6b6d82)' : 'var(--on-accent, #1a1408)' }}>
             {busy ? '…' : 'Save'}
           </button>
           <button type="button" onClick={() => { setEditing(false); setDraft('') }} style={btn}>Cancel</button>
         </div>
       ) : (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => issue(null)} disabled={busy} style={{ ...btn, ...(pw ? null : { background: 'var(--accent, #c8963e)', color: '#1a1408', border: 'none', fontWeight: 700 }) }}>
+          <button type="button" onClick={() => issue(null)} disabled={busy} style={{ ...btn, ...(pw ? null : { background: 'var(--accent, #c8963e)', color: 'var(--on-accent, #1a1408)', border: 'none', fontWeight: 700 }) }}>
             {busy ? 'Working…' : pw || setAt ? 'Issue a new one' : 'Set a password'}
           </button>
           <button type="button" onClick={() => { setEditing(true); setDraft('') }} style={btn}>Choose one…</button>

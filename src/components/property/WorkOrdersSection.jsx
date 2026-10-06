@@ -588,7 +588,7 @@ function TradeCard({ group, wos, vendors, busyId, errs, onCreate, onAddVendor, o
                 onClick={() => { onMoveMany(selectedHere, moveTo); setSel(new Set()); setMoveTo('') }}
                 style={{ padding: '7px 13px', borderRadius: 7, border: 'none', fontSize: 12, fontWeight: 700, fontFamily: MONO,
                   background: moveTo ? 'var(--accent, #c8963e)' : 'var(--bg-panel, #1e2028)',
-                  color: moveTo ? '#1a1408' : 'var(--text-muted, #6b6d82)',
+                  color: moveTo ? 'var(--on-accent, #1a1408)' : 'var(--text-muted, #6b6d82)',
                   cursor: moveTo ? 'pointer' : 'not-allowed' }}>
                 Move
               </button>

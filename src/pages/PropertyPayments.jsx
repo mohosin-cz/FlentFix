@@ -254,7 +254,7 @@ export default function PropertyPayments() {
             </div>
             <div style={{ display: 'flex', gap: 9, justifyContent: 'center', flexWrap: 'wrap', marginTop: 16 }}>
               <button onClick={() => setSheet({})}
-                style={{ minHeight: 42, padding: '0 18px', borderRadius: 10, border: 'none', background: 'var(--accent, #c8963e)', color: '#1a1408', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: SANS }}>
+                style={{ minHeight: 42, padding: '0 18px', borderRadius: 10, border: 'none', background: 'var(--accent, #c8963e)', color: 'var(--on-accent, #1a1408)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: SANS }}>
                 Log a payment
               </button>
               <button onClick={() => navigate(`/properties/${pid}/payments/import`)}
@@ -389,7 +389,7 @@ export default function PropertyPayments() {
           style={{
             position: 'fixed', right: 20, bottom: 'calc(24px + env(safe-area-inset-bottom))', zIndex: 60,
             display: 'flex', alignItems: 'center', gap: 8, minHeight: 50, padding: '0 20px', borderRadius: 25,
-            border: 'none', background: 'var(--accent, #c8963e)', color: '#1a1408',
+            border: 'none', background: 'var(--accent, #c8963e)', color: 'var(--on-accent, #1a1408)',
             fontSize: 14, fontWeight: 700, fontFamily: SANS, cursor: 'pointer',
             boxShadow: '0 10px 28px rgba(0,0,0,0.45)',
           }}>

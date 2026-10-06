@@ -168,7 +168,7 @@ export default function QueryThread({ itemId, estimateId, item, userEmail }) {
               disabled={sending || !reply.trim()}
               style={{
                 padding: '7px 18px', background: 'var(--accent, #c8963e)', border: 'none',
-                borderRadius: 6, fontSize: 12, fontWeight: 700, color: '#000',
+                borderRadius: 6, fontSize: 12, fontWeight: 700, color: 'var(--on-accent, #000)',
                 cursor: sending || !reply.trim() ? 'default' : 'pointer',
                 opacity: !reply.trim() ? 0.4 : 1,
               }}
