@@ -427,7 +427,7 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
             style={{
               flex: 1, minWidth: 120, minHeight: 46, borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 700, fontFamily: SANS,
               background: valid ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)',
-              color: valid ? '#1a1408' : 'var(--text-muted, #6b6d82)',
+              color: valid ? 'var(--on-accent, #1a1408)' : 'var(--text-muted, #6b6d82)',
               cursor: busy ? 'wait' : valid ? 'pointer' : 'not-allowed',
             }}>
             {busy ? 'Saving…' : editing ? 'Save changes' : `Save${total ? ` ${inr(total)}` : ''}`}

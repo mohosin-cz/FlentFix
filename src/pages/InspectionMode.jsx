@@ -38,14 +38,14 @@ const MODES = [
     border: 'var(--border, #2e3040)',
     icon: (
       <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-        <rect x="8" y="16" width="32" height="26" rx="3" stroke="#9394a8" strokeWidth="2"/>
-        <path d="M4 18L24 4l20 14" stroke="#9394a8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <rect x="19" y="30" width="10" height="12" rx="1" stroke="#9394a8" strokeWidth="1.8"/>
-        <circle cx="27" cy="36" r="1" fill="#9394a8"/>
-        <rect x="10" y="22" width="8" height="7" rx="1" stroke="#9394a8" strokeWidth="1.6"/>
-        <path d="M14 22v7M10 25.5h8" stroke="#9394a8" strokeWidth="1.2"/>
-        <rect x="30" y="22" width="8" height="7" rx="1" stroke="#9394a8" strokeWidth="1.6"/>
-        <path d="M34 22v7M30 25.5h8" stroke="#9394a8" strokeWidth="1.2"/>
+        <rect x="8" y="16" width="32" height="26" rx="3" stroke="var(--text-dim, #9394a8)" strokeWidth="2"/>
+        <path d="M4 18L24 4l20 14" stroke="var(--text-dim, #9394a8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <rect x="19" y="30" width="10" height="12" rx="1" stroke="var(--text-dim, #9394a8)" strokeWidth="1.8"/>
+        <circle cx="27" cy="36" r="1" fill="var(--text-dim, #9394a8)"/>
+        <rect x="10" y="22" width="8" height="7" rx="1" stroke="var(--text-dim, #9394a8)" strokeWidth="1.6"/>
+        <path d="M14 22v7M10 25.5h8" stroke="var(--text-dim, #9394a8)" strokeWidth="1.2"/>
+        <rect x="30" y="22" width="8" height="7" rx="1" stroke="var(--text-dim, #9394a8)" strokeWidth="1.6"/>
+        <path d="M34 22v7M30 25.5h8" stroke="var(--text-dim, #9394a8)" strokeWidth="1.2"/>
       </svg>
     ),
     areas: ['Living Room', 'Kitchen', 'Bedrooms', 'Bathrooms'],

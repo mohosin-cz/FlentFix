@@ -95,7 +95,7 @@ export default function EstimateControlCenter({ pid, userEmail, onClose }) {
           <button
             onClick={handleGenerate}
             disabled={generating}
-            style={{ flex: 1, padding: '10px', background: 'var(--accent, #c8963e)', color: '#000', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: generating ? 'wait' : 'pointer', opacity: generating ? 0.7 : 1, fontFamily: 'var(--font-mono, monospace)' }}
+            style={{ flex: 1, padding: '10px', background: 'var(--accent, #c8963e)', color: 'var(--on-accent, #000)', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: generating ? 'wait' : 'pointer', opacity: generating ? 0.7 : 1, fontFamily: 'var(--font-mono, monospace)' }}
           >
             {generating ? 'Generating…' : '+ Generate New Estimate'}
           </button>

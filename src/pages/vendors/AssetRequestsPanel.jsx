@@ -130,7 +130,7 @@ export default function AssetRequestsPanel({ vendors, onChanged }) {
                   className="tct tct-raised"
                   style={{ minHeight: 40, padding: '0 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: 'var(--red, #e05c6a)' }}>Deny</button>
                 <button type="button" onClick={() => approve(r)} disabled={busy === r.id}
-                  style={{ minWidth: 124, minHeight: 40, padding: '0 20px', borderRadius: 10, border: 'none', background: 'var(--accent, #c8963e)', color: '#1a1408', fontSize: 13, fontWeight: 700, cursor: busy === r.id ? 'wait' : 'pointer', fontFamily: MONO, boxShadow: '0 2px 8px rgba(0,0,0,0.32)' }}>
+                  style={{ minWidth: 124, minHeight: 40, padding: '0 20px', borderRadius: 10, border: 'none', background: 'var(--accent, #c8963e)', color: 'var(--on-accent, #1a1408)', fontSize: 13, fontWeight: 700, cursor: busy === r.id ? 'wait' : 'pointer', fontFamily: MONO, boxShadow: '0 2px 8px rgba(0,0,0,0.32)' }}>
                   {busy === r.id ? '…' : 'Approve'}
                 </button>
               </div>

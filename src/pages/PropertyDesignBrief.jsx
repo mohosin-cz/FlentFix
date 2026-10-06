@@ -67,7 +67,7 @@ export default function PropertyDesignBrief() {
     display: 'inline-flex', alignItems: 'center', gap: 7, minHeight: 40, padding: '0 15px', borderRadius: 9,
     border: primary ? 'none' : '1px solid var(--border, #2e3040)',
     background: primary ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)',
-    color: primary ? '#16171f' : 'var(--text-dim, #9394a8)',
+    color: primary ? 'var(--on-accent, #16171f)' : 'var(--text-dim, #9394a8)',
     fontSize: 13, fontWeight: primary ? 700 : 600, cursor: 'pointer', fontFamily: MONO,
   })
 

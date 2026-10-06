@@ -719,7 +719,7 @@ const s = {
   archiveBadge: {
     position: 'absolute', top: -5, right: -5,
     minWidth: 16, height: 16, borderRadius: 8,
-    background: 'var(--accent, #c8963e)', color: '#1a1408',
+    background: 'var(--accent, #c8963e)', color: 'var(--on-accent, #1a1408)',
     fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     padding: '0 4px',

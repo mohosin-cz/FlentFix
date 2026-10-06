@@ -26,7 +26,7 @@ const MONO = 'var(--font-mono, monospace)'
 const inp = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: 15, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, outline: 'none', fontFamily: 'inherit' }
 const lbl = { fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: MONO }
 const actBtn = { padding: '8px 13px', fontSize: 12.5, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: MONO, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', minHeight: 38 }
-const primaryBtn = { ...actBtn, background: 'var(--accent, #c8963e)', color: '#1a1408', border: 'none', fontWeight: 700 }
+const primaryBtn = { ...actBtn, background: 'var(--accent, #c8963e)', color: 'var(--on-accent, #1a1408)', border: 'none', fontWeight: 700 }
 
 function Err({ children, onClose }) {
   if (!children) return null

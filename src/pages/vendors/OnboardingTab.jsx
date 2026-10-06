@@ -166,7 +166,7 @@ function PasswordRollout({ rows, onDone }) {
         {err && <div style={{ color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', fontSize: 11.5, marginTop: 4 }}>⚠ {err}</div>}
       </div>
       <button type="button" onClick={generateAll} disabled={busy}
-        style={{ minHeight: 40, padding: '0 14px', borderRadius: 8, border: 'none', background: 'var(--accent, #c8963e)', color: '#1a1408', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', cursor: 'pointer' }}>
+        style={{ minHeight: 40, padding: '0 14px', borderRadius: 8, border: 'none', background: 'var(--accent, #c8963e)', color: 'var(--on-accent, #1a1408)', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', cursor: 'pointer' }}>
         {busy ? 'Issuing…' : 'Issue for all'}
       </button>
     </div>

@@ -342,7 +342,7 @@ export default function AssetFormSheet({ mode, asset, vendors, actor, onClose, o
             </button>
           )}
           <button type="button" onClick={save} disabled={!!busy}
-            style={{ flex: 1, minHeight: 46, borderRadius: 10, border: 'none', background: 'var(--accent, #c8963e)', color: '#1a1408', fontSize: 14, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO }}>
+            style={{ flex: 1, minHeight: 46, borderRadius: 10, border: 'none', background: 'var(--accent, #c8963e)', color: 'var(--on-accent, #1a1408)', fontSize: 14, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO }}>
             {busy === 'save' ? 'Saving…' : editing ? 'Save changes' : 'Log asset'}
           </button>
         </div>

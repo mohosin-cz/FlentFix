@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
@@ -136,6 +137,49 @@ function computeNextAction(pid, { latestEstByPid, disputesByEstId, draftMap }) {
   return   { label: 'View estimate',    path: `/properties/${pid}/estimates`, navState: null, openQuery: false, landlordMsgCount: 0 }
 }
 
+
+// ─── Appearance ───────────────────────────────────────────────────────────────
+// Three choices, not a switch. "System" is what most people want and a two-way
+// toggle cannot express it: the phone already goes dark in the evening, and the
+// app should go with it. Dark and light pin it regardless.
+//
+// It is a per-screen setting, not a per-account one — the same person at a desk
+// and on site on a dark landing wants different answers — so it is remembered
+// in this browser and takes effect the moment it is pressed, with no save.
+const APPEARANCES = [
+  ['system', 'Auto', 'Follows your device'],
+  ['light',  'Light', 'Always light'],
+  ['dark',   'Dark',  'Always dark'],
+]
+
+function AppearancePicker() {
+  const { preference, theme, setPreference } = useTheme()
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono, monospace)', marginBottom: 6 }}>appearance</div>
+      <div role="group" aria-label="Appearance" className="tct-scored" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
+        {APPEARANCES.map(([key, label, hint]) => (
+          <button
+            key={key}
+            type="button"
+            title={hint}
+            aria-pressed={preference === key}
+            onClick={() => setPreference(key)}
+            className={`tct tct-raised${preference === key ? ' is-on' : ''}`}
+            style={{ padding: '7px 4px', fontSize: 11, lineHeight: 1.1, minHeight: 32, textAlign: 'center' }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {/* Say which one "Auto" landed on, so the setting is never a mystery. */}
+      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono, monospace)', marginTop: 5 }}>
+        {preference === 'system' ? `following your device · ${theme}` : `pinned to ${preference}`}
+      </div>
+    </div>
+  )
+}
+
 // ─── Profile dropdown ──────────────────────────────────────────────────────────
 function ProfileDropdown({ name, email, onLogout }) {
   const [open, setOpen]       = useState(false)
@@ -202,6 +246,7 @@ function ProfileDropdown({ name, email, onLogout }) {
                   <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono, monospace)', marginBottom: 3 }}>email</div>
                   <div style={{ fontSize: 13, color: 'var(--text)', fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-all' }}>{email || '—'}</div>
                 </div>
+                <AppearancePicker />
               </div>
               <div style={{ padding: '0 10px 10px' }}>
                 <button onClick={onLogout} style={{ width: '100%', padding: '9px 14px', borderRadius: 6, border: '1px solid rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)', fontSize: 12, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
@@ -597,7 +642,7 @@ export default function Dashboard() {
                               background: isAct ? step.color : 'transparent',
                               border: `2px solid ${isAct ? step.color : 'var(--border-dash, #3a3d52)'}`,
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: 8, fontWeight: 700, color: isAct ? '#16171f' : 'var(--text-muted, #6b6d82)',
+                              fontSize: 8, fontWeight: 700, color: isAct ? 'var(--on-accent, #16171f)' : 'var(--text-muted, #6b6d82)',
                               fontFamily: 'var(--font-mono, monospace)',
                             }}>{step.stage}</div>
                             <div style={{ fontSize: 8, color: isAct ? step.color : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', letterSpacing: '0.06em' }}>{step.label}</div>

@@ -250,7 +250,7 @@ export default function AssetsTab() {
         />
         <button type="button" onClick={() => setSheet({ mode: 'new' })}
           style={{ display: 'flex', alignItems: 'center', gap: 7, height: 38, padding: '0 15px', borderRadius: 11, cursor: 'pointer', flexShrink: 0,
-            background: 'var(--accent, #c8963e)', border: 'none', color: '#1a1408', fontSize: 13, fontWeight: 700, fontFamily: MONO }}>
+            background: 'var(--accent, #c8963e)', border: 'none', color: 'var(--on-accent, #1a1408)', fontSize: 13, fontWeight: 700, fontFamily: MONO }}>
           + Log asset
         </button>
       </div>
@@ -265,7 +265,7 @@ export default function AssetsTab() {
             Log a tool, device or uniform here, then assign it to a vendor by their email. It will show on their profile.
           </div>
           <button type="button" onClick={() => setSheet({ mode: 'new' })}
-            style={{ marginTop: 16, minHeight: 42, padding: '0 18px', borderRadius: 10, cursor: 'pointer', background: 'var(--accent, #c8963e)', border: 'none', color: '#1a1408', fontSize: 13, fontWeight: 700, fontFamily: MONO }}>
+            style={{ marginTop: 16, minHeight: 42, padding: '0 18px', borderRadius: 10, cursor: 'pointer', background: 'var(--accent, #c8963e)', border: 'none', color: 'var(--on-accent, #1a1408)', fontSize: 13, fontWeight: 700, fontFamily: MONO }}>
             + Log the first asset
           </button>
         </div>

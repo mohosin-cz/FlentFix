@@ -32,9 +32,27 @@
         padding-left: env(safe-area-inset-left);
         padding-right: env(safe-area-inset-right);
         min-height: 100dvh;
-        background-color: #16171f;
+        background-color: var(--boot-bg, #16171f);
       }
     </style>
+    <script>
+      // Before anything renders. The stylesheet and React both arrive later,
+      // and a dark app that flashes white on every refresh — or a light one
+      // that flashes black — is worse than having no setting at all.
+      (function () {
+        try {
+          var p = localStorage.getItem('pulse-theme');
+          if (p !== 'light' && p !== 'dark') {
+            p = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          }
+          document.documentElement.dataset.theme = p;
+          var c = p === 'light' ? '#f3f4f8' : '#16171f';
+          document.documentElement.style.setProperty('--boot-bg', c);
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute('content', c);
+        } catch (e) { document.documentElement.dataset.theme = 'dark'; }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

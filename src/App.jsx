@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import FixedTheme from './components/FixedTheme'
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import FloatingNav from './components/FloatingNav'
@@ -142,10 +143,10 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/estimate/:id" element={<Estimate />} />
-          <Route path="/e/:token" element={<LandlordEstimate />} />
-          <Route path="/appliance-report/:id" element={<InspectionApplianceReport />} />
-          <Route path="/invoice/:inspectionId" element={<LandlordInvoice />} />
+          <Route path="/estimate/:id" element={<FixedTheme><Estimate /></FixedTheme>} />
+          <Route path="/e/:token" element={<FixedTheme><LandlordEstimate /></FixedTheme>} />
+          <Route path="/appliance-report/:id" element={<FixedTheme><InspectionApplianceReport /></FixedTheme>} />
+          <Route path="/invoice/:inspectionId" element={<FixedTheme><LandlordInvoice /></FixedTheme>} />
           <Route
             path="/properties"
             element={
@@ -193,14 +194,14 @@ export default function App() {
           <Route path="/properties/:pid/payments" element={<ProtectedRoute><PropertyPayments /></ProtectedRoute>} />
           <Route path="/properties/:pid/payments/import" element={<ProtectedRoute><PaymentsImport /></ProtectedRoute>} />
           <Route path="/properties/:pid/estimates" element={<ProtectedRoute><EstimateWorkspace /></ProtectedRoute>} />
-          <Route path="/tax-invoice/:id" element={<ProtectedRoute><TaxInvoice /></ProtectedRoute>} />
+          <Route path="/tax-invoice/:id" element={<ProtectedRoute><FixedTheme><TaxInvoice /></FixedTheme></ProtectedRoute>} />
           <Route path="/inspections/:inspectionId/raw" element={<ProtectedRoute><RawInspectionData /></ProtectedRoute>} />
-          <Route path="/rate-card" element={<RateCard />} />
+          <Route path="/rate-card" element={<FixedTheme><RateCard /></FixedTheme>} />
           <Route path="/inventory" element={<ProtectedRoute><ExploreInventory /></ProtectedRoute>} />
           <Route path="/inventory/register" element={<ProtectedRoute><RegisterInventory /></ProtectedRoute>} />
           <Route path="/inventory/dashboard" element={<ProtectedRoute><InventoryDashboard /></ProtectedRoute>} />
           <Route path="/inventory/usage" element={<ProtectedRoute><LogUsage /></ProtectedRoute>} />
-          <Route path="/inventory/public-rc" element={<PublicRateCard />} />
+          <Route path="/inventory/public-rc" element={<FixedTheme><PublicRateCard /></FixedTheme>} />
           <Route path="/inventory/history" element={<ProtectedRoute><PurchaseHistory /></ProtectedRoute>} />
           <Route
             path="/work-order"
@@ -234,12 +235,12 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/onboard" element={<Onboard />} />
-          <Route path="/asset-request" element={<AssetRequest />} />
-          <Route path="/vi/:token" element={<VendorInvoice />} />
-          <Route path="/attend" element={<Attend />} />
-          <Route path="/wo/:token" element={<VendorWorkOrder />} />
-          <Route path="/db/:token" element={<DesignerBrief />} />
+          <Route path="/onboard" element={<FixedTheme><Onboard /></FixedTheme>} />
+          <Route path="/asset-request" element={<FixedTheme><AssetRequest /></FixedTheme>} />
+          <Route path="/vi/:token" element={<FixedTheme><VendorInvoice /></FixedTheme>} />
+          <Route path="/attend" element={<FixedTheme><Attend /></FixedTheme>} />
+          <Route path="/wo/:token" element={<FixedTheme><VendorWorkOrder /></FixedTheme>} />
+          <Route path="/db/:token" element={<FixedTheme><DesignerBrief /></FixedTheme>} />
           <Route path="/vendors" element={<ProtectedRoute><VendorHub /></ProtectedRoute>} />
           <Route path="/vendors/analytics" element={<ProtectedRoute><VendorAnalytics /></ProtectedRoute>} />
           <Route path="/vendors/payroll/analytics" element={<ProtectedRoute><PayrollAnalytics /></ProtectedRoute>} />

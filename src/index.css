@@ -87,8 +87,11 @@ input[type="checkbox"], input[type="radio"], input[type="file"], select {
 }
 
 html, body {
-  background: #16171f;
-  color: #e8e8f0;
+  /* Tokens, not literals: theme.css restyles body, but html kept its own dark
+     background — which shows as a dark band under a light page when the
+     content is shorter than the screen, and on every rubber-band overscroll. */
+  background: var(--bg, #16171f);
+  color: var(--text, #e8e8f0);
   font-family: 'Poppins', system-ui, sans-serif;
   font-size: 16px;
   line-height: 1.5;
