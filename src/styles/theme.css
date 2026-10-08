@@ -81,13 +81,20 @@
   --text:         #15102e;
   --text-dim:     rgba(21, 16, 46, 0.74);
   --text-muted:   rgba(21, 16, 46, 0.63);
-  /* The gold stays — it is the product — but comes down to where it can be
-     read as text on cream, and warms slightly to sit with the ink. */
-  --accent:       #8f6514;
-  --accent-dim:   #c2a869;
+  /* The gold stays — it is the product — but has to be dark enough to be read
+     as text, which is how it is used four times out of five: 247 colour: uses
+     against 67 fills. The first pass picked #8f6514 and it came out BROWN. The
+     fix is not lightness but chroma — #9d6b00 is fully saturated at the same
+     luminance, so it reads as gold rather than mud while still clearing 4.5:1
+     on white and carrying white text at 4.6:1. */
+  --accent:       #9d6b00;
+  /* The busy/disabled fill, which still carries a white label — "Saving…" on
+     a pale gold is 1.9:1 and unreadable. Darker than the accent, not lighter:
+     it reads as pressed, and white sits on it at 6.6:1. */
+  --accent-dim:   #7d5600;
   --on-accent:    #ffffff;
   --green:        #006b57;
-  --amber:        #8f6514;
+  --amber:        #9d6b00;
   --red:          #b3261e;
   --white:        #ffffff;
 
@@ -102,7 +109,7 @@
   --hover-filter: brightness(.955);
   --press-filter: brightness(.92);
 
-  --logo-lit:     #9a6c18;
+  --logo-lit:     #a97400;
   /* Opaque, not an alpha: the logo applies its own 13% opacity on top, and a
      translucent colour under that is a dot you cannot see at all. */
   --logo-dim:     #cfcbd9;
