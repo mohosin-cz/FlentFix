@@ -1,13 +1,19 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useIsMobile } from '../../hooks/useIsMobile'
-import { KINDS, TRADES, METHODS, cleanAmount, inr, todayISO, shiftISO, uploadBill, billUrl } from '../../utils/payments'
+import { KINDS, TRADES, METHODS, UNITS, cleanAmount, cleanQty, fmtQty, lineAmount, itemsTotal, inr, todayISO, shiftISO, uploadBill, billUrl } from '../../utils/payments'
 
 // The form follows how a payment is actually thought about, in order:
 //   what kind of spend  →  what work it was for  →  what it was  →  how much
 //   →  invoice (optional)  →  note (optional)
 // Amount deliberately does not come first: until you have said what the money
 // was for, the number has no meaning to file it under.
+//
+// Step 4 can be itemised. Folded away it is the single ₹ box it always was;
+// opened, it is the invoice line by line — quantity, unit, rate — because
+// "12 door handles at ₹450" used to save as ₹5,400 and lose both numbers.
+// It stays folded by default: most payments are one number and should not have
+// to walk past a table to get typed.
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
 const MONO = 'var(--font-mono, monospace)'
@@ -109,7 +115,88 @@ function PayeePicker({ payees, trade, value, name, onPick, onCreate }) {
   )
 }
 
-export default function PaymentSheet({ pid, payees, editing, recentTrades = [], onClose, onSaved, onPayeeCreated }) {
+const miniLabel = { fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, display: 'block', marginBottom: 5 }
+
+// One line of an invoice. The three boxes are the same boxed-input-with-a-tiny-
+// label pattern the material/labour split already uses, so an itemised payment
+// does not look like a different product from a plain one.
+function ItemRow({ item, index, single, showKind, onChange, onRemove }) {
+  const set = (k) => (v) => onChange({ ...item, [k]: v })
+  const computed = cleanQty(item.quantity) != null && cleanAmount(item.unit_rate) != null
+  const amount = lineAmount(item)
+
+  const box = (value, onInput, ariaLabel, mode = 'decimal') => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, boxSizing: 'border-box', padding: '7px 10px', background: 'var(--bg-input, #252731)', border: `1px solid ${value ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, borderRadius: 9 }}>
+      <input value={value} onChange={e => onInput(e.target.value)} inputMode={mode} aria-label={ariaLabel}
+        placeholder={ariaLabel === 'Unit' ? 'pcs' : '0'} list={ariaLabel === 'Unit' ? 'payment-units' : undefined}
+        style={{ flex: 1, minWidth: 0, border: 'none', background: 'none', outline: 'none', fontSize: 15, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: MONO, padding: 0 }} />
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '11px 12px', background: 'var(--bg-sunken, #14151c)', border: '1px solid var(--border, #2e3040)', borderRadius: 10 }}>
+      {/* With one line, the description is step 3's — asking for it twice is
+          the sort of thing that makes people stop itemising. */}
+      {!single && (
+        <input value={item.description || ''} onChange={e => set('description')(e.target.value)}
+          placeholder={`Line ${index + 1} — what it was`} aria-label={`Line ${index + 1} description`}
+          style={{ ...field, padding: '8px 10px', fontSize: 13 }} />
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) minmax(0,1.25fr)', gap: 8 }}>
+        <div style={{ minWidth: 0 }}><span style={miniLabel}>Qty</span>{box(item.quantity || '', set('quantity'), 'Quantity')}</div>
+        <div style={{ minWidth: 0 }}><span style={miniLabel}>Unit</span>{box(item.unit || '', set('unit'), 'Unit', 'text')}</div>
+        <div style={{ minWidth: 0 }}><span style={miniLabel}>Rate ₹</span>{box(item.unit_rate || '', set('unit_rate'), 'Rate per unit')}</div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {/* Computed when there is a quantity and a rate; typeable when the line
+            is a lump sum, because "site cleaning ₹2,000" has no quantity and
+            inventing one would be a lie in the data. */}
+        {computed ? (
+          <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
+            {fmtQty(cleanQty(item.quantity))}{item.unit ? ' ' + item.unit : ''} × {inr(cleanAmount(item.unit_rate))} =
+            <b style={{ color: 'var(--accent, #c8963e)', fontSize: 13, marginLeft: 5 }}>{inr(amount)}</b>
+          </span>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--bg-input, #252731)', border: `1px solid ${cleanAmount(item.amount) ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, borderRadius: 9 }}>
+            <span style={{ fontSize: 13, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>₹</span>
+            <input value={item.amount || ''} onChange={e => set('amount')(e.target.value)} inputMode="decimal"
+              placeholder="line total" aria-label={`Line ${index + 1} amount`}
+              style={{ width: 92, border: 'none', background: 'none', outline: 'none', fontSize: 15, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: MONO, padding: 0 }} />
+          </div>
+        )}
+
+        {/* Only on a mixed invoice, and the reason it is here: tag the lines
+            and the material/labour split is arithmetic instead of two numbers
+            somebody types again further down. */}
+        {showKind && (
+          <div style={{ display: 'flex', gap: 5 }}>
+            {['Material', 'Labour'].map(k => (
+              <button key={k} type="button" onClick={() => set('kind')(item.kind === k ? null : k)}
+                style={{ minHeight: 28, padding: '0 10px', borderRadius: 14, fontSize: 11, cursor: 'pointer', fontFamily: MONO,
+                  border: `1px solid ${item.kind === k ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`,
+                  background: item.kind === k ? 'rgba(200,150,62,0.14)' : 'var(--bg-input, #252731)',
+                  color: item.kind === k ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)',
+                  fontWeight: item.kind === k ? 700 : 400 }}>
+                {k === 'Material' ? 'Mat' : 'Lab'}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <button type="button" onClick={onRemove} aria-label={`Remove line ${index + 1}`}
+          style={{ marginLeft: 'auto', minHeight: 28, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 11, cursor: 'pointer', fontFamily: MONO }}>
+          Remove
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const blankItem = () => ({ key: crypto.randomUUID(), description: '', quantity: '', unit: '', unit_rate: '', amount: '', kind: null })
+
+export default function PaymentSheet({ pid, payees, editing, recentTrades = [], itemsEnabled = true, onClose, onSaved, onPayeeCreated }) {
   const phone = useIsMobile(720)
   const [kind, setKind] = useState(editing?.kind || 'Material')
   const [trade, setTrade] = useState(editing?.trade || recentTrades[0] || '')
@@ -126,15 +213,50 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
   const [files, setFiles] = useState([])
   const [existing, setExisting] = useState(editing?.property_payment_bills || [])
   const [extras, setExtras] = useState(!!(editing?.method || editing?.reference || editing?.note))
+  // Opened automatically when the payment being edited already has lines, so
+  // an itemised payment never looks like it lost its detail on the way back in.
+  const [items, setItems] = useState(() =>
+    (editing?.property_payment_items || [])
+      .slice().sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+      .map(it => ({
+        key: it.id, description: it.description || '',
+        quantity: it.quantity != null ? fmtQty(it.quantity) : '',
+        unit: it.unit || '', unit_rate: it.unit_rate != null ? String(it.unit_rate) : '',
+        amount: it.amount != null ? String(it.amount) : '', kind: it.kind || null,
+      })))
+  const [itemised, setItemised] = useState(!!(editing?.property_payment_items || []).length)
+  // Null means "the lines are the total". A string means somebody typed a
+  // different one — a discount, a round figure — which is allowed, because a
+  // form that refuses to store the invoice as written just gets worked around.
+  const [overrideTotal, setOverrideTotal] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [flash, setFlash] = useState('')
   const descRef = useRef(null)
 
   const both = kind === 'Both'
-  const total = both ? (cleanAmount(material) || 0) + (cleanAmount(labour) || 0) : (cleanAmount(amount) || 0)
+  const single = items.length === 1
+  const linesTotal = itemsTotal(items)
+  const total = itemised
+    ? (overrideTotal != null ? (cleanAmount(overrideTotal) || 0) : linesTotal)
+    : both ? (cleanAmount(material) || 0) + (cleanAmount(labour) || 0) : (cleanAmount(amount) || 0)
+  const drift = itemised && overrideTotal != null ? Math.round((total - linesTotal) * 100) / 100 : 0
+
+  // The split, derived from the lines when they carry a tag. Whatever the tags
+  // do not cover is reported rather than quietly pushed onto one side.
+  const lineSplit = useMemo(() => {
+    const m = items.filter(i => i.kind === 'Material').reduce((n, i) => n + lineAmount(i), 0)
+    const l = items.filter(i => i.kind === 'Labour').reduce((n, i) => n + lineAmount(i), 0)
+    return { material: m, labour: l, untagged: Math.round((linesTotal - m - l) * 100) / 100 }
+  }, [items, linesTotal])
+
+  const linesValid = items.length > 0
+    && items.every(i => lineAmount(i) > 0)
+    && (single || items.every(i => (i.description || '').trim()))
   const valid = total > 0 && !!trade && !!description.trim() && !!paidOn
-    && (!both || (cleanAmount(material) != null && cleanAmount(labour) != null))
+    && (itemised
+      ? linesValid && (!both || lineSplit.untagged === 0 || (cleanAmount(material) != null && cleanAmount(labour) != null))
+      : !both || (cleanAmount(material) != null && cleanAmount(labour) != null))
 
   const orderedTrades = useMemo(() => {
     const seen = recentTrades.filter(t => TRADES.includes(t))
@@ -144,6 +266,7 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
   function reset() {
     setDescription(''); setAmount(''); setMaterial(''); setLabour('')
     setReference(''); setNote(''); setFiles([]); setErr('')
+    setItems(itemised ? [blankItem()] : []); setOverrideTotal(null)
     descRef.current?.focus()
     // kind, trade, vendor, date and method persist — logging a day of one
     // vendor's invoices should not mean re-picking them each time
@@ -179,8 +302,14 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
         payee_id: payeeId,
         payee_name: payeeName || null,
         amount: total,
-        material_cost: both ? cleanAmount(material) : (kind === 'Material' ? total : null),
-        labour_cost: both ? cleanAmount(labour) : (kind === 'Labour' ? total : null),
+        // Tagged lines beat typed boxes — they are a more specific record of
+        // the same fact, and they cannot disagree with the lines they came from.
+        material_cost: itemised && both && lineSplit.untagged === 0 ? lineSplit.material
+          : both ? cleanAmount(material)
+          : (kind === 'Material' ? total : null),
+        labour_cost: itemised && both && lineSplit.untagged === 0 ? lineSplit.labour
+          : both ? cleanAmount(labour)
+          : (kind === 'Labour' ? total : null),
         method: method || null,
         reference: reference.trim() || null,
         note: note.trim() || null,
@@ -196,6 +325,28 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
           .insert({ ...row, created_by: user?.email || null }).select('id').single()
         if (error) throw error
         paymentId = data.id
+      }
+
+      // Lines are rewritten wholesale rather than diffed. There are a handful
+      // of them, they carry no history of their own, and a diff that gets one
+      // edge case wrong loses a line without saying so.
+      if (editing) {
+        const { error } = await supabase.from('property_payment_items').delete().eq('payment_id', paymentId)
+        if (error) throw error
+      }
+      if (itemised && items.length) {
+        const rows = items.map((it, i) => ({
+          payment_id: paymentId,
+          position: i,
+          description: (single ? description.trim() : (it.description || '').trim()) || null,
+          quantity: cleanQty(it.quantity),
+          unit: (it.unit || '').trim() || null,
+          unit_rate: cleanAmount(it.unit_rate),
+          amount: lineAmount(it),
+          kind: both ? (it.kind || null) : null,
+        }))
+        const { error } = await supabase.from('property_payment_items').insert(rows)
+        if (error) throw error
       }
 
       if (files.length) {
@@ -317,7 +468,98 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
         {/* 4 — how much */}
         <div>
           <span style={stepLabel}><span style={stepNum}>4</span> Amount</span>
-          {both ? (
+
+          {itemised ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+              {items.map((it, i) => (
+                <ItemRow key={it.key} item={it} index={i} single={single} showKind={both}
+                  onChange={next => setItems(prev => prev.map((x, j) => (j === i ? next : x)))}
+                  onRemove={() => setItems(prev => {
+                    const left = prev.filter((_, j) => j !== i)
+                    // The last line going is the same intent as closing the
+                    // itemiser, so it closes rather than leaving an empty table.
+                    if (!left.length) { setItemised(false); setOverrideTotal(null) }
+                    return left
+                  })} />
+              ))}
+
+              <button type="button"
+                onClick={() => setItems(prev => {
+                  // The first line was the payment's own description. Writing
+                  // it onto that line as a second one appears keeps it from
+                  // disappearing the moment the invoice stops being one thing.
+                  const seeded = prev.length === 1 && !prev[0].description
+                    ? [{ ...prev[0], description: description.trim() }]
+                    : prev
+                  return [...seeded, blankItem()]
+                })}
+                style={{ alignSelf: 'flex-start', padding: 0, background: 'none', border: 'none', color: 'var(--accent, #c8963e)', fontSize: 12.5, cursor: 'pointer', fontFamily: MONO }}>
+                + Add another line
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '9px 13px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
+                  {items.length === 1 ? 'Total' : `${items.length} lines`}
+                </span>
+                {overrideTotal != null ? (
+                  <div style={{ marginLeft: 'auto', width: 150 }}>{amountBox(overrideTotal, setOverrideTotal, 'Invoice total', false)}</div>
+                ) : (
+                  <span style={{ marginLeft: 'auto', fontSize: 20, fontWeight: 700, color: total ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{inr(total)}</span>
+                )}
+              </div>
+
+              {/* With every line tagged, the split below is arithmetic. Until
+                  then it still has to be typed, and it says how much is
+                  waiting on a tag. */}
+              {both && (
+                lineSplit.untagged === 0 ? (
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
+                    <span>From the lines:</span>
+                    <span style={{ color: 'var(--text-dim, #9394a8)' }}>{inr(lineSplit.material)} material</span>
+                    <span style={{ color: 'var(--text-dim, #9394a8)' }}>{inr(lineSplit.labour)} labour</span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                    <span style={{ fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.5 }}>
+                      {inr(lineSplit.untagged)} of the lines {lineSplit.untagged === linesTotal ? 'is' : 'is still'} untagged — tag each line Mat or Lab and the split below fills itself in.
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, display: 'block', marginBottom: 5 }}>Material</span>
+                        {amountBox(material, setMaterial, 'Material amount', false)}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, display: 'block', marginBottom: 5 }}>Labour</span>
+                        {amountBox(labour, setLabour, 'Labour amount', false)}
+                      </div>
+                    </div>
+                  </div>
+                )
+              )}
+              {/* A bill is allowed to differ from its lines — discounts and
+                  round figures are real. The difference is shown rather than
+                  silently absorbed into one of the two numbers. */}
+              {overrideTotal == null ? (
+                <button type="button" onClick={() => setOverrideTotal(String(linesTotal))}
+                  style={{ alignSelf: 'flex-start', padding: 0, background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 11.5, cursor: 'pointer', fontFamily: MONO }}>
+                  The invoice total is different — discount or rounding
+                </button>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11.5, color: drift ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
+                    {drift === 0
+                      ? `Same as the lines (${inr(linesTotal)})`
+                      : `${inr(Math.abs(drift))} ${drift < 0 ? 'less' : 'more'} than the lines (${inr(linesTotal)})`}
+                  </span>
+                  <button type="button" onClick={() => setOverrideTotal(null)}
+                    style={{ padding: 0, background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 11.5, cursor: 'pointer', fontFamily: MONO }}>
+                    use the line total
+                  </button>
+                </div>
+              )}
+
+            </div>
+          ) : both ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
                 <div style={{ minWidth: 0 }}>
@@ -335,6 +577,23 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
               </div>
             </div>
           ) : amountBox(amount, setAmount, 'Amount paid', true)}
+
+          {/* Same disclosure as the payment mode below, for the same reason:
+              most payments are one number, and should not have to walk past a
+              table of quantities to get typed. */}
+          {itemsEnabled && <button type="button"
+            onClick={() => {
+              if (itemised) { setItemised(false); setOverrideTotal(null); return }
+              // Carry the number already typed into the first line's rate, so
+              // opening the itemiser never costs you what you had.
+              const started = cleanAmount(both ? '' : amount)
+              setItems([{ ...blankItem(), amount: started != null ? String(started) : '' }])
+              setItemised(true)
+            }}
+            style={{ marginTop: 8, padding: 0, background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: MONO }}>
+            {itemised ? '− Just a total' : '+ Quantity, unit and rate'}
+          </button>}
+          <datalist id="payment-units">{UNITS.map(u => <option key={u} value={u} />)}</datalist>
         </div>
 
         {/* Who and when — needed, but never the thing being decided. */}

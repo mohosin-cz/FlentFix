@@ -30,6 +30,12 @@ export const TRADES = [
 
 export const METHODS = ['Cash', 'UPI', 'Bank transfer', 'Card', 'Cheque']
 
+// How things are counted when they are bought. Free text like TRADES — the
+// list is a suggestion, not a constraint, because the next invoice will say
+// "rft" or "quintal" and that should just work.
+export const UNITS = ['pcs', 'nos', 'set', 'box', 'bag', 'kg', 'ltr', 'm', 'sqft', 'hr', 'day', 'trip']
+
+
 export const inr = (n) =>
   `₹${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Math.round(Number(n) || 0))}`
 
@@ -40,6 +46,75 @@ export const cleanAmount = (s) => {
   if (!t) return null
   const n = Number(t)
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : null
+}
+
+// Quantities are not money: 2.5 kg and 0.75 day are both real, so this keeps
+// three decimals where cleanAmount keeps two.
+export const cleanQty = (v) => {
+  const t = String(v ?? '').replace(/[^0-9.]/g, '')
+  if (!t) return null
+  const n = Number(t)
+  return Number.isFinite(n) ? Math.round(n * 1000) / 1000 : null
+}
+
+// 12, not 12.000. 2.5, not 2.500.
+export const fmtQty = (n) => {
+  const v = Number(n)
+  if (!Number.isFinite(v)) return ''
+  return String(Math.round(v * 1000) / 1000)
+}
+
+// A line's money. Quantity × rate when both are there, otherwise whatever was
+// typed as the amount — a line can legitimately be a lump sum with no quantity
+// ("site cleaning, ₹2,000"), and forcing a quantity on it would mean inventing
+// one.
+export const lineAmount = (it) => {
+  const q = cleanQty(it.quantity)
+  const r = cleanAmount(it.unit_rate)
+  if (q != null && r != null) return Math.round(q * r * 100) / 100
+  return cleanAmount(it.amount) ?? 0
+}
+
+export const itemsTotal = (items) => (items || []).reduce((n, it) => n + lineAmount(it), 0)
+
+// What the metadata row on a payment card says about its lines.
+export const itemSummary = (items) => {
+  const list = items || []
+  if (!list.length) return null
+  if (list.length === 1) {
+    const it = list[0]
+    const q = it.quantity != null ? fmtQty(it.quantity) : null
+    if (!q) return null
+    return `${q}${it.unit ? ' ' + it.unit : ''}${it.unit_rate != null ? ' × ' + inr(it.unit_rate) : ''}`
+  }
+  return `${list.length} items`
+}
+
+// The material/labour split of one payment, and what could not be attributed.
+// Three sources in order of how much they actually know:
+//   1. per-line kinds, when the invoice was itemised
+//   2. material_cost / labour_cost, when somebody typed the split
+//   3. `kind` alone — a Material payment is all material, and so on
+// `unsplit` is everything none of those could place. It is returned rather
+// than quietly folded into one side, because a ratio that silently absorbs
+// what it does not know is not a ratio.
+export function splitOf(row) {
+  const items = row.property_payment_items || []
+  const tagged = items.filter(it => it.kind)
+  if (tagged.length) {
+    const material = tagged.filter(it => it.kind === 'Material').reduce((n, it) => n + Number(it.amount || 0), 0)
+    const labour = tagged.filter(it => it.kind === 'Labour').reduce((n, it) => n + Number(it.amount || 0), 0)
+    return { material, labour, unsplit: Math.max(0, Number(row.amount || 0) - material - labour) }
+  }
+  const m = row.material_cost == null ? null : Number(row.material_cost)
+  const l = row.labour_cost == null ? null : Number(row.labour_cost)
+  if (m != null || l != null) {
+    return { material: m || 0, labour: l || 0, unsplit: Math.max(0, Number(row.amount || 0) - (m || 0) - (l || 0)) }
+  }
+  const amt = Number(row.amount || 0)
+  if (row.kind === 'Material') return { material: amt, labour: 0, unsplit: 0 }
+  if (row.kind === 'Labour') return { material: 0, labour: amt, unsplit: 0 }
+  return { material: 0, labour: 0, unsplit: amt }   // 'Both' with nothing to split it by
 }
 
 export const todayISO = () => {
@@ -170,6 +245,9 @@ const FIELD_HINTS = {
   payee_name: ['vendor', 'payee', 'paid to', 'supplier', 'shop', 'party'],
   material_cost: ['material cost', 'material amount', 'material', 'materials'],
   labour_cost: ['labour cost', 'labor cost', 'labour amount', 'labour', 'labor'],
+  quantity: ['quantity', 'qty', 'nos', 'count', 'units', 'no of items'],
+  unit: ['unit', 'uom', 'units of measure', 'measure'],
+  unit_rate: ['rate', 'unit rate', 'price', 'unit price', 'per unit', 'mrp'],
   method: ['method', 'mode', 'payment mode', 'paid via'],
   reference: ['reference', 'ref', 'txn', 'transaction', 'utr', 'cheque', 'invoice no', 'bill no'],
   note: ['note', 'notes', 'remark', 'remarks', 'comment'],

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useIsMobile'
 import PaymentSheet from '../components/property/PaymentSheet'
-import { TRADES, KINDS, inr, fmtDayShort, billUrl } from '../utils/payments'
+import { TRADES, KINDS, inr, fmtDayShort, fmtQty, billUrl, splitOf, itemSummary } from '../utils/payments'
 
 // Everything spent on a property during setup, and what it adds up to.
 
@@ -60,6 +60,42 @@ function Breakdown({ title, rows, total, empty }) {
   )
 }
 
+// What the payment was made up of. One line is already summarised in the chip
+// row above, so this only earns its space once an invoice has more than one
+// thing on it — at which point it is the only place that detail exists.
+function ItemLines({ items, amount }) {
+  const list = (items || []).slice().sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+  if (list.length < 2) return null
+  const sum = list.reduce((n, it) => n + Number(it.amount || 0), 0)
+  const drift = Math.round((Number(amount || 0) - sum) * 100) / 100
+  return (
+    <div style={{ marginTop: 9, borderTop: '1px solid var(--border, #2e3040)', paddingTop: 9, display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {list.map(it => (
+        <div key={it.id} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 11.5 }}>
+          <span style={{ flex: 1, minWidth: 0, color: 'var(--text-dim, #9394a8)', wordBreak: 'break-word' }}>
+            {it.description || 'line'}
+            {it.kind && <span style={{ color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}> · {it.kind === 'Material' ? 'mat' : 'lab'}</span>}
+          </span>
+          {it.quantity != null && (
+            <span style={{ color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, flexShrink: 0 }}>
+              {fmtQty(it.quantity)}{it.unit ? ` ${it.unit}` : ''}{it.unit_rate != null ? ` × ${inr(it.unit_rate)}` : ''}
+            </span>
+          )}
+          <span style={{ fontFamily: MONO, color: 'var(--text, #e8e8f0)', flexShrink: 0 }}>{inr(it.amount)}</span>
+        </div>
+      ))}
+      {/* A bill that does not match its lines is a fact about the bill — a
+          discount, a round figure — so it is stated rather than reconciled
+          away behind the scenes. */}
+      {Math.abs(drift) >= 0.5 && (
+        <div style={{ fontSize: 10.5, color: 'var(--accent, #c8963e)', fontFamily: MONO, marginTop: 2 }}>
+          lines come to {inr(sum)} · {inr(Math.abs(drift))} {drift < 0 ? 'less' : 'more'} was charged
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BillLinks({ bills }) {
   const [urls, setUrls] = useState(null)
   if (!bills?.length) return null
@@ -100,18 +136,34 @@ export default function PropertyPayments() {
   const [q, setQ] = useState('')
   const [toast, setToast] = useState(null)
   const [confirming, setConfirming] = useState(null)
+  // False only until the lines migration has run somewhere. It gates the
+  // itemiser rather than the page, so nobody can type lines that cannot save.
+  const [itemsReady, setItemsReady] = useState(true)
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true)
     setError('')
     try {
-      const [{ data: pays, error: pErr }, { data: pay, error: yErr }] = await Promise.all([
-        supabase.from('property_payments')
-          .select('*, property_payment_bills(id, path, filename, mime)')
-          .eq('pid', pid).order('paid_on', { ascending: false }).order('created_at', { ascending: false }),
+      const BILLS = 'property_payment_bills(id, path, filename, mime)'
+      const ITEMS = 'property_payment_items(id, position, description, quantity, unit, unit_rate, amount, kind)'
+      const fetchPays = (select) => supabase.from('property_payments').select(select)
+        .eq('pid', pid).order('paid_on', { ascending: false }).order('created_at', { ascending: false })
+
+      let [{ data: pays, error: pErr }, { data: pay, error: yErr }] = await Promise.all([
+        fetchPays(`*, ${BILLS}, ${ITEMS}`),
         supabase.from('payment_payees').select('*').order('name'),
       ])
-      if (pErr) throw pErr
+      // If the lines table is not there yet, the join is the only thing that
+      // failed — the payments themselves are fine. Falling back keeps the page
+      // working on an environment the migration has not reached, instead of
+      // showing "couldn't load payments" for a feature nobody asked for yet.
+      if (pErr) {
+        const retry = await fetchPays(`*, ${BILLS}`)
+        if (retry.error) throw pErr
+        pays = retry.data
+        pErr = null
+        setItemsReady(false)
+      } else setItemsReady(true)
       if (yErr) throw yErr
       setRows(pays || [])
       setPayees(pay || [])
@@ -145,8 +197,16 @@ export default function PropertyPayments() {
 
   const totals = useMemo(() => {
     const total = rows.reduce((n, r) => n + Number(r.amount || 0), 0)
-    const material = rows.reduce((n, r) => n + Number(r.material_cost || 0), 0)
-    const labour = rows.reduce((n, r) => n + Number(r.labour_cost || 0), 0)
+    // Through splitOf, so the ratio uses the best thing each row knows about
+    // itself — its tagged lines, then its typed split, then its kind. Reading
+    // material_cost alone reported '—' for every imported row, which is most
+    // of them. What still cannot be placed is counted and shown, not dropped.
+    const sp = rows.map(splitOf)
+    const material = sp.reduce((n, s) => n + s.material, 0)
+    const labour = sp.reduce((n, s) => n + s.labour, 0)
+    const unsplit = sp.reduce((n, s) => n + s.unsplit, 0)
+    const items = rows.reduce((n, r) => n + (r.property_payment_items?.length || 0), 0)
+    const itemised = rows.filter(r => r.property_payment_items?.length).length
     const byTrade = Object.values(rows.reduce((m, r) => {
       const k = r.trade || 'Untagged'
       ;(m[k] = m[k] || { key: k, total: 0, n: 0 }).total += Number(r.amount || 0)
@@ -167,7 +227,7 @@ export default function PropertyPayments() {
     }, {})).sort((a, b) => a.key.localeCompare(b.key))
     const withBill = rows.filter(r => r.property_payment_bills?.length).length
     return {
-      total, material, labour, byTrade, byPayee, byMonth,
+      total, material, labour, unsplit, items, itemised, byTrade, byPayee, byMonth,
       count: rows.length,
       avg: rows.length ? total / rows.length : 0,
       withBill,
@@ -187,7 +247,10 @@ export default function PropertyPayments() {
       if (trade !== 'all' && r.trade !== trade) return false
       if (kind !== 'all' && r.kind !== kind) return false
       if (!needle) return true
-      return [r.description, r.payee_name, r.trade, r.note, r.reference, String(r.amount)]
+      // Line descriptions are searched too — once an invoice is itemised, the
+      // thing you remember buying is often only written on one of its lines.
+      return [r.description, r.payee_name, r.trade, r.note, r.reference, String(r.amount),
+        ...(r.property_payment_items || []).map(it => it.description)]
         .some(v => (v || '').toLowerCase().includes(needle))
     })
   }, [rows, trade, kind, q])
@@ -205,13 +268,21 @@ export default function PropertyPayments() {
     setToast({
       text: `${inr(row.amount)} · ${row.description || 'payment'} deleted`,
       undo: async () => {
-        const { property_payment_bills: bills, ...payment } = row
+        // The delete cascades to both children, so undo has to put all three
+        // back. Restoring the payment and silently losing its lines would be
+        // worse than not offering undo at all.
+        const { property_payment_bills: bills, property_payment_items: items, ...payment } = row
         const { error: pErr } = await supabase.from('property_payments').insert(payment)
         if (pErr) throw new Error(pErr.message)
         if (bills?.length) {
           const { error: bErr } = await supabase.from('property_payment_bills')
             .insert(bills.map(b => ({ ...b, payment_id: row.id })))
           if (bErr) throw new Error(bErr.message)
+        }
+        if (items?.length) {
+          const { error: iErr } = await supabase.from('property_payment_items')
+            .insert(items.map(it => ({ ...it, payment_id: row.id })))
+          if (iErr) throw new Error(iErr.message)
         }
         await load({ silent: true })
       },
@@ -274,8 +345,13 @@ export default function PropertyPayments() {
                 sub={estimate ? `estimate ${inr(estimate)}` : 'no estimate on file'} />
               <Kpi label="Material / labour"
                 value={totals.material || totals.labour ? `${pct(totals.material, totals.material + totals.labour)}/${pct(totals.labour, totals.material + totals.labour)}` : '—'}
-                sub={totals.material || totals.labour ? `${inr(totals.material)} · ${inr(totals.labour)}` : 'no split recorded'} />
+                sub={totals.material || totals.labour
+                  ? `${inr(totals.material)} · ${inr(totals.labour)}${totals.unsplit ? ` · ${inr(totals.unsplit)} unsplit` : ''}`
+                  : 'no split recorded'} />
               <Kpi label="Average" value={inr(totals.avg)} sub={totals.largest ? `largest ${inr(totals.largest.amount)}` : null} />
+              <Kpi label="Itemised" value={`${totals.itemised}/${totals.count}`}
+                tone={totals.itemised < totals.count ? 'var(--accent, #c8963e)' : undefined}
+                sub={totals.items ? `${totals.items} line${totals.items === 1 ? '' : 's'} recorded` : 'no quantities recorded yet'} />
               <Kpi label="With a bill" value={`${totals.withBill}/${totals.count}`}
                 tone={totals.withBill < totals.count ? 'var(--accent, #c8963e)' : undefined}
                 sub={totals.withBill < totals.count ? `${totals.count - totals.withBill} unreceipted` : 'all receipted'} />
@@ -335,8 +411,14 @@ export default function PropertyPayments() {
                       </span>
                     )}
                     {r.method && <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{r.method}</span>}
+                    {itemSummary(r.property_payment_items) && (
+                      <span style={{ fontSize: 10.5, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, padding: '2px 7px' }}>
+                        {itemSummary(r.property_payment_items)}
+                      </span>
+                    )}
                     {r.source === 'import' && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>imported</span>}
                   </div>
+                  <ItemLines items={r.property_payment_items} amount={r.amount} />
                   {r.note && <div style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', marginTop: 6, lineHeight: 1.5, wordBreak: 'break-word' }}>{r.note}</div>}
                   {r.reference && <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 4 }}>ref {r.reference}</div>}
                   <BillLinks bills={r.property_payment_bills} />
@@ -401,6 +483,7 @@ export default function PropertyPayments() {
         <PaymentSheet
           pid={pid}
           payees={payees}
+          itemsEnabled={itemsReady}
           editing={sheet.editing}
           recentTrades={recentTrades}
           onClose={() => setSheet(null)}

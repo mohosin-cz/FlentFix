@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { KINDS, TRADES, inr, cleanAmount, parseCSV, parseDateLoose, guessMapping, fmtDate, normaliseKind, normaliseTrade } from '../utils/payments'
+import { KINDS, TRADES, inr, cleanAmount, cleanQty, fmtQty, parseCSV, parseDateLoose, guessMapping, fmtDate, normaliseKind, normaliseTrade } from '../utils/payments'
 
 // Bringing years of spend out of a spreadsheet. The rule throughout: never
 // write anything the person has not seen parsed back to them first. Every row
@@ -18,6 +18,9 @@ const FIELDS = [
   { key: 'kind', label: 'Material / labour' },
   { key: 'trade', label: 'Trade' },
   { key: 'payee_name', label: 'Paid to' },
+  { key: 'quantity', label: 'Quantity' },
+  { key: 'unit', label: 'Unit' },
+  { key: 'unit_rate', label: 'Rate ₹' },
   { key: 'material_cost', label: 'Material ₹' },
   { key: 'labour_cost', label: 'Labour ₹' },
   { key: 'method', label: 'Method' },
@@ -72,7 +75,13 @@ export default function PaymentsImport() {
       // two parts are the amount.
       const bothParts = material_cost != null && labour_cost != null && material_cost > 0 && labour_cost > 0
       const kind = bothParts ? 'Both' : (normaliseKind(get('kind')) || defaultKind)
-      const amount = cleanAmount(amountRaw) ?? ((material_cost || 0) + (labour_cost || 0) || null)
+      // A sheet that carries a quantity and a rate but no amount column still
+      // knows what the row cost. Dropping that would be the exact crack this
+      // import is supposed to close.
+      const quantity = cleanQty(get('quantity'))
+      const unit_rate = cleanAmount(get('unit_rate'))
+      const fromQty = quantity != null && unit_rate != null ? Math.round(quantity * unit_rate * 100) / 100 : null
+      const amount = cleanAmount(amountRaw) ?? fromQty ?? ((material_cost || 0) + (labour_cost || 0) || null)
       const problems = []
       if (!dateRaw) problems.push('no date')
       else if (!paid_on) problems.push(`date “${dateRaw}” not understood`)
@@ -85,6 +94,9 @@ export default function PaymentsImport() {
         trade: normaliseTrade(get('trade')) || defaultTrade,
         description: get('description') || null,
         payee_name: get('payee_name') || null,
+        quantity,
+        unit: get('unit') || null,
+        unit_rate,
         material_cost: kind === 'Both' ? material_cost : (kind === 'Material' ? (material_cost ?? amount) : null),
         labour_cost: kind === 'Both' ? labour_cost : (kind === 'Labour' ? (labour_cost ?? amount) : null),
         method: get('method') || null,
@@ -151,13 +163,38 @@ export default function PaymentsImport() {
       }))
 
       // Batched, so a large sheet does not ride on one enormous request.
+      // Ids come back so a row that carried a quantity can keep it as a line;
+      // PostgREST returns inserted rows in the order they were sent, which is
+      // what lets the slice line up with its source rows.
       let done = 0
+      let lines = 0
       for (let i = 0; i < payload.length; i += 200) {
-        const { error } = await supabase.from('property_payments').insert(payload.slice(i, i + 200))
+        const slice = payload.slice(i, i + 200)
+        const { data: made, error } = await supabase.from('property_payments').insert(slice).select('id')
         if (error) throw error
-        done += Math.min(200, payload.length - i)
+        done += slice.length
+
+        const items = []
+        ;(made || []).forEach((p, j) => {
+          const src = good[i + j]
+          if (!src || (src.quantity == null && src.unit_rate == null)) return
+          items.push({
+            payment_id: p.id,
+            position: 0,
+            description: src.description,
+            quantity: src.quantity,
+            unit: src.unit,
+            unit_rate: src.unit_rate,
+            amount: src.amount,
+          })
+        })
+        if (items.length) {
+          const { error: iErr } = await supabase.from('property_payment_items').insert(items)
+          if (iErr) throw iErr
+          lines += items.length
+        }
       }
-      setResult({ imported: done, payees: missing.length, skipped: bad.length })
+      setResult({ imported: done, payees: missing.length, skipped: bad.length, lines })
     } catch (e) {
       setErr(e.message || String(e))
     }
@@ -186,6 +223,7 @@ export default function PaymentsImport() {
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--text-dim, #9394a8)', marginTop: 7, lineHeight: 1.65, fontFamily: MONO }}>
               {result.payees > 0 && <>{result.payees} new payee{result.payees === 1 ? '' : 's'} added to the directory.<br /></>}
+              {result.lines > 0 && <>{result.lines} row{result.lines === 1 ? '' : 's'} carried a quantity, kept as {result.lines === 1 ? 'a line' : 'lines'}.<br /></>}
               {result.skipped > 0
                 ? <>{result.skipped} row{result.skipped === 1 ? '' : 's'} could not be read and {result.skipped === 1 ? 'was' : 'were'} not imported. They are listed below — fix them in your sheet and import just those.</>
                 : <>Every row in the file was imported.</>}
@@ -327,6 +365,7 @@ export default function PaymentsImport() {
                         <tr>
                           <th style={head}>Line</th><th style={head}>Date</th>
                           <th style={head}>Description</th>
+                          <th style={{ ...head, textAlign: 'right' }}>Qty</th>
                           <th style={{ ...head, textAlign: 'right' }}>Amount</th>
                           <th style={head}>Kind</th><th style={head}>Trade</th><th style={head}>Paid to</th>
                         </tr>
@@ -337,6 +376,11 @@ export default function PaymentsImport() {
                             <td style={{ ...cell, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{r.line}</td>
                             <td style={{ ...cell, fontFamily: MONO, color: r.paid_on ? 'var(--text, #e8e8f0)' : 'var(--red, #e05c6a)' }}>{r.paid_on ? fmtDate(r.paid_on) : '—'}</td>
                             <td style={{ ...cell, whiteSpace: 'normal', maxWidth: 200 }}>{r.description || <span style={{ color: 'var(--text-muted, #6b6d82)' }}>—</span>}</td>
+                            <td style={{ ...cell, textAlign: 'right', fontFamily: MONO, fontSize: 10.5, color: 'var(--text-dim, #9394a8)' }}>
+                              {r.quantity != null
+                                ? <>{fmtQty(r.quantity)}{r.unit ? ` ${r.unit}` : ''}{r.unit_rate != null ? ` × ${inr(r.unit_rate)}` : ''}</>
+                                : <span style={{ color: 'var(--text-muted, #6b6d82)' }}>—</span>}
+                            </td>
                             <td style={{ ...cell, textAlign: 'right', fontFamily: MONO, color: r.amount ? 'var(--text, #e8e8f0)' : 'var(--red, #e05c6a)' }}>{r.amount ? inr(r.amount) : '—'}</td>
                             <td style={{ ...cell, fontFamily: MONO, fontSize: 10.5 }}>{r.kind}</td>
                             <td style={cell}>{r.trade}</td>
