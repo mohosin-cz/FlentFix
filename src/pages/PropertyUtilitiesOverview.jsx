@@ -7,6 +7,7 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import LogoSpinner from '../components/LogoSpinner'
 import UtilitiesAnalytics from '../components/UtilitiesAnalytics'
 import UtilitiesByMonth from '../components/UtilitiesByMonth'
+import UtilitiesTrends from '../components/UtilitiesTrends'
 import { UTILITY_TYPES, typeLabel, typeColor, dueInfo, dueBucket, monthlyCost, installsInMonth, pidQuery } from '../utils/propertyUtils'
 import UtilityIcon from '../components/UtilityIcon'
 
@@ -39,7 +40,7 @@ export default function PropertyUtilitiesOverview() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [rows, setRows] = useState([])
-  const [tab, setTab] = useState('list')     // 'list' | 'months'
+  const [tab, setTab] = useState('list')     // 'list' | 'months' | 'trends'
   const [q, setQ] = useState('')
   const [typeF, setTypeF] = useState('all')
   const [dueF, setDueF] = useState('all')
@@ -234,14 +235,16 @@ export default function PropertyUtilitiesOverview() {
 
               {/* Tabs */}
               <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-                {[{ k: 'list', l: 'Utilities' }, { k: 'months', l: 'By month' }].map(t => (
+                {[{ k: 'list', l: 'Utilities' }, { k: 'trends', l: 'Trends' }, { k: 'months', l: 'By month' }].map(t => (
                   <button key={t.k} onClick={() => setTab(t.k)} aria-pressed={tab === t.k}
                     className={`tct tct-bare${tab === t.k ? ' is-on' : ''}`}
                     style={{ padding: '10px 18px', fontSize: 12.5, lineHeight: 1, flex: narrow ? 1 : '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{t.l}</button>
                 ))}
               </div>
 
-              {tab === 'months' ? (
+              {tab === 'trends' ? (
+                <UtilitiesTrends rows={rows} onOpenPid={(pid) => navigate(`/properties/${pid}/utilities`)} />
+              ) : tab === 'months' ? (
                 <>
                   {typeChips}
                   <div style={{ height: 12 }} />

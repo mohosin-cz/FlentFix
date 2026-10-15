@@ -56,6 +56,15 @@
   --logo-lit:     #E0A93F;
   --logo-dim:     #3A3324;
 
+  /* Chart series. Not picked by eye — these pass the lightness band, chroma
+     floor, CVD separation, normal-vision floor and surface contrast against
+     this theme's panel. The pair the utilities page used before (#5b8def with
+     #38bdf8) failed at ΔE 12.6 for normal vision: two blues a person with no
+     colour deficiency at all still has to squint at. */
+  --viz-1:        #5b8def;   /* wifi  */
+  --viz-2:        #1fa894;   /* water */
+  --viz-grid:     rgba(255,255,255,.07);
+
   --shadow-xs:    0 1px 3px rgba(0,0,0,0.35);
   --shadow-sm:    0 2px 8px rgba(0,0,0,0.4);
   --shadow-md:    0 4px 16px rgba(0,0,0,0.5);
@@ -113,6 +122,12 @@
   /* Opaque, not an alpha: the logo applies its own 13% opacity on top, and a
      translucent colour under that is a dot you cannot see at all. */
   --logo-dim:     #cfcbd9;
+
+  /* Re-stepped for a white surface rather than flipped — the dark steps are
+     too light on cream and fail the band. Both pass all five checks here. */
+  --viz-1:        #2f6fd0;
+  --viz-2:        #0f8f80;
+  --viz-grid:     rgba(21,16,46,.10);
 
   --shadow-xs:    0 1px 3px rgba(21,16,46,0.07);
   --shadow-sm:    0 2px 8px rgba(21,16,46,0.09);
