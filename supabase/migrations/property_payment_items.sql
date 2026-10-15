@@ -48,3 +48,11 @@ alter table public.property_payment_items enable row level security;
 drop policy if exists "authenticated full access" on public.property_payment_items;
 create policy "authenticated full access" on public.property_payment_items
   for all to authenticated using (true) with check (true);
+
+-- Supabase's default privileges hand every new table to anon, and RLS then
+-- returns it no rows — which is safe but is not what the rest of this family
+-- does. property_payments, property_payment_bills and payment_payees all
+-- refuse anon at the grant, so an unauthenticated caller cannot even confirm
+-- the table is there. Matching them, rather than leaving one table in the
+-- family answering a question the others decline.
+revoke all on public.property_payment_items from anon;
