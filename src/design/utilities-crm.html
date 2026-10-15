@@ -1,669 +1,1146 @@
-<!doctype html>
-<html lang="en">
-<head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Utilities CRM — prototype</title>
-<!--
-  A working prototype of the utilities module rebuilt as an operations tool
-  rather than a table with charts over it. Nothing here talks to Supabase; the
-  store is in memory and resets on reload.
-
-  The thesis, in one interaction: press "Mark recharged" on a connection and
-  watch four things move at once — the row leaves the queue, the due date rolls
-  forward a cycle, an event lands on that connection's timeline, and the
-  dashboard's spend and reliability figures change. That is the difference
-  between a record of state and a record of events, and it is why the current
-  page cannot be fixed with better charts.
-
-  What is borrowed, and from where:
-    Zendesk  — the left rail of saved views with live counts, a queue with an
-               owner and a state per item, bulk actions on a multi-select, and
-               an SLA clock that escalates rather than just displaying.
-    HubSpot  — the record drawer: one object, its timeline, its associations
-               and its cost history on a single surface.
-  What is neither — the parts that only matter for utilities: a renewal
-  calendar, price-change detection across a provider's book, and coverage gaps
-  (a property with WiFi and no RO is invisible in any generic CRM).
--->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Urbanist:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/src/styles/theme.css">
+<title>Utilities Record Room</title>
 <style>
-  body { font-family: var(--font-sans); font-size: 14px; }
-  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
-  @media (max-width: 900px) { .app { grid-template-columns: 1fr } .rail { display: none } }
+/* ───────────────────────────────────────────────────────────────────────────
+   Tokens — copied from src/styles/theme.css so this file stands alone.
+   Categorical viz hues are validated (scripts/validate_palette.js):
+     light #2f6fd0,#9d6b00,#0f8f80,#6f3fbe,#b3261e  on #ffffff  — ALL PASS
+     dark  #5b8def,#bb862b,#1fa894,#8f7ae6,#d2564f  on #1e2028  — ALL PASS
+   ─────────────────────────────────────────────────────────────────────────── */
+:root, [data-theme='dark'] {
+  --bg:#16171f; --bg-panel:#1e2028; --bg-input:#252731; --bg-sunken:#14151c;
+  --border:#2e3040; --border-dash:#3a3d52;
+  --text:#e8e8f0; --text-dim:#9394a8; --text-muted:#6b6d82;
+  --accent:#c8963e; --accent-dim:#8a6428; --on-accent:#16171f;
+  --green:#3dba7a; --red:#e05c6a; --amber:#d9a13b;
+  --c1:#5b8def; --c2:#bb862b; --c3:#1fa894; --c4:#8f7ae6; --c5:#d2564f;
+  --grid:rgba(255,255,255,.07); --track:rgba(255,255,255,.06);
+  --shadow:0 18px 44px rgba(0,0,0,.55);
+}
+[data-theme='light'] {
+  --bg:#fcfbf7; --bg-panel:#ffffff; --bg-input:#f6f5ef; --bg-sunken:#eceade;
+  --border:rgba(21,16,46,.16); --border-dash:rgba(21,16,46,.34);
+  --text:#15102e; --text-dim:rgba(21,16,46,.74); --text-muted:rgba(21,16,46,.63);
+  --accent:#9d6b00; --accent-dim:#7d5600; --on-accent:#ffffff;
+  --green:#006b57; --red:#b3261e; --amber:#8a5a00;
+  --c1:#2f6fd0; --c2:#9d6b00; --c3:#0f8f80; --c4:#6f3fbe; --c5:#b3261e;
+  --grid:rgba(21,16,46,.10); --track:rgba(21,16,46,.07);
+  --shadow:0 18px 44px rgba(21,16,46,.14);
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--bg); color:var(--text);
+  font:13px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4 { margin:0; font-weight:600; }
+button { font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
+input,select { font:inherit; color:inherit; }
+a { color:var(--accent); }
+.mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums; }
+.num { font-variant-numeric:tabular-nums; }
 
-  .rail { border-right: 1px solid var(--border); position: sticky; top: 0; height: 100vh; overflow-y: auto;
-          display: flex; flex-direction: column; padding-bottom: 12px }
-  .rail h1 { padding: 15px 16px 12px; font-size: 15px }
-  .rail .grp { font-size: 9px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;
-               letter-spacing: .11em; font-family: var(--font-mono); padding: 14px 16px 5px }
-  .vw { display: flex; align-items: center; gap: 9px; padding: 7px 12px; margin: 1px 8px; border-radius: 8px;
-        color: var(--text-dim); font-size: 12.5px; cursor: pointer; border: 0; background: none; width: calc(100% - 16px);
-        text-align: left; font-family: inherit }
-  .vw:hover { background: var(--bg-input); color: var(--text) }
-  .vw.on { background: var(--bg-input); color: var(--accent); font-weight: 600; box-shadow: inset 2px 0 0 var(--accent) }
-  .vw .n { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted) }
-  .vw.on .n { color: var(--accent) }
-  .vw .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0 }
+/* ── shell ───────────────────────────────────────────────────────────────── */
+.app { display:grid; grid-template-columns:234px minmax(0,1fr); grid-template-rows:auto auto minmax(0,1fr); grid-template-areas:"brand top" "rail sub" "rail main"; min-height:100vh; }
+.brand { grid-area:brand; display:flex; align-items:center; gap:9px; padding:0 16px; height:52px; border-bottom:1px solid var(--border); border-right:1px solid var(--border); background:var(--bg-panel); }
+.brand b { font-size:14px; letter-spacing:-.01em; }
+.brand .dot { width:9px; height:9px; border-radius:50%; background:var(--accent); flex:none; }
+.brand small { color:var(--text-muted); font-size:10.5px; letter-spacing:.07em; text-transform:uppercase; }
 
-  .top { display: flex; align-items: center; gap: 10px; padding: 11px 20px; border-bottom: 1px solid var(--border);
-         position: sticky; top: 0; background: var(--bg); z-index: 8; flex-wrap: wrap }
-  .tabs { display: flex; gap: 2px }
-  .tab { padding: 8px 13px; font-size: 12.5px; border-radius: 8px; cursor: pointer; border: 0; background: none;
-         color: var(--text-dim); font-family: inherit }
-  .tab.on { background: var(--bg-input); color: var(--accent); font-weight: 600 }
-  .inp { padding: 7px 11px; font-size: 12.5px; color: var(--text); background: var(--bg-input);
-         border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: var(--font-mono) }
-  .btn { padding: 7px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer;
-         font-family: var(--font-mono); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-dim) }
-  .btn.pri { background: var(--accent); color: var(--on-accent); border: 0; font-weight: 700 }
-  .btn.sm { padding: 4px 8px; font-size: 11px }
-  .body { padding: 16px 20px 90px }
+.top { grid-area:top; display:flex; align-items:center; gap:10px; padding:0 14px; height:52px; border-bottom:1px solid var(--border); background:var(--bg-panel); }
+.search { flex:1; max-width:460px; display:flex; align-items:center; gap:7px; background:var(--bg-input); border:1px solid var(--border); border-radius:8px; padding:0 10px; height:32px; }
+.search input { flex:1; background:none; border:none; outline:none; font-size:12.5px; }
+.search span { color:var(--text-muted); font-size:12px; }
+.kbd { font-size:10px; color:var(--text-muted); border:1px solid var(--border); border-radius:4px; padding:1px 5px; }
 
-  .panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px }
-  .lbl { font-size: 9.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;
-         letter-spacing: .09em; font-family: var(--font-mono) }
-  .chip { font-size: 9.5px; font-weight: 700; font-family: var(--font-mono); border-radius: 10px; padding: 2px 7px;
-          text-transform: uppercase; letter-spacing: .04em; white-space: nowrap }
-  table { border-collapse: collapse; width: 100% }
-  th { font-size: 9px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em;
-       font-family: var(--font-mono); text-align: left; padding: 9px 10px; white-space: nowrap;
-       border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg-panel) }
-  td { padding: 9px 10px; font-size: 12.5px; border-bottom: 1px solid var(--border); vertical-align: middle }
-  td.mono, th.r, td.r { font-family: var(--font-mono) }
-  th.r, td.r { text-align: right }
-  tr.sel { background: color-mix(in srgb, var(--accent) 10%, transparent) }
-  tr.clickable:hover { background: var(--bg-input) }
+.rail { grid-area:rail; border-right:1px solid var(--border); background:var(--bg-panel); padding:12px 10px 28px; overflow-y:auto; }
+.rail .grp { font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--text-muted); padding:12px 8px 6px; }
+.navitem { display:flex; align-items:center; gap:9px; width:100%; text-align:left; padding:7px 9px; border-radius:7px; color:var(--text-dim); font-size:12.5px; }
+.navitem:hover { background:var(--bg-input); color:var(--text); }
+.navitem.on { background:var(--bg-input); color:var(--text); font-weight:600; box-shadow:inset 0 0 0 1px var(--border); }
+.navitem .ico { width:16px; text-align:center; opacity:.85; flex:none; }
+.navitem .cnt { margin-left:auto; font-size:10.5px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+.navitem .cnt.warn { color:var(--amber); }
 
-  .kpis { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) }
-  .kpi { padding: 12px 14px }
-  .kpi .v { font-size: 21px; font-weight: 800; font-family: var(--font-mono); margin-top: 3px }
+.sub { grid-area:sub; background:var(--bg); border-bottom:1px solid var(--border); padding:10px 18px; display:flex; flex-direction:column; gap:9px; }
+.main { grid-area:main; overflow:auto; padding:16px 18px 56px; }
 
-  /* bulk bar — appears only with a selection, the Zendesk pattern */
-  .bulk { position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; z-index: 30; display: flex; gap: 8px;
-          align-items: center; padding: 10px 14px; background: var(--bg-panel); border: 1px solid var(--accent);
-          border-radius: 12px; box-shadow: var(--shadow-md) }
+/* ── bits ────────────────────────────────────────────────────────────────── */
+.btn { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px; border-radius:7px; background:var(--bg-input); box-shadow:inset 0 0 0 1px var(--border); color:var(--text-dim); font-size:12px; white-space:nowrap; }
+.btn:hover { color:var(--text); }
+.btn.on { background:var(--accent); color:var(--on-accent); box-shadow:none; font-weight:600; }
+.btn.ghost { background:none; box-shadow:none; }
+.seg { display:inline-flex; background:var(--bg-input); box-shadow:inset 0 0 0 1px var(--border); border-radius:7px; padding:2px; gap:2px; }
+.seg button { height:24px; padding:0 9px; border-radius:5px; font-size:11.5px; color:var(--text-muted); }
+.seg button.on { background:var(--bg-panel); color:var(--text); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.18); }
+.sel { height:28px; border-radius:7px; background:var(--bg-input); border:1px solid var(--border); padding:0 7px; font-size:12px; outline:none; }
+.lbl { font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); }
 
-  /* record drawer — HubSpot's object page, as a side sheet */
-  .scrim { position: fixed; inset: 0; background: rgba(8,9,13,.5); backdrop-filter: blur(3px); z-index: 40 }
-  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%); background: var(--bg);
-            border-left: 1px solid var(--border); z-index: 41; overflow-y: auto; padding: 16px 18px 40px }
-  .tl { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border) }
-  .tl .when { width: 74px; flex-shrink: 0; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted) }
+.chip { display:inline-flex; align-items:center; gap:6px; height:25px; padding:0 4px 0 9px; border-radius:13px; background:var(--bg-input); box-shadow:inset 0 0 0 1px var(--border); font-size:11.5px; color:var(--text); }
+.chip b { font-weight:600; }
+.chip i { font-style:normal; color:var(--text-muted); }
+.chip .x { width:17px; height:17px; border-radius:50%; display:grid; place-items:center; color:var(--text-muted); font-size:13px; line-height:1; }
+.chip .x:hover { background:var(--border); color:var(--text); }
 
-  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px }
-  .cell { min-height: 68px; border: 1px solid var(--border); border-radius: 8px; padding: 6px 7px; font-size: 11px }
-  .cell .d { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted) }
+.card { background:var(--bg-panel); border:1px solid var(--border); border-radius:11px; }
+.card > header { display:flex; align-items:center; gap:10px; padding:11px 14px; border-bottom:1px solid var(--border); }
+.card > header h3 { font-size:12.5px; }
+.card > header .sp { flex:1; }
+.card .body { padding:13px 14px; }
+.hint { font-size:11.5px; color:var(--text-muted); }
 
-  .bar { height: 7px; background: var(--bg-input); border-radius: 4px; overflow: hidden }
-  .bar span { display: block; height: 100%; background: var(--viz-1); border-radius: 4px }
-  .toast { position: fixed; bottom: 18px; left: 18px; z-index: 50; padding: 9px 14px; background: var(--bg-panel);
-           border: 1px solid var(--green); color: var(--green); border-radius: 9px; font-family: var(--font-mono);
-           font-size: 12px; opacity: 0; transition: opacity .2s }
-  .toast.on { opacity: 1 }
-  .hide { display: none !important }
+.kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(152px,1fr)); gap:10px; }
+.kpi { background:var(--bg-panel); border:1px solid var(--border); border-radius:11px; padding:11px 13px; }
+.kpi .k { font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); }
+.kpi .v { font-size:22px; font-weight:600; letter-spacing:-.02em; margin-top:5px; font-variant-numeric:tabular-nums; }
+.kpi .s { font-size:11px; color:var(--text-dim); margin-top:2px; }
+
+table.t { width:100%; border-collapse:collapse; font-size:12.5px; }
+table.t th { text-align:left; font-size:10px; letter-spacing:.07em; text-transform:uppercase; color:var(--text-muted); font-weight:600; padding:7px 9px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg-panel); z-index:1; white-space:nowrap; }
+table.t th.r, table.t td.r { text-align:right; }
+table.t td { padding:8px 9px; border-bottom:1px solid var(--border); vertical-align:middle; }
+table.t tbody tr:hover { background:var(--bg-input); }
+table.t tbody tr.sel { background:var(--bg-input); }
+table.t th.sortable:hover { color:var(--text); cursor:pointer; }
+
+.pill { display:inline-flex; align-items:center; gap:5px; font-size:10.5px; padding:2px 7px; border-radius:10px; background:var(--bg-input); box-shadow:inset 0 0 0 1px var(--border); color:var(--text-dim); white-space:nowrap; }
+.pill.ok  { color:var(--green); }
+.pill.bad { color:var(--red); }
+.pill.warn{ color:var(--amber); }
+.sw { width:9px; height:9px; border-radius:2px; flex:none; display:inline-block; }
+.bar { height:9px; border-radius:0 4px 4px 0; }
+.track { background:var(--track); border-radius:5px; overflow:hidden; height:9px; }
+
+.meter { display:inline-flex; gap:2px; }
+.meter i { width:5px; height:11px; border-radius:1px; background:var(--track); }
+.meter i.f { background:var(--green); }
+.meter i.p { background:var(--amber); }
+
+.drill { color:var(--text); text-decoration:none; border-bottom:1px dotted var(--border-dash); cursor:pointer; }
+.drill:hover { border-bottom-color:var(--accent); color:var(--accent); }
+
+.grid2 { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(0,1fr); gap:12px; align-items:start; }
+.grid2b { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; align-items:start; }
+.gq { display:grid; grid-template-columns:minmax(0,250px) minmax(0,1fr); gap:12px; align-items:start; }
+.scrollx { overflow-x:auto; }
+.tallish { max-height:460px; overflow:auto; }
+
+/* ── record sheet ────────────────────────────────────────────────────────── */
+.scrim { position:fixed; inset:0; background:rgba(0,0,0,.42); backdrop-filter:blur(1.5px); z-index:40; }
+.sheet { position:fixed; top:0; right:0; bottom:0; width:min(760px,100%); background:var(--bg-panel); border-left:1px solid var(--border); box-shadow:var(--shadow); z-index:41; display:flex; flex-direction:column; }
+.sheet header { padding:13px 16px; border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:flex-start; }
+.sheet .scroll { overflow-y:auto; padding:14px 16px 40px; }
+.fgrid { display:grid; grid-template-columns:132px minmax(0,1fr); gap:1px 12px; }
+.fgrid dt { font-size:11px; color:var(--text-muted); padding:6px 0; }
+.fgrid dd { margin:0; padding:6px 0; font-size:12.5px; border-bottom:1px solid var(--border); min-width:0; word-break:break-word; }
+.fgrid dd.miss { color:var(--red); font-style:italic; }
+.sectitle { font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--text-muted); margin:18px 0 7px; display:flex; align-items:center; gap:8px; }
+.sectitle:after { content:''; flex:1; height:1px; background:var(--border); }
+.tl { position:relative; padding-left:16px; }
+.tl:before { content:''; position:absolute; left:4px; top:5px; bottom:5px; width:1px; background:var(--border); }
+.tl .ev { position:relative; padding:5px 0 9px; font-size:12px; }
+.tl .ev:before { content:''; position:absolute; left:-15px; top:10px; width:7px; height:7px; border-radius:50%; background:var(--bg-panel); box-shadow:0 0 0 1.5px var(--border-dash); }
+.tl .ev.chg:before { box-shadow:0 0 0 1.5px var(--accent); }
+.tl .ev time { color:var(--text-muted); font-size:10.5px; }
+.was { text-decoration:line-through; color:var(--text-muted); }
+
+.tip { position:fixed; z-index:60; pointer-events:none; background:var(--bg-panel); border:1px solid var(--border-dash); border-radius:8px; box-shadow:var(--shadow); padding:7px 9px; font-size:11.5px; max-width:260px; }
+.tip b { display:block; margin-bottom:3px; font-size:12px; }
+.tip .row { display:flex; gap:10px; justify-content:space-between; }
+.tip .row span:last-child { font-variant-numeric:tabular-nums; }
+
+.empty { padding:30px 16px; text-align:center; color:var(--text-muted); font-size:12.5px; }
+.empty b { display:block; color:var(--text-dim); font-size:13px; margin-bottom:4px; }
+
+/* ── phone ───────────────────────────────────────────────────────────────── */
+@media (max-width:900px) {
+  .app { grid-template-columns:minmax(0,1fr); grid-template-areas:"brand" "rail" "top" "sub" "main"; }
+  .brand { border-right:none; }
+  .rail { border-right:none; border-bottom:1px solid var(--border); display:flex; gap:6px; overflow-x:auto; padding:8px 10px; }
+  .rail .grp, .rail .railfoot { display:none; }
+  .navitem { width:auto; white-space:nowrap; }
+  .grid2, .grid2b, .gq { grid-template-columns:minmax(0,1fr); }
+  .top { flex-wrap:wrap; height:auto; padding:9px 11px; gap:7px; }
+  .search { max-width:none; flex:1 1 100%; }
+  .kpi .v { font-size:19px; }
+  .main { padding:12px 11px 48px; }
+  .sub { padding:9px 11px; }
+  .sheet { width:100%; border-left:none; }
+  .fgrid { grid-template-columns:minmax(0,1fr); gap:0; }
+  .fgrid dt { padding-bottom:0; }
+  .fgrid dd { padding-top:2px; }
+}
 </style>
-</head>
-<body>
-<div class="app">
-  <nav class="rail">
-    <h1 class="pulse-title">utilities</h1>
-    <div id="views"></div>
-    <div style="margin-top:auto;padding:12px 16px 0">
-      <div class="lbl" style="margin-bottom:6px">Saved view</div>
-      <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);line-height:1.6">
-        Any filter combination can be saved here and becomes somebody's morning queue.
-      </div>
-    </div>
-  </nav>
 
-  <div>
-    <div class="top">
-      <div class="tabs" id="tabs"></div>
-      <input class="inp" id="q" placeholder="search pid, provider, plan, account…" style="flex:1;min-width:170px;max-width:320px">
-      <span id="ctx" style="font-size:11.5px;color:var(--text-muted);font-family:var(--font-mono)"></span>
-      <div style="margin-left:auto;display:flex;gap:7px">
-        <button class="btn" data-theme-set="dark">Dark</button>
-        <button class="btn" data-theme-set="light">Light</button>
-      </div>
-    </div>
-    <div class="body" id="main"></div>
-  </div>
-</div>
-
-<div id="bulk"></div>
-<div id="drawer"></div>
-<div class="toast" id="toast"></div>
+<div id="root"></div>
 
 <script>
-// ─── store ──────────────────────────────────────────────────────────────────
-const TODAY = new Date('2026-10-15T00:00:00')
-const CYCLE_M = { Monthly:1, 'Bi-monthly':2, Quarterly:3, 'Half-yearly':6, Yearly:12 }
-const PROV = { wifi:['ACT','Airtel','Tata Play Fiber','Jio'], water_purifier:['DrinkPrime','AquaGuard-LL','Livpure'] }
-const PLANS = { wifi:['200 Mbps mesh','300 Mbps','100 Mbps'], water_purifier:['500L/M','250L/M','Unlimited'] }
-const OWNERS = ['Mohosin','Nikhil','—']
-// Local date parts, never toISOString(). IST is UTC+5:30, so a local midnight
-// serialises as the PREVIOUS day in UTC — a recharge logged on the 15th was
-// being stored as the 14th. On a page whose whole job is dates, that is fatal.
-const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-const addM = (d,n) => { const x=new Date(d); x.setMonth(x.getMonth()+n); return x }
-const money = n => '₹' + Math.round(Number(n||0)).toLocaleString('en-IN')
-const compact = n => { const v=Math.round(n||0); return Math.abs(v)>=100000 ? '₹'+(v/100000).toFixed(1)+'L' : Math.abs(v)>=1000 ? '₹'+Math.round(v/1000)+'k' : '₹'+v }
-const fmt = d => new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})
-const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+/* ═══════════════════════════════════════════════════════════════════════════
+   1 · THE RECORD SET
+   Shaped from the live table (318 rows, 162 PIDs) so every number this page
+   shows — the gaps, the five spellings of one plan, the price contradictions —
+   is the real shape of the data, not a flattering invention.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const TODAY = new Date('2026-10-15T00:00:00');
+const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const D = s => s ? new Date(s+'T00:00:00') : null;
+const addM = (d,m) => { const x = new Date(d); const day = x.getDate(); x.setMonth(x.getMonth()+m); if (x.getDate() < day) x.setDate(0); return x; };
+const daysBetween = (a,b) => Math.round((b-a)/864e5);
 
-let uid = 0
-const CONNS = [], EVENTS = []
-const seedPids = Array.from({length:62},(_,i)=>String(100+i))
-seedPids.forEach((pid,i) => {
-  const kinds = i % 5 === 0 ? ['wifi'] : ['wifi','water_purifier']   // some properties lack an RO — a real gap
-  kinds.forEach((type,k) => {
-    const cycle = type==='wifi' ? (i%3===0?'Monthly':'Half-yearly') : 'Yearly'
-    const amount = type==='wifi' ? (cycle==='Monthly'?1769:7073) : 5088
-    // Installs spread over ~20 months AND across the days of the month. Only
-    // varying the month put every renewal on the 15th, which made the queue
-    // look empty and the calendar a single column — a seeding bug that reads
-    // as a design failure.
-    const start = addM(TODAY, -(2 + ((i*7+k*5) % 20)))
-    start.setDate(((i*11 + k*17) % 27) + 1)
-    const id = 'c'+(++uid)
-    CONNS.push({
-      id, pid, type, provider: PROV[type][(i+k)%PROV[type].length], plan: PLANS[type][(i+k)%PLANS[type].length],
-      cycle, amount, status:'active', owner: OWNERS[(i+k)%3],
-      account: 'AC' + (100000 + i*13 + k), ssid: type==='wifi' ? 'Flent_'+pid : '',
-      start: iso(start), lastRecharged: null, invoice: i%3!==0, workState:'open',
-    })
-    EVENTS.push({ id:'e'+(++uid), conn:id, at:iso(start), kind:'installed', amount,
-      text:`Installed · ${PROV[type][(i+k)%PROV[type].length]} ${PLANS[type][(i+k)%PLANS[type].length]} · ${money(amount)} ${cycle.toLowerCase()}`, who:'import' })
-  })
-})
-// Historical recharges, so cost analysis has something true to stand on.
-// Every connection is walked forward from its install date, one cycle at a
-// time, and each renewal is written as an event carrying the amount IN FORCE
-// AT THE TIME — which is the whole reason a period's spend can be a fact here
-// and a projection on the current page.
-//
-// One in five is deliberately left a cycle short. An estate where nothing is
-// ever overdue is not an estate, it is a demo.
-CONNS.forEach((c, i) => {
-  const m = CYCLE_M[c.cycle]; if (!m) return
-  const lapses = i % 5 === 0
-  const dates = []
-  let d = addM(new Date(c.start+'T00:00:00'), m)
-  while (d < TODAY) { dates.push(new Date(d)); d = addM(d, m) }
-  if (lapses) dates.pop()                      // this one has slipped
-  dates.forEach(dt => {
-    EVENTS.push({ id:'e'+(++uid), conn:c.id, at:iso(dt), kind:'recharge',
-      amount: c.amount, text:`Recharged ${money(c.amount)}`, who:'ops' })
-  })
-  if (dates.length) c.lastRecharged = iso(dates[dates.length-1])
-})
+// deterministic PRNG — same page every reload, so a number you quote stays true
+let _s = 20260415;
+const rnd = () => (_s = (_s*1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+const pick = a => a[Math.floor(rnd()*a.length)];
+const chance = p => rnd() < p;
 
-// one provider raised prices — the alert that only an event log can surface
-CONNS.filter(c=>c.provider==='ACT').slice(0,9).forEach(c => {
-  const was = c.amount; c.amount = Math.round(was*1.08)
-  EVENTS.push({ id:'e'+(++uid), conn:c.id, at:iso(addM(TODAY,-1)), kind:'price',
-    text:`Price changed ${money(was)} → ${money(c.amount)} (+8%)`, who:'ACT' })
-})
+const CYCLE_M = { 'Monthly':1, 'Bi-monthly':2, 'Quarterly':3, 'Half-yearly':6, 'Yearly':12 };
+const TYPE = {
+  wifi:            { label:'WiFi',            color:'var(--c1)', ico:'◉' },
+  water_purifier:  { label:'Water purifier',  color:'var(--c3)', ico:'◍' },
+  other:           { label:'Other',           color:'var(--c4)', ico:'◌' },
+};
+const PALETTE = ['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)'];
 
-// One cycle from the last thing we can prove — and NO rolling forward.
-//
-// Production rolls the date forward until it lands in the future, which means
-// nextDueDate() can never return a past date and the Overdue view can never
-// have anything in it. A connection last paid eight months ago renders as "due
-// in 12 days". Rolling forward silently assumes every missed cycle was paid,
-// which is exactly the assumption an overdue list exists to challenge.
-const nextDue = c => {
-  const m = CYCLE_M[c.cycle]; if (!m) return null
-  return addM(new Date((c.lastRecharged || c.start) + 'T00:00:00'), m)
+// ── properties ──────────────────────────────────────────────────────────────
+const LOC = ['Koramangala','HSR Layout','Bellandur','Marathahalli','Whitefield','Indiranagar','BTM Layout','Sarjapur Road','Electronic City','Hebbal','Kundalahalli','Hoodi','Jayanagar','Kadugodi','Yelahanka'];
+const N1 = ['Sai','Sri','Lakshmi','Prestige','Nakshatra','Gokul','Amrutha','Vaishnavi','Divya','Mahalakshmi','Shanthi','Royal','Green','Silver','Sunrise','Anugraha','Pavithra','Harmony','Lotus','Mangala'];
+const N2 = ['Residency','Nivas','Enclave','Comforts','Nest','Heights','Apartments','Villa','Mansion','Habitat','Court','Homes'];
+const PROPS = [];
+for (let i = 0; i < 162; i++) {
+  const pid = String(101 + i + (i > 80 ? 14 : 0));              // sparse, like real PIDs
+  PROPS.push({ pid, name:`${pick(N1)} ${pick(N2)}`, loc:pick(LOC), units: 3 + Math.floor(rnd()*9) });
 }
-const daysTo = c => { const d=nextDue(c); return d ? Math.round((d-TODAY)/86400000) : null }
-const monthly = c => c.status==='active' && CYCLE_M[c.cycle] ? c.amount/CYCLE_M[c.cycle] : 0
+const PROP = Object.fromEntries(PROPS.map(p => [p.pid, p]));
 
-// ─── views (the left rail) ──────────────────────────────────────────────────
-const VIEWS = [
-  { k:'queue',    label:'My queue',      dot:'var(--accent)', f:c=>c.owner==='Mohosin' && daysTo(c)<=31 && c.workState!=='done' },
-  { k:'overdue',  label:'Overdue',       dot:'var(--red)',    f:c=>daysTo(c)<0 && c.workState!=='done' },
-  { k:'due7',     label:'Due in 7 days', dot:'var(--accent)', f:c=>daysTo(c)>=0 && daysTo(c)<=7 && c.workState!=='done' },
-  { k:'due31',    label:'Due this month',dot:'var(--viz-1)',  f:c=>daysTo(c)>=0 && daysTo(c)<=31 && c.workState!=='done' },
-  { k:'unowned',  label:'Unassigned',    dot:'var(--text-muted)', f:c=>c.owner==='—' },
-  { k:'noinv',    label:'No invoice',    dot:'var(--text-muted)', f:c=>!c.invoice },
-  { k:'all',      label:'All connections', dot:'var(--viz-2)', f:()=>true },
-]
-const TABS = [['list','Connections'],['calendar','Renewals'],['analysis','Analysis'],['insights','Insights'],['gaps','Coverage']]
+// ── the real month histogram of start dates ─────────────────────────────────
+const MONTHS = { '2024-10':1,'2025-03':9,'2025-04':11,'2025-05':10,'2025-06':3,'2025-07':10,'2025-09':4,'2025-10':11,'2025-11':10,'2025-12':16,'2026-01':22,'2026-02':19,'2026-03':18,'2026-04':30,'2026-05':39,'2026-06':48,'2026-07':37,'2026-08':4,'2026-09':5 };
+const MONTH_POOL = [];
+for (const [m,n] of Object.entries(MONTHS)) for (let i = 0; i < n; i++) MONTH_POOL.push(m);
+const drawStart = () => { const m = pick(MONTH_POOL); return `${m}-${String(1 + Math.floor(rnd()*27)).padStart(2,'0')}`; };
 
-const S = { view:'queue', tab:'list', q:'', sel:new Set(), open:null, range:'ytd', from:null, to:null, split:'provider' }
-let toastT
-const toast = m => { const t=document.getElementById('toast'); t.textContent=m; t.classList.add('on');
-  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),1800) }
+// ── what we actually have, provider by provider ─────────────────────────────
+// plans: the RAW spellings as typed by whoever entered the record. The five
+// variants of ACT's 200-mesh plan are not a mistake in this seed — they are in
+// the table right now, and they are the reason a "same plan, same price" check
+// cannot be done by grouping on the text.
+const SPECS = [
+  { t:'water_purifier', p:'DrinkPrime',      plans:[null],                                                              cycle:'Yearly',      amts:[5088],                     n:107, inv:0,    acc:.28, mode:'Company' },
+  { t:'wifi',           p:'ACT',             plans:['200 Mbps mesh','200 mbps mesh','200 Mbps Mesh','200mbps','200 mbps'], cycle:'Half-yearly', amts:[7073,7073,7073,7073,7257,0], n:78, inv:.80, acc:.95, mode:'Company' },
+  { t:'wifi',           p:'ACT',             plans:['300 mbps'],                                                        cycle:'Monthly',     amts:[1769],                     n:59,  inv:.51,  acc:1,   mode:'Company' },
+  { t:'wifi',           p:'ACT',             plans:['400 mbps','400mbps'],                                              cycle:'Half-yearly', amts:[8850,8850,9350],           n:8,   inv:.13,  acc:1,   mode:'Company' },
+  { t:'wifi',           p:'Airtel',          plans:['100 mbps','100 Mbps'],                                             cycle:'Bi-monthly',  amts:[1500,1500,1500,2500],      n:9,   inv:0,    acc:1,   mode:'Company' },
+  { t:'water_purifier', p:'AquaGuard-LL',    plans:[null],                                                              cycle:null,          amts:[0],                        n:7,   inv:0,    acc:0,   mode:'Landlord' },
+  { t:'water_purifier', p:'DrinkPrime',      plans:[null,'250L/M','Unlimited'],                                         cycle:'Monthly',     amts:[885],                      n:6,   inv:0,    acc:.6,  mode:'Company' },
+  { t:'wifi',           p:'Airtel',          plans:['100 mbps','100mbps','100 mbps + mesh','300 mbps'],                  cycle:'Quarterly',   amts:[2828,2828,3828],           n:6,   inv:.40,  acc:1,   mode:'Company' },
+  { t:'water_purifier', p:'DrinkPrime',      plans:['Unlimited','250L/M'],                                              cycle:'Yearly',      amts:[6289,5088],                n:5,   inv:0,    acc:.3,  mode:'Company' },
+  { t:'wifi',           p:'Tata Play Fiber', plans:['100 mbps','200 mbps'],                                             cycle:'Yearly',      amts:[9912,11800],               n:3,   inv:1,    acc:1,   mode:'Company' },
+  { t:'wifi',           p:'ACT',             plans:[null],                                                              cycle:'Monthly',     amts:[1769,5088,2875],           n:4,   inv:0,    acc:.7,  mode:'Company' },
+  { t:'wifi',           p:'JioFiber',        plans:['150 mbps'],                                                        cycle:'Quarterly',   amts:[2497],                     n:3,   inv:.6,   acc:1,   mode:'Company' },
+  { t:'other',          p:'BESCOM',          plans:['Common area meter'],                                               cycle:'Monthly',     amts:[1240,980,1610],            n:3,   inv:0,    acc:.6,  mode:'Landlord' },
+  { t:'other',          p:'BWSSB',           plans:['Water connection'],                                                cycle:'Monthly',     amts:[820,640],                  n:2,   inv:0,    acc:.5,  mode:'Landlord' },
+  { t:'other',          p:'Piped gas',       plans:['Domestic PNG'],                                                    cycle:'Bi-monthly',  amts:[1150],                     n:2,   inv:0,    acc:1,   mode:'Landlord' },
+  { t:'wifi',           p:'Hathway',         plans:['100 mbps'],                                                        cycle:'Half-yearly', amts:[5400],                     n:1,   inv:0,    acc:1,   mode:'Company' },
+];
 
-const current = () => {
-  const v = VIEWS.find(v=>v.k===S.view)
-  const q = S.q.trim().toLowerCase()
-  return CONNS.filter(v.f).filter(c => !q || [c.pid,c.provider,c.plan,c.account,c.ssid].some(f=>(f||'').toLowerCase().includes(q)))
+// canonical plan — what the record MEANS, independent of how it was typed.
+// Everything that compares like with like goes through this; the raw string is
+// kept and shown, because fixing the typing is itself a job this page surfaces.
+function canonPlan(type, provider, plan) {
+  if (!plan) return null;
+  let s = plan.toLowerCase().replace(/\s+/g,' ').trim();
+  s = s.replace(/\bmbps\b/g,'mbps').replace(/(\d)\s*mbps/,'$1 mbps');
+  if (/\+\s*mesh/.test(s)) s = s.replace(/\+\s*mesh/,'mesh');
+  s = s.replace(/\s+mesh/,' mesh').trim();
+  return s.replace(/\b\w/g, c => c.toUpperCase()).replace(/Mbps/,'Mbps');
 }
 
-// ─── actions — each writes an event, which is the whole point ───────────────
-function logEvent(connId, kind, text, amount) {
-  EVENTS.push({ id:'e'+(++uid), conn:connId, at:iso(TODAY), kind, text, amount, who:'Mohosin' })
-}
-function markRecharged(ids) {
-  ids.forEach(id => {
-    const c = CONNS.find(x=>x.id===id); if (!c) return
-    c.lastRecharged = iso(TODAY); c.workState='done'
-    logEvent(id, 'recharge', `Recharged ${money(c.amount)} · next due ${fmt(nextDue(c))}`, c.amount)
-  })
-  S.sel.clear(); toast(`${ids.length} recharged · due dates rolled forward`); render()
-}
-function assign(ids, who) {
-  ids.forEach(id => { const c=CONNS.find(x=>x.id===id); if(c){ c.owner=who; logEvent(id,'assign',`Assigned to ${who}`) } })
-  S.sel.clear(); toast(`${ids.length} assigned to ${who}`); render()
-}
-function snooze(ids) {
-  ids.forEach(id => { const c=CONNS.find(x=>x.id===id); if(c){ c.workState='snoozed'; logEvent(id,'snooze','Snoozed 7 days') } })
-  S.sel.clear(); toast(`${ids.length} snoozed`); render()
+const ACTORS = ['Mohosin','Prakash K','Ayesha R','Rahul D','ops@flent (import)'];
+const SOURCES = ['Onboarding form','Bulk import 2025','Manual entry','Vendor invoice'];
+
+// ── build the 318 ──────────────────────────────────────────────────────────
+let _id = 0;
+const pool = [];
+for (const s of SPECS) for (let i = 0; i < s.n; i++) {
+  const plan = s.plans[i % s.plans.length];
+  const amt = s.amts[i % s.amts.length];
+  pool.push({ t:s.t, provider:s.p, plan, cycle:s.cycle, amount:amt,
+              hasInv:chance(s.inv), hasAcc:chance(s.acc), mode:s.mode });
 }
 
-// ─── render ─────────────────────────────────────────────────────────────────
-const dueChip = c => {
-  const d = daysTo(c)
-  if (d == null) return `<span class="chip" style="color:var(--text-muted);border:1px solid var(--border)">no date</span>`
-  const col = d<0 ? 'var(--red)' : d<=7 ? 'var(--accent)' : 'var(--green)'
-  const txt = d<0 ? `${-d}d overdue` : d===0 ? 'today' : `${d}d`
-  return `<span class="chip" style="color:${col};border:1px solid currentColor">${txt}</span>`
-}
-const typeDot = c => `<span style="color:${c.type==='wifi'?'var(--viz-1)':'var(--viz-2)'}">●</span>`
-
-function renderRail() {
-  document.getElementById('views').innerHTML =
-    `<div class="grp">Views</div>` + VIEWS.map(v => {
-      const n = CONNS.filter(v.f).length
-      return `<button class="vw${S.view===v.k?' on':''}" data-view="${v.k}">
-        <span class="dot" style="background:${v.dot}"></span>${v.label}<span class="n">${n}</span></button>`
-    }).join('')
-}
-
-function renderList(rows) {
-  if (!rows.length) return `<div class="panel" style="padding:40px;text-align:center;color:var(--text-muted);font-family:var(--font-mono);font-size:13px">Nothing in this view.</div>`
-  return `<div class="panel" style="overflow:auto;max-height:calc(100vh - 230px)">
-   <table><thead><tr>
-    <th style="width:28px"><input type="checkbox" id="all"></th>
-    <th>Property</th><th>Utility</th><th>Provider</th><th>Plan</th>
-    <th class="r">Amount</th><th>Cycle</th><th>Next due</th><th>Owner</th><th></th>
-   </tr></thead><tbody>${rows.map(c=>`
-    <tr class="clickable${S.sel.has(c.id)?' sel':''}" data-open="${c.id}">
-      <td><input type="checkbox" data-pick="${c.id}" ${S.sel.has(c.id)?'checked':''}></td>
-      <td class="mono">PID ${c.pid}</td>
-      <td>${typeDot(c)} ${c.type==='wifi'?'WiFi':'Water'}</td>
-      <td>${esc(c.provider)}</td>
-      <td style="color:var(--text-muted)">${esc(c.plan)}</td>
-      <td class="r" style="color:var(--accent);font-weight:700">${money(c.amount)}</td>
-      <td style="color:var(--text-muted)">${c.cycle}</td>
-      <td>${dueChip(c)} <span class="mono" style="font-size:10.5px;color:var(--text-muted)">${nextDue(c)?fmt(nextDue(c)).slice(0,6):''}</span></td>
-      <td style="color:${c.owner==='—'?'var(--text-muted)':'var(--text-dim)'}">${c.owner}</td>
-      <td><button class="btn sm" data-rech="${c.id}">Recharged</button></td>
-    </tr>`).join('')}</tbody></table></div>`
-}
-
-function renderCalendar(rows) {
-  const first = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1)
-  const pad = (first.getDay()+6)%7, days = new Date(TODAY.getFullYear(), TODAY.getMonth()+1, 0).getDate()
-  const byDay = {}
-  rows.forEach(c => { const d=nextDue(c); if (d && d.getMonth()===TODAY.getMonth() && d.getFullYear()===TODAY.getFullYear())
-    (byDay[d.getDate()] ||= []).push(c) })
-  const cells = []
-  for (let i=0;i<pad;i++) cells.push('<div></div>')
-  for (let d=1; d<=days; d++) {
-    const list = byDay[d]||[], amt = list.reduce((a,c)=>a+c.amount,0)
-    const isToday = d===TODAY.getDate()
-    cells.push(`<div class="cell" style="${isToday?'border-color:var(--accent)':''}${list.length?';background:var(--bg-panel)':''}">
-      <div class="d">${d}${isToday?' · today':''}</div>
-      ${list.length?`<div style="margin-top:4px;font-weight:700;font-family:var(--font-mono);font-size:12px">${list.length}</div>
-      <div style="font-size:10px;color:var(--accent);font-family:var(--font-mono)">${compact(amt)}</div>`:''}
-    </div>`)
+// pid quotas straight from the live shape: 17 pids with 1, 135 with 2, 9 with 3, 1 with 4
+const quota = [];
+PROPS.forEach((p,i) => quota.push(i < 17 ? 1 : i < 152 ? 2 : i < 161 ? 3 : 4));
+// Assign records to properties without inventing duplicates: a property only
+// ends up with two of the same type-and-provider when the quotas leave no
+// alternative. The handful that survive are a real finding, not a seeding
+// artefact — which matters, because the duplicate check is one of the ones
+// this page asks you to believe.
+const cap = {}; PROPS.forEach((p,i) => cap[p.pid] = quota[i]);
+const pids = PROPS.map(p => p.pid);
+const taken = {}, assign = new Array(pool.length);
+const order = pool.map((_,i) => i);
+for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rnd()*(i+1)); [order[i],order[j]] = [order[j],order[i]]; }
+for (const i of order) {
+  const r = pool[i], key = r.t + '|' + r.provider;
+  let clean = null, any = null;
+  for (let tries = 0; tries < 220 && !clean; tries++) {
+    const pid = pids[Math.floor(rnd()*pids.length)];
+    if (cap[pid] <= 0) continue;
+    if (any === null) any = pid;
+    if (!taken[pid] || !taken[pid].has(key)) clean = pid;
   }
-  const monthTotal = Object.values(byDay).flat().reduce((a,c)=>a+c.amount,0)
-  return `<div class="panel" style="padding:15px">
-    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px">
-      <span class="lbl">Renewals · ${TODAY.toLocaleDateString('en-IN',{month:'long',year:'numeric'})}</span>
-      <span style="font-size:11.5px;color:var(--text-muted);font-family:var(--font-mono)">${Object.values(byDay).flat().length} due · ${money(monthTotal)} to pay</span>
+  const pid = clean || any || pids.find(x => cap[x] > 0);
+  cap[pid]--; (taken[pid] = taken[pid] || new Set()).add(key);
+  assign[i] = pid;
+}
+
+const RECORDS = pool.map((r,i) => {
+  const pid = assign[i];
+  const start = drawStart();
+  const cm = CYCLE_M[r.cycle] || null;
+  let lastRech = null;
+  if (cm && chance(.62)) {
+    const s = D(start); let d = new Date(s), k = 0;
+    while (addM(d, cm) <= TODAY && k < 40) { d = addM(d, cm); k++; }
+    lastRech = iso(d);
+  }
+  const createdAt = iso(addM(D(start), 0));
+  return {
+    id: 'u' + (++_id).toString().padStart(3,'0'),
+    pid, type:r.t, provider:r.provider,
+    plan:r.plan, planCanon:canonPlan(r.t, r.provider, r.plan),
+    account: r.hasAcc ? (r.t === 'wifi' ? '10' + Math.floor(rnd()*9e8 + 1e8) : 'DP-' + Math.floor(rnd()*9e5 + 1e5)) : null,
+    ssid: r.t === 'wifi' && chance(.72) ? `Flent_${pid}${chance(.3) ? '_5G' : ''}` : null,
+    password: r.t === 'wifi' && chance(.66) ? 'flent@' + Math.floor(rnd()*9000 + 1000) : null,
+    lockbox: chance(.22) ? String(Math.floor(rnd()*9000 + 1000)) : null,
+    start, amount:r.amount, cycle:r.cycle,
+    addedCost: chance(.14) ? [500,1000,1500,2000][Math.floor(rnd()*4)] : 0,
+    status:'active',
+    invoice: r.hasInv ? `https://drive.flent.in/inv/${pid}-${_id}.pdf` : null,
+    payMode: r.mode, source: pick(SOURCES),
+    lastRech, notes: chance(.18) ? pick(['Router in the lobby cupboard.','Landlord pays, we reimburse.','Shifted from the old provider.','Tenant asked for an upgrade.','Installed during handover.']) : null,
+    createdBy: pick(ACTORS), createdAt, updatedAt: createdAt,
+    supersededBy: null, supersedes: null,
+  };
+});
+
+// ── record chains: the predecessor rows ─────────────────────────────────────
+// 15 of the 318 are 'superseded'. They are not clutter — they are the only
+// record that a property used to be on a different plan at a different price,
+// which is exactly what a record-keeping system is for.
+const byPT = {};
+RECORDS.forEach(r => { const k = r.pid + '|' + r.type; (byPT[k] = byPT[k] || []).push(r); });
+let chained = 0;
+for (const r of RECORDS) {
+  if (chained >= 15) break;
+  if (r.type !== 'wifi' || r.supersedes) continue;
+  if (!chance(.14)) continue;
+  const oldStart = iso(addM(D(r.start), -(7 + Math.floor(rnd()*14))));
+  const oldPlan  = pick(['100 mbps','150 mbps','200 mbps']);
+  const pred = { ...r,
+    id:'u' + (++_id).toString().padStart(3,'0'),
+    plan:oldPlan, planCanon:canonPlan('wifi', r.provider, oldPlan),
+    provider: chance(.4) ? pick(['Airtel','Hathway','JioFiber']) : r.provider,
+    amount: Math.round(r.amount * (.6 + rnd()*.25) / 10) * 10,
+    start:oldStart, createdAt:oldStart, updatedAt:r.start,
+    status:'superseded', supersededBy:r.id, supersedes:null,
+    invoice: chance(.3) ? r.invoice : null, lastRech:null,
+    notes:'Replaced — see the successor record.',
+  };
+  r.supersedes = pred.id;
+  RECORDS.push(pred);
+  chained++;
+}
+// 11 'unknown', 1 'cancelled' — same as live
+const act = RECORDS.filter(r => r.status === 'active');
+for (let i = 0; i < 11; i++) act[Math.floor(rnd()*act.length)].status = 'unknown';
+act[Math.floor(rnd()*act.length)].status = 'cancelled';
+
+// ── an audit trail per record ───────────────────────────────────────────────
+const FIELD_LABEL = { amount:'Billing amount', plan:'Plan', cycle:'Billing cycle', provider:'Provider', account:'Account number', invoice:'Invoice link', status:'Status', ssid:'SSID', password:'WiFi password' };
+RECORDS.forEach(r => {
+  const h = [{ at:r.createdAt, who:r.createdBy, kind:'created', text:`Record created from ${r.source.toLowerCase()}` }];
+  const edits = Math.floor(rnd()*3);
+  for (let i = 0; i < edits; i++) {
+    const f = pick(['amount','plan','account','invoice','cycle']);
+    const at = iso(addM(D(r.createdAt), 1 + Math.floor(rnd()*8)));
+    if (at > iso(TODAY)) continue;
+    let from = '—', to = '—';
+    if (f === 'amount') { from = '₹' + Math.round(r.amount*(.85+rnd()*.1)); to = '₹' + r.amount; }
+    else if (f === 'plan') { from = r.plan ? pick(['100 mbps','200mbps','']) || '—' : '—'; to = r.plan || '—'; }
+    else if (f === 'account') { from = 'blank'; to = r.account ? r.account.slice(0,4) + '…' : '—'; }
+    else if (f === 'invoice') { from = 'blank'; to = r.invoice ? 'link added' : '—'; }
+    else { from = pick(['Monthly','Quarterly']); to = r.cycle || '—'; }
+    h.push({ at, who:pick(ACTORS), kind:'changed', field:f, from, to });
+    if (at > r.updatedAt) r.updatedAt = at;
+  }
+  if (r.lastRech) h.push({ at:r.lastRech, who:pick(ACTORS), kind:'recharge', text:`Recharged — ₹${r.amount.toLocaleString('en-IN')} for the ${(r.cycle||'').toLowerCase()} period` });
+  if (r.status === 'superseded') h.push({ at:r.updatedAt, who:pick(ACTORS), kind:'changed', field:'status', from:'active', to:'superseded' });
+  r.history = h.sort((a,b) => a.at < b.at ? 1 : -1);
+});
+
+/* ═══ derived ═══════════════════════════════════════════════════════════════ */
+const monthlyOf = r => { const m = CYCLE_M[r.cycle]; return (m && r.amount) ? r.amount / m : 0; };
+const annualOf  = r => monthlyOf(r) * 12;
+const periodOf  = (d, g) => { if (!d) return null; const [y,m] = d.split('-'); return g === 'year' ? y : g === 'quarter' ? `${y}-Q${Math.ceil(+m/3)}` : `${y}-${m}`; };
+const inr = n => '₹' + Math.round(n).toLocaleString('en-IN');
+const inrK = n => n >= 1e7 ? '₹' + (n/1e7).toFixed(2) + 'Cr' : n >= 1e5 ? '₹' + (n/1e5).toFixed(2) + 'L' : n >= 1000 ? '₹' + (n/1000).toFixed(1) + 'k' : inr(n);
+
+// the six fields a record needs before anyone can act on it
+const CORE = [
+  { k:'provider', label:'Provider',       has:r => !!r.provider },
+  { k:'plan',     label:'Plan',           has:r => !!r.plan },
+  { k:'account',  label:'Account number', has:r => !!r.account },
+  { k:'start',    label:'Start date',     has:r => !!r.start },
+  { k:'cycle',    label:'Billing cycle',  has:r => !!r.cycle },
+  { k:'amount',   label:'Billing amount', has:r => !!r.amount },
+  { k:'invoice',  label:'Invoice link',   has:r => !!r.invoice },
+];
+const completeness = r => CORE.filter(c => c.has(r)).length;
+const missingOf = r => CORE.filter(c => !c.has(r));
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   2 · DIMENSIONS, MEASURES, AND THE CHECKS
+   ═══════════════════════════════════════════════════════════════════════════ */
+const DIMS = {
+  type:      { label:'Utility type',       of:r => TYPE[r.type].label },
+  provider:  { label:'Provider',           of:r => r.provider },
+  planCanon: { label:'Plan · normalised',  of:r => r.planCanon || '— not recorded' },
+  plan:      { label:'Plan · as typed',    of:r => r.plan || '— not recorded' },
+  cycle:     { label:'Billing cycle',      of:r => r.cycle || '— not recorded' },
+  status:    { label:'Record status',      of:r => r.status[0].toUpperCase() + r.status.slice(1) },
+  payMode:   { label:'Who pays',           of:r => r.payMode },
+  source:    { label:'How it was recorded',of:r => r.source },
+  loc:       { label:'Locality',           of:r => PROP[r.pid] ? PROP[r.pid].loc : '—' },
+  pid:       { label:'Property',           of:r => r.pid },
+  month:     { label:'Installed · month',  of:r => periodOf(r.start,'month')   || '— no date' },
+  quarter:   { label:'Installed · quarter',of:r => periodOf(r.start,'quarter') || '— no date' },
+  year:      { label:'Installed · year',   of:r => periodOf(r.start,'year')    || '— no date' },
+  complete:  { label:'Completeness',       of:r => { const c = completeness(r); return c === CORE.length ? 'Complete' : c >= 5 ? 'Nearly — 1–2 gaps' : c >= 3 ? 'Partial — 3–4 gaps' : 'Sparse — 5+ gaps'; } },
+};
+const sum = (rows, f) => rows.reduce((a,r) => a + f(r), 0);
+const MEAS = {
+  count:   { label:'Records',           of:rows => rows.length,                        fmt:n => n.toLocaleString('en-IN'), unit:'records' },
+  props:   { label:'Properties covered',of:rows => new Set(rows.map(r => r.pid)).size,  fmt:n => n.toLocaleString('en-IN'), unit:'properties' },
+  monthly: { label:'Monthly run-rate',  of:rows => sum(rows, monthlyOf),                fmt:inrK, unit:'per month' },
+  annual:  { label:'Annualised cost',   of:rows => sum(rows, annualOf),                 fmt:inrK, unit:'per year' },
+  billed:  { label:'Billed per cycle',  of:rows => sum(rows, r => r.amount || 0),       fmt:inrK, unit:'per cycle' },
+  ticket:  { label:'Average bill',      of:rows => rows.length ? sum(rows, r => r.amount || 0)/rows.length : 0, fmt:inr, unit:'average' },
+};
+
+/* ── the checks ─────────────────────────────────────────────────────────────
+   Two families, deliberately separated.
+   GAPS are things a record does not say. They are tedious but obvious.
+   CONTRADICTIONS are things the records say that cannot all be true at once —
+   one plan under five spellings, one price under three values. Those are the
+   ones nobody finds by scrolling, and they are why this page exists.          */
+function buildChecks(all) {
+  const out = [];
+  const gap = (id, label, why, test, sev) => { const rows = all.filter(test); if (rows.length) out.push({ id, fam:'gap', label, why, sev, rows }); };
+  gap('g-inv',   'No invoice link',    'There is nothing to show a landlord or an auditor for this connection.', r => !r.invoice, 'warn');
+  gap('g-plan',  'No plan recorded',   'The speed or litres this connection buys is not written down anywhere.', r => !r.plan, 'warn');
+  gap('g-acc',   'No account number',  'Nobody can call the provider about this connection without hunting for it.', r => !r.account, 'warn');
+  gap('g-amt',   'No billing amount',  'This connection is invisible to every cost figure on this page.', r => !r.amount, 'bad');
+  gap('g-cyc',   'No billing cycle',   'Without a cycle the amount cannot be turned into a monthly cost.', r => !r.cycle, 'bad');
+  gap('g-start', 'No start date',      'The record cannot be placed in time — it falls out of every trend.', r => !r.start, 'bad');
+
+  // one plan, several spellings
+  const spell = {};
+  all.forEach(r => { if (!r.planCanon) return; const k = `${r.type}|${r.provider}|${r.planCanon}`; (spell[k] = spell[k] || []).push(r); });
+  const spellRows = [], spellEv = [];
+  Object.entries(spell).forEach(([k, rows]) => {
+    const raw = {}; rows.forEach(r => raw[r.plan] = (raw[r.plan]||0) + 1);
+    if (Object.keys(raw).length > 1) {
+      spellRows.push(...rows);
+      spellEv.push({ head:`${k.split('|')[1]} · ${k.split('|')[2]}`, parts:Object.entries(raw).sort((a,b) => b[1]-a[1]) });
+    }
+  });
+  if (spellRows.length) out.push({ id:'c-spell', fam:'con', label:'One plan, several spellings', sev:'warn', rows:spellRows, ev:spellEv,
+    why:'Grouping on the plan text splits one plan into several. Every per-plan price comparison is wrong until these are spelled the same way.' });
+
+  // one plan + cycle, several prices
+  const price = {};
+  all.filter(r => r.status === 'active' && r.amount && r.cycle && r.planCanon).forEach(r => {
+    const k = `${r.provider}|${r.planCanon}|${r.cycle}`; (price[k] = price[k] || []).push(r);
+  });
+  const priceRows = [], priceEv = [];
+  Object.entries(price).forEach(([k, rows]) => {
+    const amts = {}; rows.forEach(r => amts[r.amount] = (amts[r.amount]||0) + 1);
+    const vals = Object.keys(amts).map(Number).sort((a,b) => a-b);
+    if (vals.length > 1) {
+      priceRows.push(...rows);
+      const [p,pl,c] = k.split('|');
+      priceEv.push({ head:`${p} · ${pl} · ${c.toLowerCase()}`, lo:vals[0], hi:vals[vals.length-1],
+                     parts:Object.entries(amts).sort((a,b) => b[1]-a[1]).map(([a,n]) => [inr(+a), n]),
+                     spread:vals[vals.length-1] - vals[0], n:rows.length });
+    }
+  });
+  priceEv.sort((a,b) => b.spread*b.n - a.spread*a.n);
+  if (priceRows.length) out.push({ id:'c-price', fam:'con', label:'Same plan, different price', sev:'bad', rows:priceRows, ev:priceEv,
+    why:'Identical plan, identical cycle, different amount on the record. Either somebody is paying more than they should, or one of these numbers is simply wrong.' });
+
+  // two live records for the same thing
+  const dupe = {}; all.filter(r => r.status === 'active').forEach(r => { const k = `${r.pid}|${r.type}|${r.provider}`; (dupe[k] = dupe[k] || []).push(r); });
+  const dupeRows = Object.values(dupe).filter(v => v.length > 1).flat();
+  if (dupeRows.length) out.push({ id:'c-dupe', fam:'con', label:'Two live records for one connection', sev:'bad', rows:dupeRows,
+    why:'The same property has more than one active record with the same provider and type. One of them is probably the old connection that was never marked superseded — which means the cost is being counted twice.' });
+
+  const unk = all.filter(r => r.status === 'unknown');
+  if (unk.length) out.push({ id:'c-unk', fam:'con', label:'Status never set', sev:'warn', rows:unk,
+    why:'The record does not say whether this connection is live. It is counted in the costs on this page because nothing says it should not be.' });
+
+  const stale = all.filter(r => r.status === 'active' && daysBetween(D(r.updatedAt), TODAY) > 270);
+  if (stale.length) out.push({ id:'c-stale', fam:'gap', label:'Untouched for over 9 months', sev:'warn', rows:stale,
+    why:'Nobody has looked at this record in three quarters. It may be perfectly correct — but nothing here confirms it still describes reality.' });
+
+  return out;
+}
+const CHECKS = buildChecks(RECORDS);
+
+// property-level coverage: which properties have what
+const COVERAGE = PROPS.map(p => {
+  const rows = RECORDS.filter(r => r.pid === p.pid && r.status === 'active');
+  return { ...p, rows, wifi:rows.some(r => r.type === 'wifi'), water:rows.some(r => r.type === 'water_purifier'),
+           monthly:sum(rows, monthlyOf), n:rows.length };
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3 · STATE
+   ═══════════════════════════════════════════════════════════════════════════ */
+const S = {
+  // Pulse is a dark-first product, but a viewer whose system asks for light
+  // should not be handed dark and made to find the toggle.
+  tab:'explore', theme:(matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'), q:'',
+  filters:[],                                   // [{dim, val}] — composable, shown as chips
+  idSet:null, idSetLabel:'',                    // a check's result, carried into Records
+  group:'provider', group2:'none', measure:'monthly', grain:'month', view:'bars',
+  sort:{ col:'pid', dir:1 }, open:null, expand:{}, check:CHECKS[0] ? 'c-price' : null,
+  cmp:'bench', incSuperseded:false,
+};
+const DEFAULT_COLS = ['pid','type','provider','plan','cycle','amount','monthly','start','status','complete'];
+S.cols = [...DEFAULT_COLS];
+
+function filtered() {
+  let rows = RECORDS;
+  if (!S.incSuperseded) rows = rows.filter(r => r.status !== 'superseded');
+  if (S.idSet) rows = rows.filter(r => S.idSet.has(r.id));
+  for (const f of S.filters) rows = rows.filter(r => DIMS[f.dim].of(r) === f.val);
+  if (S.q.trim()) {
+    const q = S.q.trim().toLowerCase();
+    rows = rows.filter(r => [r.pid, PROP[r.pid] && PROP[r.pid].name, PROP[r.pid] && PROP[r.pid].loc, r.provider, r.plan, r.account, r.ssid, r.notes, TYPE[r.type].label]
+      .filter(Boolean).some(v => String(v).toLowerCase().includes(q)));
+  }
+  return rows;
+}
+const addFilter = (dim, val) => { if (!S.filters.some(f => f.dim === dim && f.val === val)) S.filters.push({ dim, val }); render(); };
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+
+/* ── tooltip ───────────────────────────────────────────────────────────────── */
+let tipEl = null;
+function initTip() {
+  tipEl = document.createElement('div'); tipEl.className = 'tip'; tipEl.style.display = 'none';
+  document.body.appendChild(tipEl);
+  document.addEventListener('mousemove', e => {
+    const t = e.target.closest('[data-tip]');
+    if (!t) { tipEl.style.display = 'none'; return; }
+    tipEl.innerHTML = t.getAttribute('data-tip');
+    tipEl.style.display = 'block';
+    const r = tipEl.getBoundingClientRect();
+    tipEl.style.left = Math.min(e.clientX + 13, innerWidth - r.width - 10) + 'px';
+    tipEl.style.top = Math.max(8, e.clientY - r.height - 11) + 'px';
+  });
+  document.addEventListener('mouseleave', () => tipEl.style.display = 'none');
+}
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   4 · CHARTS
+   Measured, not stretched: each chart is built after layout so the SVG is
+   drawn at the width it will be shown at. No preserveAspectRatio tricks, so
+   rounded data-ends stay round and labels stay legible.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const CH = [];                                       // charts queued by the view, mounted after paint
+const queueChart = (kind, cfg) => { const id = 'ch' + CH.length; CH.push({ id, kind, cfg }); return `<div id="${id}"></div>`; };
+
+function seriesOf(rows, dim, meas, cap = 5) {
+  const g = {};
+  rows.forEach(r => { const k = DIMS[dim].of(r); (g[k] = g[k] || []).push(r); });
+  let entries = Object.entries(g).map(([k, rs]) => [k, MEAS[meas].of(rs), rs]).sort((a,b) => b[1]-a[1]);
+  if (entries.length > cap) {
+    const rest = entries.slice(cap);
+    const restRows = rest.flatMap(e => e[2]);
+    entries = entries.slice(0, cap).concat([[`Other · ${rest.length} more`, MEAS[meas].of(restRows), restRows]]);
+  }
+  return entries.map(([k, v, rs], i) => ({ key:k, val:v, rows:rs, color:i < 5 ? PALETTE[i] : 'var(--text-muted)' }));
+}
+
+function mountCharts() {
+  for (const c of CH) {
+    const host = document.getElementById(c.id);
+    if (!host) continue;
+    const w = Math.max(260, host.parentElement.clientWidth - 2);
+    host.innerHTML = c.kind === 'time' ? chartTime(c.cfg, w) : c.kind === 'spread' ? chartSpread(c.cfg, w) : '';
+  }
+  CH.length = 0;
+}
+
+/* stacked columns over time — magnitude by period, identity by colour + legend */
+function chartTime({ rows, dim, meas, grain }, W) {
+  const H = 196, PL = 46, PR = 8, PT = 12, PB = 26;
+  const periods = [...new Set(rows.map(r => periodOf(r.start, grain)).filter(Boolean))].sort();
+  if (!periods.length) return '<div class="empty">Nothing with a start date in this selection.</div>';
+  const ser = seriesOf(rows, dim, meas);
+  const cell = {};
+  ser.forEach(s => { cell[s.key] = {}; periods.forEach(p => cell[s.key][p] = MEAS[meas].of(s.rows.filter(r => periodOf(r.start, grain) === p))); });
+  const totals = periods.map(p => ser.reduce((a,s) => a + cell[s.key][p], 0));
+  const max = Math.max(1, ...totals);
+  const nice = Math.pow(10, Math.floor(Math.log10(max))) * (max / Math.pow(10, Math.floor(Math.log10(max))) > 5 ? 10 : max / Math.pow(10, Math.floor(Math.log10(max))) > 2 ? 5 : 2);
+  const iw = W - PL - PR, ih = H - PT - PB;
+  const bw = Math.max(5, Math.min(34, iw / periods.length - 4));
+  const x = i => PL + (i + .5) * (iw / periods.length) - bw/2;
+  const y = v => PT + ih - (v / nice) * ih;
+  let g = '';
+  for (let k = 0; k <= 2; k++) { const v = nice * k/2; g += `<line x1="${PL}" x2="${W-PR}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/><text x="${PL-7}" y="${y(v)+3.5}" text-anchor="end" font-size="9.5" fill="var(--text-muted)">${MEAS[meas].fmt(v)}</text>`; }
+  let bars = '';
+  periods.forEach((p, i) => {
+    let acc = 0;
+    ser.forEach(s => {
+      const v = cell[s.key][p]; if (!v) return;
+      const h = (v / nice) * ih; const top = y(acc + v);
+      const tip = `<b>${esc(p)}</b><div class="row"><span>${esc(s.key)}</span><span>${MEAS[meas].fmt(v)}</span></div><div class="row"><span>All</span><span>${MEAS[meas].fmt(totals[i])}</span></div>`;
+      bars += `<rect x="${x(i)}" y="${top}" width="${bw}" height="${Math.max(1, h - 2)}" rx="${acc + v >= totals[i] - .01 ? 3 : 0}" fill="${s.color}" data-tip="${esc(tip)}"/>`;
+      acc += v;
+    });
+    const step = periods.length > 14 ? Math.ceil(periods.length / 7) : 1;
+    if (i % step === 0 || i === periods.length - 1)
+      bars += `<text x="${x(i)+bw/2}" y="${H-9}" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">${esc(grain === 'month' ? p.slice(2) : p)}</text>`;
+  });
+  const legend = ser.map(s => `<span class="pill" style="box-shadow:none;background:none;padding:0 6px 0 0"><i class="sw" style="background:${s.color}"></i>${esc(s.key)}</span>`).join('');
+  return `<svg width="${W}" height="${H}" role="img">${g}${bars}</svg>
+    <div style="display:flex;flex-wrap:wrap;gap:3px 2px;margin-top:4px">${legend}</div>`;
+}
+
+/* amount spread — one row per group, every record a dot. Variance you can see. */
+function chartSpread({ rows, dim }, W) {
+  const groups = {};
+  rows.filter(r => r.amount).forEach(r => { const k = DIMS[dim].of(r); (groups[k] = groups[k] || []).push(r); });
+  let gs = Object.entries(groups).map(([k, rs]) => {
+    const a = rs.map(r => monthlyOf(r)).filter(v => v > 0).sort((x,y) => x-y);
+    return { k, rs, lo:a[0] || 0, hi:a[a.length-1] || 0, mid:a[Math.floor(a.length/2)] || 0, n:rs.length };
+  }).filter(g => g.n).sort((a,b) => b.n - a.n).slice(0, 9);
+  if (!gs.length) return '<div class="empty">No amounts recorded in this selection.</div>';
+  const LW = Math.min(150, Math.max(76, W * .34)), PR = 96;
+  const max = Math.max(...gs.map(g => g.hi)) * 1.06 || 1;
+  const rowH = 26, H = gs.length * rowH + 20;
+  const sx = v => LW + (v / max) * (W - LW - PR);
+  let out = '';
+  gs.forEach((g, i) => {
+    const cy = i * rowH + 15;
+    out += `<text x="0" y="${cy+3.5}" font-size="10.5" fill="var(--text-dim)">${esc(g.k.length > 20 ? g.k.slice(0,19) + '…' : g.k)}</text>`;
+    out += `<line x1="${sx(g.lo)}" x2="${sx(g.hi)}" y1="${cy}" y2="${cy}" stroke="var(--track)" stroke-width="7" stroke-linecap="round"/>`;
+    const seen = {};
+    g.rs.forEach(r => { const v = monthlyOf(r); if (!v) return; const key = Math.round(v); seen[key] = (seen[key]||0) + 1; });
+    Object.entries(seen).forEach(([v, n]) => {
+      const rr = Math.min(7, 3.2 + Math.log2(n) * 1.2);
+      out += `<circle cx="${sx(+v)}" cy="${cy}" r="${rr}" fill="${g.lo === g.hi ? 'var(--c3)' : 'var(--c1)'}" stroke="var(--bg-panel)" stroke-width="2" data-tip="${esc(`<b>${g.k}</b><div class="row"><span>${inr(+v)}/mo</span><span>${n} record${n>1?'s':''}</span></div>`)}"/>`;
+    });
+    const label = g.lo === g.hi ? inr(g.lo) : `${inr(g.lo)}–${inr(g.hi)}`;
+    out += `<text x="${W-2}" y="${cy+3.5}" text-anchor="end" font-size="10" fill="${g.lo===g.hi?'var(--text-muted)':'var(--amber)'}" class="num">${esc(label)}</text>`;
+  });
+  return `<svg width="${W}" height="${H}" role="img">${out}</svg>
+    <div class="hint" style="margin-top:6px"><i class="sw" style="background:var(--c3)"></i> one price &nbsp; <i class="sw" style="background:var(--c1)"></i> several prices for the same group &nbsp;·&nbsp; dot size = how many records sit on that price</div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5 · EXPLORE
+   ═══════════════════════════════════════════════════════════════════════════ */
+function viewExplore() {
+  const rows = filtered();
+  const all = RECORDS.filter(r => S.incSuperseded || r.status !== 'superseded');
+  const comp = rows.filter(r => completeness(r) === CORE.length).length;
+  const kpi = (k, v, s) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+  const kpis = `<div class="kpis">
+    ${kpi('Records', rows.length.toLocaleString('en-IN'), rows.length === all.length ? 'the whole book' : `of ${all.length} · filtered`)}
+    ${kpi('Properties', new Set(rows.map(r => r.pid)).size, `of ${PROPS.length} on the books`)}
+    ${kpi('Monthly run-rate', inrK(sum(rows, monthlyOf)), 'every bill reduced to a month')}
+    ${kpi('Annualised', inrK(sum(rows, annualOf)), 'what a full year costs')}
+    ${kpi('Fully recorded', rows.length ? Math.round(comp/rows.length*100) + '%' : '—', `${comp} of ${rows.length} have all ${CORE.length} fields`)}
+  </div>`;
+
+  const ser = seriesOf(rows, S.group, S.measure, 12);
+  const total = MEAS[S.measure].of(rows) || 1;
+  const maxV = Math.max(...ser.map(s => s.val), 1);
+  const g2 = S.group2;
+
+  const groupRows = ser.map((s, i) => {
+    const open = !!S.expand[s.key];
+    const sub = (g2 !== 'none' && open) ? seriesOf(s.rows, g2, S.measure, 8) : [];
+    const subMax = Math.max(...sub.map(x => x.val), 1);
+    const head = `<tr data-act="expand" data-k="${esc(s.key)}" style="cursor:${g2!=='none'?'pointer':'default'}">
+      <td style="width:1%;color:var(--text-muted)">${g2 !== 'none' ? (open ? '▾' : '▸') : ''}</td>
+      <td><span class="sw" style="background:${s.color};margin-right:7px;vertical-align:-1px"></span><span class="drill" data-act="drill" data-dim="${S.group}" data-v="${esc(s.key)}">${esc(s.key)}</span></td>
+      <td style="width:34%"><div class="track"><div class="bar" style="width:${Math.max(2, s.val/maxV*100)}%;background:${s.color}" data-tip="${esc(`<b>${s.key}</b><div class="row"><span>${MEAS[S.measure].label}</span><span>${MEAS[S.measure].fmt(s.val)}</span></div><div class="row"><span>Share</span><span>${(s.val/total*100).toFixed(1)}%</span></div>`)}"></div></div></td>
+      <td class="r num" style="font-weight:600">${MEAS[S.measure].fmt(s.val)}</td>
+      <td class="r num" style="color:var(--text-dim)">${(s.val/total*100).toFixed(1)}%</td>
+      <td class="r num" style="color:var(--text-dim)">${s.rows.length}</td>
+      <td class="r num" style="color:var(--text-dim)">${new Set(s.rows.map(r => r.pid)).size}</td>
+    </tr>`;
+    const subs = sub.map(x => `<tr style="background:var(--bg-sunken)">
+      <td></td>
+      <td style="padding-left:22px;color:var(--text-dim)"><span class="drill" data-act="drill2" data-dim="${g2}" data-v="${esc(x.key)}" data-pdim="${S.group}" data-pv="${esc(s.key)}">${esc(x.key)}</span></td>
+      <td><div class="track" style="height:7px"><div class="bar" style="height:7px;width:${Math.max(2, x.val/subMax*100)}%;background:${s.color};opacity:.72"></div></div></td>
+      <td class="r num">${MEAS[S.measure].fmt(x.val)}</td>
+      <td class="r num" style="color:var(--text-muted)">${(x.val/s.val*100).toFixed(0)}%</td>
+      <td class="r num" style="color:var(--text-muted)">${x.rows.length}</td>
+      <td class="r num" style="color:var(--text-muted)">${new Set(x.rows.map(r => r.pid)).size}</td>
+    </tr>`).join('');
+    return head + subs;
+  }).join('');
+
+  const dimOpts = (cur, extra) => (extra ? `<option value="none"${cur==='none'?' selected':''}>— nothing —</option>` : '') +
+    Object.entries(DIMS).map(([k,d]) => `<option value="${k}"${cur===k?' selected':''}>${d.label}</option>`).join('');
+
+  return `${kpis}
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 11px">
+    <span class="lbl">Group by</span>
+    <select class="sel" data-act="set" data-key="group">${dimOpts(S.group)}</select>
+    <span class="lbl">then</span>
+    <select class="sel" data-act="set" data-key="group2">${dimOpts(S.group2, true)}</select>
+    <span class="lbl" style="margin-left:6px">Measured by</span>
+    <select class="sel" data-act="set" data-key="measure">${Object.entries(MEAS).map(([k,m]) => `<option value="${k}"${S.measure===k?' selected':''}>${m.label}</option>`).join('')}</select>
+    <span style="flex:1"></span>
+    <span class="hint">Click any name to filter everything by it.</span>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <header><h3>${esc(DIMS[S.group].label)} — by ${esc(MEAS[S.measure].label.toLowerCase())}</h3><span class="sp"></span>
+        <span class="hint">${ser.length} group${ser.length>1?'s':''} · ${MEAS[S.measure].fmt(total)} ${MEAS[S.measure].unit}</span></header>
+      <div class="scrollx"><table class="t"><thead><tr><th></th><th>${esc(DIMS[S.group].label)}</th><th></th>
+        <th class="r">${esc(MEAS[S.measure].label)}</th><th class="r">Share</th><th class="r">Records</th><th class="r">Props</th></tr></thead>
+        <tbody>${groupRows || '<tr><td colspan="7"><div class="empty"><b>Nothing matches</b>Loosen a filter above.</div></td></tr>'}</tbody></table></div>
     </div>
-    <div class="cal" style="margin-bottom:6px">${['M','T','W','T','F','S','S'].map(d=>`<div class="lbl" style="text-align:center">${d}</div>`).join('')}</div>
-    <div class="cal">${cells.join('')}</div></div>`
-}
-
-function renderInsights() {
-  const active = CONNS.filter(c=>c.status==='active')
-  const run = active.reduce((a,c)=>a+monthly(c),0)
-  const recharges = EVENTS.filter(e=>e.kind==='recharge')
-  const onTime = recharges.length
-  const prices = EVENTS.filter(e=>e.kind==='price')
-  const byProv = {}
-  active.forEach(c => { const g = byProv[c.provider] ||= {name:c.provider,n:0,spend:0}; g.n++; g.spend+=monthly(c) })
-  const provs = Object.values(byProv).sort((a,b)=>b.spend-a.spend)
-  const maxP = Math.max(1,...provs.map(p=>p.spend))
-  return `
-  <div class="kpis" style="margin-bottom:14px">
-    ${[['Run-rate', money(run)+'/mo','var(--accent)'],
-       ['Connections', active.length,'var(--text)'],
-       ['Properties', new Set(active.map(c=>c.pid)).size,'var(--text)'],
-       ['Overdue', CONNS.filter(c=>daysTo(c)<0&&c.workState!=='done').length,'var(--red)'],
-       ['Recharged (log)', onTime,'var(--green)']].map(([l,v,c])=>
-      `<div class="panel kpi"><div class="lbl">${l}</div><div class="v" style="color:${c}">${v}</div></div>`).join('')}
-  </div>
-  ${prices.length?`<div class="panel" style="padding:14px;margin-bottom:14px;border-color:var(--accent)">
-    <div class="lbl" style="color:var(--accent);margin-bottom:6px">⚠ Price change detected</div>
-    <div style="font-size:13px;color:var(--text-dim);line-height:1.6">
-      <b style="color:var(--text)">ACT raised prices on ${prices.length} connections</b> last month, +8% each —
-      ${money(prices.length*0.08*7073/6)}/mo more across the book.
-      Only an event log can see this: the rows themselves just show today's number.
-    </div></div>`:''}
-  <div class="panel" style="padding:15px;margin-bottom:14px">
-    <div class="lbl" style="margin-bottom:12px">Provider scorecard</div>
-    ${provs.map(p=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
-      <span style="width:120px;font-size:12.5px;color:var(--text-dim)">${esc(p.name)}</span>
-      <span class="bar" style="flex:1"><span style="width:${(p.spend/maxP)*100}%"></span></span>
-      <span class="mono" style="width:120px;text-align:right;font-size:12px">${money(p.spend)}/mo
-        <span style="color:var(--text-muted)"> · ${p.n}</span></span></div>`).join('')}
-  </div>
-  <div class="panel" style="padding:15px">
-    <div class="lbl" style="margin-bottom:10px">Recent activity · the event log</div>
-    ${[...EVENTS].reverse().slice(0,10).map(e=>{
-      const c = CONNS.find(x=>x.id===e.conn)
-      return `<div class="tl"><span class="when">${fmt(e.at).slice(0,6)}</span>
-        <span style="flex:1;font-size:12.5px;color:var(--text-dim)">
-          <b style="color:var(--text)">PID ${c?c.pid:'—'}</b> · ${esc(e.text)}</span>
-        <span class="mono" style="font-size:10.5px;color:var(--text-muted)">${esc(e.who)}</span></div>`}).join('')}
-  </div>`
-}
-
-
-// ─── date analysis ──────────────────────────────────────────────────────────
-// Any window, two questions: what went in, and what did it cost. Both are read
-// off the event log, so "cost in 2025" is the sum of what was actually paid in
-// 2025 — installs plus renewals, each at the price in force then — rather than
-// today's price multiplied by a guess.
-const Y = TODAY.getFullYear(), Mo = TODAY.getMonth()
-const RANGES = [
-  { k:'mtd',   label:'This month',   from:()=>new Date(Y,Mo,1),        to:()=>TODAY },
-  { k:'lastm', label:'Last month',   from:()=>new Date(Y,Mo-1,1),      to:()=>new Date(Y,Mo,0) },
-  { k:'qtd',   label:'This quarter', from:()=>new Date(Y,Math.floor(Mo/3)*3,1), to:()=>TODAY },
-  { k:'ytd',   label:'This year',    from:()=>new Date(Y,0,1),         to:()=>TODAY },
-  { k:'lasty', label:'Last year',    from:()=>new Date(Y-1,0,1),       to:()=>new Date(Y-1,11,31) },
-  { k:'12m',   label:'Last 12 months', from:()=>addM(TODAY,-12),       to:()=>TODAY },
-  { k:'all',   label:'All time',     from:()=>new Date(2000,0,1),      to:()=>TODAY },
-  { k:'custom',label:'Custom',       from:()=>S.from?new Date(S.from):new Date(Y,0,1), to:()=>S.to?new Date(S.to):TODAY },
-]
-const activeRange = () => {
-  const r = RANGES.find(x=>x.k===S.range) || RANGES[3]
-  return { ...r, a: iso(r.from()), b: iso(r.to()) }
-}
-const inRange = (d,a,b) => d >= a && d <= b
-// Grain picked from the span, so a week is days and a decade is years.
-const grainFor = (a,b) => {
-  const days = (new Date(b) - new Date(a)) / 86400000
-  return days <= 62 ? 'day' : days <= 760 ? 'month' : 'year'
-}
-const bucketOf = (d,g) => g==='day' ? d : g==='month' ? d.slice(0,7) : d.slice(0,4)
-const bucketLabel = (k,g) => g==='day' ? new Date(k+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})
-  : g==='month' ? new Date(k+'-01T00:00:00').toLocaleDateString('en-IN',{month:'short',year:'2-digit'}) : k
-
-function analyse(a, b) {
-  const ev = EVENTS.filter(e => inRange(e.at, a, b))
-  const installs = ev.filter(e=>e.kind==='installed')
-  const rech = ev.filter(e=>e.kind==='recharge')
-  const connsIn = installs.map(e=>CONNS.find(c=>c.id===e.conn)).filter(Boolean)
-  const cashIn = installs.reduce((s,e)=>s+(e.amount||0),0)
-  const cashRe = rech.reduce((s,e)=>s+(e.amount||0),0)
-  const runAdded = connsIn.reduce((s,c)=>s+monthly(c),0)
-  // run-rate as it stood at the end of the window
-  const runEnd = CONNS.filter(c=>c.start<=b && c.status==='active').reduce((s,c)=>s+monthly(c),0)
-  return { ev, installs, rech, connsIn, cashIn, cashRe, cash: cashIn+cashRe, runAdded, runEnd,
-           props:new Set(connsIn.map(c=>c.pid)).size }
-}
-
-function renderAnalysis() {
-  const r = activeRange()
-  const cur = analyse(r.a, r.b)
-  // the same span, immediately before — a like-for-like comparison
-  const spanMs = new Date(r.b) - new Date(r.a)
-  const pa = iso(new Date(new Date(r.a) - spanMs - 86400000)), pb = iso(new Date(new Date(r.a) - 86400000))
-  const prev = analyse(pa, pb)
-  const d = (n,p) => (p===0||p==null) ? null : (n-p)/p
-  const badge = v => v==null ? '' :
-    `<span style="font-size:11px;font-weight:700;font-family:var(--font-mono);margin-left:7px;color:${Math.round(v*100)===0?'var(--text-muted)':v>0?'var(--green)':'var(--red)'}">
-      ${Math.round(v*100)===0?'flat':(v>0?'▲ ':'▼ ')+Math.abs(Math.round(v*100))+'%'}</span>`
-
-  const g = grainFor(r.a, r.b)
-  const buckets = new Map()
-  cur.ev.forEach(e => {
-    if (e.kind!=='installed' && e.kind!=='recharge') return
-    const k = bucketOf(e.at, g)
-    const x = buckets.get(k) || { k, label:bucketLabel(k,g), deploys:0, cash:0, rech:0 }
-    if (e.kind==='installed') { x.deploys++; x.cash += e.amount||0 }
-    else { x.rech++; x.cash += e.amount||0 }
-    buckets.set(k, x)
-  })
-  const series = [...buckets.values()].sort((x,y)=>x.k.localeCompare(y.k))
-  const maxCash = Math.max(1, ...series.map(x=>x.cash))
-  const maxDep = Math.max(1, ...series.map(x=>x.deploys))
-
-  const splitKey = { provider:c=>c.provider, type:c=>c.type==='wifi'?'WiFi':'Water purifier', plan:c=>c.plan, cycle:c=>c.cycle }[S.split]
-  const split = {}
-  cur.connsIn.forEach(c => { const k=splitKey(c)||'—'; const x=split[k] ||= {name:k,n:0,cash:0}; x.n++; x.cash+=c.amount })
-  const splitRows = Object.values(split).sort((x,y)=>y.cash-x.cash)
-  const maxSplit = Math.max(1,...splitRows.map(x=>x.cash))
-
-  return `
-  <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
-    ${RANGES.filter(x=>x.k!=='custom').map(x=>`<button class="btn${S.range===x.k?' pri':''}" data-range="${x.k}">${x.label}</button>`).join('')}
-    <button class="btn${S.range==='custom'?' pri':''}" data-range="custom">Custom</button>
-    ${S.range==='custom'?`<input class="inp" type="date" id="from" value="${S.from||r.a}">
-      <span style="color:var(--text-muted)">→</span>
-      <input class="inp" type="date" id="to" value="${S.to||r.b}">`:''}
-    <span style="margin-left:auto;font-size:11.5px;color:var(--text-muted);font-family:var(--font-mono)">
-      ${fmt(r.a)} → ${fmt(r.b)}</span>
-  </div>
-
-  <div class="kpis" style="margin-bottom:14px">
-    <div class="panel kpi"><div class="lbl">Deployed</div><div class="v">${cur.installs.length}${badge(d(cur.installs.length,prev.installs.length))}</div>
-      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${cur.props} properties</div></div>
-    <div class="panel kpi"><div class="lbl">Total cash out</div><div class="v" style="color:var(--accent)">${compact(cur.cash)}${badge(d(cur.cash,prev.cash))}</div>
-      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">installs + renewals</div></div>
-    <div class="panel kpi"><div class="lbl">New installs</div><div class="v">${compact(cur.cashIn)}</div>
-      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${cur.installs.length} paid</div></div>
-    <div class="panel kpi"><div class="lbl">Renewals paid</div><div class="v">${compact(cur.cashRe)}${badge(d(cur.cashRe,prev.cashRe))}</div>
-      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${cur.rech.length} recharges</div></div>
-    <div class="panel kpi"><div class="lbl">Run-rate added</div><div class="v">${compact(cur.runAdded)}<span style="font-size:12px">/mo</span></div>
-      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">ending ${compact(cur.runEnd)}/mo</div></div>
-  </div>
-
-  <div class="panel" style="padding:15px;margin-bottom:14px">
-    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px">
-      <span class="lbl">Cash out by ${g}</span>
-      <span style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">installs and renewals · bar height is money, number above is deployments</span>
-    </div>
-    ${series.length? `<div style="display:flex;align-items:flex-end;gap:5px;height:150px">
-      ${series.map(x=>`<div title="${x.label}: ${money(x.cash)} · ${x.deploys} deployed · ${x.rech} renewed"
-        style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;gap:3px">
-        <span style="font-size:10px;font-family:var(--font-mono);color:var(--text-muted);text-align:center">${x.deploys||''}</span>
-        <span style="height:${Math.max((x.cash/maxCash)*110,2)}px;background:var(--viz-1);border-radius:4px 4px 0 0"></span>
-      </div>`).join('')}</div>
-      <div style="display:flex;gap:5px;margin-top:6px">
-        ${series.map(x=>`<span style="flex:1;min-width:0;text-align:center;font-size:9px;font-family:var(--font-mono);color:var(--text-muted);overflow:hidden;white-space:nowrap">${x.label}</span>`).join('')}
-      </div>`
-      : `<div style="color:var(--text-muted);font-size:13px;font-family:var(--font-mono)">Nothing happened in this window.</div>`}
-  </div>
-
-  <div style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
-    <div class="panel" style="padding:15px">
-      <div style="display:flex;align-items:center;gap:7px;margin-bottom:12px;flex-wrap:wrap">
-        <span class="lbl">Deployments by</span>
-        ${['provider','type','plan','cycle'].map(k=>`<button class="btn sm${S.split===k?' pri':''}" data-split="${k}">${k}</button>`).join('')}
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card">
+        <header><h3>When these were installed</h3><span class="sp"></span>
+          <span class="seg">${['month','quarter','year'].map(g => `<button data-act="set" data-key="grain" data-v="${g}" class="${S.grain===g?'on':''}">${g[0].toUpperCase()+g.slice(1)}</button>`).join('')}</span></header>
+        <div class="body">${queueChart('time', { rows, dim:S.group, meas:S.measure, grain:S.grain })}</div>
       </div>
-      ${splitRows.length? splitRows.map(x=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
-        <span style="width:110px;font-size:12px;color:var(--text-dim);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(x.name)}</span>
-        <span class="bar" style="flex:1"><span style="width:${(x.cash/maxSplit)*100}%"></span></span>
-        <span class="mono" style="width:96px;text-align:right;font-size:12px">${compact(x.cash)}<span style="color:var(--text-muted)"> · ${x.n}</span></span>
-      </div>`).join('') : `<div style="color:var(--text-muted);font-size:12.5px">No deployments in this window.</div>`}
-    </div>
-
-    <div class="panel" style="padding:15px">
-      <div class="lbl" style="margin-bottom:12px">Where the money went</div>
-      ${[['New installs',cur.cashIn,'var(--viz-1)'],['Renewals',cur.cashRe,'var(--viz-2)']].map(([l,v,c])=>`
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
-          <span style="width:110px;font-size:12px;color:var(--text-dim)">${l}</span>
-          <span class="bar" style="flex:1"><span style="width:${cur.cash?(v/cur.cash)*100:0}%;background:${c}"></span></span>
-          <span class="mono" style="width:96px;text-align:right;font-size:12px">${compact(v)}
-            <span style="color:var(--text-muted)"> · ${cur.cash?Math.round((v/cur.cash)*100):0}%</span></span>
-        </div>`).join('')}
-      <div style="margin-top:12px;padding-top:11px;border-top:1px solid var(--border);font-size:11.5px;color:var(--text-muted);font-family:var(--font-mono);line-height:1.6">
-        Each figure is what was actually paid, at the price in force on the day —
-        not today's price applied backwards.
+      <div class="card">
+        <header><h3>What one connection costs a month</h3><span class="sp"></span><span class="hint">by ${esc(DIMS[S.group].label.toLowerCase())}</span></header>
+        <div class="body">${queueChart('spread', { rows, dim:S.group })}</div>
       </div>
     </div>
-  </div>
+  </div>`;
+}
+</script>
 
-  <div class="panel" style="margin-top:14px;overflow:auto;max-height:420px">
-    <div style="padding:13px 15px 0"><span class="lbl">Deployments in ${r.label.toLowerCase()} · ${cur.connsIn.length}</span></div>
-    ${cur.connsIn.length? `<table style="margin-top:10px"><thead><tr>
-      <th>Installed</th><th>Property</th><th>Utility</th><th>Provider</th><th>Plan</th>
-      <th class="r">Paid</th><th>Cycle</th><th class="r">Monthly</th></tr></thead><tbody>
-      ${cur.connsIn.map(c=>`<tr class="clickable" data-open="${c.id}">
-        <td class="mono" style="color:var(--text-muted)">${fmt(c.start)}</td>
-        <td class="mono">PID ${c.pid}</td><td>${typeDot(c)} ${c.type==='wifi'?'WiFi':'Water'}</td>
-        <td>${esc(c.provider)}</td><td style="color:var(--text-muted)">${esc(c.plan)}</td>
-        <td class="r" style="color:var(--accent);font-weight:700">${money(c.amount)}</td>
-        <td style="color:var(--text-muted)">${c.cycle}</td>
-        <td class="r mono">${money(monthly(c))}</td></tr>`).join('')}</tbody></table>`
-      : `<div style="padding:24px 15px;color:var(--text-muted);font-size:13px">No deployments in this window.</div>`}
-  </div>`
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   6 · RECORDS — the book itself
+   ═══════════════════════════════════════════════════════════════════════════ */
+const COLS = {
+  pid:      { label:'Property', w:'', get:r => `<div style="min-width:150px"><b class="mono">${r.pid}</b> &nbsp;<span style="color:var(--text-dim)">${esc(PROP[r.pid] ? PROP[r.pid].name : '—')}</span><div class="hint">${esc(PROP[r.pid] ? PROP[r.pid].loc : '')}</div></div>` },
+  type:     { label:'Type',     get:r => `<span class="pill"><i class="sw" style="background:${TYPE[r.type].color}"></i>${TYPE[r.type].label}</span>` },
+  provider: { label:'Provider', get:r => esc(r.provider) },
+  plan:     { label:'Plan',     get:r => r.plan ? esc(r.plan) : '<i style="color:var(--red)">not recorded</i>' },
+  cycle:    { label:'Cycle',    get:r => r.cycle ? esc(r.cycle) : '<i style="color:var(--red)">—</i>' },
+  amount:   { label:'Bill',     r:true, get:r => r.amount ? `<span class="num">${inr(r.amount)}</span>` : '<i style="color:var(--red)">—</i>' },
+  monthly:  { label:'Per month',r:true, get:r => monthlyOf(r) ? `<span class="num">${inr(monthlyOf(r))}</span>` : '<span style="color:var(--text-muted)">—</span>' },
+  annual:   { label:'Per year', r:true, get:r => annualOf(r) ? `<span class="num">${inr(annualOf(r))}</span>` : '<span style="color:var(--text-muted)">—</span>' },
+  start:    { label:'Started',  get:r => r.start ? `<span class="num" style="color:var(--text-dim)">${r.start}</span>` : '<i style="color:var(--red)">—</i>' },
+  lastRech: { label:'Last paid',get:r => r.lastRech ? `<span class="num" style="color:var(--text-dim)">${r.lastRech}</span>` : '<span style="color:var(--text-muted)">not logged</span>' },
+  account:  { label:'Account',  get:r => r.account ? `<span class="mono" style="color:var(--text-dim)">${esc(r.account)}</span>` : '<i style="color:var(--red)">—</i>' },
+  invoice:  { label:'Invoice',  get:r => r.invoice ? '<span class="pill ok">✓ on file</span>' : '<span class="pill warn">none</span>' },
+  payMode:  { label:'Who pays', get:r => esc(r.payMode) },
+  source:   { label:'Source',   get:r => `<span style="color:var(--text-dim)">${esc(r.source)}</span>` },
+  updatedAt:{ label:'Updated',  get:r => `<span class="num" style="color:var(--text-dim)">${r.updatedAt}</span>` },
+  status:   { label:'Status',   get:r => { const m = { active:'ok', superseded:'', cancelled:'bad', unknown:'warn' }[r.status]; return `<span class="pill ${m}">${r.status}</span>`; } },
+  complete: { label:'Complete', get:r => { const c = completeness(r), miss = missingOf(r);
+      return `<span class="meter" data-tip="${esc(`<b>${c} of ${CORE.length} fields</b>` + (miss.length ? miss.map(m => `<div class="row"><span>${m.label}</span><span style="color:var(--red)">missing</span></div>`).join('') : '<div class="row"><span>Nothing missing</span></div>'))}">${CORE.map((_,i) => `<i class="${i < c ? (c === CORE.length ? 'f' : 'p') : ''}"></i>`).join('')}</span>`; } },
+};
+const SORTABLE = { pid:r => +r.pid, type:r => r.type, provider:r => r.provider, plan:r => r.plan || '', cycle:r => CYCLE_M[r.cycle] || 99,
+  amount:r => r.amount || 0, monthly:monthlyOf, annual:annualOf, start:r => r.start || '', lastRech:r => r.lastRech || '',
+  account:r => r.account || '', invoice:r => r.invoice ? 1 : 0, payMode:r => r.payMode, source:r => r.source,
+  updatedAt:r => r.updatedAt, status:r => r.status, complete:completeness };
+
+function viewRecords() {
+  let rows = [...filtered()];
+  const f = SORTABLE[S.sort.col];
+  if (f) rows.sort((a,b) => { const x = f(a), y = f(b); return (x > y ? 1 : x < y ? -1 : 0) * S.sort.dir; });
+  const th = k => `<th class="${COLS[k].r ? 'r ' : ''}sortable" data-act="sort" data-k="${k}">${COLS[k].label}${S.sort.col === k ? (S.sort.dir > 0 ? ' ↑' : ' ↓') : ''}</th>`;
+  const picker = Object.keys(COLS).map(k => `<label style="display:flex;gap:7px;align-items:center;padding:4px 9px;font-size:12px;white-space:nowrap">
+      <input type="checkbox" data-act="col" data-k="${k}" ${S.cols.includes(k) ? 'checked' : ''}> ${COLS[k].label}</label>`).join('');
+  return `<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:11px">
+      <h2 style="font-size:15px">${rows.length.toLocaleString('en-IN')} record${rows.length === 1 ? '' : 's'}</h2>
+      <span class="hint">${S.idSet ? esc(S.idSetLabel) : 'the whole book, newest filter first'}</span>
+      <span style="flex:1"></span>
+      <details style="position:relative"><summary class="btn" style="list-style:none">▦ Columns</summary>
+        <div class="card" style="position:absolute;right:0;top:32px;z-index:20;padding:5px;box-shadow:var(--shadow);max-height:300px;overflow:auto">${picker}</div></details>
+      <button class="btn" data-act="csv">↓ CSV</button>
+    </div>
+    <div class="card"><div class="scrollx tallish" style="max-height:min(70vh,700px)">
+      <table class="t"><thead><tr>${S.cols.map(th).join('')}</tr></thead>
+      <tbody>${rows.length ? rows.map(r => `<tr data-act="open" data-id="${r.id}" style="cursor:pointer">${S.cols.map(k => `<td class="${COLS[k].r ? 'r' : ''}">${COLS[k].get(r)}</td>`).join('')}</tr>`).join('')
+        : '<tr><td><div class="empty"><b>No record matches</b>Clear a filter, or search for a PID, provider, account number or SSID.</div></td></tr>'}</tbody></table>
+    </div></div>`;
 }
 
-function renderGaps() {
-  const byPid = {}
-  CONNS.forEach(c => { (byPid[c.pid] ||= []).push(c) })
-  const gaps = Object.entries(byPid)
-    .map(([pid,list]) => ({ pid, wifi:list.some(c=>c.type==='wifi'), water:list.some(c=>c.type==='water_purifier'), spend:list.reduce((a,c)=>a+monthly(c),0) }))
-    .filter(g => !g.wifi || !g.water)
-  return `<div class="panel" style="padding:15px">
-    <div class="lbl" style="margin-bottom:4px">Coverage gaps</div>
-    <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px;max-width:62ch;line-height:1.6">
-      Properties missing one of the two standard utilities. No generic CRM finds this — it is an absence, and
-      absences do not appear in a list of what exists.
+/* ═══════════════════════════════════════════════════════════════════════════
+   7 · WHAT THE BOOK DOES NOT SAY — and what it says twice
+   ═══════════════════════════════════════════════════════════════════════════ */
+function viewQuality() {
+  const sel = CHECKS.find(c => c.id === S.check) || CHECKS[0];
+  const list = fam => CHECKS.filter(c => c.fam === fam).map(c => `<button class="navitem ${c.id === sel.id ? 'on' : ''}" data-act="check" data-k="${c.id}" style="width:100%">
+      <span class="ico" style="color:var(--${c.sev === 'bad' ? 'red' : 'amber'})">${c.sev === 'bad' ? '◆' : '◇'}</span>
+      <span style="min-width:0">${esc(c.label)}</span><span class="cnt ${c.sev === 'bad' ? '' : 'warn'}">${c.rows.length}</span></button>`).join('');
+
+  const noWifi  = COVERAGE.filter(p => !p.wifi);
+  const noWater = COVERAGE.filter(p => !p.water);
+  const bare    = COVERAGE.filter(p => !p.n);
+
+  let ev = '';
+  if (sel.id === 'c-spell') ev = `<div class="body" style="border-bottom:1px solid var(--border)">
+      ${sel.ev.map(e => `<div style="margin-bottom:9px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">${esc(e.head)}</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">${e.parts.map(([p,n]) => `<span class="chip" style="padding-right:9px"><b class="mono">${esc(p)}</b><i>×${n}</i></span>`).join('')}</div></div>`).join('')}
+      <div class="hint" style="margin-top:4px">Normalising the text would merge these into one plan, and only then does “are we all paying the same?” have an answer.</div></div>`;
+  if (sel.id === 'c-price') ev = `<div class="body" style="border-bottom:1px solid var(--border)">
+      <table class="t"><thead><tr><th>Provider · plan · cycle</th><th>Amounts on the records</th><th class="r">Spread</th><th class="r">Records</th></tr></thead>
+      <tbody>${sel.ev.map(e => `<tr><td>${esc(e.head)}</td>
+        <td><div style="display:flex;gap:5px;flex-wrap:wrap">${e.parts.map(([a,n]) => `<span class="chip" style="padding-right:9px"><b class="num">${esc(a)}</b><i>×${n}</i></span>`).join('')}</div></td>
+        <td class="r num" style="color:var(--amber);font-weight:600">${inr(e.spread)}</td><td class="r num">${e.n}</td></tr>`).join('')}</tbody></table></div>`;
+
+  const sample = sel.rows.slice(0, 60);
+  return `<div class="gq">
+    <div class="card"><header><h3>What to look at</h3></header><div style="padding:7px">
+      <div class="grp" style="padding:4px 8px 5px">Contradictions — these cannot all be true</div>${list('con')}
+      <div class="grp" style="padding:11px 8px 5px">Gaps — these were never filled in</div>${list('gap')}
+    </div></div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card">
+        <header><h3>${esc(sel.label)}</h3><span class="sp"></span>
+          <span class="pill ${sel.sev === 'bad' ? 'bad' : 'warn'}">${sel.rows.length} records</span>
+          <button class="btn" data-act="toRecords" data-k="${sel.id}">Open these in Records →</button></header>
+        <div class="body" style="border-bottom:1px solid var(--border)"><p style="margin:0;color:var(--text-dim);font-size:12.5px;max-width:74ch">${esc(sel.why)}</p></div>
+        ${ev}
+        <div class="scrollx" style="max-height:340px;overflow:auto"><table class="t">
+          <thead><tr><th>Property</th><th>Type</th><th>Provider</th><th>Plan</th><th class="r">Bill</th><th>Status</th><th class="r">Complete</th></tr></thead>
+          <tbody>${sample.map(r => `<tr data-act="open" data-id="${r.id}" style="cursor:pointer">
+            <td>${COLS.pid.get(r)}</td><td>${COLS.type.get(r)}</td><td>${esc(r.provider)}</td><td>${COLS.plan.get(r)}</td>
+            <td class="r">${COLS.amount.get(r)}</td><td>${COLS.status.get(r)}</td><td class="r">${COLS.complete.get(r)}</td></tr>`).join('')}
+          </tbody></table>
+          ${sel.rows.length > 60 ? `<div class="hint" style="padding:9px 11px">Showing 60 of ${sel.rows.length}. The rest are in Records, filtered.</div>` : ''}
+        </div>
+      </div>
+      <div class="card">
+        <header><h3>Coverage — what a property has, and has not</h3><span class="sp"></span><span class="hint">${PROPS.length} properties</span></header>
+        <div class="body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+          ${[['No WiFi record', noWifi, 'c1'], ['No water purifier', noWater, 'c3'], ['No utility at all', bare, 'c5']].map(([l, arr, c]) =>
+            `<div style="background:var(--bg-input);border-radius:9px;padding:10px 11px">
+              <div class="k lbl">${l}</div><div style="font-size:21px;font-weight:600;margin-top:4px" class="num">${arr.length}</div>
+              <div class="hint">${arr.length ? arr.slice(0,6).map(p => `<span class="mono">${p.pid}</span>`).join(' ') + (arr.length > 6 ? ' …' : '') : 'none'}</div></div>`).join('')}
+        </div>
+      </div>
     </div>
-    ${gaps.length? `<table><thead><tr><th>Property</th><th>WiFi</th><th>Water purifier</th><th class="r">Spend</th><th></th></tr></thead>
-    <tbody>${gaps.map(g=>`<tr><td class="mono">PID ${g.pid}</td>
-      <td>${g.wifi?'<span class="chip" style="color:var(--green);border:1px solid currentColor">yes</span>':'<span class="chip" style="color:var(--red);border:1px solid currentColor">missing</span>'}</td>
-      <td>${g.water?'<span class="chip" style="color:var(--green);border:1px solid currentColor">yes</span>':'<span class="chip" style="color:var(--red);border:1px solid currentColor">missing</span>'}</td>
-      <td class="r mono" style="color:var(--accent)">${money(g.spend)}/mo</td>
-      <td><button class="btn sm">Add utility</button></td></tr>`).join('')}</tbody></table>`
-      : '<div style="color:var(--text-muted);font-size:13px">Every property has both.</div>'}
-  </div>`
+  </div>`;
 }
 
-function renderDrawer() {
-  const host = document.getElementById('drawer')
-  if (!S.open) { host.innerHTML=''; return }
-  const c = CONNS.find(x=>x.id===S.open)
-  const evs = EVENTS.filter(e=>e.conn===c.id).sort((a,b)=>b.at.localeCompare(a.at))
-  const d = daysTo(c)
-  host.innerHTML = `<div class="scrim" data-close="1"></div><div class="drawer">
-    <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:14px">
-      <div><div style="font-size:18px;font-weight:700;font-family:var(--font-mono)">PID ${c.pid}</div>
-        <div style="font-size:12.5px;color:var(--text-dim);margin-top:2px">${typeDot(c)} ${c.type==='wifi'?'WiFi':'Water purifier'} · ${esc(c.provider)} ${esc(c.plan)}</div></div>
-      <button class="btn" style="margin-left:auto" data-close="1">✕</button>
+/* ═══════════════════════════════════════════════════════════════════════════
+   8 · COMPARE
+   ═══════════════════════════════════════════════════════════════════════════ */
+function viewCompare() {
+  const rows = filtered();
+  const tabs = [['bench','Provider by provider'],['bands','Price for the same plan'],['props','Cost per property']];
+  const head = `<div style="display:flex;align-items:center;gap:9px;margin-bottom:11px;flex-wrap:wrap">
+    <span class="seg">${tabs.map(([k,l]) => `<button data-act="set" data-key="cmp" data-v="${k}" class="${S.cmp===k?'on':''}">${l}</button>`).join('')}</span>
+    <span class="hint">${rows.length} records in scope</span></div>`;
+
+  if (S.cmp === 'bench') {
+    const g = {}; rows.forEach(r => (g[r.provider] = g[r.provider] || []).push(r));
+    const t = Object.entries(g).map(([p, rs]) => ({ p, n:rs.length, props:new Set(rs.map(r => r.pid)).size,
+      monthly:sum(rs, monthlyOf), annual:sum(rs, annualOf),
+      per: rs.filter(monthlyOf).length ? sum(rs, monthlyOf) / rs.filter(monthlyOf).length : 0,
+      plan:rs.filter(r => r.plan).length / rs.length, inv:rs.filter(r => r.invoice).length / rs.length, acc:rs.filter(r => r.account).length / rs.length }))
+      .sort((a,b) => b.annual - a.annual);
+    const maxA = Math.max(...t.map(x => x.annual), 1);
+    const pct = v => `<span class="num" style="color:${v > .8 ? 'var(--green)' : v > .4 ? 'var(--text-dim)' : 'var(--red)'}">${Math.round(v*100)}%</span>`;
+    return head + `<div class="card"><div class="scrollx"><table class="t">
+      <thead><tr><th>Provider</th><th class="r">Records</th><th class="r">Properties</th><th class="r">Avg / connection / mo</th><th class="r">Annualised</th><th style="width:20%"></th><th class="r">Plan recorded</th><th class="r">Account no.</th><th class="r">Invoice on file</th></tr></thead>
+      <tbody>${t.map((x,i) => `<tr><td><span class="sw" style="background:${PALETTE[i%5]};margin-right:7px"></span><span class="drill" data-act="drill" data-dim="provider" data-v="${esc(x.p)}">${esc(x.p)}</span></td>
+        <td class="r num">${x.n}</td><td class="r num">${x.props}</td><td class="r num">${x.per ? inr(x.per) : '—'}</td>
+        <td class="r num" style="font-weight:600">${inrK(x.annual)}</td>
+        <td><div class="track"><div class="bar" style="width:${Math.max(2, x.annual/maxA*100)}%;background:${PALETTE[i%5]}"></div></div></td>
+        <td class="r">${pct(x.plan)}</td><td class="r">${pct(x.acc)}</td><td class="r">${pct(x.inv)}</td></tr>`).join('')}</tbody></table></div></div>
+      <div class="hint" style="margin-top:8px">The last three columns are not about money — they are how trustworthy that provider's records are. A provider with 72% of invoices missing is a provider you cannot audit.</div>`;
+  }
+
+  if (S.cmp === 'bands') {
+    const g = {}; rows.filter(r => r.planCanon && r.cycle && r.amount).forEach(r => { const k = `${r.provider}|${r.planCanon}|${r.cycle}`; (g[k] = g[k] || []).push(r); });
+    const t = Object.entries(g).map(([k, rs]) => { const a = rs.map(r => r.amount).sort((x,y) => x-y);
+      return { k, rs, lo:a[0], hi:a[a.length-1], mid:a[Math.floor(a.length/2)], n:rs.length, spread:a[a.length-1]-a[0] }; })
+      .sort((a,b) => (b.spread ? 1 : 0) - (a.spread ? 1 : 0) || b.n - a.n);
+    const max = Math.max(...t.map(x => x.hi), 1);
+    return head + `<div class="card"><div class="scrollx"><table class="t">
+      <thead><tr><th>Provider · plan · cycle</th><th class="r">Records</th><th style="width:40%">Price on the records</th><th class="r">Low</th><th class="r">High</th><th class="r">Spread</th></tr></thead>
+      <tbody>${t.map(x => { const [p,pl,c] = x.k.split('|');
+        const dots = [...new Set(x.rs.map(r => r.amount))].map(v => `<span data-tip="${esc(`<b>${inr(v)}</b><div class="row"><span>records on this price</span><span>${x.rs.filter(r=>r.amount===v).length}</span></div>`)}" style="position:absolute;left:${(v/max*100).toFixed(2)}%;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;background:${x.spread?'var(--c1)':'var(--c3)'};box-shadow:0 0 0 2px var(--bg-panel)"></span>`).join('');
+        return `<tr><td><b>${esc(p)}</b> · ${esc(pl)} <span class="hint">· ${esc(c.toLowerCase())}</span></td>
+          <td class="r num">${x.n}</td>
+          <td><div style="position:relative;height:16px"><div style="position:absolute;left:${(x.lo/max*100).toFixed(2)}%;right:${(100-x.hi/max*100).toFixed(2)}%;top:50%;transform:translateY(-50%);height:7px;border-radius:4px;background:var(--track);min-width:7px"></div>${dots}</div></td>
+          <td class="r num">${inr(x.lo)}</td><td class="r num">${inr(x.hi)}</td>
+          <td class="r num" style="color:${x.spread ? 'var(--amber)' : 'var(--text-muted)'};font-weight:${x.spread?600:400}">${x.spread ? inr(x.spread) : '—'}</td></tr>`; }).join('')}
+      </tbody></table></div></div>
+      <div class="hint" style="margin-top:8px">Grouped on the <b>normalised</b> plan, so the five spellings of ACT's 200 Mbps mesh land in one row. Grouped on the raw text they would look like five tidy plans with no variance at all.</div>`;
+  }
+
+  const t = COVERAGE.map(p => ({ ...p, rows:RECORDS.filter(r => r.pid === p.pid && (S.incSuperseded || r.status !== 'superseded')) }))
+    .map(p => ({ ...p, monthly:sum(p.rows, monthlyOf), annual:sum(p.rows, annualOf) }))
+    .filter(p => p.rows.length).sort((a,b) => b.annual - a.annual);
+  const maxA = Math.max(...t.map(x => x.annual), 1);
+  return head + `<div class="card"><div class="scrollx tallish"><table class="t">
+    <thead><tr><th>Property</th><th>Locality</th><th class="r">Records</th><th>Has</th><th class="r">Per month</th><th class="r">Per year</th><th style="width:18%"></th><th class="r">Per unit / mo</th></tr></thead>
+    <tbody>${t.map(p => `<tr data-act="drill" data-dim="pid" data-v="${p.pid}" style="cursor:pointer">
+      <td><b class="mono">${p.pid}</b> <span style="color:var(--text-dim)">${esc(p.name)}</span></td><td style="color:var(--text-dim)">${esc(p.loc)}</td>
+      <td class="r num">${p.rows.length}</td>
+      <td>${[...new Set(p.rows.map(r => r.type))].map(t2 => `<span class="pill" style="margin-right:3px"><i class="sw" style="background:${TYPE[t2].color}"></i>${TYPE[t2].label}</span>`).join('')}</td>
+      <td class="r num">${inr(p.monthly)}</td><td class="r num" style="font-weight:600">${inr(p.annual)}</td>
+      <td><div class="track"><div class="bar" style="width:${Math.max(2, p.annual/maxA*100)}%;background:var(--c1)"></div></div></td>
+      <td class="r num" style="color:var(--text-dim)">${inr(p.monthly / p.units)}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   9 · THE RECORD
+   The centre of a record-keeping system is not a dashboard, it is one record
+   seen whole: every field, what is missing from it, the other connections at
+   that property, the chain of what it replaced, and who changed what when.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let reveal = false;
+function viewSheet(r) {
+  const p = PROP[r.pid] || { name:'—', loc:'—', units:0 };
+  const miss = missingOf(r), c = completeness(r);
+  const siblings = RECORDS.filter(x => x.pid === r.pid && x.id !== r.id);
+  const chain = [];
+  let cur = r; while (cur.supersedes) { cur = RECORDS.find(x => x.id === cur.supersedes); if (!cur) break; chain.push(cur); }
+  const succ = r.supersededBy ? RECORDS.find(x => x.id === r.supersededBy) : null;
+  const f = (label, val, missing) => `<dt>${label}</dt><dd class="${missing ? 'miss' : ''}">${missing ? 'not recorded' : val}</dd>`;
+  const next = (r.cycle && (r.lastRech || r.start)) ? addM(D(r.lastRech || r.start), CYCLE_M[r.cycle]) : null;
+
+  return `<div class="scrim" data-act="close"></div><aside class="sheet">
+    <header>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="pill"><i class="sw" style="background:${TYPE[r.type].color}"></i>${TYPE[r.type].label}</span>
+          ${COLS.status.get(r)}
+          <span class="hint mono">${r.id}</span>
+        </div>
+        <h2 style="font-size:16px;margin-top:7px;letter-spacing:-.01em">${esc(r.provider)}${r.plan ? ' · ' + esc(r.plan) : ''}</h2>
+        <div class="hint" style="margin-top:3px">PID <b class="mono">${r.pid}</b> · ${esc(p.name)} · ${esc(p.loc)} · ${p.units} units</div>
+      </div>
+      <button class="btn ghost" data-act="close" style="font-size:16px;flex:none">✕</button>
+    </header>
+    <div class="scroll">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:9px">
+        <div class="kpi" style="padding:9px 11px"><div class="k">Bill</div><div class="v" style="font-size:17px">${r.amount ? inr(r.amount) : '—'}</div><div class="s">${esc(r.cycle || 'cycle not recorded')}</div></div>
+        <div class="kpi" style="padding:9px 11px"><div class="k">Per month</div><div class="v" style="font-size:17px">${monthlyOf(r) ? inr(monthlyOf(r)) : '—'}</div><div class="s">${annualOf(r) ? inr(annualOf(r)) + ' a year' : 'cannot be derived'}</div></div>
+        <div class="kpi" style="padding:9px 11px"><div class="k">Completeness</div><div class="v" style="font-size:17px">${c}<span style="font-size:12px;color:var(--text-muted)">/${CORE.length}</span></div><div class="s">${miss.length ? miss.length + ' field' + (miss.length>1?'s':'') + ' missing' : 'nothing missing'}</div></div>
+      </div>
+
+      ${miss.length ? `<div class="card" style="margin-top:12px;border-color:var(--border-dash)"><div class="body">
+        <div class="lbl" style="margin-bottom:6px">What this record does not say</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">${miss.map(m => `<span class="chip" style="padding-right:9px;color:var(--red)">${m.label}</span>`).join('')}</div>
+      </div></div>` : ''}
+
+      <div class="sectitle">Service</div>
+      <dl class="fgrid">
+        ${f('Provider', esc(r.provider))}
+        ${f('Plan as typed', '<span class="mono">' + esc(r.plan) + '</span>', !r.plan)}
+        ${f('Plan normalised', r.planCanon ? esc(r.planCanon) + (r.plan && r.plan !== r.planCanon ? ' <span class="hint">· differs from what was typed</span>' : '') : '', !r.planCanon)}
+        ${f('Account number', '<span class="mono">' + esc(r.account) + '</span>', !r.account)}
+        ${f('Started', '<span class="num">' + esc(r.start) + '</span>' + (r.start ? ` <span class="hint">· ${Math.round(daysBetween(D(r.start), TODAY)/30.4)} months ago</span>` : ''), !r.start)}
+      </dl>
+
+      <div class="sectitle">Billing</div>
+      <dl class="fgrid">
+        ${f('Amount', '<span class="num">' + inr(r.amount) + '</span>', !r.amount)}
+        ${f('Cycle', esc(r.cycle), !r.cycle)}
+        ${f('One-off cost', r.addedCost ? inr(r.addedCost) + ' <span class="hint">· installation / deposit</span>' : '<span style="color:var(--text-muted)">none recorded</span>')}
+        ${f('Who pays', esc(r.payMode))}
+        ${f('Last paid', r.lastRech ? '<span class="num">' + r.lastRech + '</span>' : '<span style="color:var(--text-muted)">never logged</span>')}
+        ${f('Period after that', next ? '<span class="num">' + iso(next) + '</span>' + (next < TODAY ? ` <span class="pill bad" style="margin-left:6px">${Math.abs(daysBetween(next, TODAY))} days past</span>` : ` <span class="hint">· in ${daysBetween(TODAY, next)} days</span>`) : '<span style="color:var(--text-muted)">cannot be derived</span>')}
+        ${f('Invoice', r.invoice ? `<a href="#" onclick="return false">${esc(r.invoice.split('/').pop())}</a>` : '', !r.invoice)}
+      </dl>
+
+      ${r.type === 'wifi' ? `<div class="sectitle">Access <button class="btn ghost" data-act="reveal" style="height:20px;font-size:11px;padding:0 6px">${reveal ? 'hide' : 'reveal'}</button></div>
+      <dl class="fgrid">
+        ${f('SSID', '<span class="mono">' + esc(r.ssid) + '</span>', !r.ssid)}
+        ${f('WiFi password', '<span class="mono">' + (reveal ? esc(r.password) : '••••••••') + '</span>', !r.password)}
+        ${f('Lockbox code', '<span class="mono">' + (reveal ? esc(r.lockbox) : '••••') + '</span>', !r.lockbox)}
+      </dl>` : ''}
+
+      ${(chain.length || succ) ? `<div class="sectitle">What was here before</div>
+        <div class="card"><div style="padding:3px 0">
+          ${succ ? `<div style="padding:9px 13px;border-bottom:1px solid var(--border);font-size:12.5px">Replaced by <span class="drill" data-act="open" data-id="${succ.id}">${esc(succ.provider)} · ${esc(succ.plan || '—')}</span> on <span class="num">${succ.start}</span></div>` : ''}
+          ${chain.map(x => `<div style="padding:9px 13px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:baseline;font-size:12.5px">
+            <span class="num" style="color:var(--text-muted);flex:none">${x.start}</span>
+            <span style="flex:1"><span class="drill" data-act="open" data-id="${x.id}">${esc(x.provider)} · ${esc(x.plan || '—')}</span></span>
+            <span class="num" style="color:var(--text-dim)">${inr(x.amount)}</span>
+            <span class="hint">${x.amount && r.amount ? (r.amount > x.amount ? '+' : '') + Math.round((r.amount - x.amount) / x.amount * 100) + '%' : ''}</span></div>`).join('')}
+        </div></div>` : ''}
+
+      ${siblings.length ? `<div class="sectitle">Everything else at PID ${r.pid}</div>
+        <div class="card"><table class="t"><tbody>
+          ${siblings.map(x => `<tr data-act="open" data-id="${x.id}" style="cursor:pointer">
+            <td>${COLS.type.get(x)}</td><td>${esc(x.provider)}</td><td>${COLS.plan.get(x)}</td>
+            <td class="r">${COLS.amount.get(x)}</td><td>${COLS.status.get(x)}</td><td class="r">${COLS.complete.get(x)}</td></tr>`).join('')}
+        </tbody></table></div>` : ''}
+
+      <div class="sectitle">Provenance</div>
+      <dl class="fgrid">
+        ${f('How it got here', esc(r.source))}
+        ${f('Entered by', esc(r.createdBy) + ' <span class="hint">· ' + r.createdAt + '</span>')}
+        ${f('Last touched', '<span class="num">' + r.updatedAt + '</span> <span class="hint">· ' + Math.round(daysBetween(D(r.updatedAt), TODAY)) + ' days ago</span>')}
+        ${f('Notes', r.notes ? esc(r.notes) : '<span style="color:var(--text-muted)">none</span>')}
+      </dl>
+
+      <div class="sectitle">History</div>
+      <div class="tl">${r.history.map(h => `<div class="ev ${h.kind === 'changed' ? 'chg' : ''}">
+        <time class="num">${h.at}</time> · <span class="hint">${esc(h.who)}</span>
+        <div>${h.kind === 'changed'
+          ? `${esc(FIELD_LABEL[h.field] || h.field)} — <span class="was">${esc(h.from)}</span> → <b>${esc(h.to)}</b>`
+          : esc(h.text)}</div></div>`).join('')}</div>
+      <div class="hint" style="margin-top:10px">The history is what makes this a record rather than a reading. It is the only place that remembers the record used to say something else.</div>
     </div>
-    <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
-      <div class="panel kpi"><div class="lbl">Amount</div><div class="v" style="font-size:17px;color:var(--accent)">${money(c.amount)}</div><div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${c.cycle}</div></div>
-      <div class="panel kpi"><div class="lbl">Monthly</div><div class="v" style="font-size:17px">${money(monthly(c))}</div></div>
-      <div class="panel kpi"><div class="lbl">Next due</div><div class="v" style="font-size:17px;color:${d<0?'var(--red)':d<=7?'var(--accent)':'var(--green)'}">${d<0?-d+'d late':d+'d'}</div><div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${fmt(nextDue(c))}</div></div>
-    </div>
-    <div style="display:flex;gap:7px;margin-bottom:16px;flex-wrap:wrap">
-      <button class="btn pri" data-rech="${c.id}">Mark recharged</button>
-      <button class="btn" data-assign="${c.id}">Assign to me</button>
-      <button class="btn" data-snooze="${c.id}">Snooze 7d</button>
-    </div>
-    <div class="panel" style="padding:13px;margin-bottom:14px">
-      <div class="lbl" style="margin-bottom:9px">Details</div>
-      ${[['Account', c.account],['Network', c.ssid||'—'],['Owner', c.owner],['Installed', fmt(c.start)],
-         ['Last recharged', c.lastRecharged?fmt(c.lastRecharged):'never logged'],['Invoice on file', c.invoice?'yes':'no']]
-        .map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px">
-          <span style="color:var(--text-muted)">${k}</span><span class="mono" style="color:var(--text-dim)">${esc(v)}</span></div>`).join('')}
-    </div>
-    <div class="panel" style="padding:13px">
-      <div class="lbl" style="margin-bottom:6px">Timeline · ${evs.length} event${evs.length===1?'':'s'}</div>
-      ${evs.map(e=>`<div class="tl"><span class="when">${fmt(e.at).slice(0,6)}</span>
-        <span style="flex:1;font-size:12.5px;color:var(--text-dim)">${esc(e.text)}</span>
-        <span class="mono" style="font-size:10.5px;color:var(--text-muted)">${esc(e.who)}</span></div>`).join('')}
-    </div></div>`
+  </aside>`;
 }
 
-function renderBulk() {
-  const host = document.getElementById('bulk')
-  if (!S.sel.size) { host.innerHTML=''; return }
-  const n = S.sel.size
-  host.innerHTML = `<div class="bulk">
-    <span class="mono" style="font-size:12px;font-weight:700;color:var(--accent)">${n} selected</span>
-    <button class="btn pri" data-bulk="recharge">Mark recharged</button>
-    <button class="btn" data-bulk="assign">Assign to me</button>
-    <button class="btn" data-bulk="snooze">Snooze 7d</button>
-    <button class="btn sm" data-bulk="clear">Clear</button></div>`
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   10 · SHELL
+   ═══════════════════════════════════════════════════════════════════════════ */
+const TABS = [
+  { k:'explore',  ico:'◳', label:'Explore',    sub:'Group, measure, drill' },
+  { k:'records',  ico:'▤', label:'Records',    sub:'The book itself' },
+  { k:'quality',  ico:'◆', label:'Data quality',sub:'Gaps and contradictions' },
+  { k:'compare',  ico:'⇄', label:'Compare',    sub:'Provider, price, property' },
+];
+const PINNED = [
+  { label:'Where the money goes',       t:'explore', g:'provider',  g2:'planCanon', m:'annual' },
+  { label:'One plan, five spellings',   t:'quality', c:'c-spell' },
+  { label:'Paying different prices',    t:'quality', c:'c-price' },
+  { label:'Nothing to show an auditor', t:'quality', c:'g-inv' },
+  { label:'Cost by locality',           t:'explore', g:'loc',       g2:'type',      m:'monthly' },
+  { label:'What we added each quarter', t:'explore', g:'type',      g2:'provider',  m:'count', grain:'quarter' },
+];
 
 function render() {
-  renderRail()
-  document.getElementById('tabs').innerHTML = TABS.map(([k,l])=>
-    `<button class="tab${S.tab===k?' on':''}" data-tab="${k}">${l}</button>`).join('')
-  const rows = current()
-  document.getElementById('ctx').textContent =
-    S.tab==='list' ? `${rows.length} of ${CONNS.length}` : ''
-  document.getElementById('main').innerHTML =
-    S.tab==='list' ? renderList(rows) :
-    S.tab==='calendar' ? renderCalendar(CONNS) :
-    S.tab==='analysis' ? renderAnalysis() :
-    S.tab==='insights' ? renderInsights() : renderGaps()
-  renderBulk(); renderDrawer()
+  const rows = filtered();
+  const badIssues = new Set(CHECKS.filter(c => c.fam === 'con').flatMap(c => c.rows.map(r => r.id))).size;
+  const chips = S.filters.map((f,i) => `<span class="chip"><i>${esc(DIMS[f.dim].label)}</i><b>${esc(f.val)}</b><button class="x" data-act="unfilter" data-i="${i}">×</button></span>`).join('')
+    + (S.idSet ? `<span class="chip"><i>from a check</i><b>${esc(S.idSetLabel)}</b><button class="x" data-act="clearids">×</button></span>` : '')
+    + (S.q ? `<span class="chip"><i>search</i><b>${esc(S.q)}</b><button class="x" data-act="clearq">×</button></span>` : '');
+
+  const body = S.tab === 'explore' ? viewExplore() : S.tab === 'records' ? viewRecords() : S.tab === 'quality' ? viewQuality() : viewCompare();
+  const rec = S.open ? RECORDS.find(r => r.id === S.open) : null;
+
+  document.getElementById('root').innerHTML = `<div class="app">
+    <div class="brand"><span class="dot"></span><b>Pulse</b><small>· Utilities</small></div>
+    <div class="top">
+      <div class="search"><span>⌕</span><input id="q" placeholder="PID, property, provider, plan, account number, SSID…" value="${esc(S.q)}"><span class="kbd">${rows.length}</span></div>
+      <span style="flex:1"></span>
+      <label class="btn" style="cursor:pointer"><input type="checkbox" data-act="superseded" ${S.incSuperseded ? 'checked' : ''} style="margin:0 2px 0 0">Include superseded</label>
+      <button class="btn" data-act="theme">${S.theme === 'dark' ? '☾ Dark' : '☀ Light'}</button>
+    </div>
+    <nav class="rail">
+      ${TABS.map(t => `<button class="navitem ${S.tab === t.k ? 'on' : ''}" data-act="tab" data-k="${t.k}">
+        <span class="ico">${t.ico}</span><span>${t.label}</span>
+        ${t.k === 'quality' ? `<span class="cnt warn">${badIssues}</span>` : t.k === 'records' ? `<span class="cnt">${RECORDS.length}</span>` : ''}</button>`).join('')}
+      <div class="grp">Questions worth keeping</div>
+      ${PINNED.map((p,i) => `<button class="navitem" data-act="pin" data-i="${i}"><span class="ico" style="color:var(--text-muted)">◦</span><span>${p.label}</span></button>`).join('')}
+      <div class="railfoot" style="margin-top:20px;padding:10px;border-radius:9px;background:var(--bg-input)">
+        <div class="lbl">The book</div>
+        <div style="font-size:12px;color:var(--text-dim);margin-top:5px;line-height:1.55">
+          ${RECORDS.length} records · ${PROPS.length} properties<br>${RECORDS.filter(r => r.status === 'superseded').length} of them superseded<br>
+          ${RECORDS.filter(r => completeness(r) === CORE.length).length} are complete<br>
+          <span style="color:var(--amber)">${badIssues} sit in a contradiction</span>
+        </div>
+      </div>
+    </nav>
+    <div class="sub">
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+        <h1 style="font-size:15px;letter-spacing:-.01em">${TABS.find(t => t.k === S.tab).label}</h1>
+        <span class="hint">${TABS.find(t => t.k === S.tab).sub}</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        ${chips || '<span class="hint">No filter — every record is in scope. Click anything to narrow it.</span>'}
+        ${(S.filters.length || S.idSet || S.q) ? '<button class="btn ghost" data-act="clearall" style="height:25px;font-size:11.5px">clear all</button>' : ''}
+      </div>
+    </div>
+    <main class="main">${body}</main>
+  </div>${rec ? viewSheet(rec) : ''}`;
+  mountCharts();
 }
 
-// ─── events ─────────────────────────────────────────────────────────────────
+/* ── events ─────────────────────────────────────────────────────────────── */
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-view],[data-tab],[data-open],[data-rech],[data-assign],[data-snooze],[data-bulk],[data-close],[data-theme-set],[data-range],[data-split]')
-  if (!t) return
-  const d = t.dataset
-  if (d.themeSet) { document.documentElement.dataset.theme = d.themeSet; return }
-  if (d.range) { S.range=d.range; return render() }
-  if (d.split) { S.split=d.split; return render() }
-  if (d.view)  { S.view=d.view; S.sel.clear(); S.tab='list'; return render() }
-  if (d.tab)   { S.tab=d.tab; return render() }
-  if (d.close) { S.open=null; return render() }
-  if (d.rech)  { e.stopPropagation(); S.open=null; return markRecharged([d.rech]) }
-  if (d.assign){ return assign([d.assign],'Mohosin') }
-  if (d.snooze){ return snooze([d.snooze]) }
-  if (d.bulk) {
-    const ids=[...S.sel]
-    if (d.bulk==='recharge') return markRecharged(ids)
-    if (d.bulk==='assign')   return assign(ids,'Mohosin')
-    if (d.bulk==='snooze')   return snooze(ids)
-    S.sel.clear(); return render()
-  }
-  if (d.open && !e.target.closest('input,button')) { S.open=d.open; return render() }
-})
+  const t = e.target.closest('[data-act]'); if (!t) return;
+  const a = t.getAttribute('data-act');
+  if (a === 'tab')        { S.tab = t.dataset.k; }
+  else if (a === 'theme') { S.theme = S.theme === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-theme', S.theme); }
+  else if (a === 'drill') { addFilter(t.dataset.dim, t.dataset.v); return; }
+  else if (a === 'drill2'){ addFilter(t.dataset.pdim, t.dataset.pv); addFilter(t.dataset.dim, t.dataset.v); return; }
+  else if (a === 'expand'){ const k = t.dataset.k; S.expand[k] = !S.expand[k]; }
+  else if (a === 'unfilter') { S.filters.splice(+t.dataset.i, 1); }
+  else if (a === 'clearids') { S.idSet = null; S.idSetLabel = ''; }
+  else if (a === 'clearq')   { S.q = ''; }
+  else if (a === 'clearall') { S.filters = []; S.idSet = null; S.idSetLabel = ''; S.q = ''; }
+  else if (a === 'open')  { S.open = t.dataset.id; reveal = false; }
+  else if (a === 'close') { S.open = null; }
+  else if (a === 'reveal'){ reveal = !reveal; }
+  else if (a === 'check') { S.check = t.dataset.k; }
+  else if (a === 'sort')  { const k = t.dataset.k; S.sort = { col:k, dir:S.sort.col === k ? -S.sort.dir : 1 }; }
+  else if (a === 'col')   { const k = t.dataset.k; S.cols = S.cols.includes(k) ? S.cols.filter(x => x !== k) : [...DEFAULT_COLS.filter(x => S.cols.includes(x) || x === k), ...S.cols.filter(x => !DEFAULT_COLS.includes(x)), ...(DEFAULT_COLS.includes(k) ? [] : [k])].filter((x,i,arr) => arr.indexOf(x) === i); }
+  else if (a === 'superseded') { S.incSuperseded = !S.incSuperseded; }
+  else if (a === 'toRecords')  { const c = CHECKS.find(x => x.id === t.dataset.k); S.idSet = new Set(c.rows.map(r => r.id)); S.idSetLabel = c.label; S.tab = 'records'; }
+  else if (a === 'pin')   { const p = PINNED[+t.dataset.i]; S.tab = p.t; if (p.g) S.group = p.g; if (p.g2) S.group2 = p.g2; if (p.m) S.measure = p.m; if (p.grain) S.grain = p.grain; if (p.c) S.check = p.c; S.filters = []; S.idSet = null; }
+  else if (a === 'csv')   { exportCsv(); return; }
+  else if (a === 'set')   { const k = t.dataset.key; if (t.dataset.v != null) S[k] = t.dataset.v; else return; }
+  else return;
+  render();
+});
 document.addEventListener('change', e => {
-  if (e.target.id==='from') { S.from=e.target.value; render() }
-  if (e.target.id==='to')   { S.to=e.target.value; render() }
-  if (e.target.id==='all') { const rows=current(); e.target.checked ? rows.forEach(c=>S.sel.add(c.id)) : S.sel.clear(); render() }
-  if (e.target.dataset.pick) { e.target.checked ? S.sel.add(e.target.dataset.pick) : S.sel.delete(e.target.dataset.pick); render() }
-})
+  const t = e.target.closest('[data-act="set"]'); if (!t) return;
+  S[t.dataset.key] = t.value; if (t.dataset.key === 'group') S.expand = {}; render();
+});
 document.addEventListener('input', e => {
-  if (e.target.id==='q') { S.q=e.target.value; const v=e.target.value; render()
-    const el=document.getElementById('q'); if(el){el.focus(); el.value=v} }
-})
-document.documentElement.dataset.theme='dark'
-render()
+  if (e.target.id !== 'q') return;
+  S.q = e.target.value;
+  const pos = e.target.selectionStart; render();
+  const n = document.getElementById('q'); if (n) { n.focus(); n.setSelectionRange(pos, pos); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.open) { S.open = null; render(); } });
+let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 160); });
+
+function exportCsv() {
+  const cols = ['pid','property','locality','type','provider','plan_as_typed','plan_normalised','account','start','amount','cycle','monthly','annual','status','invoice','pays','source','last_paid','updated','missing_fields'];
+  const line = r => [r.pid, (PROP[r.pid]||{}).name, (PROP[r.pid]||{}).loc, TYPE[r.type].label, r.provider, r.plan, r.planCanon, r.account, r.start,
+    r.amount, r.cycle, Math.round(monthlyOf(r)), Math.round(annualOf(r)), r.status, r.invoice, r.payMode, r.source, r.lastRech, r.updatedAt,
+    missingOf(r).map(m => m.label).join('; ')].map(v => `"${String(v == null ? '' : v).replace(/"/g,'""')}"`).join(',');
+  const csv = cols.join(',') + '\n' + filtered().map(line).join('\n');
+  console.log('[export] ' + filtered().length + ' rows ready — a real build streams this to a file.');
+  alertless(csv.split('\n').length - 1);
+}
+function alertless(n) {
+  const el = document.createElement('div');
+  el.className = 'card'; el.style.cssText = 'position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:70;padding:10px 15px;box-shadow:var(--shadow);font-size:12.5px';
+  el.textContent = `${n} rows exported — in the live build this downloads as CSV.`;
+  document.body.appendChild(el); setTimeout(() => el.remove(), 2600);
+}
+
+document.documentElement.setAttribute('data-theme', S.theme);
+initTip(); render();
+console.log(`[utilities] ${RECORDS.length} records · ${PROPS.length} properties · ${CHECKS.length} checks`);
+CHECKS.forEach(c => console.log(`  ${c.fam === 'con' ? '✖' : '·'} ${c.label}: ${c.rows.length}`));
 </script>
-</body>
-</html>
