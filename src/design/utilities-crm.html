@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Utilities CRM — prototype</title>
+<!--
+  A working prototype of the utilities module rebuilt as an operations tool
+  rather than a table with charts over it. Nothing here talks to Supabase; the
+  store is in memory and resets on reload.
+
+  The thesis, in one interaction: press "Mark recharged" on a connection and
+  watch four things move at once — the row leaves the queue, the due date rolls
+  forward a cycle, an event lands on that connection's timeline, and the
+  dashboard's spend and reliability figures change. That is the difference
+  between a record of state and a record of events, and it is why the current
+  page cannot be fixed with better charts.
+
+  What is borrowed, and from where:
+    Zendesk  — the left rail of saved views with live counts, a queue with an
+               owner and a state per item, bulk actions on a multi-select, and
+               an SLA clock that escalates rather than just displaying.
+    HubSpot  — the record drawer: one object, its timeline, its associations
+               and its cost history on a single surface.
+  What is neither — the parts that only matter for utilities: a renewal
+  calendar, price-change detection across a provider's book, and coverage gaps
+  (a property with WiFi and no RO is invisible in any generic CRM).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Urbanist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/src/styles/theme.css">
+<style>
+  body { font-family: var(--font-sans); font-size: 14px; }
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+  @media (max-width: 900px) { .app { grid-template-columns: 1fr } .rail { display: none } }
+
+  .rail { border-right: 1px solid var(--border); position: sticky; top: 0; height: 100vh; overflow-y: auto;
+          display: flex; flex-direction: column; padding-bottom: 12px }
+  .rail h1 { padding: 15px 16px 12px; font-size: 15px }
+  .rail .grp { font-size: 9px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;
+               letter-spacing: .11em; font-family: var(--font-mono); padding: 14px 16px 5px }
+  .vw { display: flex; align-items: center; gap: 9px; padding: 7px 12px; margin: 1px 8px; border-radius: 8px;
+        color: var(--text-dim); font-size: 12.5px; cursor: pointer; border: 0; background: none; width: calc(100% - 16px);
+        text-align: left; font-family: inherit }
+  .vw:hover { background: var(--bg-input); color: var(--text) }
+  .vw.on { background: var(--bg-input); color: var(--accent); font-weight: 600; box-shadow: inset 2px 0 0 var(--accent) }
+  .vw .n { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted) }
+  .vw.on .n { color: var(--accent) }
+  .vw .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0 }
+
+  .top { display: flex; align-items: center; gap: 10px; padding: 11px 20px; border-bottom: 1px solid var(--border);
+         position: sticky; top: 0; background: var(--bg); z-index: 8; flex-wrap: wrap }
+  .tabs { display: flex; gap: 2px }
+  .tab { padding: 8px 13px; font-size: 12.5px; border-radius: 8px; cursor: pointer; border: 0; background: none;
+         color: var(--text-dim); font-family: inherit }
+  .tab.on { background: var(--bg-input); color: var(--accent); font-weight: 600 }
+  .inp { padding: 7px 11px; font-size: 12.5px; color: var(--text); background: var(--bg-input);
+         border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: var(--font-mono) }
+  .btn { padding: 7px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer;
+         font-family: var(--font-mono); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-dim) }
+  .btn.pri { background: var(--accent); color: var(--on-accent); border: 0; font-weight: 700 }
+  .btn.sm { padding: 4px 8px; font-size: 11px }
+  .body { padding: 16px 20px 90px }
+
+  .panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px }
+  .lbl { font-size: 9.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;
+         letter-spacing: .09em; font-family: var(--font-mono) }
+  .chip { font-size: 9.5px; font-weight: 700; font-family: var(--font-mono); border-radius: 10px; padding: 2px 7px;
+          text-transform: uppercase; letter-spacing: .04em; white-space: nowrap }
+  table { border-collapse: collapse; width: 100% }
+  th { font-size: 9px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em;
+       font-family: var(--font-mono); text-align: left; padding: 9px 10px; white-space: nowrap;
+       border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg-panel) }
+  td { padding: 9px 10px; font-size: 12.5px; border-bottom: 1px solid var(--border); vertical-align: middle }
+  td.mono, th.r, td.r { font-family: var(--font-mono) }
+  th.r, td.r { text-align: right }
+  tr.sel { background: color-mix(in srgb, var(--accent) 10%, transparent) }
+  tr.clickable:hover { background: var(--bg-input) }
+
+  .kpis { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) }
+  .kpi { padding: 12px 14px }
+  .kpi .v { font-size: 21px; font-weight: 800; font-family: var(--font-mono); margin-top: 3px }
+
+  /* bulk bar — appears only with a selection, the Zendesk pattern */
+  .bulk { position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; z-index: 30; display: flex; gap: 8px;
+          align-items: center; padding: 10px 14px; background: var(--bg-panel); border: 1px solid var(--accent);
+          border-radius: 12px; box-shadow: var(--shadow-md) }
+
+  /* record drawer — HubSpot's object page, as a side sheet */
+  .scrim { position: fixed; inset: 0; background: rgba(8,9,13,.5); backdrop-filter: blur(3px); z-index: 40 }
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%); background: var(--bg);
+            border-left: 1px solid var(--border); z-index: 41; overflow-y: auto; padding: 16px 18px 40px }
+  .tl { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border) }
+  .tl .when { width: 74px; flex-shrink: 0; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted) }
+
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px }
+  .cell { min-height: 68px; border: 1px solid var(--border); border-radius: 8px; padding: 6px 7px; font-size: 11px }
+  .cell .d { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted) }
+
+  .bar { height: 7px; background: var(--bg-input); border-radius: 4px; overflow: hidden }
+  .bar span { display: block; height: 100%; background: var(--viz-1); border-radius: 4px }
+  .toast { position: fixed; bottom: 18px; left: 18px; z-index: 50; padding: 9px 14px; background: var(--bg-panel);
+           border: 1px solid var(--green); color: var(--green); border-radius: 9px; font-family: var(--font-mono);
+           font-size: 12px; opacity: 0; transition: opacity .2s }
+  .toast.on { opacity: 1 }
+  .hide { display: none !important }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="rail">
+    <h1 class="pulse-title">utilities</h1>
+    <div id="views"></div>
+    <div style="margin-top:auto;padding:12px 16px 0">
+      <div class="lbl" style="margin-bottom:6px">Saved view</div>
+      <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);line-height:1.6">
+        Any filter combination can be saved here and becomes somebody's morning queue.
+      </div>
+    </div>
+  </nav>
+
+  <div>
+    <div class="top">
+      <div class="tabs" id="tabs"></div>
+      <input class="inp" id="q" placeholder="search pid, provider, plan, account…" style="flex:1;min-width:170px;max-width:320px">
+      <span id="ctx" style="font-size:11.5px;color:var(--text-muted);font-family:var(--font-mono)"></span>
+      <div style="margin-left:auto;display:flex;gap:7px">
+        <button class="btn" data-theme-set="dark">Dark</button>
+        <button class="btn" data-theme-set="light">Light</button>
+      </div>
+    </div>
+    <div class="body" id="main"></div>
+  </div>
+</div>
+
+<div id="bulk"></div>
+<div id="drawer"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── store ──────────────────────────────────────────────────────────────────
+const TODAY = new Date('2026-10-15T00:00:00')
+const CYCLE_M = { Monthly:1, 'Bi-monthly':2, Quarterly:3, 'Half-yearly':6, Yearly:12 }
+const PROV = { wifi:['ACT','Airtel','Tata Play Fiber','Jio'], water_purifier:['DrinkPrime','AquaGuard-LL','Livpure'] }
+const PLANS = { wifi:['200 Mbps mesh','300 Mbps','100 Mbps'], water_purifier:['500L/M','250L/M','Unlimited'] }
+const OWNERS = ['Mohosin','Nikhil','—']
+// Local date parts, never toISOString(). IST is UTC+5:30, so a local midnight
+// serialises as the PREVIOUS day in UTC — a recharge logged on the 15th was
+// being stored as the 14th. On a page whose whole job is dates, that is fatal.
+const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+const addM = (d,n) => { const x=new Date(d); x.setMonth(x.getMonth()+n); return x }
+const money = n => '₹' + Math.round(Number(n||0)).toLocaleString('en-IN')
+const compact = n => { const v=Math.round(n||0); return Math.abs(v)>=100000 ? '₹'+(v/100000).toFixed(1)+'L' : Math.abs(v)>=1000 ? '₹'+Math.round(v/1000)+'k' : '₹'+v }
+const fmt = d => new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+
+let uid = 0
+const CONNS = [], EVENTS = []
+const seedPids = Array.from({length:62},(_,i)=>String(100+i))
+seedPids.forEach((pid,i) => {
+  const kinds = i % 5 === 0 ? ['wifi'] : ['wifi','water_purifier']   // some properties lack an RO — a real gap
+  kinds.forEach((type,k) => {
+    const cycle = type==='wifi' ? (i%3===0?'Monthly':'Half-yearly') : 'Yearly'
+    const amount = type==='wifi' ? (cycle==='Monthly'?1769:7073) : 5088
+    // Installs spread over ~20 months AND across the days of the month. Only
+    // varying the month put every renewal on the 15th, which made the queue
+    // look empty and the calendar a single column — a seeding bug that reads
+    // as a design failure.
+    const start = addM(TODAY, -(2 + ((i*7+k*5) % 20)))
+    start.setDate(((i*11 + k*17) % 27) + 1)
+    const id = 'c'+(++uid)
+    CONNS.push({
+      id, pid, type, provider: PROV[type][(i+k)%PROV[type].length], plan: PLANS[type][(i+k)%PLANS[type].length],
+      cycle, amount, status:'active', owner: OWNERS[(i+k)%3],
+      account: 'AC' + (100000 + i*13 + k), ssid: type==='wifi' ? 'Flent_'+pid : '',
+      start: iso(start), lastRecharged: null, invoice: i%3!==0, workState:'open',
+    })
+    EVENTS.push({ id:'e'+(++uid), conn:id, at:iso(start), kind:'installed', amount,
+      text:`Installed · ${PROV[type][(i+k)%PROV[type].length]} ${PLANS[type][(i+k)%PLANS[type].length]} · ${money(amount)} ${cycle.toLowerCase()}`, who:'import' })
+  })
+})
+// Historical recharges, so cost analysis has something true to stand on.
+// Every connection is walked forward from its install date, one cycle at a
+// time, and each renewal is written as an event carrying the amount IN FORCE
+// AT THE TIME — which is the whole reason a period's spend can be a fact here
+// and a projection on the current page.
+//
+// One in five is deliberately left a cycle short. An estate where nothing is
+// ever overdue is not an estate, it is a demo.
+CONNS.forEach((c, i) => {
+  const m = CYCLE_M[c.cycle]; if (!m) return
+  const lapses = i % 5 === 0
+  const dates = []
+  let d = addM(new Date(c.start+'T00:00:00'), m)
+  while (d < TODAY) { dates.push(new Date(d)); d = addM(d, m) }
+  if (lapses) dates.pop()                      // this one has slipped
+  dates.forEach(dt => {
+    EVENTS.push({ id:'e'+(++uid), conn:c.id, at:iso(dt), kind:'recharge',
+      amount: c.amount, text:`Recharged ${money(c.amount)}`, who:'ops' })
+  })
+  if (dates.length) c.lastRecharged = iso(dates[dates.length-1])
+})
+
+// one provider raised prices — the alert that only an event log can surface
+CONNS.filter(c=>c.provider==='ACT').slice(0,9).forEach(c => {
+  const was = c.amount; c.amount = Math.round(was*1.08)
+  EVENTS.push({ id:'e'+(++uid), conn:c.id, at:iso(addM(TODAY,-1)), kind:'price',
+    text:`Price changed ${money(was)} → ${money(c.amount)} (+8%)`, who:'ACT' })
+})
+
+// One cycle from the last thing we can prove — and NO rolling forward.
+//
+// Production rolls the date forward until it lands in the future, which means
+// nextDueDate() can never return a past date and the Overdue view can never
+// have anything in it. A connection last paid eight months ago renders as "due
+// in 12 days". Rolling forward silently assumes every missed cycle was paid,
+// which is exactly the assumption an overdue list exists to challenge.
+const nextDue = c => {
+  const m = CYCLE_M[c.cycle]; if (!m) return null
+  return addM(new Date((c.lastRecharged || c.start) + 'T00:00:00'), m)
+}
+const daysTo = c => { const d=nextDue(c); return d ? Math.round((d-TODAY)/86400000) : null }
+const monthly = c => c.status==='active' && CYCLE_M[c.cycle] ? c.amount/CYCLE_M[c.cycle] : 0
+
+// ─── views (the left rail) ──────────────────────────────────────────────────
+const VIEWS = [
+  { k:'queue',    label:'My queue',      dot:'var(--accent)', f:c=>c.owner==='Mohosin' && daysTo(c)<=31 && c.workState!=='done' },
+  { k:'overdue',  label:'Overdue',       dot:'var(--red)',    f:c=>daysTo(c)<0 && c.workState!=='done' },
+  { k:'due7',     label:'Due in 7 days', dot:'var(--accent)', f:c=>daysTo(c)>=0 && daysTo(c)<=7 && c.workState!=='done' },
+  { k:'due31',    label:'Due this month',dot:'var(--viz-1)',  f:c=>daysTo(c)>=0 && daysTo(c)<=31 && c.workState!=='done' },
+  { k:'unowned',  label:'Unassigned',    dot:'var(--text-muted)', f:c=>c.owner==='—' },
+  { k:'noinv',    label:'No invoice',    dot:'var(--text-muted)', f:c=>!c.invoice },
+  { k:'all',      label:'All connections', dot:'var(--viz-2)', f:()=>true },
+]
+const TABS = [['list','Connections'],['calendar','Renewals'],['analysis','Analysis'],['insights','Insights'],['gaps','Coverage']]
+
+const S = { view:'queue', tab:'list', q:'', sel:new Set(), open:null, range:'ytd', from:null, to:null, split:'provider' }
+let toastT
+const toast = m => { const t=document.getElementById('toast'); t.textContent=m; t.classList.add('on');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),1800) }
+
+const current = () => {
+  const v = VIEWS.find(v=>v.k===S.view)
+  const q = S.q.trim().toLowerCase()
+  return CONNS.filter(v.f).filter(c => !q || [c.pid,c.provider,c.plan,c.account,c.ssid].some(f=>(f||'').toLowerCase().includes(q)))
+}
+
+// ─── actions — each writes an event, which is the whole point ───────────────
+function logEvent(connId, kind, text, amount) {
+  EVENTS.push({ id:'e'+(++uid), conn:connId, at:iso(TODAY), kind, text, amount, who:'Mohosin' })
+}
+function markRecharged(ids) {
+  ids.forEach(id => {
+    const c = CONNS.find(x=>x.id===id); if (!c) return
+    c.lastRecharged = iso(TODAY); c.workState='done'
+    logEvent(id, 'recharge', `Recharged ${money(c.amount)} · next due ${fmt(nextDue(c))}`, c.amount)
+  })
+  S.sel.clear(); toast(`${ids.length} recharged · due dates rolled forward`); render()
+}
+function assign(ids, who) {
+  ids.forEach(id => { const c=CONNS.find(x=>x.id===id); if(c){ c.owner=who; logEvent(id,'assign',`Assigned to ${who}`) } })
+  S.sel.clear(); toast(`${ids.length} assigned to ${who}`); render()
+}
+function snooze(ids) {
+  ids.forEach(id => { const c=CONNS.find(x=>x.id===id); if(c){ c.workState='snoozed'; logEvent(id,'snooze','Snoozed 7 days') } })
+  S.sel.clear(); toast(`${ids.length} snoozed`); render()
+}
+
+// ─── render ─────────────────────────────────────────────────────────────────
+const dueChip = c => {
+  const d = daysTo(c)
+  if (d == null) return `<span class="chip" style="color:var(--text-muted);border:1px solid var(--border)">no date</span>`
+  const col = d<0 ? 'var(--red)' : d<=7 ? 'var(--accent)' : 'var(--green)'
+  const txt = d<0 ? `${-d}d overdue` : d===0 ? 'today' : `${d}d`
+  return `<span class="chip" style="color:${col};border:1px solid currentColor">${txt}</span>`
+}
+const typeDot = c => `<span style="color:${c.type==='wifi'?'var(--viz-1)':'var(--viz-2)'}">●</span>`
+
+function renderRail() {
+  document.getElementById('views').innerHTML =
+    `<div class="grp">Views</div>` + VIEWS.map(v => {
+      const n = CONNS.filter(v.f).length
+      return `<button class="vw${S.view===v.k?' on':''}" data-view="${v.k}">
+        <span class="dot" style="background:${v.dot}"></span>${v.label}<span class="n">${n}</span></button>`
+    }).join('')
+}
+
+function renderList(rows) {
+  if (!rows.length) return `<div class="panel" style="padding:40px;text-align:center;color:var(--text-muted);font-family:var(--font-mono);font-size:13px">Nothing in this view.</div>`
+  return `<div class="panel" style="overflow:auto;max-height:calc(100vh - 230px)">
+   <table><thead><tr>
+    <th style="width:28px"><input type="checkbox" id="all"></th>
+    <th>Property</th><th>Utility</th><th>Provider</th><th>Plan</th>
+    <th class="r">Amount</th><th>Cycle</th><th>Next due</th><th>Owner</th><th></th>
+   </tr></thead><tbody>${rows.map(c=>`
+    <tr class="clickable${S.sel.has(c.id)?' sel':''}" data-open="${c.id}">
+      <td><input type="checkbox" data-pick="${c.id}" ${S.sel.has(c.id)?'checked':''}></td>
+      <td class="mono">PID ${c.pid}</td>
+      <td>${typeDot(c)} ${c.type==='wifi'?'WiFi':'Water'}</td>
+      <td>${esc(c.provider)}</td>
+      <td style="color:var(--text-muted)">${esc(c.plan)}</td>
+      <td class="r" style="color:var(--accent);font-weight:700">${money(c.amount)}</td>
+      <td style="color:var(--text-muted)">${c.cycle}</td>
+      <td>${dueChip(c)} <span class="mono" style="font-size:10.5px;color:var(--text-muted)">${nextDue(c)?fmt(nextDue(c)).slice(0,6):''}</span></td>
+      <td style="color:${c.owner==='—'?'var(--text-muted)':'var(--text-dim)'}">${c.owner}</td>
+      <td><button class="btn sm" data-rech="${c.id}">Recharged</button></td>
+    </tr>`).join('')}</tbody></table></div>`
+}
+
+function renderCalendar(rows) {
+  const first = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1)
+  const pad = (first.getDay()+6)%7, days = new Date(TODAY.getFullYear(), TODAY.getMonth()+1, 0).getDate()
+  const byDay = {}
+  rows.forEach(c => { const d=nextDue(c); if (d && d.getMonth()===TODAY.getMonth() && d.getFullYear()===TODAY.getFullYear())
+    (byDay[d.getDate()] ||= []).push(c) })
+  const cells = []
+  for (let i=0;i<pad;i++) cells.push('<div></div>')
+  for (let d=1; d<=days; d++) {
+    const list = byDay[d]||[], amt = list.reduce((a,c)=>a+c.amount,0)
+    const isToday = d===TODAY.getDate()
+    cells.push(`<div class="cell" style="${isToday?'border-color:var(--accent)':''}${list.length?';background:var(--bg-panel)':''}">
+      <div class="d">${d}${isToday?' · today':''}</div>
+      ${list.length?`<div style="margin-top:4px;font-weight:700;font-family:var(--font-mono);font-size:12px">${list.length}</div>
+      <div style="font-size:10px;color:var(--accent);font-family:var(--font-mono)">${compact(amt)}</div>`:''}
+    </div>`)
+  }
+  const monthTotal = Object.values(byDay).flat().reduce((a,c)=>a+c.amount,0)
+  return `<div class="panel" style="padding:15px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px">
+      <span class="lbl">Renewals · ${TODAY.toLocaleDateString('en-IN',{month:'long',year:'numeric'})}</span>
+      <span style="font-size:11.5px;color:var(--text-muted);font-family:var(--font-mono)">${Object.values(byDay).flat().length} due · ${money(monthTotal)} to pay</span>
+    </div>
+    <div class="cal" style="margin-bottom:6px">${['M','T','W','T','F','S','S'].map(d=>`<div class="lbl" style="text-align:center">${d}</div>`).join('')}</div>
+    <div class="cal">${cells.join('')}</div></div>`
+}
+
+function renderInsights() {
+  const active = CONNS.filter(c=>c.status==='active')
+  const run = active.reduce((a,c)=>a+monthly(c),0)
+  const recharges = EVENTS.filter(e=>e.kind==='recharge')
+  const onTime = recharges.length
+  const prices = EVENTS.filter(e=>e.kind==='price')
+  const byProv = {}
+  active.forEach(c => { const g = byProv[c.provider] ||= {name:c.provider,n:0,spend:0}; g.n++; g.spend+=monthly(c) })
+  const provs = Object.values(byProv).sort((a,b)=>b.spend-a.spend)
+  const maxP = Math.max(1,...provs.map(p=>p.spend))
+  return `
+  <div class="kpis" style="margin-bottom:14px">
+    ${[['Run-rate', money(run)+'/mo','var(--accent)'],
+       ['Connections', active.length,'var(--text)'],
+       ['Properties', new Set(active.map(c=>c.pid)).size,'var(--text)'],
+       ['Overdue', CONNS.filter(c=>daysTo(c)<0&&c.workState!=='done').length,'var(--red)'],
+       ['Recharged (log)', onTime,'var(--green)']].map(([l,v,c])=>
+      `<div class="panel kpi"><div class="lbl">${l}</div><div class="v" style="color:${c}">${v}</div></div>`).join('')}
+  </div>
+  ${prices.length?`<div class="panel" style="padding:14px;margin-bottom:14px;border-color:var(--accent)">
+    <div class="lbl" style="color:var(--accent);margin-bottom:6px">⚠ Price change detected</div>
+    <div style="font-size:13px;color:var(--text-dim);line-height:1.6">
+      <b style="color:var(--text)">ACT raised prices on ${prices.length} connections</b> last month, +8% each —
+      ${money(prices.length*0.08*7073/6)}/mo more across the book.
+      Only an event log can see this: the rows themselves just show today's number.
+    </div></div>`:''}
+  <div class="panel" style="padding:15px;margin-bottom:14px">
+    <div class="lbl" style="margin-bottom:12px">Provider scorecard</div>
+    ${provs.map(p=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+      <span style="width:120px;font-size:12.5px;color:var(--text-dim)">${esc(p.name)}</span>
+      <span class="bar" style="flex:1"><span style="width:${(p.spend/maxP)*100}%"></span></span>
+      <span class="mono" style="width:120px;text-align:right;font-size:12px">${money(p.spend)}/mo
+        <span style="color:var(--text-muted)"> · ${p.n}</span></span></div>`).join('')}
+  </div>
+  <div class="panel" style="padding:15px">
+    <div class="lbl" style="margin-bottom:10px">Recent activity · the event log</div>
+    ${[...EVENTS].reverse().slice(0,10).map(e=>{
+      const c = CONNS.find(x=>x.id===e.conn)
+      return `<div class="tl"><span class="when">${fmt(e.at).slice(0,6)}</span>
+        <span style="flex:1;font-size:12.5px;color:var(--text-dim)">
+          <b style="color:var(--text)">PID ${c?c.pid:'—'}</b> · ${esc(e.text)}</span>
+        <span class="mono" style="font-size:10.5px;color:var(--text-muted)">${esc(e.who)}</span></div>`}).join('')}
+  </div>`
+}
+
+
+// ─── date analysis ──────────────────────────────────────────────────────────
+// Any window, two questions: what went in, and what did it cost. Both are read
+// off the event log, so "cost in 2025" is the sum of what was actually paid in
+// 2025 — installs plus renewals, each at the price in force then — rather than
+// today's price multiplied by a guess.
+const Y = TODAY.getFullYear(), Mo = TODAY.getMonth()
+const RANGES = [
+  { k:'mtd',   label:'This month',   from:()=>new Date(Y,Mo,1),        to:()=>TODAY },
+  { k:'lastm', label:'Last month',   from:()=>new Date(Y,Mo-1,1),      to:()=>new Date(Y,Mo,0) },
+  { k:'qtd',   label:'This quarter', from:()=>new Date(Y,Math.floor(Mo/3)*3,1), to:()=>TODAY },
+  { k:'ytd',   label:'This year',    from:()=>new Date(Y,0,1),         to:()=>TODAY },
+  { k:'lasty', label:'Last year',    from:()=>new Date(Y-1,0,1),       to:()=>new Date(Y-1,11,31) },
+  { k:'12m',   label:'Last 12 months', from:()=>addM(TODAY,-12),       to:()=>TODAY },
+  { k:'all',   label:'All time',     from:()=>new Date(2000,0,1),      to:()=>TODAY },
+  { k:'custom',label:'Custom',       from:()=>S.from?new Date(S.from):new Date(Y,0,1), to:()=>S.to?new Date(S.to):TODAY },
+]
+const activeRange = () => {
+  const r = RANGES.find(x=>x.k===S.range) || RANGES[3]
+  return { ...r, a: iso(r.from()), b: iso(r.to()) }
+}
+const inRange = (d,a,b) => d >= a && d <= b
+// Grain picked from the span, so a week is days and a decade is years.
+const grainFor = (a,b) => {
+  const days = (new Date(b) - new Date(a)) / 86400000
+  return days <= 62 ? 'day' : days <= 760 ? 'month' : 'year'
+}
+const bucketOf = (d,g) => g==='day' ? d : g==='month' ? d.slice(0,7) : d.slice(0,4)
+const bucketLabel = (k,g) => g==='day' ? new Date(k+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})
+  : g==='month' ? new Date(k+'-01T00:00:00').toLocaleDateString('en-IN',{month:'short',year:'2-digit'}) : k
+
+function analyse(a, b) {
+  const ev = EVENTS.filter(e => inRange(e.at, a, b))
+  const installs = ev.filter(e=>e.kind==='installed')
+  const rech = ev.filter(e=>e.kind==='recharge')
+  const connsIn = installs.map(e=>CONNS.find(c=>c.id===e.conn)).filter(Boolean)
+  const cashIn = installs.reduce((s,e)=>s+(e.amount||0),0)
+  const cashRe = rech.reduce((s,e)=>s+(e.amount||0),0)
+  const runAdded = connsIn.reduce((s,c)=>s+monthly(c),0)
+  // run-rate as it stood at the end of the window
+  const runEnd = CONNS.filter(c=>c.start<=b && c.status==='active').reduce((s,c)=>s+monthly(c),0)
+  return { ev, installs, rech, connsIn, cashIn, cashRe, cash: cashIn+cashRe, runAdded, runEnd,
+           props:new Set(connsIn.map(c=>c.pid)).size }
+}
+
+function renderAnalysis() {
+  const r = activeRange()
+  const cur = analyse(r.a, r.b)
+  // the same span, immediately before — a like-for-like comparison
+  const spanMs = new Date(r.b) - new Date(r.a)
+  const pa = iso(new Date(new Date(r.a) - spanMs - 86400000)), pb = iso(new Date(new Date(r.a) - 86400000))
+  const prev = analyse(pa, pb)
+  const d = (n,p) => (p===0||p==null) ? null : (n-p)/p
+  const badge = v => v==null ? '' :
+    `<span style="font-size:11px;font-weight:700;font-family:var(--font-mono);margin-left:7px;color:${Math.round(v*100)===0?'var(--text-muted)':v>0?'var(--green)':'var(--red)'}">
+      ${Math.round(v*100)===0?'flat':(v>0?'▲ ':'▼ ')+Math.abs(Math.round(v*100))+'%'}</span>`
+
+  const g = grainFor(r.a, r.b)
+  const buckets = new Map()
+  cur.ev.forEach(e => {
+    if (e.kind!=='installed' && e.kind!=='recharge') return
+    const k = bucketOf(e.at, g)
+    const x = buckets.get(k) || { k, label:bucketLabel(k,g), deploys:0, cash:0, rech:0 }
+    if (e.kind==='installed') { x.deploys++; x.cash += e.amount||0 }
+    else { x.rech++; x.cash += e.amount||0 }
+    buckets.set(k, x)
+  })
+  const series = [...buckets.values()].sort((x,y)=>x.k.localeCompare(y.k))
+  const maxCash = Math.max(1, ...series.map(x=>x.cash))
+  const maxDep = Math.max(1, ...series.map(x=>x.deploys))
+
+  const splitKey = { provider:c=>c.provider, type:c=>c.type==='wifi'?'WiFi':'Water purifier', plan:c=>c.plan, cycle:c=>c.cycle }[S.split]
+  const split = {}
+  cur.connsIn.forEach(c => { const k=splitKey(c)||'—'; const x=split[k] ||= {name:k,n:0,cash:0}; x.n++; x.cash+=c.amount })
+  const splitRows = Object.values(split).sort((x,y)=>y.cash-x.cash)
+  const maxSplit = Math.max(1,...splitRows.map(x=>x.cash))
+
+  return `
+  <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+    ${RANGES.filter(x=>x.k!=='custom').map(x=>`<button class="btn${S.range===x.k?' pri':''}" data-range="${x.k}">${x.label}</button>`).join('')}
+    <button class="btn${S.range==='custom'?' pri':''}" data-range="custom">Custom</button>
+    ${S.range==='custom'?`<input class="inp" type="date" id="from" value="${S.from||r.a}">
+      <span style="color:var(--text-muted)">→</span>
+      <input class="inp" type="date" id="to" value="${S.to||r.b}">`:''}
+    <span style="margin-left:auto;font-size:11.5px;color:var(--text-muted);font-family:var(--font-mono)">
+      ${fmt(r.a)} → ${fmt(r.b)}</span>
+  </div>
+
+  <div class="kpis" style="margin-bottom:14px">
+    <div class="panel kpi"><div class="lbl">Deployed</div><div class="v">${cur.installs.length}${badge(d(cur.installs.length,prev.installs.length))}</div>
+      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${cur.props} properties</div></div>
+    <div class="panel kpi"><div class="lbl">Total cash out</div><div class="v" style="color:var(--accent)">${compact(cur.cash)}${badge(d(cur.cash,prev.cash))}</div>
+      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">installs + renewals</div></div>
+    <div class="panel kpi"><div class="lbl">New installs</div><div class="v">${compact(cur.cashIn)}</div>
+      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${cur.installs.length} paid</div></div>
+    <div class="panel kpi"><div class="lbl">Renewals paid</div><div class="v">${compact(cur.cashRe)}${badge(d(cur.cashRe,prev.cashRe))}</div>
+      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${cur.rech.length} recharges</div></div>
+    <div class="panel kpi"><div class="lbl">Run-rate added</div><div class="v">${compact(cur.runAdded)}<span style="font-size:12px">/mo</span></div>
+      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">ending ${compact(cur.runEnd)}/mo</div></div>
+  </div>
+
+  <div class="panel" style="padding:15px;margin-bottom:14px">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px">
+      <span class="lbl">Cash out by ${g}</span>
+      <span style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">installs and renewals · bar height is money, number above is deployments</span>
+    </div>
+    ${series.length? `<div style="display:flex;align-items:flex-end;gap:5px;height:150px">
+      ${series.map(x=>`<div title="${x.label}: ${money(x.cash)} · ${x.deploys} deployed · ${x.rech} renewed"
+        style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;gap:3px">
+        <span style="font-size:10px;font-family:var(--font-mono);color:var(--text-muted);text-align:center">${x.deploys||''}</span>
+        <span style="height:${Math.max((x.cash/maxCash)*110,2)}px;background:var(--viz-1);border-radius:4px 4px 0 0"></span>
+      </div>`).join('')}</div>
+      <div style="display:flex;gap:5px;margin-top:6px">
+        ${series.map(x=>`<span style="flex:1;min-width:0;text-align:center;font-size:9px;font-family:var(--font-mono);color:var(--text-muted);overflow:hidden;white-space:nowrap">${x.label}</span>`).join('')}
+      </div>`
+      : `<div style="color:var(--text-muted);font-size:13px;font-family:var(--font-mono)">Nothing happened in this window.</div>`}
+  </div>
+
+  <div style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+    <div class="panel" style="padding:15px">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:12px;flex-wrap:wrap">
+        <span class="lbl">Deployments by</span>
+        ${['provider','type','plan','cycle'].map(k=>`<button class="btn sm${S.split===k?' pri':''}" data-split="${k}">${k}</button>`).join('')}
+      </div>
+      ${splitRows.length? splitRows.map(x=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+        <span style="width:110px;font-size:12px;color:var(--text-dim);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(x.name)}</span>
+        <span class="bar" style="flex:1"><span style="width:${(x.cash/maxSplit)*100}%"></span></span>
+        <span class="mono" style="width:96px;text-align:right;font-size:12px">${compact(x.cash)}<span style="color:var(--text-muted)"> · ${x.n}</span></span>
+      </div>`).join('') : `<div style="color:var(--text-muted);font-size:12.5px">No deployments in this window.</div>`}
+    </div>
+
+    <div class="panel" style="padding:15px">
+      <div class="lbl" style="margin-bottom:12px">Where the money went</div>
+      ${[['New installs',cur.cashIn,'var(--viz-1)'],['Renewals',cur.cashRe,'var(--viz-2)']].map(([l,v,c])=>`
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+          <span style="width:110px;font-size:12px;color:var(--text-dim)">${l}</span>
+          <span class="bar" style="flex:1"><span style="width:${cur.cash?(v/cur.cash)*100:0}%;background:${c}"></span></span>
+          <span class="mono" style="width:96px;text-align:right;font-size:12px">${compact(v)}
+            <span style="color:var(--text-muted)"> · ${cur.cash?Math.round((v/cur.cash)*100):0}%</span></span>
+        </div>`).join('')}
+      <div style="margin-top:12px;padding-top:11px;border-top:1px solid var(--border);font-size:11.5px;color:var(--text-muted);font-family:var(--font-mono);line-height:1.6">
+        Each figure is what was actually paid, at the price in force on the day —
+        not today's price applied backwards.
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:14px;overflow:auto;max-height:420px">
+    <div style="padding:13px 15px 0"><span class="lbl">Deployments in ${r.label.toLowerCase()} · ${cur.connsIn.length}</span></div>
+    ${cur.connsIn.length? `<table style="margin-top:10px"><thead><tr>
+      <th>Installed</th><th>Property</th><th>Utility</th><th>Provider</th><th>Plan</th>
+      <th class="r">Paid</th><th>Cycle</th><th class="r">Monthly</th></tr></thead><tbody>
+      ${cur.connsIn.map(c=>`<tr class="clickable" data-open="${c.id}">
+        <td class="mono" style="color:var(--text-muted)">${fmt(c.start)}</td>
+        <td class="mono">PID ${c.pid}</td><td>${typeDot(c)} ${c.type==='wifi'?'WiFi':'Water'}</td>
+        <td>${esc(c.provider)}</td><td style="color:var(--text-muted)">${esc(c.plan)}</td>
+        <td class="r" style="color:var(--accent);font-weight:700">${money(c.amount)}</td>
+        <td style="color:var(--text-muted)">${c.cycle}</td>
+        <td class="r mono">${money(monthly(c))}</td></tr>`).join('')}</tbody></table>`
+      : `<div style="padding:24px 15px;color:var(--text-muted);font-size:13px">No deployments in this window.</div>`}
+  </div>`
+}
+
+function renderGaps() {
+  const byPid = {}
+  CONNS.forEach(c => { (byPid[c.pid] ||= []).push(c) })
+  const gaps = Object.entries(byPid)
+    .map(([pid,list]) => ({ pid, wifi:list.some(c=>c.type==='wifi'), water:list.some(c=>c.type==='water_purifier'), spend:list.reduce((a,c)=>a+monthly(c),0) }))
+    .filter(g => !g.wifi || !g.water)
+  return `<div class="panel" style="padding:15px">
+    <div class="lbl" style="margin-bottom:4px">Coverage gaps</div>
+    <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px;max-width:62ch;line-height:1.6">
+      Properties missing one of the two standard utilities. No generic CRM finds this — it is an absence, and
+      absences do not appear in a list of what exists.
+    </div>
+    ${gaps.length? `<table><thead><tr><th>Property</th><th>WiFi</th><th>Water purifier</th><th class="r">Spend</th><th></th></tr></thead>
+    <tbody>${gaps.map(g=>`<tr><td class="mono">PID ${g.pid}</td>
+      <td>${g.wifi?'<span class="chip" style="color:var(--green);border:1px solid currentColor">yes</span>':'<span class="chip" style="color:var(--red);border:1px solid currentColor">missing</span>'}</td>
+      <td>${g.water?'<span class="chip" style="color:var(--green);border:1px solid currentColor">yes</span>':'<span class="chip" style="color:var(--red);border:1px solid currentColor">missing</span>'}</td>
+      <td class="r mono" style="color:var(--accent)">${money(g.spend)}/mo</td>
+      <td><button class="btn sm">Add utility</button></td></tr>`).join('')}</tbody></table>`
+      : '<div style="color:var(--text-muted);font-size:13px">Every property has both.</div>'}
+  </div>`
+}
+
+function renderDrawer() {
+  const host = document.getElementById('drawer')
+  if (!S.open) { host.innerHTML=''; return }
+  const c = CONNS.find(x=>x.id===S.open)
+  const evs = EVENTS.filter(e=>e.conn===c.id).sort((a,b)=>b.at.localeCompare(a.at))
+  const d = daysTo(c)
+  host.innerHTML = `<div class="scrim" data-close="1"></div><div class="drawer">
+    <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:14px">
+      <div><div style="font-size:18px;font-weight:700;font-family:var(--font-mono)">PID ${c.pid}</div>
+        <div style="font-size:12.5px;color:var(--text-dim);margin-top:2px">${typeDot(c)} ${c.type==='wifi'?'WiFi':'Water purifier'} · ${esc(c.provider)} ${esc(c.plan)}</div></div>
+      <button class="btn" style="margin-left:auto" data-close="1">✕</button>
+    </div>
+    <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+      <div class="panel kpi"><div class="lbl">Amount</div><div class="v" style="font-size:17px;color:var(--accent)">${money(c.amount)}</div><div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${c.cycle}</div></div>
+      <div class="panel kpi"><div class="lbl">Monthly</div><div class="v" style="font-size:17px">${money(monthly(c))}</div></div>
+      <div class="panel kpi"><div class="lbl">Next due</div><div class="v" style="font-size:17px;color:${d<0?'var(--red)':d<=7?'var(--accent)':'var(--green)'}">${d<0?-d+'d late':d+'d'}</div><div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">${fmt(nextDue(c))}</div></div>
+    </div>
+    <div style="display:flex;gap:7px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn pri" data-rech="${c.id}">Mark recharged</button>
+      <button class="btn" data-assign="${c.id}">Assign to me</button>
+      <button class="btn" data-snooze="${c.id}">Snooze 7d</button>
+    </div>
+    <div class="panel" style="padding:13px;margin-bottom:14px">
+      <div class="lbl" style="margin-bottom:9px">Details</div>
+      ${[['Account', c.account],['Network', c.ssid||'—'],['Owner', c.owner],['Installed', fmt(c.start)],
+         ['Last recharged', c.lastRecharged?fmt(c.lastRecharged):'never logged'],['Invoice on file', c.invoice?'yes':'no']]
+        .map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px">
+          <span style="color:var(--text-muted)">${k}</span><span class="mono" style="color:var(--text-dim)">${esc(v)}</span></div>`).join('')}
+    </div>
+    <div class="panel" style="padding:13px">
+      <div class="lbl" style="margin-bottom:6px">Timeline · ${evs.length} event${evs.length===1?'':'s'}</div>
+      ${evs.map(e=>`<div class="tl"><span class="when">${fmt(e.at).slice(0,6)}</span>
+        <span style="flex:1;font-size:12.5px;color:var(--text-dim)">${esc(e.text)}</span>
+        <span class="mono" style="font-size:10.5px;color:var(--text-muted)">${esc(e.who)}</span></div>`).join('')}
+    </div></div>`
+}
+
+function renderBulk() {
+  const host = document.getElementById('bulk')
+  if (!S.sel.size) { host.innerHTML=''; return }
+  const n = S.sel.size
+  host.innerHTML = `<div class="bulk">
+    <span class="mono" style="font-size:12px;font-weight:700;color:var(--accent)">${n} selected</span>
+    <button class="btn pri" data-bulk="recharge">Mark recharged</button>
+    <button class="btn" data-bulk="assign">Assign to me</button>
+    <button class="btn" data-bulk="snooze">Snooze 7d</button>
+    <button class="btn sm" data-bulk="clear">Clear</button></div>`
+}
+
+function render() {
+  renderRail()
+  document.getElementById('tabs').innerHTML = TABS.map(([k,l])=>
+    `<button class="tab${S.tab===k?' on':''}" data-tab="${k}">${l}</button>`).join('')
+  const rows = current()
+  document.getElementById('ctx').textContent =
+    S.tab==='list' ? `${rows.length} of ${CONNS.length}` : ''
+  document.getElementById('main').innerHTML =
+    S.tab==='list' ? renderList(rows) :
+    S.tab==='calendar' ? renderCalendar(CONNS) :
+    S.tab==='analysis' ? renderAnalysis() :
+    S.tab==='insights' ? renderInsights() : renderGaps()
+  renderBulk(); renderDrawer()
+}
+
+// ─── events ─────────────────────────────────────────────────────────────────
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-view],[data-tab],[data-open],[data-rech],[data-assign],[data-snooze],[data-bulk],[data-close],[data-theme-set],[data-range],[data-split]')
+  if (!t) return
+  const d = t.dataset
+  if (d.themeSet) { document.documentElement.dataset.theme = d.themeSet; return }
+  if (d.range) { S.range=d.range; return render() }
+  if (d.split) { S.split=d.split; return render() }
+  if (d.view)  { S.view=d.view; S.sel.clear(); S.tab='list'; return render() }
+  if (d.tab)   { S.tab=d.tab; return render() }
+  if (d.close) { S.open=null; return render() }
+  if (d.rech)  { e.stopPropagation(); S.open=null; return markRecharged([d.rech]) }
+  if (d.assign){ return assign([d.assign],'Mohosin') }
+  if (d.snooze){ return snooze([d.snooze]) }
+  if (d.bulk) {
+    const ids=[...S.sel]
+    if (d.bulk==='recharge') return markRecharged(ids)
+    if (d.bulk==='assign')   return assign(ids,'Mohosin')
+    if (d.bulk==='snooze')   return snooze(ids)
+    S.sel.clear(); return render()
+  }
+  if (d.open && !e.target.closest('input,button')) { S.open=d.open; return render() }
+})
+document.addEventListener('change', e => {
+  if (e.target.id==='from') { S.from=e.target.value; render() }
+  if (e.target.id==='to')   { S.to=e.target.value; render() }
+  if (e.target.id==='all') { const rows=current(); e.target.checked ? rows.forEach(c=>S.sel.add(c.id)) : S.sel.clear(); render() }
+  if (e.target.dataset.pick) { e.target.checked ? S.sel.add(e.target.dataset.pick) : S.sel.delete(e.target.dataset.pick); render() }
+})
+document.addEventListener('input', e => {
+  if (e.target.id==='q') { S.q=e.target.value; const v=e.target.value; render()
+    const el=document.getElementById('q'); if(el){el.focus(); el.value=v} }
+})
+document.documentElement.dataset.theme='dark'
+render()
+</script>
+</body>
+</html>
