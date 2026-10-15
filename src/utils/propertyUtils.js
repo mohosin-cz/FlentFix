@@ -183,3 +183,101 @@ export const DEFAULT_PASSWORD = 'Flent@2k24'
 // the PID and nothing here knows it. So this offers the prefix and stops —
 // proposing a whole SSID would just be inventing the half that matters.
 export const SSID_PREFIX = 'Flent_'
+
+// ── period analysis ─────────────────────────────────────────────────────────
+// Month, quarter or year over the same rows. The grain is a parameter rather
+// than three near-identical functions, because the moment they are separate
+// one of them gets a fix the others do not.
+//
+// Anchored on start_date — the install — for the reason installsInMonth gives:
+// nothing records an actual recharge, so a period figure built on renewals
+// would be a projection wearing the clothes of a fact.
+export const GRAINS = [
+  { key: 'month',   label: 'Month' },
+  { key: 'quarter', label: 'Quarter' },
+  { key: 'year',    label: 'Year' },
+]
+
+export function periodKeyOf(dateStr, grain) {
+  if (!dateStr) return null
+  const [y, m] = String(dateStr).slice(0, 10).split('-')
+  if (!y || !m) return null
+  if (grain === 'year') return y
+  if (grain === 'quarter') return `${y}-Q${Math.floor((Number(m) - 1) / 3) + 1}`
+  return `${y}-${m}`
+}
+
+export function periodLabelOf(key, grain) {
+  if (!key) return '—'
+  if (grain === 'year') return key
+  if (grain === 'quarter') return key.replace('-', ' ')
+  return monthLabel(key)
+}
+
+// One row per period, oldest first, carrying both money questions plus a
+// running total. `cumulativeMonthly` is the estate's run-rate as it stood at
+// the end of that period — the number that answers "what do we now pay every
+// month", which no single period can.
+export function deploymentsByPeriod(rows, grain) {
+  const map = new Map()
+  for (const r of rows || []) {
+    if (!r || !LIVE_STATUSES.has(r.status)) continue
+    const key = periodKeyOf(r.start_date, grain)
+    if (!key) continue
+    const g = map.get(key) || {
+      key, label: periodLabelOf(key, grain),
+      deploys: 0, wifi: 0, water: 0, other: 0,
+      paid: 0, spend: 0, props: new Set(),
+    }
+    g.deploys++
+    g.props.add(r.pid)
+    if (r.utility_type === 'wifi') g.wifi++
+    else if (r.utility_type === 'water_purifier') g.water++
+    else g.other++
+    g.paid += Number(r.billing_amount) || 0
+    g.spend += monthlyCost(r)
+    map.set(key, g)
+  }
+  let running = 0
+  return [...map.values()]
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map(g => {
+      running += g.spend
+      return {
+        ...g,
+        properties: g.props.size,
+        cumulativeMonthly: running,
+        avgPaid: g.deploys ? g.paid / g.deploys : 0,
+      }
+    })
+}
+
+// Change against the period before, as a signed ratio. null when there is no
+// previous period or it was zero — "+100%" from nothing is not information.
+// Is this the period we are standing in? A current month compared with a
+// complete one always looks like a collapse — 2026 Q3 read "down 60%" on its
+// second week — so the caller needs to know before it draws an arrow.
+export function isCurrentPeriod(key, grain) {
+  const now = new Date()
+  return key === periodKeyOf(
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`, grain)
+}
+
+export function deltaPct(now, prev) {
+  if (prev == null || prev === 0 || now == null) return null
+  return (now - prev) / prev
+}
+
+// Count by any field, biggest first — providers, cycles, plans all ask this.
+export function countBy(rows, pick, limit = 6) {
+  const m = new Map()
+  for (const r of rows || []) {
+    const k = (pick(r) ?? '').toString().trim() || '—'
+    const g = m.get(k) || { name: k, count: 0, paid: 0, spend: 0 }
+    g.count++
+    g.paid += Number(r.billing_amount) || 0
+    g.spend += monthlyCost(r)
+    m.set(k, g)
+  }
+  return [...m.values()].sort((a, b) => b.count - a.count || b.spend - a.spend).slice(0, limit)
+}
