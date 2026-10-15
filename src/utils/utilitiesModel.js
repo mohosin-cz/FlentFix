@@ -10,7 +10,7 @@
 // `prop` attached (see PropertyUtilitiesOverview). Nothing fetches, nothing
 // renders, so the checks can be reasoned about and the views stay thin.
 // ════════════════════════════════════════════════════════════════════════════
-import { CYCLE_MONTHS, typeLabel, TYPE_MAP } from './propertyUtils'
+import { CYCLE_MONTHS, typeLabel, TYPE_MAP, dueInfo } from './propertyUtils'
 
 export const VIZ = ['var(--viz-1)', 'var(--viz-2)', 'var(--viz-3)', 'var(--viz-4)', 'var(--viz-5)']
 
@@ -161,6 +161,13 @@ export function buildChecks(rows) {
   gap('g-amount', 'No billing amount', 'This connection is invisible to every cost figure on this page.', 'bad', (r) => !(Number(r.billing_amount) > 0))
   gap('g-cycle', 'No billing cycle', 'Without a cycle the amount cannot be turned into a monthly cost, so the record cannot be compared with any other.', 'bad', (r) => !r.billing_cycle)
   gap('g-start', 'No start date', 'The record cannot be placed in time, so it falls out of every trend and every by-month count.', 'bad', (r) => !r.start_date)
+  // Not an operational alarm so much as a record defect: either the recharge
+  // happened and nobody wrote it down, or it did not happen. Either way what
+  // the record says is wrong, and until the rollforward was removed this was
+  // invisible — every one of these displayed as a future date.
+  gap('g-lapsed', 'Period ended, no recharge recorded',
+    'This connection\u2019s billing period finished and nothing was logged against it. Either it was paid and never recorded, or it was not paid at all — the record cannot tell you which.',
+    'bad', (r) => { const d = dueInfo(r); return !!d && d.overdue })
   gap('g-stale', 'Untouched for over 9 months', 'Nobody has edited this record in three quarters. It may be perfectly correct — but nothing here confirms it still describes reality.', 'warn',
     (r) => LIVE.has(r.status) && (daysSince(r.updated_at) ?? 0) > 270)
 

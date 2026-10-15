@@ -34,7 +34,7 @@ function analyze(rows) {
     count: rows.length, props, monthly,
     typeList, providers,
     cycles: Object.entries(cycles).sort((a, b) => b[1] - a[1]),
-    dueToday: rows.filter(r => r.due && r.due.days <= 0).length,
+    overdue: rows.filter(r => r.bucket === 'overdue').length,
     dueWeek: rows.filter(r => r.bucket === 'due').length,
     dueMonth: rows.filter(r => r.bucket === 'due' || r.bucket === 'month').length,
     upcoming: rows.filter(r => r.due).sort((a, b) => a.due.days - b.due.days).slice(0, 6),
@@ -95,7 +95,7 @@ export default function UtilitiesAnalytics({ rows, onType, onDue }) {
       {/* Recharges */}
       <Card title="Recharges">
         <div style={{ display: 'flex', gap: 6 }}>
-          <MiniStat label="Due today" value={a.dueToday} color={a.dueToday ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)'} />
+          <MiniStat label="Overdue" value={a.overdue} color={a.overdue ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)'} />
           <MiniStat label="≤ 7 days" value={a.dueWeek} color={a.dueWeek ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)'} />
           <MiniStat label="≤ 30 days" value={a.dueMonth} color={a.dueMonth ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)'} />
         </div>
@@ -106,7 +106,7 @@ export default function UtilitiesAnalytics({ rows, onType, onDue }) {
                 <UtilityIcon type={r.utility_type} size={14} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: MONO }}>PID {r.pid}</span>
                 <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shortType(r.utility_type, typeLabel(r))}</span>
-                <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: r.due.color, fontFamily: MONO, whiteSpace: 'nowrap' }}>{r.due.days <= 0 ? 'today' : r.due.days === 1 ? '1 day' : `${r.due.days} days`}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: r.due.color, fontFamily: MONO, whiteSpace: 'nowrap' }}>{r.due.days < 0 ? `${-r.due.days}d over` : r.due.days === 0 ? 'today' : r.due.days === 1 ? '1 day' : `${r.due.days} days`}</span>
               </div>
             ))}
           </div>
@@ -137,8 +137,9 @@ export default function UtilitiesAnalytics({ rows, onType, onDue }) {
       </Card>
 
       {/* Needs attention */}
-      {(a.noSchedule || a.unknown || a.noAmount || a.notInPulse) > 0 && (
+      {(a.overdue || a.noSchedule || a.unknown || a.noAmount || a.notInPulse) > 0 && (
         <Card title="Needs attention">
+          {a.overdue > 0 && <AttnRow label="Period ended, no recharge logged" value={a.overdue} action={onDue ? () => onDue('overdue') : null} />}
           {a.noSchedule > 0 && <AttnRow label="No recharge date" value={a.noSchedule} action={onDue ? () => onDue('none') : null} />}
           {a.unknown > 0 && <AttnRow label="Status ‘unknown’" value={a.unknown} />}
           {a.noAmount > 0 && <AttnRow label="No amount set" value={a.noAmount} />}

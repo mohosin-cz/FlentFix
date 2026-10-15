@@ -46,19 +46,49 @@ export function typeColor(u) {
   return TYPE_MAP[u.utility_type]?.color || '#8b8d98'
 }
 
-// A utility is valid for one billing cycle from its base date (last recharge, or
-// start date if never recharged). Next recharge = base + one cycle, rolled
-// forward to the current cycle if several have elapsed. null when not schedulable.
+// A utility is valid for one billing cycle from its base date — the last
+// recharge if one was ever logged, otherwise the install date. The next
+// recharge is base + one cycle, and that is the whole of it.
+//
+// It used to roll that date forward, cycle by cycle, until it landed in the
+// future. That turned a connection eight months past its period into "due in
+// 12 days" and meant nothing could ever be overdue. The rollforward was doing
+// the job of a payment record nobody keeps: it assumed every cycle in between
+// had been paid. On the live table that assumption was hiding 150 of the 292
+// schedulable connections — a little over half the estate.
+//
+// null when there is nothing to schedule (no base date, or a cycle with no
+// length, which includes One-time).
 export function nextDueDate(baseStr, cycle) {
   const m = CYCLE_MONTHS[cycle]
   if (!baseStr || !m) return null
-  const base = new Date(baseStr + 'T00:00:00')
+  const base = new Date(String(baseStr).slice(0, 10) + 'T00:00:00')
   if (isNaN(base)) return null
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const d = new Date(base); d.setMonth(d.getMonth() + m)
-  let guard = 0
-  while (d < today && guard < 2400) { d.setMonth(d.getMonth() + m); guard++ }
+  const d = new Date(base)
+  const day = d.getDate()
+  d.setMonth(d.getMonth() + m)
+  // 31 Jan plus a month is the end of February, not the 2nd of March
+  if (d.getDate() < day) d.setDate(0)
   return d
+}
+
+// How many whole billing periods have ended without a recharge being recorded.
+// 1 the day after the first period lapses, 2 a cycle later, and so on; 0 while
+// the connection is still inside its current period — including the day the
+// period ends, which is a day to act on, not a day already missed.
+export function periodsLapsed(dueDate, cycle, today) {
+  const m = CYCLE_MONTHS[cycle]
+  if (!dueDate || !m || dueDate >= today) return 0
+  let n = 1
+  const d = new Date(dueDate)
+  while (n < 400) {
+    const day = d.getDate()
+    d.setMonth(d.getMonth() + m)
+    if (d.getDate() < day) d.setDate(0)
+    if (d > today) break
+    n++
+  }
+  return n
 }
 
 // Utilities that went live in a given month, and the run-rate they added.
@@ -118,28 +148,47 @@ export function deploymentsByMonth(rows) {
   return Object.values(map).map(g => ({ ...g, properties: g.props.size })).sort((a, b) => b.ym.localeCompare(a.ym))
 }
 
-// bucket a utility by recharge urgency: 'due' (<=7d) | 'month' (<=31d) | 'later' | 'none'
+// bucket a utility by recharge urgency:
+// 'overdue' (the period already ended) | 'due' (<=7d) | 'month' (<=31d) | 'later' | 'none'
 export function dueBucket(u) {
   const di = dueInfo(u)
   if (!di) return 'none'
+  if (di.days < 0) return 'overdue'
   if (di.days <= 7) return 'due'
   if (di.days <= 31) return 'month'
   return 'later'
 }
 
-// human-facing due status; returns null when there's nothing to schedule
+// human-facing due status; returns null when there's nothing to schedule.
+//
+// `basis` matters more than it looks. Not one row in the table has ever had a
+// recharge logged, so every countdown on this page is measured from the install
+// date. That is a reasonable thing to show — but it is an assumption, and the
+// UI says which it is rather than presenting it as a payment history.
 export function dueInfo(u) {
   if (!u || !LIVE_STATUSES.has(u.status)) return null
+  const basis = u.last_recharged_on ? 'recharge' : 'install'
   const d = nextDueDate(u.last_recharged_on || u.start_date, u.billing_cycle)
   if (!d) return null
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const days = Math.round((d.getTime() - today.getTime()) / 86400000)
+  const lapsed = periodsLapsed(d, u.billing_cycle, today)
+
   let color, label, tone
-  if (days <= 0) { color = 'var(--red, #e05c6a)'; label = 'Recharge due today'; tone = 'due' }
+  if (days < 0) {
+    color = 'var(--red, #e05c6a)'; tone = 'overdue'
+    label = lapsed > 1
+      ? `${lapsed} periods with no recharge logged`
+      : `Recharge overdue by ${-days} ${-days === 1 ? 'day' : 'days'}`
+  } else if (days === 0) { color = 'var(--red, #e05c6a)'; label = 'Recharge due today'; tone = 'due' }
   else if (days === 1) { color = 'var(--red, #e05c6a)'; label = 'Recharge tomorrow'; tone = 'due' }
   else if (days <= 5) { color = 'var(--accent, #c8963e)'; label = `Recharge in ${days} days`; tone = 'soon' }
   else { color = 'var(--green, #3dba7a)'; label = `Recharge in ${days} days`; tone = 'ok' }
-  return { date: d, days, label, color, tone }
+
+  const note = basis === 'install'
+    ? 'Counted from the install date — no recharge has ever been logged against this connection.'
+    : null
+  return { date: d, days, label, color, tone, basis, periodsLapsed: lapsed, overdue: days < 0, note }
 }
 
 // ── Entry presets ────────────────────────────────────────────────────────────

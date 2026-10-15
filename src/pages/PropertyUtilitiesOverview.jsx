@@ -22,6 +22,7 @@ const nowYM = () => { const d = new Date(); return `${d.getFullYear()}-${String(
 
 const DUE_FILTERS = [
   { key: 'all', label: 'All' },
+  { key: 'overdue', label: 'Overdue', color: 'var(--red, #e05c6a)' },
   { key: 'due', label: 'Due ≤7d', color: 'var(--red, #e05c6a)' },
   { key: 'month', label: 'This month', color: 'var(--accent, #c8963e)' },
   { key: 'later', label: 'Later', color: 'var(--green, #3dba7a)' },
@@ -255,8 +256,12 @@ export default function PropertyUtilitiesOverview() {
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   {r.due ? <>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: r.due.color, fontFamily: SANS }}>{r.due.days <= 0 ? 'Due today' : r.due.days === 1 ? 'Tomorrow' : `${r.due.days} days`}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 2 }}>{r.due.date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: r.due.color, fontFamily: SANS }}>
+                      {r.due.days < 0 ? `${-r.due.days} days over` : r.due.days === 0 ? 'Due today' : r.due.days === 1 ? 'Tomorrow' : `${r.due.days} days`}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 2 }}>
+                      {r.due.periodsLapsed > 1 ? `${r.due.periodsLapsed} periods` : r.due.date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    </div>
                   </> : <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>no date</div>}
                 </div>
               </button>

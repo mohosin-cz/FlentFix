@@ -8,7 +8,7 @@
 // records who changed what, so a timeline would be invented, and an invented
 // timeline is worse than none — people believe it.
 import { useEffect, useState } from 'react'
-import { typeLabel, typeColor, fmtDate, CYCLE_MONTHS } from '../../utils/propertyUtils'
+import { typeLabel, typeColor, fmtDate, CYCLE_MONTHS, dueInfo } from '../../utils/propertyUtils'
 import { money, monthlyOf, annualOf, completeness, missingOf, CORE_FIELDS, canonPlan, chainFor, daysSince } from '../../utils/utilitiesModel'
 import UtilityIcon from '../UtilityIcon'
 import { Pill, Meter } from './ui'
@@ -59,6 +59,7 @@ export default function UtilityRecordSheet({ row, allRows, phone, onClose, onOpe
   const chain = chainFor(row, allRows)
   const siblings = allRows.filter((r) => String(r.pid) === String(row.pid) && r.id !== row.id && r.utility_type !== row.utility_type)
   const canon = canonPlan(row.plan_type)
+  const due = dueInfo(row)
   const age = daysSince(row.start_date)
   const touched = daysSince(row.updated_at)
   const secret = (v) => (reveal ? v : '•'.repeat(Math.min(10, String(v || '').length || 4)))
@@ -135,6 +136,19 @@ export default function UtilityRecordSheet({ row, allRows, phone, onClose, onOpe
               {row.last_recharged_on
                 ? <span style={{ fontFamily: MONO }}>{fmtDate(row.last_recharged_on)}</span>
                 : <span style={{ color: 'var(--text-muted, #6b6d82)' }}>never logged — the countdown runs from the start date instead</span>}
+            </Field>
+            <Field label="Next recharge due">
+              {due
+                ? <>
+                    <span style={{ fontFamily: MONO }}>{fmtDate(due.date)}</span>
+                    <span style={{ color: due.color, marginLeft: 8 }}>
+                      {due.overdue
+                        ? (due.periodsLapsed > 1 ? `${due.periodsLapsed} periods overdue` : `overdue by ${-due.days} days`)
+                        : due.days === 0 ? 'today' : `in ${due.days} days`}
+                    </span>
+                    {due.note && <div style={{ ...hint, marginTop: 3 }}>{due.note}</div>}
+                  </>
+                : <span style={{ color: 'var(--text-muted, #6b6d82)' }}>nothing to schedule — no start date or no cycle</span>}
             </Field>
             <Field label="Invoice" missing={!row.invoice_link}>
               {row.invoice_link && <a href={row.invoice_link} target="_blank" rel="noreferrer" style={{ color: 'var(--accent, #c8963e)' }}>Open the invoice ↗</a>}
