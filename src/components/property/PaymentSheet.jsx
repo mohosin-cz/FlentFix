@@ -330,11 +330,15 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
       // Lines are rewritten wholesale rather than diffed. There are a handful
       // of them, they carry no history of their own, and a diff that gets one
       // edge case wrong loses a line without saying so.
-      if (editing) {
+      //
+      // Gated on itemsEnabled, not just on `editing`: where the lines table
+      // does not exist yet, this clean-up was firing on every edit of every
+      // payment and failing the save with "could not find the table".
+      if (editing && itemsEnabled) {
         const { error } = await supabase.from('property_payment_items').delete().eq('payment_id', paymentId)
         if (error) throw error
       }
-      if (itemised && items.length) {
+      if (itemsEnabled && itemised && items.length) {
         const rows = items.map((it, i) => ({
           payment_id: paymentId,
           position: i,

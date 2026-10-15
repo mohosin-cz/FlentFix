@@ -168,6 +168,7 @@ export default function PaymentsImport() {
       // what lets the slice line up with its source rows.
       let done = 0
       let lines = 0
+      let linesFailed = null
       for (let i = 0; i < payload.length; i += 200) {
         const slice = payload.slice(i, i + 200)
         const { data: made, error } = await supabase.from('property_payments').insert(slice).select('id')
@@ -188,13 +189,18 @@ export default function PaymentsImport() {
             amount: src.amount,
           })
         })
-        if (items.length) {
+        // Best effort, deliberately. The payments are already written by this
+        // point, so failing the whole import over the lines would report an
+        // error for an import that largely succeeded. If the lines table is
+        // not there, the quantities are the only thing lost and the result
+        // screen says so rather than letting it pass unmentioned.
+        if (items.length && !linesFailed) {
           const { error: iErr } = await supabase.from('property_payment_items').insert(items)
-          if (iErr) throw iErr
-          lines += items.length
+          if (iErr) linesFailed = iErr.message
+          else lines += items.length
         }
       }
-      setResult({ imported: done, payees: missing.length, skipped: bad.length, lines })
+      setResult({ imported: done, payees: missing.length, skipped: bad.length, lines, linesFailed })
     } catch (e) {
       setErr(e.message || String(e))
     }
@@ -224,6 +230,7 @@ export default function PaymentsImport() {
             <div style={{ fontSize: 12.5, color: 'var(--text-dim, #9394a8)', marginTop: 7, lineHeight: 1.65, fontFamily: MONO }}>
               {result.payees > 0 && <>{result.payees} new payee{result.payees === 1 ? '' : 's'} added to the directory.<br /></>}
               {result.lines > 0 && <>{result.lines} row{result.lines === 1 ? '' : 's'} carried a quantity, kept as {result.lines === 1 ? 'a line' : 'lines'}.<br /></>}
+              {result.linesFailed && <><span style={{ color: 'var(--accent, #c8963e)' }}>The quantities could not be stored — {result.linesFailed}. The payments themselves imported fine.</span><br /></>}
               {result.skipped > 0
                 ? <>{result.skipped} row{result.skipped === 1 ? '' : 's'} could not be read and {result.skipped === 1 ? 'was' : 'were'} not imported. They are listed below — fix them in your sheet and import just those.</>
                 : <>Every row in the file was imported.</>}
