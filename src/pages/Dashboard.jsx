@@ -519,6 +519,7 @@ export default function Dashboard() {
             <PixelLogo />
           </button>
           <DashNav />
+          <button onClick={() => navigate('/home2')} title="Try the new home" style={{ marginLeft: 6, padding: '4px 9px', borderRadius: 6, border: '1px solid rgba(200,150,62,0.35)', background: 'rgba(200,150,62,0.08)', color: 'var(--accent, #c8963e)', fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>new home →</button>
         </div>
         <ProfileDropdown name={name} email={email} onLogout={logout} />
       </header>

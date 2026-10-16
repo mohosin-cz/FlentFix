@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import FloatingNav from './components/FloatingNav'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import Home2 from './pages/Home2'
 import NewInspection from './pages/NewInspection'
 import InspectionSummary from './pages/InspectionSummary'
 import InspectionOutdoor from './pages/InspectionOutdoor'
@@ -84,6 +85,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/home2"
+            element={
+              <ProtectedRoute>
+                <Home2 />
               </ProtectedRoute>
             }
           />
