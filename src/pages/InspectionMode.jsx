@@ -5,7 +5,7 @@ import QuickNotes from '../components/QuickNotes'
 import { supabase } from '../lib/supabase'
 import { flattenOutdoorDraftToRows } from './InspectionOutdoor'
 import { flattenAppliancesDraftToRows } from './InspectionAppliances'
-import { advanceStage } from '../utils/propertyJourney'
+import { saveInspectionOrQueue, currentUserEmail, uuid } from '../offline/outbox'
 
 const MODES = [
   {
@@ -352,39 +352,43 @@ export default function InspectionMode() {
     navigate(mode.route, { state })
   }
 
+  // The save itself lives in src/offline/outbox.js (performInspectionSave) and
+  // runs the same statements in the same order this function used to run
+  // inline: inspection → line items → line_item_media → property upsert → bin
+  // delete → quick note → advanceStage. This function now only builds the
+  // payload. With no signal the whole thing — photos included — is queued and
+  // replayed later; the page still navigates as if it had saved.
   async function confirmEnd() {
     setIsEnding(true)
     try {
       const pid = state.pid
-      const { data: { user } } = await supabase.auth.getUser()
+      const userEmail = await currentUserEmail()
 
-      // Always create a fresh inspection record so re-used PIDs don't pollute old data
-      const { data: newInspection, error: insErr } = await supabase
-        .from('inspections')
-        .insert({
-          pid,
-          house_type: state.propertyType || state.inspectionType,
-          inspection_date: new Date().toISOString().split('T')[0],
-          status: 'completed',
-          config: state,
-          owner_email: user?.email ?? null,
-        })
-        .select()
-        .single()
-      if (insErr) throw insErr
-      const inspectionId = newInspection.id
+      // Always create a fresh inspection record so re-used PIDs don't pollute
+      // old data. The id is minted here so a queued save is idempotent on replay.
+      const inspectionId = uuid()
+      const inspection = {
+        id: inspectionId,
+        pid,
+        house_type: state.propertyType || state.inspectionType,
+        inspection_date: new Date().toISOString().split('T')[0],
+        status: 'completed',
+        config: state,
+        owner_email: userEmail,
+      }
 
       // Flush any unsaved drafts to inspection_line_items
       const outdoorDraft    = JSON.parse(localStorage.getItem(`flentfix_outdoor_draft_${pid}`)    || '{}')
       const indoorDraft     = JSON.parse(localStorage.getItem(`flentfix_indoor_draft_${pid}`)     || '{}')
       const appliancesDraft = JSON.parse(localStorage.getItem(`flentfix_appliances_draft_${pid}`) || '{}')
 
-      // Fetch labour rate names for basics items (Fix 1)
+      // Fetch labour rate names for basics items (Fix 1). Offline this read
+      // fails quietly and the rows fall back to their generic labels.
       const rateMap = {}
       const basicsData = (indoorDraft.data || {}).basics || {}
       const rateIds = []
       Object.values(basicsData).forEach(d => { if (d?.rateId) rateIds.push(d.rateId) })
-      if (rateIds.length > 0) {
+      if (rateIds.length > 0 && navigator.onLine !== false) {
         const { data: rates } = await supabase.from('labour_rates').select('id, work_type').in('id', [...new Set(rateIds)])
         if (rates) rates.forEach(r => { rateMap[r.id] = r.work_type })
       }
@@ -393,11 +397,7 @@ export default function InspectionMode() {
       const indoorRows     = flattenIndoorDraftToRows(indoorDraft, inspectionId, rateMap)
       const appliancesRows = flattenAppliancesDraftToRows(appliancesDraft, inspectionId)
 
-      console.log('[EndInspection] outdoorRows:', outdoorRows.length, outdoorRows)
-      console.log('[EndInspection] indoorRows:', indoorRows.length, indoorRows)
-      console.log('[EndInspection] appliancesRows:', appliancesRows.length, appliancesRows)
-
-      // ── Sanitize + insert with full error visibility ──
+      // ── Sanitize ──
       const VALID_COLUMNS = new Set([
         'inspection_id', 'section_name', 'area', 'item_name',
         'item_score', 'issue_description', 'trade', 'action',
@@ -408,71 +408,41 @@ export default function InspectionMode() {
       const sanitize = (item) => {
         const row = Object.fromEntries(Object.entries(item).filter(([k]) => VALID_COLUMNS.has(k)))
         if (row.item_score != null) row.item_score = Math.min(10, Math.max(1, Math.round(row.item_score)))
-        return row
+        return { id: uuid(), ...row }
       }
       const rawAllRows = [...outdoorRows, ...indoorRows, ...appliancesRows]
       const allRows = rawAllRows.map(sanitize)
-      console.log('[EndInspection] total rows to insert:', allRows.length, allRows[0])
-      if (allRows.length > 0) {
-        const { data: insertedRows, error: insertErr } = await supabase
-          .from('inspection_line_items')
-          .insert(allRows)
-          .select()
-        console.log('[EndInspection] insert result:', insertedRows, insertErr)
-        if (insertErr) throw new Error('Line item insert failed: ' + insertErr.message)
+      console.log('[EndInspection] rows:', allRows.length, 'outdoor', outdoorRows.length, 'indoor', indoorRows.length, 'appliances', appliancesRows.length)
 
-        // Save media from draft to line_item_media (Fix 2)
-        if (insertedRows?.length) {
-          const mediaInserts = []
-          for (let i = 0; i < insertedRows.length; i++) {
-            const media = rawAllRows[i]?._media || []
-            for (const url of media) {
-              if (typeof url !== 'string' || !url.startsWith('http')) continue
-              mediaInserts.push({ line_item_id: insertedRows[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image' })
-            }
-          }
-          if (mediaInserts.length > 0) {
-            await supabase.from('line_item_media').insert(mediaInserts)
-          }
+      // Media from the drafts, by line item (Fix 2). A URL taken while offline
+      // is a sentinel the outbox resolves to its parked file on replay.
+      const media = []
+      for (let i = 0; i < allRows.length; i++) {
+        for (const url of (rawAllRows[i]?._media || [])) {
+          if (typeof url !== 'string' || !url.startsWith('http')) continue
+          media.push({ id: uuid(), lineItemId: allRows[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image' })
         }
       }
 
-      // Clear flushed drafts
-      localStorage.removeItem(`flentfix_outdoor_draft_${pid}`)
-      localStorage.removeItem(`flentfix_indoor_draft_${pid}`)
-      localStorage.removeItem(`flentfix_appliances_draft_${pid}`)
-
-      await supabase
-        .from('properties')
-        .upsert(
-          { pid, name: pid, type: state.propertyType || 'independent_home', address: '', landlord: '', deleted_at: null },
-          { onConflict: 'pid' }
-        )
-
-      // That upsert un-deletes the property, so it must also leave the bin.
-      // A bin row for a property that is live again is not just untidy: the
-      // bin's "delete permanently" erases by PID, so the stale entry would
-      // offer to destroy the inspection that had just been completed.
-      await supabase.from('properties_bin').delete().eq('pid', pid)
-
-      // Sync quick note to Supabase on end.
-      //
-      // One upsert, not a read followed by an insert: the notes panel is saving
-      // the same row while this runs, and two writers that each check before
-      // they write both decide to insert — which is the duplicate key on
-      // quick_notes_pid_unique.
+      // Quick note is read now, not at replay: the panel may have changed it by then.
       const noteText = localStorage.getItem(`flent_quick_notes_${pid}`)
-      if (noteText && noteText.trim()) {
-        const { error: noteErr } = await supabase
-          .from('quick_notes')
-          .upsert({ pid, note: noteText, updated_at: new Date().toISOString() }, { onConflict: 'pid' })
-        // A note that failed to sync must not lose the inspection behind it —
-        // it is still in localStorage, and the app flushes it on next load.
-        if (noteErr) console.error('quick_notes sync failed:', noteErr.message)
-      }
+
+      await saveInspectionOrQueue({
+        inspectionId, pid, inspection,
+        lineItems: allRows,
+        media,
+        // The upsert un-deletes the property, so it must also leave the bin
+        // (clearBin): the bin's "delete permanently" erases by PID, and a stale
+        // entry would offer to destroy the inspection just completed.
+        propertyUpsert: { pid, name: pid, type: state.propertyType || 'independent_home', address: '', landlord: '', deleted_at: null },
+        clearBin: true,
+        quickNote: noteText && noteText.trim() ? noteText : null,
+        stage: 'inspection_done',
+        userEmail,
+        clearDrafts: [`flentfix_outdoor_draft_${pid}`, `flentfix_indoor_draft_${pid}`, `flentfix_appliances_draft_${pid}`],
+      })
 
       setShowEndModal(false)
-      await advanceStage(supabase, pid, 'inspection_done', user?.email)
       navigate(`/properties/${pid}`)
     } catch (err) {
       console.error('End inspection error:', err)

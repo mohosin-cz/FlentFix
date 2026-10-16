@@ -7,7 +7,7 @@ import {
   HealthSlider, AccordionCard, StickyFooter,
 } from '../components/ui'
 import QuickNotes from '../components/QuickNotes'
-import { uploadMedia } from '../utils/mediaUtils'
+import { uploadMediaOrStash, resolveOfflineMediaUrl, isOfflineMediaRef, saveInspectionOrQueue, currentUserEmail, uuid } from '../offline/outbox'
 import LiveCameraSheet from '../components/LiveCameraSheet'
 
 // ── Appliance definitions ─────────────────────────────────────────────────────
@@ -56,14 +56,21 @@ function deepMerge(base, override) {
 function Thumb({ file }) {
   const [url, setUrl] = useState(null)
   useEffect(() => {
-    if (typeof file === 'string') { setUrl(file); return }
+    if (typeof file === 'string' && !isOfflineMediaRef(file)) { setUrl(file); return }
+    if (typeof file === 'string') {
+      // Taken with no signal: the file is parked in IndexedDB until the inspection syncs.
+      let u = null, alive = true
+      resolveOfflineMediaUrl(file).then(ou => { if (!alive) { if (ou) URL.revokeObjectURL(ou); return } u = ou; setUrl(ou) })
+      return () => { alive = false; if (u) URL.revokeObjectURL(u) }
+    }
     const u = URL.createObjectURL(file); setUrl(u); return () => URL.revokeObjectURL(u)
   }, [file])
   if (!url) return null
-  const isVideo = typeof file === 'string' ? /\.(mp4|mov|webm)$/i.test(url) : file.type?.startsWith('video')
+  const remote = typeof file === 'string' && !isOfflineMediaRef(file)
+  const isVideo = typeof file === 'string' ? /\.(mp4|mov|webm)$/i.test(file) : file.type?.startsWith('video')
   if (isVideo) {
-    const poster = typeof file === 'string' ? url.replace(/(\.[^.]+)$/, '_thumb.webp') : undefined
-    return <video src={url} muted playsInline preload={typeof file === 'string' ? 'none' : 'metadata'} poster={poster} style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} />
+    const poster = remote ? url.replace(/(\.[^.]+)$/, '_thumb.webp') : undefined
+    return <video src={url} muted playsInline preload={remote ? 'none' : 'metadata'} poster={poster} style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} />
   }
   return <img src={url} alt="" style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} onError={e => { e.target.style.display = 'none' }} />
 }
@@ -93,7 +100,7 @@ function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photo
       const safe = (itemKey || 'item').replace(/[^a-zA-Z0-9]/g, '_')
       const baseName = `${pid}/${safe}_${Date.now()}_${Math.random().toString(36).slice(2)}`
       try {
-        const publicUrl = await uploadMedia(supabase, file, baseName)
+        const publicUrl = await uploadMediaOrStash(supabase, file, baseName, pid)
         if (publicUrl) newUrls.push(publicUrl)
       } catch (e) { console.error('[MediaUpload]', e.message) }
     }
@@ -461,14 +468,11 @@ export default function InspectionAppliances() {
   async function handleGenerateReport() {
     setIsSaving(true); setSaveError('')
     const today = new Date().toISOString().split('T')[0]
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: ins, error: insErr } = await supabase
-      .from('inspections')
-      .insert({ pid, inspection_date: today, house_type: state?.propertyType || 'apartment', status: 'draft', config: { scope: 'appliances', inspection_type: state?.inspectionType }, owner_email: user?.email ?? null })
-      .select('id').single()
-    if (insErr) { setSaveError(insErr.message); setIsSaving(false); return }
-
-    const inspectionId  = ins.id
+    const userEmail = await currentUserEmail()
+    // The id is minted here so that a save which has to wait for signal is
+    // idempotent on replay, and the report route can be linked before it lands.
+    const inspectionId  = uuid()
+    const inspection    = { id: inspectionId, pid, inspection_date: today, house_type: state?.propertyType || 'apartment', status: 'draft', config: { scope: 'appliances', inspection_type: state?.inspectionType }, owner_email: userEmail }
     const lineItemRows  = []
     const mediaArrays   = []
 
@@ -518,19 +522,24 @@ export default function InspectionAppliances() {
       })
     })
 
-    if (lineItemRows.length) {
-      const { data: inserted, error: liErr } = await supabase.from('inspection_line_items').insert(lineItemRows).select('id')
-      if (liErr) { setSaveError(liErr.message); setIsSaving(false); return }
-      const mediaInserts = []
-      for (let i = 0; i < inserted.length; i++) {
-        for (const url of (mediaArrays[i] || [])) {
-          mediaInserts.push({ line_item_id: inserted[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image' })
-        }
+    const lineItems = lineItemRows.map(r => ({ id: uuid(), ...r }))
+    const media = []
+    for (let i = 0; i < lineItems.length; i++) {
+      for (const url of (mediaArrays[i] || [])) {
+        media.push({ id: uuid(), lineItemId: lineItems[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image' })
       }
-      if (mediaInserts.length) await supabase.from('line_item_media').insert(mediaInserts)
     }
 
-    localStorage.removeItem(`flentfix_appliances_draft_${pid}`)
+    // Same statements, same order, as before — inspection, line items, media —
+    // but a dead connection queues the lot (photos included) instead of failing.
+    try {
+      await saveInspectionOrQueue({
+        inspectionId, pid, inspection, lineItems, media,
+        propertyUpsert: null, clearBin: false, quickNote: null, stage: null, userEmail,
+        clearDrafts: [`flentfix_appliances_draft_${pid}`],
+      })
+    } catch (err) { setSaveError(err.message); setIsSaving(false); return }
+
     navigate('/inspections/appliance-report', { state: { ...state, inspectionId } })
   }
 

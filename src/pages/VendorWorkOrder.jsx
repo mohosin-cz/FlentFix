@@ -3,6 +3,9 @@ import { useParams } from 'react-router-dom'
 import { LineageToggle } from '../components/LineageStrip'
 import { useHashScroll } from '../hooks/useHashScroll'
 import { supabase } from '../lib/supabase'
+import { workOrderOpOrQueue, KIND } from '../offline/outbox'
+import { useOutboxEvents, useQueuedForToken } from '../offline/useOutbox'
+import OutboxBadge from '../offline/OutboxBadge'
 
 // Public page. The token in the URL is the only credential, and this URL gets
 // forwarded — so nothing here may show a price, a rate, a total, or anything
@@ -48,7 +51,21 @@ function Banner({ tone = 'red', children, onRetry }) {
 }
 
 // ── one item ─────────────────────────────────────────────────────────────────
-function ItemCard({ item, index, busy, error, onDone, onUndo, closed, token }) {
+// A tap that could not reach the server yet. The card keeps its optimistic
+// state; this says so, instead of pretending the server already knows.
+function QueuedMark({ op }) {
+  if (!op) return null
+  const conflict = op.status === 'conflict'
+  const failed = op.status === 'failed'
+  const c = conflict || failed ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)'
+  return (
+    <span style={{ fontSize: 10.5, fontWeight: 700, color: c, border: `1px solid ${c}`, borderRadius: 6, padding: '2px 7px', fontFamily: MONO, whiteSpace: 'nowrap' }}>
+      {conflict ? 'needs a look' : failed ? 'not saved' : 'will sync'}
+    </span>
+  )
+}
+
+function ItemCard({ item, index, busy, error, onDone, onUndo, closed, token, queuedOp }) {
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState('')
   const [photoOpen, setPhotoOpen] = useState(false)
@@ -119,6 +136,7 @@ function ItemCard({ item, index, busy, error, onDone, onUndo, closed, token }) {
       {done ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ Done</span>
+          <QueuedMark op={queuedOp} />
           {/* Tapped the wrong row? Undo it yourself — until Flent has looked at it. */}
           {!closed && item.status === 'vendor_closed' && (
             <button type="button" onClick={onUndo} disabled={busy}
@@ -140,6 +158,8 @@ function ItemCard({ item, index, busy, error, onDone, onUndo, closed, token }) {
           {/* Sized for a thumb (44px) but not a slab — a checklist of thirty
               rows should read as the work, not as thirty green buttons. */}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+            {/* An undo that is still waiting for signal shows here, on the open row. */}
+            {queuedOp && <span style={{ marginRight: 'auto' }}><QueuedMark op={queuedOp} /></span>}
             {/* Adding a note is the rare case; it was a button the same size
                 and weight as the one action on the row. Still a 44px target,
                 just no longer competing to be read first. */}
@@ -255,13 +275,32 @@ export default function VendorWorkOrder({ token: tokenProp, embedded, onBack }) 
     return [...m.entries()]
   }, [shown])
 
+  // What is still waiting for signal on this work order, by item.
+  const { byItem: queuedByItem, submit: queuedSubmit } = useQueuedForToken(token)
+
+  // When a queued tap lands — or is parked as a conflict, or thrown away —
+  // the optimistic state is reconciled against the server, which is the only
+  // thing that knows what the Flent team did in the meantime.
+  useOutboxEvents((ev) => {
+    if (ev.op?.payload?.token !== token) return
+    if (ev.type === 'synced' || ev.type === 'discarded' || ev.type === 'conflict') refresh()
+  })
+
+  // The three mutations go through workOrderOpOrQueue: the same RPC, same
+  // arguments, but a dead connection parks the tap in the outbox instead of
+  // failing it. The optimistic state stays; the card says "will sync"; a
+  // genuine server refusal still reverts, exactly as before.
   async function markDone(item, note) {
     setBusyId(item.id)
     setItemErr(p => ({ ...p, [item.id]: '' }))
     const before = wo
     // optimistic — the button is the whole interaction, it should feel instant
     setWo(w => ({ ...w, items: w.items.map(i => (i.id === item.id ? { ...i, status: 'vendor_closed', vendor_note: note || i.vendor_note } : i)) }))
-    const { data, error } = await supabase.rpc('wo_close_item', { p_token: token, p_item_id: item.id, p_note: note })
+    const { data, error } = await workOrderOpOrQueue(KIND.WO_CLOSE_ITEM, {
+      token, itemId: item.id, note,
+      expected: { status: item.status },
+      local: { status: 'vendor_closed', note: note || null, at: new Date().toISOString() },
+    })
     setBusyId(null)
     if (error) {
       setWo(before)                                    // put it back
@@ -276,7 +315,11 @@ export default function VendorWorkOrder({ token: tokenProp, embedded, onBack }) 
     setItemErr(p => ({ ...p, [item.id]: '' }))
     const before = wo
     setWo(w => ({ ...w, items: w.items.map(i => (i.id === item.id ? { ...i, status: 'pending' } : i)) }))
-    const { data, error } = await supabase.rpc('wo_reopen_item', { p_token: token, p_item_id: item.id })
+    const { data, error } = await workOrderOpOrQueue(KIND.WO_REOPEN_ITEM, {
+      token, itemId: item.id,
+      expected: { status: item.status },
+      local: { status: 'pending', note: null, at: new Date().toISOString() },
+    })
     setBusyId(null)
     if (error) {
       setWo(before)
@@ -288,9 +331,14 @@ export default function VendorWorkOrder({ token: tokenProp, embedded, onBack }) 
 
   async function submit() {
     setSubmitting(true); setSubmitErr('')
-    const { data, error } = await supabase.rpc('wo_submit', { p_token: token })
+    const { data, error, queued } = await workOrderOpOrQueue(KIND.WO_SUBMIT, {
+      token,
+      expected: { status: wo?.status, openCount },
+      local: { status: 'vendor_completed', note: null, at: new Date().toISOString() },
+    })
     setSubmitting(false)
     if (error) { setSubmitErr(error.message); return }
+    if (queued) { setWo(w => ({ ...w, status: 'vendor_completed' })); return }
     if (data) setWo(data)
   }
 
@@ -390,8 +438,9 @@ export default function VendorWorkOrder({ token: tokenProp, embedded, onBack }) 
       <main style={wrap}>
         {submitted && (
           <div style={{ margin: '14px 0', padding: '15px 14px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.34)', borderRadius: 11 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--green, #3dba7a)' }}>
-              {closed ? 'Verified — thank you' : 'Waiting for Flent to verify'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 15, fontWeight: 700, color: 'var(--green, #3dba7a)' }}>
+              {closed ? 'Verified — thank you' : queuedSubmit ? 'Submitted — sends when back online' : 'Waiting for Flent to verify'}
+              <QueuedMark op={queuedSubmit} />
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--text-dim, #9394a8)', marginTop: 5, lineHeight: 1.55 }}>
               {closed
@@ -441,6 +490,7 @@ export default function VendorWorkOrder({ token: tokenProp, embedded, onBack }) 
                     error={itemErr[it.id]}
                     closed={closed}
                     token={token}
+                    queuedOp={queuedByItem[it.id]}
                     onDone={(note) => markDone(it, note)}
                     onUndo={() => undoDone(it)}
                   />
@@ -450,6 +500,12 @@ export default function VendorWorkOrder({ token: tokenProp, embedded, onBack }) 
           ))
         )}
       </main>
+
+      {/* Inside the portal there is no app-level outbox badge (that document
+          has its own entry), so this page carries one, lifted above the submit
+          bar and the portal's tab bar. On /wo/:token the staff app's global
+          badge already covers it. */}
+      {embedded && <OutboxBadge bottom="calc(140px + env(safe-area-inset-bottom))" />}
 
       {/* The submit bar is fixed to the viewport, so inside the portal it has
           to clear the portal's own tab bar rather than sit on top of it. */}

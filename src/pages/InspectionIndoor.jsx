@@ -7,7 +7,7 @@ import {
   HealthSlider, AccordionCard, StickyFooter, BtnPrimary,
 } from '../components/ui'
 import QuickNotes from '../components/QuickNotes'
-import { uploadMedia } from '../utils/mediaUtils'
+import { uploadMediaOrStash, resolveOfflineMediaUrl, isOfflineMediaRef, saveInspectionOrQueue, currentUserEmail, uuid } from '../offline/outbox'
 import LiveCameraSheet from '../components/LiveCameraSheet'
 import { HIGH_VALUE_VIDEO_THRESHOLD, validateProofVideo } from '../utils/proofVideo'
 import { classifyItemKind } from '../utils/itemKind'
@@ -337,14 +337,21 @@ const SHEET_BTN = { display: 'flex', alignItems: 'center', justifyContent: 'cent
 function Thumb({ file }) {
   const [url, setUrl] = useState(null)
   useEffect(() => {
-    if (typeof file === 'string') { setUrl(file); return }
+    if (typeof file === 'string' && !isOfflineMediaRef(file)) { setUrl(file); return }
+    if (typeof file === 'string') {
+      // Taken with no signal: the file is parked in IndexedDB until the inspection syncs.
+      let u = null, alive = true
+      resolveOfflineMediaUrl(file).then(ou => { if (!alive) { if (ou) URL.revokeObjectURL(ou); return } u = ou; setUrl(ou) })
+      return () => { alive = false; if (u) URL.revokeObjectURL(u) }
+    }
     const u = URL.createObjectURL(file); setUrl(u); return () => URL.revokeObjectURL(u)
   }, [file])
   if (!url) return null
-  const isVideo = typeof file === 'string' ? /\.(mp4|mov|webm)$/i.test(url) : file.type?.startsWith('video')
+  const remote = typeof file === 'string' && !isOfflineMediaRef(file)
+  const isVideo = typeof file === 'string' ? /\.(mp4|mov|webm)$/i.test(file) : file.type?.startsWith('video')
   if (isVideo) {
-    const poster = typeof file === 'string' ? url.replace(/(\.[^.]+)$/, '_thumb.webp') : undefined
-    return <video src={url} muted playsInline preload={typeof file === 'string' ? 'none' : 'metadata'} poster={poster} style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} />
+    const poster = remote ? url.replace(/(\.[^.]+)$/, '_thumb.webp') : undefined
+    return <video src={url} muted playsInline preload={remote ? 'none' : 'metadata'} poster={poster} style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} />
   }
   return <img src={url} alt="" style={{ width: 72, height: 56, objectFit: 'cover', borderRadius: 8 }} onError={e => { e.target.style.display = 'none' }} />
 }
@@ -371,7 +378,7 @@ function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photo
       const safe = (itemKey || 'item').replace(/[^a-zA-Z0-9]/g, '_')
       const baseName = `${pid}/${safe}_${Date.now()}_${Math.random().toString(36).slice(2)}`
       try {
-        const publicUrl = await uploadMedia(supabase, file, baseName)
+        const publicUrl = await uploadMediaOrStash(supabase, file, baseName, pid)
         if (publicUrl) newUrls.push(publicUrl)
       } catch (e) { console.error('[MediaUpload]', e.message) }
     }
@@ -454,7 +461,7 @@ function ProofVideoCapture({ itemTotal, proofMedia, onChange, pid, itemKey }) {
       await validateProofVideo(file)
       const safe = (itemKey || 'item').replace(/[^a-zA-Z0-9]/g, '_')
       const baseName = `${pid}/${safe}_proof_${Date.now()}_${Math.random().toString(36).slice(2)}`
-      const url = await uploadMedia(supabase, file, baseName)
+      const url = await uploadMediaOrStash(supabase, file, baseName, pid)
       if (url) onChange([url])
     } catch (err) { setError(err.message) }
     setUploading(false)
@@ -2046,14 +2053,11 @@ export default function InspectionIndoor() {
     }
 
     const today = new Date().toISOString().split('T')[0]
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: ins, error: insErr } = await supabase
-      .from('inspections')
-      .insert({ pid, inspection_date: today, house_type: houseType, status: 'draft', config: { layout: state?.layout, inspection_type: state?.inspectionType, property_type: houseType, scope: 'indoor', bhk }, owner_email: user?.email ?? null })
-      .select('id').single()
-    if (insErr) { setEstimateError(insErr.message); setIsEstimating(false); return }
-
-    const inspectionId = ins.id
+    const userEmail = await currentUserEmail()
+    // The id is minted here so that a save which has to wait for signal is
+    // idempotent on replay, and the estimate route can be linked before it lands.
+    const inspectionId = uuid()
+    const inspection = { id: inspectionId, pid, inspection_date: today, house_type: houseType, status: 'draft', config: { layout: state?.layout, inspection_type: state?.inspectionType, property_type: houseType, scope: 'indoor', bhk }, owner_email: userEmail }
     const lineItemRows   = []
     const mediaArrays    = []
     const proofMediaArrays = []
@@ -2153,24 +2157,28 @@ export default function InspectionIndoor() {
       })
     })
 
-    if (lineItemRows.length) {
-      const VALID_COLS = new Set(['inspection_id','section_name','area','item_name','item_score','issue_description','trade','action','material_cost','labour_cost','notes','excluded_from_estimate','availability_status','fixture_status','qty','material_item_id','material_fxin','material_description','cost_type'])
-      const sanitized = lineItemRows.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => VALID_COLS.has(k))))
-      const { data: inserted, error: liErr } = await supabase.from('inspection_line_items').insert(sanitized).select('id')
-      if (liErr) { setEstimateError(liErr.message); setIsEstimating(false); return }
-      const mediaInserts = []
-      for (let i = 0; i < inserted.length; i++) {
-        for (const url of (mediaArrays[i] || [])) {
-          mediaInserts.push({ line_item_id: inserted[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image', is_proof_video: false })
-        }
-        for (const url of (proofMediaArrays[i] || [])) {
-          mediaInserts.push({ line_item_id: inserted[i].id, url, type: 'video', is_proof_video: true })
-        }
+    const VALID_COLS = new Set(['inspection_id','section_name','area','item_name','item_score','issue_description','trade','action','material_cost','labour_cost','notes','excluded_from_estimate','availability_status','fixture_status','qty','material_item_id','material_fxin','material_description','cost_type'])
+    const sanitized = lineItemRows.map(r => ({ id: uuid(), ...Object.fromEntries(Object.entries(r).filter(([k]) => VALID_COLS.has(k))) }))
+    const media = []
+    for (let i = 0; i < sanitized.length; i++) {
+      for (const url of (mediaArrays[i] || [])) {
+        media.push({ id: uuid(), lineItemId: sanitized[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image', is_proof_video: false })
       }
-      if (mediaInserts.length) await supabase.from('line_item_media').insert(mediaInserts)
+      for (const url of (proofMediaArrays[i] || [])) {
+        media.push({ id: uuid(), lineItemId: sanitized[i].id, url, type: 'video', is_proof_video: true })
+      }
     }
 
-    localStorage.removeItem(`flentfix_indoor_draft_${pid}`)
+    // Same statements, same order, as before — inspection, line items, media —
+    // but a dead connection queues the lot (photos included) instead of failing.
+    try {
+      await saveInspectionOrQueue({
+        inspectionId, pid, inspection, lineItems: sanitized, media,
+        propertyUpsert: null, clearBin: false, quickNote: null, stage: null, userEmail,
+        clearDrafts: [`flentfix_indoor_draft_${pid}`],
+      })
+    } catch (err) { setEstimateError(err.message); setIsEstimating(false); return }
+
     navigate(`/estimate/${inspectionId}`)
   }
 
