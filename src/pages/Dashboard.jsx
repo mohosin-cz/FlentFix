@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
+import { CommandTrigger } from '../components/command/CommandTrigger'
+import { NotificationBell } from '../components/alerts/NotificationBell'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import LogoSpinner from '../components/LogoSpinner'
@@ -521,7 +523,11 @@ export default function Dashboard() {
           <DashNav />
           <button onClick={() => navigate('/home2')} title="Try the new home" style={{ marginLeft: 6, padding: '4px 9px', borderRadius: 6, border: '1px solid rgba(200,150,62,0.35)', background: 'rgba(200,150,62,0.08)', color: 'var(--accent, #c8963e)', fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>new home →</button>
         </div>
-        <ProfileDropdown name={name} email={email} onLogout={logout} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <CommandTrigger />
+          <NotificationBell />
+          <ProfileDropdown name={name} email={email} onLogout={logout} />
+        </div>
       </header>
 
       {/* ── Body ── */}

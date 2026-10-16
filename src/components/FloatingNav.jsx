@@ -1,16 +1,22 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { openCommand } from './command/commandStore'
 
 const NAV_ITEMS = [
   { icon: '⌂', label: 'Home',       path: '/' },
   { icon: '◎', label: 'Inspect',    path: '/inspections/new' },
   { icon: '▤', label: 'Properties', path: '/properties' },
+  // The one way in, from anywhere: on a phone the palette is a full-screen
+  // sheet, and this is the thumb-reachable door to it.
+  { icon: '⌕', label: 'Search',     action: () => openCommand() },
   { icon: '⬡', label: 'Inventory',  path: '/inventory' },
 ]
 
 // Reachable on phones only through the More sheet — the Home header nav that
 // carries these is desktop-only.
 const MORE_ITEMS = [
+  { icon: '◉', label: 'Alerts',            path: '/alerts' },
+  { icon: '☼', label: 'Your day',          path: '/digest' },
   { icon: '⚙', label: 'SOPs',              path: '/sops' },
   { icon: '⚡', label: 'Utilities',         path: '/utilities' },
   { icon: '₹', label: 'Rate card',         path: '/inventory/public-rc' },
@@ -117,8 +123,8 @@ export default function FloatingNav() {
       >
         {NAV_ITEMS.map(item => (
           <button
-            key={item.path}
-            onClick={() => navigate(item.path)}
+            key={item.label}
+            onClick={() => (item.action ? item.action() : navigate(item.path))}
             style={{
               display: 'flex',
               flexDirection: 'column',

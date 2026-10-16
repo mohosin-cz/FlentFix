@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { CommandTrigger } from '../components/command/CommandTrigger'
+import { NotificationBell } from '../components/alerts/NotificationBell'
 
 // Home, organised around what to do next rather than what exists.
 //
@@ -200,7 +202,11 @@ export default function Home2() {
           pulse
         </button>
         <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>home · beta</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 2 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {!phone && <CommandTrigger />}
+          <NotificationBell />
+        </div>
+        <div style={{ display: 'flex', gap: 2, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 2 }}>
           {[['me', 'Mine'], ['all', 'Team']].map(([k, l]) => {
             const on = team ? k === 'all' : k === 'me'
             return (

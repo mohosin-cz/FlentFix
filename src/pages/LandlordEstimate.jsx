@@ -3,7 +3,6 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import LogoSpinner from '../components/LogoSpinner'
 import FlentWordmark from '../components/FlentWordmark'
-import { LineageToggle } from '../components/LineageStrip'
 import { useHashScroll } from '../hooks/useHashScroll'
 
 const HERO_TITLE    = 'Your home, cared for'
@@ -1197,11 +1196,6 @@ export default function LandlordEstimate() {
                             )}
                           </div>
                         )}
-
-                        {/* The landlord's slice of the thread: finding, this line,
-                            their decision, the work and its check. Never what
-                            Flent paid whom. */}
-                        <LineageToggle kind="estimate_item" id={item.estimate_item_id ?? item.id} token={token} light label="Where this stands" style={{ marginTop: 10 }} />
 
                         {/* ask panel — three-step: options → note → dispute */}
                         {isOpen && (() => {

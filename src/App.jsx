@@ -8,6 +8,22 @@ import FloatingNav from './components/FloatingNav'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Home2 from './pages/Home2'
+import AlertWindow from './pages/AlertWindow'
+import Digest from './pages/Digest'
+import CommandSurface from './components/command/CommandPalette'
+import { useAuth } from './contexts/AuthContext'
+import { useLocation } from 'react-router-dom'
+
+// Staff-only chrome that lives outside the routes: the ⌘K palette. Mounted
+// once, inert until a session exists, and absent on the token pages a vendor
+// or landlord reads — even when a staff member happens to be signed in.
+const ANON_PREFIXES = ['/login', '/signup', '/reset-password', '/e/', '/wo/', '/db/', '/vi/', '/attend', '/onboard', '/asset-request', '/rate-card', '/inventory/public-rc']
+function StaffGlobals() {
+  const { session } = useAuth()
+  const { pathname } = useLocation()
+  if (!session || ANON_PREFIXES.some(p => pathname.startsWith(p))) return null
+  return <CommandSurface />
+}
 import NewInspection from './pages/NewInspection'
 import InspectionSummary from './pages/InspectionSummary'
 import InspectionOutdoor from './pages/InspectionOutdoor'
@@ -96,6 +112,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/alerts" element={<ProtectedRoute><AlertWindow /></ProtectedRoute>} />
+          <Route path="/digest" element={<ProtectedRoute><Digest /></ProtectedRoute>} />
           <Route
             path="/inspections/new"
             element={
@@ -256,6 +274,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <FloatingNav />
+        <StaffGlobals />
       </AuthProvider>
     </BrowserRouter>
   )
