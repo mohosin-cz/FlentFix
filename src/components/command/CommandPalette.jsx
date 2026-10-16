@@ -76,7 +76,6 @@ const PROPERTY_ACTIONS = [
 const GLOBAL_ACTIONS = [
   { id: 'new_inspection',     label: 'New inspection',     route: '/inspections/new',     chord: 'N I' },
   { id: 'home',               label: 'Home',               route: '/',                    chord: 'G H' },
-  { id: 'home2',              label: 'New home',           route: '/home2',               chord: 'G N' },
   { id: 'properties',         label: 'Properties',         route: '/properties',          chord: 'G P' },
   { id: 'vendors',            label: 'Vendors',            route: '/vendors',             chord: 'G V' },
   { id: 'payments_analytics', label: 'Payments analytics', route: '/properties/payments', chord: 'G A' },
@@ -86,7 +85,6 @@ const GLOBAL_ACTIONS = [
 // chord → a route string, or { intent } when it needs a property it hasn't got
 const CHORDS = {
   'g h': () => '/',
-  'g n': () => '/home2',
   'g p': () => '/properties',
   'g v': () => '/vendors',
   'g a': () => '/properties/payments',

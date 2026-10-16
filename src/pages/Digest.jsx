@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
+import AppHeader from '../components/AppHeader'
+import { ScopeToggle } from '../components/home/JourneyPanels'
 
 // Your day, as a briefing rather than a queue. The same state Home shows,
 // shaped by your_day_digest() into one sentence and five short lists, with a
@@ -114,9 +116,9 @@ function Line({ pid, name, text, meta, tone, onGo, last }) {
   )
 }
 
-function Para({ lead, children, tone }) {
+function Para({ lead, children, tone, span }) {
   return (
-    <section style={{ marginTop: 24 }}>
+    <section className={span ? 'dg-span' : undefined} style={{ marginTop: 24, minWidth: 0 }}>
       <p style={{ margin: '0 0 10px', fontSize: 15, lineHeight: 1.5, color: tone || 'var(--text, #e8e8f0)' }}>{lead}</p>
       {children}
     </section>
@@ -125,7 +127,7 @@ function Para({ lead, children, tone }) {
 
 function Skeleton() {
   return (
-    <div aria-busy="true" style={{ marginTop: 18 }}>
+    <div className="dg-span" aria-busy="true" style={{ marginTop: 18 }}>
       {[0, 1, 2].map(i => <div key={i} style={{ height: 14, width: `${80 - i * 18}%`, borderRadius: 3, background: 'var(--border, #2e3040)', opacity: 0.6, marginBottom: 12 }} />)}
       <div style={{ ...panel, marginTop: 18, height: 140, opacity: 0.6 }} />
     </div>
@@ -177,30 +179,22 @@ export default function Digest() {
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: SANS }}>
-      <header style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', alignItems: 'center', gap: 10, minHeight: 56, padding: '0 16px', paddingTop: 'env(safe-area-inset-top, 0px)',
-                       background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
-        <button type="button" onClick={() => navigate('/home2')} title="Home"
-          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 14, fontWeight: 700, color: 'var(--accent, #c8963e)', letterSpacing: '0.04em' }}>
-          pulse
-        </button>
-        <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>your day</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 2 }}>
-          {[['me', 'Mine'], ['all', 'Team']].map(([k, l]) => {
-            const on = team ? k === 'all' : k === 'me'
-            return (
-              <button key={k} type="button" onClick={() => setTeam(k === 'all')} aria-pressed={on}
-                style={{ minHeight: 34, padding: '0 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontFamily: MONO, fontSize: 11.5, fontWeight: 700,
-                         background: on ? 'var(--accent, #c8963e)' : 'transparent', color: on ? 'var(--on-accent, #16171f)' : 'var(--text-dim, #9394a8)',
-                         WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
-                {l}
-              </button>
-            )
-          })}
+      <AppHeader below={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 24px', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
+          <style>{`
+            .dg-grid { display: grid; grid-template-columns: 1fr; gap: 0 24px; align-items: start; }
+            .dg-span { grid-column: 1 / -1; }
+            @media (min-width: 1000px) { .dg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+            @media (min-width: 1500px) { .dg-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+          `}</style>
+          <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--accent, #c8963e)', fontFamily: MONO }}>Your day</span>
+          <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>the same state as Home, as a briefing</span>
+          <div style={{ marginLeft: 'auto' }}><ScopeToggle team={team} setTeam={setTeam} /></div>
         </div>
-      </header>
+      } />
 
-      <main style={{ maxWidth: 720, margin: '0 auto', padding: phone ? '18px 16px calc(32px + env(safe-area-inset-bottom, 0px))' : '26px 24px 48px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+      <main className="dg-grid" style={{ width: '100%', boxSizing: 'border-box', padding: phone ? '18px 16px calc(32px + env(safe-area-inset-bottom, 0px))' : '18px 24px 48px' }}>
+        <div className="dg-span" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{date}</div>
             <div style={{ fontSize: phone ? 20 : 24, fontWeight: 600, lineHeight: 1.3, letterSpacing: '-0.01em', marginTop: 4 }}>
@@ -216,7 +210,7 @@ export default function Digest() {
         </div>
 
         {error && (
-          <div style={{ marginTop: 18, padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(224,92,106,0.32)', background: 'rgba(224,92,106,0.10)', fontFamily: MONO, fontSize: 12, color: 'var(--red, #e05c6a)', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="dg-span" style={{ marginTop: 18, padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(224,92,106,0.32)', background: 'rgba(224,92,106,0.10)', fontFamily: MONO, fontSize: 12, color: 'var(--red, #e05c6a)', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ flex: 1, minWidth: 200 }}>Couldn't build the digest — {error}</span>
             <button type="button" onClick={reload} style={{ minHeight: 34, padding: '0 12px', borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--accent, #c8963e)', fontFamily: MONO, fontSize: 11.5, cursor: 'pointer' }}>Retry</button>
           </div>
@@ -227,14 +221,14 @@ export default function Digest() {
         {data && (
           <>
             {/* the sentence */}
-            <p style={{ fontSize: phone ? 17 : 19, lineHeight: 1.5, margin: '18px 0 0', fontWeight: 500 }}>
+            <p className="dg-span" style={{ fontSize: phone ? 17 : 19, lineHeight: 1.5, margin: '18px 0 0', fontWeight: 500, maxWidth: '68ch' }}>
               {c?.total === 0
                 ? (team ? 'There are no live properties.' : 'Nothing is assigned to you today.')
                 : sentence(c, team)}
             </p>
 
             {showText && (
-              <textarea ref={taRef} readOnly value={text} rows={10}
+              <textarea className="dg-span" ref={taRef} readOnly value={text} rows={10}
                 style={{ marginTop: 14, width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 9, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontFamily: MONO, fontSize: 12, lineHeight: 1.5, resize: 'vertical' }} />
             )}
 
@@ -260,7 +254,7 @@ export default function Digest() {
                       meta={`${r.label} · ${ago(null, r.age_days)}`} tone={r.urgency === 'overdue' ? 'var(--red, #e05c6a)' : undefined}
                       onGo={() => go(r.route)} last={i === Math.min(needs.length, CAP) - 1 && needs.length <= CAP} />
                   ))}
-                  {more(needs, '/home2', 'home')}
+                  {more(needs, '/', 'home')}
                 </div>
               )}
             </Para>
@@ -288,7 +282,7 @@ export default function Digest() {
                               meta={`${ago(null, r.age_days)}${r.urgency === 'overdue' ? ' · too long' : ''}`} tone={r.urgency === 'overdue' ? 'var(--red, #e05c6a)' : undefined}
                               onGo={() => go(r.route)} last={i === Math.min(items.length, CAP) - 1 && items.length <= CAP} />
                           ))}
-                      {more(items, '/home2', 'home')}
+                      {more(items, '/', 'home')}
                     </div>
                   ))}
                 </div>
@@ -305,7 +299,7 @@ export default function Digest() {
                       meta={`${r.blocked_on === 'setup_ops' ? 'with you' : 'with ' + r.blocked_on} · ${ago(r.since, r.age_days)}`}
                       onGo={() => go(r.route)} last={i === Math.min(moved.length, CAP) - 1 && moved.length <= CAP} />
                   ))}
-                  {more(moved, '/home2', 'home')}
+                  {more(moved, '/', 'home')}
                 </div>
               )}
             </Para>
@@ -316,7 +310,7 @@ export default function Digest() {
           Built live from the journey engine ·{' '}
           <button type="button" onClick={() => navigate('/alerts')} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, fontSize: 10.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}>alert window</button>
           {' · '}
-          <button type="button" onClick={() => navigate('/home2')} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, fontSize: 10.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}>home</button>
+          <button type="button" onClick={() => navigate('/')} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, fontSize: 10.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}>home</button>
         </div>
       </main>
     </div>

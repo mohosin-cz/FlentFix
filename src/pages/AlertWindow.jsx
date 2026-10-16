@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useIsMobile'
+import AppHeader from '../components/AppHeader'
+import { ScopeToggle } from '../components/home/JourneyPanels'
 
 // The alert window. Deliberately uncomfortable: only things going WRONG, never
 // things merely happening, and never mixed with the normal queue. This is what
@@ -97,29 +99,20 @@ export default function AlertWindow() {
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: SANS }}>
-      <header style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', alignItems: 'center', gap: 10, minHeight: 56, padding: '0 16px', paddingTop: 'env(safe-area-inset-top, 0px)',
-                       background: 'var(--bg-panel, #1e2028)', borderBottom: `2px solid ${nothing ? 'var(--green, #3dba7a)' : RED}` }}>
-        <button type="button" onClick={() => navigate('/home2')} title="Home"
-          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 14, fontWeight: 700, color: 'var(--accent, #c8963e)', letterSpacing: '0.04em' }}>
-          pulse
-        </button>
-        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: nothing ? 'var(--green, #3dba7a)' : RED, fontFamily: MONO }}>alert window</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 2 }}>
-          {[['me', 'Mine'], ['all', 'Team']].map(([k, l]) => {
-            const on = team ? k === 'all' : k === 'me'
-            return (
-              <button key={k} type="button" onClick={() => setTeam(k === 'all')} aria-pressed={on}
-                style={{ minHeight: 34, padding: '0 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontFamily: MONO, fontSize: 11.5, fontWeight: 700,
-                         background: on ? 'var(--accent, #c8963e)' : 'transparent', color: on ? 'var(--on-accent, #16171f)' : 'var(--text-dim, #9394a8)',
-                         WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
-                {l}
-              </button>
-            )
-          })}
+      <AppHeader accent={nothing ? 'var(--green, #3dba7a)' : RED} below={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 24px', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
+          <style>{`
+            .aw-grid { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
+            @media (min-width: 1100px) { .aw-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+            @media (min-width: 1700px) { .aw-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+          `}</style>
+          <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: nothing ? 'var(--green, #3dba7a)' : RED, fontFamily: MONO }}>Alert window</span>
+          <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>what is going wrong, not what is merely happening</span>
+          <div style={{ marginLeft: 'auto' }}><ScopeToggle team={team} setTeam={setTeam} /></div>
         </div>
-      </header>
+      } />
 
-      <main style={{ maxWidth: 820, margin: '0 auto', padding: phone ? '16px 16px calc(32px + env(safe-area-inset-bottom, 0px))' : '22px 24px 48px' }}>
+      <main style={{ width: '100%', boxSizing: 'border-box', padding: phone ? '16px 16px calc(32px + env(safe-area-inset-bottom, 0px))' : '18px 24px 48px' }}>
 
         {/* the number, big and red, before anything else */}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
@@ -173,6 +166,7 @@ export default function AlertWindow() {
           </div>
         )}
 
+        <div className="aw-grid">
         {groups && CATEGORIES.map(c => {
           const list = groups.by.get(c.key)
           if (list.length === 0) return null
@@ -189,6 +183,8 @@ export default function AlertWindow() {
             </section>
           )
         })}
+
+        </div>
 
         {/* silence is a defect: a category the client does not know still shows */}
         {groups && groups.stray.length > 0 && (

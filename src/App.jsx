@@ -7,7 +7,6 @@ import ProtectedRoute from './components/ProtectedRoute'
 import FloatingNav from './components/FloatingNav'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import Home2 from './pages/Home2'
 import AlertWindow from './pages/AlertWindow'
 import Digest from './pages/Digest'
 import CommandSurface from './components/command/CommandPalette'
@@ -101,14 +100,6 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/home2"
-            element={
-              <ProtectedRoute>
-                <Home2 />
               </ProtectedRoute>
             }
           />
