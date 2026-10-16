@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { CommandTrigger } from '../components/command/CommandTrigger'
 import { NotificationBell } from '../components/alerts/NotificationBell'
+import { DraftMessageButton } from '../components/comms/DraftMessage'
 
 // Home, organised around what to do next rather than what exists.
 //
@@ -104,24 +105,28 @@ function Section({ label, count, hint, children }) {
 
 const panel = { background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, overflow: 'hidden' }
 
-function Row({ pid, name, title, meta, tone, onGo, last, badge }) {
-  // Whole row is the target — 56px tall, one thumb.
+function Row({ pid, name, title, meta, tone, onGo, last, badge, aside }) {
+  // The text is the target — 56px tall, one thumb. `aside` sits beside it as
+  // its own control (a nested button inside a button is not a thing).
   return (
-    <button type="button" onClick={onGo} disabled={!onGo}
-      style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', minHeight: 56, padding: '10px 14px', textAlign: 'left',
-               background: 'none', border: 'none', borderBottom: last ? 'none' : '1px solid var(--border, #2e3040)', cursor: onGo ? 'pointer' : 'default',
-               color: 'var(--text, #e8e8f0)', fontFamily: SANS, WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', minWidth: 0 }}>
-          <span style={{ fontSize: 12, fontFamily: MONO, color: 'var(--accent, #c8963e)', flexShrink: 0 }}>{pid}</span>
-          <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: last ? 'none' : '1px solid var(--border, #2e3040)', paddingRight: aside ? 10 : 0 }}>
+      <button type="button" onClick={onGo} disabled={!onGo}
+        style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, minHeight: 56, padding: '10px 14px', textAlign: 'left',
+                 background: 'none', border: 'none', cursor: onGo ? 'pointer' : 'default',
+                 color: 'var(--text, #e8e8f0)', fontFamily: SANS, WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', minWidth: 0 }}>
+            <span style={{ fontSize: 12, fontFamily: MONO, color: 'var(--accent, #c8963e)', flexShrink: 0 }}>{pid}</span>
+            <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+          </div>
+          <div style={{ fontSize: 14, marginTop: 2, lineHeight: 1.35, wordBreak: 'break-word' }}>{title}</div>
+          {meta && <div style={{ fontSize: 11, fontFamily: MONO, color: tone || 'var(--text-muted, #6b6d82)', marginTop: 3 }}>{meta}</div>}
         </div>
-        <div style={{ fontSize: 14, marginTop: 2, lineHeight: 1.35, wordBreak: 'break-word' }}>{title}</div>
-        {meta && <div style={{ fontSize: 11, fontFamily: MONO, color: tone || 'var(--text-muted, #6b6d82)', marginTop: 3 }}>{meta}</div>}
-      </div>
-      {badge}
-      {onGo && <span aria-hidden="true" style={{ color: 'var(--text-muted, #6b6d82)', fontSize: 18, flexShrink: 0 }}>›</span>}
-    </button>
+        {badge}
+        {onGo && <span aria-hidden="true" style={{ color: 'var(--text-muted, #6b6d82)', fontSize: 18, flexShrink: 0 }}>›</span>}
+      </button>
+      {aside}
+    </div>
   )
 }
 
@@ -260,7 +265,8 @@ export default function Home2() {
                     <Row key={r.pid} pid={r.pid} name={r.property_name} title={r.next_action_label}
                       meta={`${r.stage_label} · ${od ? `overdue by ${od}` : ago(r.since, r.age_days)}`}
                       tone={r.urgency === 'overdue' ? 'var(--red, #e05c6a)' : undefined}
-                      onGo={() => go(r.next_action_route)} last={i === groups.needs.length - 1} />
+                      onGo={() => go(r.next_action_route)} last={i === groups.needs.length - 1}
+                      aside={<DraftMessageButton pid={r.pid} code={r.stage_code} compact />} />
                   )
                 })}
               </div>
@@ -302,7 +308,8 @@ export default function Home2() {
                             <Row key={t.pid + t.code} pid={t.pid} name={t.name} title={t.label}
                               meta={od ? `overdue by ${od} · ${t.next_action_label}` : ago(t.since, t.age_days)}
                               tone={od ? 'var(--red, #e05c6a)' : undefined}
-                              onGo={() => go(t.next_action_route)} last={i === items.length - 1} />
+                              onGo={() => go(t.next_action_route)} last={i === items.length - 1}
+                              aside={<DraftMessageButton pid={t.pid} code={t.code} compact />} />
                           )
                         })}
                   </div>
