@@ -6,6 +6,7 @@ import { uiType, dbType, rrTxt, barCol, fmt, itemTot, getScore, getNotes, getAva
 import { HIGH_VALUE_VIDEO_THRESHOLD } from '../../utils/proofVideo'
 import DisputeThread from '../DisputeThread'
 import QueryThread from '../QueryThread'
+import { LineageStrip } from '../LineageStrip'
 import { TypeSeg, ScoreChip, DrawerGallery, DrawerMatPicker, ProofVideoInput } from './parts'
 
 // ─── ItemDrawer (dossier) ─────────────────────────────────────────────────────
@@ -248,6 +249,12 @@ export default function ItemDrawer({
             <div className="hist">{hist}</div>
           </div>
         )}
+
+        {/* The thread: where this line came from and what it became. */}
+        <div className="sec">
+          <span className="ey">Thread</span>
+          <LineageStrip kind="estimate_item" id={item.id} />
+        </div>
 
         {/* Dispute thread */}
         {item.status === 'disputed' && (

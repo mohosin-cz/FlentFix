@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { belongsInEstimate } from '../../utils/generateEstimate'
+import { LineageToggle } from '../LineageStrip'
+import { useHashScroll } from '../../hooks/useHashScroll'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
 const MONO = 'var(--font-mono, monospace)'
@@ -66,7 +68,7 @@ function ItemRow({ item, actionable, reversible, busy, err, onVerify, onDispute,
     : awaiting ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 0', borderTop: '1px solid var(--border, #2e3040)', background: selected ? 'rgba(200,150,62,0.06)' : 'none' }}>
+    <div id={`woi-${item.id}`} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 0', borderTop: '1px solid var(--border, #2e3040)', background: selected ? 'rgba(200,150,62,0.06)' : 'none', scrollMarginTop: 96, borderRadius: 6 }}>
       <div style={{ display: 'flex', gap: 10 }}>
         {selectable && (
           <input type="checkbox" checked={!!selected} onChange={onToggle} disabled={!movable}
@@ -154,6 +156,11 @@ function ItemRow({ item, actionable, reversible, busy, err, onVerify, onDispute,
             onSubmit={(reason) => onDispute(reason, () => setDisputing(false))} />
         </div>
       )}
+
+      {/* Where this item came from and what it became. Loads on tap only. */}
+      <div style={{ paddingLeft: selectable ? 120 : 94 }}>
+        <LineageToggle kind="work_order_item" id={item.id} />
+      </div>
     </div>
   )
 }
@@ -411,8 +418,11 @@ function TradeCard({ group, wos, vendors, busyId, errs, onCreate, onAddVendor, o
   const awaitingVerify = wos.reduce((n, w) => n + w.items.filter(i => i.status === 'vendor_closed').length, 0)
   const isQueue = wos.some(w => w.status === 'vendor_completed') || awaitingVerify > 0
   const locked = wos.length > 0 && wos.every(w => w.status === 'verified')
-  const [open, setOpen] = useState(isQueue)
-  const [filter, setFilter] = useState(isQueue ? 'verify' : 'all')
+  // A lineage deep link (#woi-<id>) must land on an open card, or the scroll
+  // finds nothing and the link looks broken.
+  const linkedIn = wos.some(w => w.items.some(i => window.location.hash === `#woi-${i.id}`))
+  const [open, setOpen] = useState(isQueue || linkedIn)
+  const [filter, setFilter] = useState(isQueue && !linkedIn ? 'verify' : 'all')
   const [sel, setSel] = useState(() => new Set())
   const [moveTo, setMoveTo] = useState('')
 
@@ -637,6 +647,7 @@ function TradeCard({ group, wos, vendors, busyId, errs, onCreate, onAddVendor, o
 // ─────────────────────────────────────────────────────────────────────────────
 export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
   const [loading, setLoading] = useState(true)
+  useHashScroll(!loading, { prefix: 'woi-' })
   const [error, setError] = useState('')
   const [loaded, setLoaded] = useState(false)      // a successful read happened
   const [lineItems, setLineItems] = useState([])

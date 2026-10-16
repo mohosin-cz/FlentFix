@@ -3,6 +3,8 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import LogoSpinner from '../components/LogoSpinner'
 import FlentWordmark from '../components/FlentWordmark'
+import { LineageToggle } from '../components/LineageStrip'
+import { useHashScroll } from '../hooks/useHashScroll'
 
 const HERO_TITLE    = 'Your home, cared for'
 const HERO_SUBTITLE = 'before anyone moves in.'
@@ -573,6 +575,7 @@ export default function LandlordEstimate() {
 
   const [estimate, setEstimate]         = useState(null)
   const [items, setItems]               = useState([])
+  useHashScroll(items.length > 0, { prefix: 'item-' })
   const [disputes, setDisputes]         = useState([])
   const [inspection, setInspection]     = useState(null)
   const [notFound, setNotFound]         = useState(false)
@@ -1015,7 +1018,7 @@ export default function LandlordEstimate() {
                 const allUrls = item._photos || []
 
                 return (
-                  <div key={item.id} className="le-plate">
+                  <div key={item.id} id={`item-${item.estimate_item_id ?? item.id}`} className="le-plate" style={{ scrollMarginTop: 80 }}>
                     <span className="le-plate-index">{plateIdx}</span>
 
                     <div className="le-plate-body">
@@ -1194,6 +1197,11 @@ export default function LandlordEstimate() {
                             )}
                           </div>
                         )}
+
+                        {/* The landlord's slice of the thread: finding, this line,
+                            their decision, the work and its check. Never what
+                            Flent paid whom. */}
+                        <LineageToggle kind="estimate_item" id={item.estimate_item_id ?? item.id} token={token} light label="Where this stands" style={{ marginTop: 10 }} />
 
                         {/* ask panel — three-step: options → note → dispute */}
                         {isOpen && (() => {

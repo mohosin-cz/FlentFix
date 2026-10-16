@@ -9,6 +9,7 @@ import { pidStatus, pidStatusMessage, purgeBinnedPid } from '../utils/pidStatus'
 import { realName } from '../utils/propertyName'
 import LogoSpinner from '../components/LogoSpinner'
 import StageRail from '../components/property/StageRail'
+import MoneyTrail from '../components/property/MoneyTrail'
 import ShareSheet from '../components/vendor/ShareSheet'
 
 function fmtDate(str) {
@@ -824,6 +825,8 @@ export default function PropertyDetail() {
                 </>
               )
             })()}
+
+            <MoneyTrail pid={pid} />
           </>
         )}
       </main>

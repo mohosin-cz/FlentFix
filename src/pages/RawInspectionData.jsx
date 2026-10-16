@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { Chart, registerables } from 'chart.js'
 import LogoSpinner from '../components/LogoSpinner'
+import { LineageToggle } from '../components/LineageStrip'
+import { useHashScroll } from '../hooks/useHashScroll'
 Chart.register(...registerables)
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -239,6 +241,7 @@ export default function RawInspectionData() {
   const [inspection,  setInspection]  = useState(null)
   const [lineItems,   setLineItems]   = useState([])
   const [loading,     setLoading]     = useState(true)
+  useHashScroll(!loading, { prefix: 'li-' })
   const [error,       setError]       = useState('')
   const [mobileTab,   setMobileTab]   = useState('items')
   const [filter,      setFilter]      = useState('all')   // all | issues | functional | notavailable
@@ -394,7 +397,7 @@ export default function RawInspectionData() {
             const borderLeft  = na ? '#444' : func ? '#1d6a40' : '#a05050'
 
             return (
-              <div key={item.id} style={{ background: '#1a1a1e', border: `1px solid ${borderColor}`, borderLeft: `3px solid ${borderLeft}`, borderRadius: 6, padding: '12px 14px', marginBottom: 8 }}>
+              <div key={item.id} id={`li-${item.id}`} style={{ background: '#1a1a1e', border: `1px solid ${borderColor}`, borderLeft: `3px solid ${borderLeft}`, borderRadius: 6, padding: '12px 14px', marginBottom: 8, scrollMarginTop: 96 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                   <div style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
                     <span style={{ fontSize: 12, fontWeight: 600, color: '#e8e8f0' }}>{item.item_name}</span>
@@ -448,6 +451,9 @@ export default function RawInspectionData() {
                     ))}
                   </div>
                 )}
+
+                {/* What became of this finding — loaded only when asked, there are ~46 per inspection. */}
+                <LineageToggle kind="inspection_line_item" id={item.id} style={{ marginTop: 10 }} />
               </div>
             )
           })}

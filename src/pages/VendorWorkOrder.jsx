@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
+import { LineageToggle } from '../components/LineageStrip'
+import { useHashScroll } from '../hooks/useHashScroll'
 import { supabase } from '../lib/supabase'
 
 // Public page. The token in the URL is the only credential, and this URL gets
@@ -46,7 +48,7 @@ function Banner({ tone = 'red', children, onRetry }) {
 }
 
 // ── one item ─────────────────────────────────────────────────────────────────
-function ItemCard({ item, index, busy, error, onDone, onUndo, closed }) {
+function ItemCard({ item, index, busy, error, onDone, onUndo, closed, token }) {
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState('')
   const [photoOpen, setPhotoOpen] = useState(false)
@@ -159,6 +161,10 @@ function ItemCard({ item, index, busy, error, onDone, onUndo, closed }) {
           </div>
         </>
       )}
+
+      {/* The vendor's slice of the thread: the finding, their item, QC, their
+          own punch-ins. Costs and landlord correspondence never come down. */}
+      <LineageToggle kind="work_order_item" id={item.id} token={token} label="History" />
     </li>
   )
 }
@@ -180,6 +186,8 @@ const VIEWS = [
 export default function VendorWorkOrder({ token: tokenProp, embedded, onBack }) {
   const params = useParams()
   const token = tokenProp || params.token
+  // Lineage links within the page fire hashchange; a cold deep link scrolls once the list exists.
+  useHashScroll(true, { prefix: 'wo-item-' })
   const [state, setState] = useState('loading')   // loading | ok | invalid | error
   const [wo, setWo] = useState(null)
   const [loadErr, setLoadErr] = useState('')
@@ -432,6 +440,7 @@ export default function VendorWorkOrder({ token: tokenProp, embedded, onBack }) 
                     busy={busyId === it.id}
                     error={itemErr[it.id]}
                     closed={closed}
+                    token={token}
                     onDone={(note) => markDone(it, note)}
                     onUndo={() => undoDone(it)}
                   />

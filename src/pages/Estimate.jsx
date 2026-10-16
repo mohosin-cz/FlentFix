@@ -14,6 +14,7 @@ import { logActivity } from '../utils/activityUtils'
 import DisputeThread from '../components/DisputeThread'
 import QueryThread from '../components/QueryThread'
 import LogoSpinner from '../components/LogoSpinner'
+import { useHashScroll } from '../hooks/useHashScroll'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -77,6 +78,8 @@ function EstimateWorkbenchInner() {
   const [mediaMap, setMediaMap]         = useState({})
 
   const [pinnedId, setPinnedId]           = useState(null)
+  // A lineage link lands on #row-<id>: scroll there and open the drawer on it.
+  useHashScroll(!loading && items.length > 0, { prefix: 'row-', onHit: setPinnedId })
   const [rateDrawerOpen, setRateDrawerOpen] = useState(false)
   const [ctxMenu, setCtxMenu]             = useState(null)
   const [collapsed, setCollapsed]         = useState(new Set())

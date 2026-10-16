@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useIsMobile'
 import PaymentSheet from '../components/property/PaymentSheet'
+import { LineageToggle } from '../components/LineageStrip'
+import { useHashScroll } from '../hooks/useHashScroll'
 import { TRADES, KINDS, inr, fmtDayShort, fmtQty, billUrl, splitOf, itemSummary } from '../utils/payments'
 
 // Everything spent on a property during setup, and what it adds up to.
@@ -125,6 +127,7 @@ export default function PropertyPayments() {
   const phone = useIsMobile(720)
 
   const [loading, setLoading] = useState(true)
+  useHashScroll(!loading, { prefix: 'pay-' })
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
   const [rows, setRows] = useState([])
@@ -390,7 +393,7 @@ export default function PropertyPayments() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {shown.map(r => (
-                <div key={r.id} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 11, padding: '12px 14px' }}>
+                <div key={r.id} id={`pay-${r.id}`} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 11, padding: '12px 14px', scrollMarginTop: 96 }}>
                   {/* What it was, then how much. The description is what a
                       person scans for; the number only means something once
                       they have found the line. */}
@@ -422,6 +425,10 @@ export default function PropertyPayments() {
                   {r.note && <div style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', marginTop: 6, lineHeight: 1.5, wordBreak: 'break-word' }}>{r.note}</div>}
                   {r.reference && <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 4 }}>ref {r.reference}</div>}
                   <BillLinks bills={r.property_payment_bills} />
+
+                  {/* What this money was for — or, for every row on file today,
+                      the honest answer that nothing links it to a work order. */}
+                  <LineageToggle kind="payment" id={r.id} style={{ marginTop: 10 }} />
 
                   {/* On their own line, at button size, with delete in red.
                       These were 10.5px muted text tucked into the metadata row

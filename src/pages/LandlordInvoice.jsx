@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { LineageToggle } from '../components/LineageStrip'
+import { HashScroll } from '../hooks/useHashScroll'
 import { advanceStage } from '../utils/propertyJourney'
 import { belongsInEstimate } from '../utils/generateEstimate'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -710,6 +712,7 @@ export default function LandlordInvoice() {
           .invoice-action-bar { display: none !important; }
           .invoice-share-bar  { display: none !important; }
           .invoice-notice     { display: none !important; }
+          .inv-noprint        { display: none !important; }
           body { background: #fff !important; }
           .invoice-document { box-shadow: none !important; border: none !important; margin: 0 !important; max-width: 100% !important; }
           .inv-table-wrap { overflow-x: visible !important; }
@@ -842,6 +845,7 @@ export default function LandlordInvoice() {
 
         {/* ── LINE ITEMS TABLE ── */}
         <div style={{ padding: isMobile ? '0 18px 0' : '0 48px 0' }}>
+          <HashScroll ready={lineItems.length > 0} prefix="inv-" />
           <div className="inv-table-wrap">
           <table style={{ width: '100%', minWidth: isMobile && lineItems.length > 0 ? 440 : undefined, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
@@ -855,7 +859,8 @@ export default function LandlordInvoice() {
               {lineItems.map((item, idx) => {
                 const amount = (Number(item.qty) || 1) * (Number(item.unit_price) || 0)
                 return (
-                  <tr key={item.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <Fragment key={item.id}>
+                  <tr id={`inv-${item.id}`} style={{ borderBottom: '1px solid #f0f0f0', scrollMarginTop: 96 }}>
                     <td
                       title={editing && item.wo_item_id
                         ? (item.unclear
@@ -898,6 +903,13 @@ export default function LandlordInvoice() {
                       </td>
                     )}
                   </tr>
+                  {/* Provenance, on screen only: never on the landlord's printed copy. */}
+                  <tr className="inv-noprint">
+                    <td colSpan={editing ? 6 : 5} style={{ padding: `0 ${cellX}px 8px`, borderBottom: '1px solid #f0f0f0' }}>
+                      <LineageToggle kind="invoice_item" id={item.id} light label="Where this line came from" />
+                    </td>
+                  </tr>
+                  </Fragment>
                 )
               })}
               {lineItems.length === 0 && (
