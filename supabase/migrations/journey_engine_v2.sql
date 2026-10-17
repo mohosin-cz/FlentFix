@@ -14,9 +14,13 @@
 -- weeks out merely soon.
 --
 -- Older properties predate the milestones. Where later evidence exists, the
--- earlier milestone is treated as passed (not as marked): work orders or an
--- invoice imply the estimate went final; an invoice implies setup closed.
--- The threads say "not marked" so nobody mistakes it for a tick.
+-- earlier milestone is treated as passed (not as marked): work orders imply
+-- the estimate went final; work orders with every item verified, plus an
+-- invoice, imply setup closed. The threads say "not marked" so nobody
+-- mistakes it for a tick.
+--
+-- An invoice on its own proves nothing: opening a property's invoice page
+-- creates a draft, so a draft can exist before there is even an estimate.
 --
 -- Holy Grail enrichment never blocks, never sets urgency, never becomes the
 -- next action (§3) — it is a flag only.
@@ -291,12 +295,13 @@ begin
     d      := case when r.setup_date is not null then r.setup_date - current_date end;
 
     -- has the property passed "estimate final" / "setup closed", marked or by evidence?
-    fin_eff := r.estimate_final_at is not null or r.wo_n > 0 or r.inv_at is not null;
-    fin_since := coalesce(r.estimate_final_at, r.wo_first, r.inv_at);
+    fin_eff := r.estimate_final_at is not null or r.wo_n > 0;
+    fin_since := coalesce(r.estimate_final_at, r.wo_first);
     fin_note := case when r.estimate_final_at is null and fin_eff then 'estimate final not marked — inferred from later work' end;
-    closed_eff := r.setup_closed_at is not null or r.inv_at is not null;
-    closed_since := coalesce(r.setup_closed_at, r.inv_at);
-    closed_note := case when r.setup_closed_at is null and closed_eff then 'setup closed not marked — inferred from the invoice' end;
+    closed_eff := r.setup_closed_at is not null
+               or (r.inv_at is not null and r.wo_n > 0 and r.items_open = 0 and r.items_to_verify = 0);
+    closed_since := coalesce(r.setup_closed_at, r.last_item_done, r.inv_at);
+    closed_note := case when r.setup_closed_at is null and closed_eff then 'setup closed not marked — inferred: all work verified and an invoice exists' end;
 
     if r.archived_at is not null then
       th := th || public.journey_step('archived', 'Archived', 'none', r.archived_at, 'Nothing to do', r_prop, null, 'done');
