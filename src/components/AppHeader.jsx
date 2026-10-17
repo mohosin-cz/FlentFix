@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import PixelLogo from './PixelLogo'
 import DashNav from './DashNav'
 import ProfileDropdown from './ProfileDropdown'
 import { CommandTrigger } from './command/CommandTrigger'
@@ -39,7 +38,9 @@ export default function AppHeader({ below, accent }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }} aria-label="Home">
-            <PixelLogo />
+            {/* The wordmark is the nav's own type, a step up — it reads as part
+                of the bar rather than a badge sitting on it. */}
+            <span className="pulse-title" style={{ fontSize: 17, lineHeight: 1 }}>pulse</span>
           </button>
           <DashNav />
         </div>
