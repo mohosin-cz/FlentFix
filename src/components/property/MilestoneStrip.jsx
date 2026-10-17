@@ -129,6 +129,8 @@ export default function MilestoneStrip({ pid }) {
             <input value={note} onChange={e => setNote(e.target.value)} placeholder="Closure note (optional)" style={{ ...input, flex: '1 1 200px', minWidth: 0 }} />
             <button type="button" disabled={busy} onClick={() => act('mark', 'closed', { p_date: closeDate || null, p_note: note })} style={btn(true)}>Close property</button>
           </>
+        ) : due === 'setup_closed' && dt != null && dt > 0 ? (
+          <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>Setup is on {fmtDay(setup.date)} — close it once the work is done.</span>
         ) : due ? (
           <button type="button" disabled={busy} onClick={() => act('mark', due)} style={btn(true)}>{STEPS[due].action}</button>
         ) : (

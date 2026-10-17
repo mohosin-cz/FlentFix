@@ -3,17 +3,17 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
-import { advanceStage, STAGES, MAIN_SEQUENCE } from '../utils/propertyJourney'
 import { logActivity } from '../utils/activityUtils'
 import { pidStatus, pidStatusMessage, purgeBinnedPid } from '../utils/pidStatus'
 import { realName } from '../utils/propertyName'
 import LogoSpinner from '../components/LogoSpinner'
-import StageRail, { derivedRailKey } from '../components/property/StageRail'
 import MoneyTrail from '../components/property/MoneyTrail'
 import RecordStatus, { usePropertyJourneyRow } from '../components/property/RecordStatus'
 import RecordTimeline from '../components/property/RecordTimeline'
 import LandlordPanel from '../components/property/LandlordPanel'
 import MilestoneStrip from '../components/property/MilestoneStrip'
+import JourneyPhases from '../components/property/JourneyPhases'
+import { useSetupPanel, SetupPanel, AttendanceHistory } from '../components/property/SetupDay'
 import AppHeader from '../components/AppHeader'
 import ShareSheet from '../components/vendor/ShareSheet'
 
@@ -383,6 +383,8 @@ export default function PropertyDetail() {
   const [propName, setPropName]       = useState(null)
   const [currentStage, setCurrentStage] = useState('T-5')
   const engine = usePropertyJourneyRow(pid)
+  const setupPanel = useSetupPanel(pid)
+  const setupToday = setupPanel.data?.days_to_setup === 0
   const [journey, setJourney]           = useState([])
   const [userEmail, setUserEmail]       = useState(null)
   const [menuOpen, setMenuOpen]         = useState(false)
@@ -479,14 +481,6 @@ export default function PropertyDetail() {
   const address   = latest?.config?.address || ''
   const latestId  = latest?.id
 
-  async function handleManualAdvance(stageName) {
-    await advanceStage(supabase, pid, stageName, userEmail)
-    supabase.from('properties').select('stage, name').eq('pid', pid).maybeSingle()
-      .then(({ data }) => { setCurrentStage(data?.stage || stageName); setPropName(realName(data ? { ...data, pid } : null)) })
-    supabase.from('property_journey').select('*').eq('pid', pid).order('changed_at', { ascending: true })
-      .then(({ data }) => setJourney(data || []))
-  }
-
   async function handleTile(key) {
     if (key === 'estimate') {
       navigate(`/properties/${pid}/estimates`)
@@ -510,29 +504,6 @@ export default function PropertyDetail() {
       navigate(`/properties/${pid}/design-brief`)
     } else {
       setToast('Coming soon')
-    }
-  }
-
-  const isRejected   = currentStage === 'estimate_rejected'
-
-  // The one obvious next move for the stage you're on. Named plainly — a
-  // button that says what happens beats an emoji that hints at it.
-  function getStageActions() {
-    switch (currentStage) {
-      case 'estimate_shared':
-        return [
-          { label: 'Mark approved', action: () => handleManualAdvance('estimate_approved'), tone: 'var(--green, #3dba7a)', primary: true },
-          { label: 'Mark rejected', action: () => handleManualAdvance('estimate_rejected'), tone: 'var(--red, #e05c6a)' },
-        ]
-      case 'estimate_approved':
-        return [{ label: 'Plan utility work', action: () => handleManualAdvance('utility_planned'), primary: true }]
-      case 'utility_planned':
-        return [{ label: 'Confirm setup date', action: () => handleManualAdvance('setup_date'), primary: true }]
-      case 'setup_date':
-        return [{ label: 'Mark T-Day', action: () => handleManualAdvance('tday'), primary: true }]
-      case 'tday':
-        return [{ label: 'Mark handover done', action: () => handleManualAdvance('handover'), primary: true }]
-      default: return []
     }
   }
 
@@ -584,19 +555,8 @@ export default function PropertyDetail() {
         </div>
       </header>
 
-      {/* ── Journey ── */}
-      {!loading && (
-        <StageRail
-          stages={MAIN_SEQUENCE}
-          currentKey={derivedRailKey(MAIN_SEQUENCE, engine.row?.open_threads) || currentStage}
-          loggedKey={currentStage}
-          derivedLabel={engine.row?.stage_label}
-          journey={journey}
-          isRejected={isRejected}
-          onAdvance={handleManualAdvance}
-          actions={getStageActions()}
-        />
-      )}
+      {/* ── Journey: six phases, where it is now, and the one next thing ── */}
+      {!loading && <JourneyPhases pid={pid} row={engine.row} />}
 
       {/* The steps a person confirms: estimate final, setup date, setup closed, QC, handover, Slack, closed */}
       {!loading && <MilestoneStrip pid={pid} />}
@@ -616,6 +576,7 @@ export default function PropertyDetail() {
               @media (min-width: 900px)  { .rec-grid { grid-template-columns: minmax(0, 1fr) 400px; grid-template-areas: "l r" "c r"; } .rec-r { position: sticky; top: 72px; } }
               @media (min-width: 1280px) { .rec-grid { grid-template-columns: 330px minmax(0, 1fr) 420px; grid-template-areas: "l c r"; } .rec-l { position: sticky; top: 72px; } }
             `}</style>
+            {setupToday && <div style={{ marginBottom: 20 }}><SetupPanel pid={pid} panel={setupPanel} /></div>}
             <div className="rec-grid">
               <div className="rec-l">
                 <RecordStatus journey={engine} />
@@ -718,6 +679,7 @@ export default function PropertyDetail() {
               </div>
 
               <div className="rec-c">
+                {!setupToday && <SetupPanel pid={pid} panel={setupPanel} />}
                 <RecordTimeline pid={pid} />
               </div>
 
@@ -835,6 +797,9 @@ export default function PropertyDetail() {
                     </>
                   )
                 })()}
+
+                {/* who actually turned up — kept after setup day */}
+                <AttendanceHistory panel={setupPanel} />
 
               </div>
             </div>
