@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { DraftMessageButton } from '../comms/DraftMessage'
-import { useJourneyHome, ago } from './JourneyPanels'
+import { ago } from './JourneyPanels'
 
 // Home as a work queue, the way a CRM does it: the property is the unit of
 // work, VIEWS are saved filters with live counts, the list is a dense sortable
@@ -38,13 +38,14 @@ const VIEWS = [
       .map(r => ({ r, t: (r.open_threads || []).find(x => x.code === 'setup_day') || (r.open_threads || []).find(x => x.code === 'wo_awaiting_day') || headline(r) })) },
   { key: 'landlord',  label: 'Waiting on landlord', pick: (rows) => rows.flatMap(r => { const t = (r.open_threads || []).find(x => x.blocked_on === 'landlord' && x.urgency !== 'done'); return t ? [{ r, t }] : [] }) },
   { key: 'vendor',    label: 'Waiting on vendor',   pick: (rows) => rows.flatMap(r => { const t = (r.open_threads || []).find(x => x.blocked_on === 'vendor' && x.urgency !== 'done'); return t ? [{ r, t }] : [] }) },
+  { key: 'my_overdue', label: 'My overdue',        pick: (rows, ctx) => rows.filter(r => r.urgency === 'overdue' && isMine(r, ctx.assigned, ctx.me)).map(r => ({ r, t: headline(r) })) },
   { key: 'overdue',   label: 'Overdue',            pick: (rows) => rows.filter(r => r.urgency === 'overdue').map(r => ({ r, t: headline(r) })) },
   { key: 'unowned',   label: 'Unowned',            pick: (rows, ctx) => rows.filter(r => !r.owner_email && !ctx.assigned.get(r.pid)).map(r => ({ r, t: headline(r) })) },
   { key: 'all',       label: 'All',                pick: (rows) => rows.map(r => ({ r, t: headline(r) })) },
 ]
 const EMPTY = {
   needs_me: 'Nothing needs you.', needs_team: 'Nothing needs the team.', landlord: 'No landlord is holding anything up.',
-  vendor: 'No vendor is holding anything up.', supply: 'Nothing is with supply.', setups: 'No setups in the next 7 days.', overdue: 'Nothing is past its threshold.', unowned: 'Every property has an owner.', all: 'No live properties.',
+  vendor: 'No vendor is holding anything up.', supply: 'Nothing is with supply.', setups: 'No setups in the next 7 days.', overdue: 'Nothing is past its threshold.', my_overdue: 'None of your properties is past its threshold.', unowned: 'Every property has an owner.', all: 'No live properties.',
 }
 
 const URG = { overdue: 0, today: 1, soon: 2, waiting: 3, done: 4 }
@@ -74,13 +75,14 @@ function SlaDot({ urgency, title }) {
 
 const btn = (on) => ({ minHeight: 34, padding: '0 12px', borderRadius: 7, border: `1px solid ${on ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, background: on ? 'rgba(200,150,62,0.12)' : 'var(--bg-input, #252731)', color: on ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)', fontFamily: MONO, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' })
 
-export default function WorkQueue() {
+// home: the journey engine read, owned by Home so the desk above shares it.
+// pickView: { key, at } — the desk asks the queue to open a view.
+export default function WorkQueue({ home, pickView }) {
   const navigate = useNavigate()
   const phone = useIsMobile(640)
   const { session } = useAuth()
   const me = (session?.user?.email || '').toLowerCase()
 
-  const home = useJourneyHome('all')
   const { loading, error, rows, thresholds, reload } = home
 
   // assigned_to is not on the engine's rows (and is empty today); one cheap read.
@@ -104,6 +106,11 @@ export default function WorkQueue() {
   const [busy, setBusy] = useState(null)
   const [toast, setToast] = useState(null)
   useEffect(() => LS.set('pulse.queue.view', view), [view])
+  useEffect(() => {
+    if (!pickView?.key) return
+    setView(pickView.key); setSel(new Set())
+    document.getElementById('work-queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [pickView])
   useEffect(() => LS.set('pulse.queue.mode', mode), [mode])
   useEffect(() => LS.set('pulse.queue.sort2', sort), [sort])
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3500); return () => clearTimeout(t) }, [toast])
@@ -169,7 +176,7 @@ export default function WorkQueue() {
 
   // ── chrome ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ width: '100%', boxSizing: 'border-box', padding: phone ? '10px 12px calc(90px + env(safe-area-inset-bottom, 0px))' : '12px 24px 48px', fontFamily: SANS, color: 'var(--text, #e8e8f0)' }}>
+    <div id="work-queue" style={{ width: '100%', boxSizing: 'border-box', scrollMarginTop: 64, padding: phone ? '10px 12px calc(90px + env(safe-area-inset-bottom, 0px))' : '12px 24px 48px', fontFamily: SANS, color: 'var(--text, #e8e8f0)' }}>
 
       {/* VIEWS — saved filters with live counts */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

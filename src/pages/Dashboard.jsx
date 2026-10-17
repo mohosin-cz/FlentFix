@@ -1,19 +1,61 @@
+import { useState, useEffect, useCallback } from 'react'
 import AppHeader from '../components/AppHeader'
 import WorkQueue from '../components/home/WorkQueue'
+import MyDesk, { useDesk } from '../components/home/MyDesk'
+import { useJourneyHome, greetingWord } from '../components/home/JourneyPanels'
+import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 
-// Home is the work queue and nothing else.
+// Home: my desk on top, the work queue under it.
 //
-// The panels that used to live here — active properties, snapshot, quick
-// actions, the activity feed — were never used. A CRM's home is a list of the
-// unit of work under saved views with counts; for Pulse that unit is the
-// property and the views come from the journey engine. Quick actions live in
-// the ⌘K palette; the stats, where they are needed, live on their own pages.
+// The desk is tailored to whoever is signed in — their properties, what
+// changed since they last looked, what is waiting on them. An admin can view
+// anyone's desk. One journey-engine read feeds both halves, so the counts on
+// the desk and the rows in the queue always agree.
+const MONO = 'var(--font-mono, monospace)'
+const firstName = (email) => { const s = (email || '').split('@')[0]; return s ? s[0].toUpperCase() + s.slice(1) : '' }
+
 export default function Dashboard() {
+  const { session } = useAuth()
+  const me = (session?.user?.email || '').toLowerCase()
+  const home = useJourneyHome('all')
+  const [viewing, setViewing] = useState('')            // admin: someone else's desk
+  const desk = useDesk(home.seen?.prev_seen_at, viewing || null, !home.loading)
+  const [pick, setPick] = useState(null)
+  const [team, setTeam] = useState([])
+  const isAdmin = !!desk.data?.is_admin || !!viewing
+
+  useEffect(() => {
+    supabase.rpc('team_members').then(({ data }) => setTeam((data || []).filter(t => t.email.endsWith('@flent.in') && t.properties > 0)))
+  }, [])
+
+  const reloadAll = useCallback(() => { home.reload(); desk.reload() }, [home, desk])
+  const who = viewing || me
+
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-sans, Poppins, sans-serif)', color: 'var(--text, #e8e8f0)' }}>
       <AppHeader />
       <main style={{ flex: 1 }}>
-        <WorkQueue />
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px 14px', flexWrap: 'wrap', padding: '16px 20px 0' }}>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600 }}>
+            {viewing ? `${firstName(viewing)}’s desk` : `${greetingWord()}, ${firstName(me)}`}
+          </h1>
+          <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-muted, #6b6d82)' }}>
+            {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </span>
+          {isAdmin && team.length > 0 && (
+            <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, fontFamily: MONO, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>
+              View desk of
+              <select value={viewing} onChange={e => setViewing(e.target.value === me ? '' : e.target.value)}
+                style={{ minHeight: 34, padding: '0 8px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontFamily: MONO, fontSize: 12 }}>
+                <option value="">Me</option>
+                {team.filter(t => t.email !== me).map(t => <option key={t.email} value={t.email}>{firstName(t.email)} · {t.properties}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+        <MyDesk key={who} home={home} desk={desk} viewing={viewing} onPickView={(key) => setPick({ key, at: Date.now() })} onChanged={reloadAll} />
+        <WorkQueue home={home} pickView={pick} />
       </main>
     </div>
   )
