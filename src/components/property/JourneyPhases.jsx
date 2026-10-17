@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { DraftMessageButton } from '../comms/DraftMessage'
-import MilestoneStrip from './MilestoneStrip'
+import MilestoneStrip, { NoInvoiceFlag } from './MilestoneStrip'
 
 // Where this property is, and what happens next — without interpreting
 // anything. The 24 journey steps (pulse-journey-prompt.md §1) collapse into
@@ -66,6 +66,7 @@ export default function JourneyPhases({ pid, row, onChange }) {
           const markText = marked.map(m => m.key === 'setup_date' && m.date ? `setup ${day(m.date)}`
             : m.key === 'handover_done' && !m.done ? `handover ${day(m.date)} (planned)`
             : m.key === 'handover_done' && m.date ? `handed over ${day(m.date)} · ${who(m.by)}`
+            : m.key === 'closed' && ms?.no_invoice ? `closed without invoice · ${who(m.by)}, ${when(m.at)}`
             : `${MARK_LABEL[m.key]} · ${who(m.by)}, ${when(m.at)}`).join(' · ')
           const sub = now ? (row.stage_label || '') : done ? (markText || 'done') : ''
           const sub2 = now ? markText : ''
@@ -89,7 +90,10 @@ export default function JourneyPhases({ pid, row, onChange }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: MONO, color: 'var(--text-muted, #6b6d82)' }}>Next</span>
         {closed ? (
-          <span style={{ fontSize: 13.5, color: 'var(--green, #3dba7a)' }}>Nothing — the property is closed.</span>
+          <>
+            <span style={{ fontSize: 13.5, color: 'var(--green, #3dba7a)' }}>Nothing — the property is closed.</span>
+            {ms?.no_invoice && <NoInvoiceFlag ni={ms.no_invoice} />}
+          </>
         ) : (
           <>
             <span style={{ fontSize: 13.5, flex: '1 1 260px', minWidth: 0 }}>

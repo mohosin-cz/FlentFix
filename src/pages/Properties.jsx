@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { NO_INVOICE_REASONS } from '../components/property/MilestoneStrip'
 import { realName } from '../utils/propertyName'
 import { useAuth } from '../contexts/AuthContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
@@ -188,6 +189,10 @@ function PropTable({ rows, stageByPid, sort, setSort, onOpen, onArchive, onBin }
                 <td style={{ ...td, color: 'var(--text-dim, #9394a8)' }}>{r.type ? titleCase(r.type) : '—'}</td>
                 <td style={{ ...td, color: 'var(--text-dim, #9394a8)' }}>
                   {st ? <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: URG_DOT(st.urgency), marginRight: 7 }} />{st.stage_label}</> : <span style={{ color: 'var(--text-muted, #6b6d82)' }}>—</span>}
+                  {r.no_invoice_reason && (
+                    <span title={`Closed without a landlord invoice — ${NO_INVOICE_REASONS[r.no_invoice_reason] || r.no_invoice_reason}`}
+                      style={{ marginLeft: 8, padding: '1px 7px', borderRadius: 6, border: '1px solid rgba(200,150,62,0.45)', color: 'var(--accent, #c8963e)', fontFamily: MONO_T, fontSize: 10.5, whiteSpace: 'nowrap' }}>no invoice</span>
+                  )}
                 </td>
                 <td style={{ ...td, fontFamily: MONO_T, fontSize: 11.5, color: st?.urgency === 'overdue' ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}>{st ? `${ago(st.since, st.age_days)}${st.blocked_on && st.blocked_on !== 'setup_ops' ? ` · ${st.blocked_on}` : ''}` : '—'}</td>
                 <td style={{ ...td, fontFamily: MONO_T, fontSize: 11.5 }}>{fmtDate(r.inspection_date)}</td>
@@ -243,7 +248,7 @@ export default function Properties() {
     Promise.all([
       supabase
         .from('properties')
-        .select('pid, name, type, address, created_at')
+        .select('pid, name, type, address, created_at, no_invoice_reason')
         .is('deleted_at', null)
         .order('created_at', { ascending: false }),
       supabase
@@ -296,6 +301,7 @@ export default function Properties() {
           name: p.name, address: p.address,
           type: (pidMap.get(p.pid)?.type) || p.type,
           property_created_at: p.created_at,
+          no_invoice_reason: p.no_invoice_reason,
         })
       }
       // Coalesce inspector: inspection.owner_email → estimate created_by → null

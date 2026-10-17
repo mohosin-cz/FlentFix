@@ -20,6 +20,16 @@ const STEPS = {
   closed:         { label: 'Closed',         hint: 'Property closed',                                action: 'Close property' },
 }
 
+// Why a property may close with no landlord invoice. Mirrors the list in
+// property_close_without_invoice (close_needs_invoice.sql).
+export const NO_INVOICE_REASONS = {
+  landlord_paid_directly: 'Landlord paid the vendors directly',
+  no_billable_work:       'No billable work',
+  absorbed_by_flent:      'Cost absorbed by Flent',
+  invoiced_outside_pulse: 'Invoiced outside Pulse',
+  other:                  'Other',
+}
+
 const who = (email) => (email || '').split('@')[0] || 'someone'
 function when(at) {
   if (!at) return ''
@@ -65,10 +75,28 @@ function SetupCloseChecklist({ pid, checks, busy, btn, onPayments, onClose }) {
   )
 }
 
+// Shown wherever a closed property is read: it closed with no landlord
+// invoice, and this is why. Amber, not red — it was a decision, not a fault.
+export function NoInvoiceFlag({ ni }) {
+  const label = NO_INVOICE_REASONS[ni.reason] || ni.reason
+  return (
+    <span title={`${label}${ni.note ? ` — ${ni.note}` : ''} · ${who(ni.by)}, ${when(ni.at)}`}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px', borderRadius: 8, maxWidth: '100%',
+               border: '1px solid rgba(200,150,62,0.45)', background: 'rgba(200,150,62,0.10)', fontFamily: MONO, fontSize: 11.5, color: 'var(--accent, #c8963e)' }}>
+      <b style={{ whiteSpace: 'nowrap' }}>No invoice</b>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text, #e8e8f0)' }}>
+        {label}{ni.note ? ` — ${ni.note}` : ''}
+      </span>
+      <span style={{ whiteSpace: 'nowrap', color: 'var(--text-muted, #6b6d82)' }}>· {who(ni.by)}</span>
+    </span>
+  )
+}
+
 // controlsOnly: render just the row of controls (for the journey bar, which
 // shows who marked each milestone itself). onData hands every fresh milestone
 // state up; onChange fires after a mark, undo or tick lands.
 export default function MilestoneStrip({ pid, controlsOnly = false, onData, onChange }) {
+  const navigate = useNavigate()
   const phone = useIsMobile(720)
   const [state, setState] = useState({ loading: true, error: null, data: null })
   const [busy, setBusy] = useState(false)
@@ -79,6 +107,8 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
   const [moving, setMoving] = useState(false)
   const [hoDate, setHoDate] = useState('')
   const [hoMoving, setHoMoving] = useState(false)
+  const [noInv, setNoInv] = useState(false)        // "close without invoice" open
+  const [noInvReason, setNoInvReason] = useState('')
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc('property_milestones', { p_pid: pid })
@@ -119,6 +149,17 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
     if (error) { setErr(error.message); return }
     setState({ loading: false, error: null, data })
     setHoDate(''); setHoMoving(false)
+    onChange && onChange()
+  }
+
+  async function closeWithoutInvoice() {
+    setErr(null); setBusy(true)
+    const { data, error } = await supabase.rpc('property_close_without_invoice',
+      { p_pid: pid, p_reason: noInvReason, p_note: note || null, p_date: closeDate || null })
+    setBusy(false)
+    if (error) { setErr(error.message); return }
+    setState({ loading: false, error: null, data })
+    setNote(''); setNoInv(false); setNoInvReason('')
     onChange && onChange()
   }
 
@@ -184,11 +225,38 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
             <button type="button" disabled={!hoDate || busy} onClick={setHandoverDate} style={{ ...btn(true), opacity: hoDate ? 1 : 0.5 }}>{handover?.date ? 'Move' : 'Set handover date'}</button>
             {hoMoving && <button type="button" onClick={() => { setHoMoving(false); setHoDate('') }} style={btn(false)}>Cancel</button>}
           </>
-        ) : due === 'closed' ? (
+        ) : due === 'closed' && (state.data.invoice?.exists || !state.data.invoice) ? (
           <>
+            {state.data.invoice?.exists && (
+              <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--green, #3dba7a)' }}>✓ Invoice{state.data.invoice.number ? ` ${state.data.invoice.number}` : ''}</span>
+            )}
             <input type="date" value={closeDate} onChange={e => setCloseDate(e.target.value)} style={input} aria-label="Closure date" />
             <input value={note} onChange={e => setNote(e.target.value)} placeholder="Closure note (optional)" style={{ ...input, flex: '1 1 200px', minWidth: 0 }} />
             <button type="button" disabled={busy} onClick={() => act('mark', 'closed', { p_date: closeDate || null, p_note: note })} style={btn(true)}>Close property</button>
+          </>
+        ) : due === 'closed' && !noInv ? (
+          // No invoice with lines yet: create it, or say why none is needed.
+          <>
+            <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--amber, #c8963e)' }}>○ No landlord invoice yet</span>
+            {state.data.invoice?.inspection_id && (
+              <button type="button" onClick={() => navigate(`/invoice/${state.data.invoice.inspection_id}`)} style={btn(true)}>Create invoice ›</button>
+            )}
+            <button type="button" onClick={() => setNoInv(true)} style={btn(false)}>No invoice needed…</button>
+          </>
+        ) : due === 'closed' ? (
+          <>
+            <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>Why no invoice?</span>
+            <select value={noInvReason} onChange={e => setNoInvReason(e.target.value)} style={input} aria-label="Why no invoice">
+              <option value="">Pick a reason</option>
+              {Object.entries(NO_INVOICE_REASONS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </select>
+            <input value={note} onChange={e => setNote(e.target.value)} placeholder={noInvReason === 'other' ? 'Say why (required)' : 'Note (optional)'} style={{ ...input, flex: '1 1 200px', minWidth: 0 }} />
+            <input type="date" value={closeDate} onChange={e => setCloseDate(e.target.value)} style={input} aria-label="Closure date" />
+            {(() => {
+              const ok = noInvReason && (noInvReason !== 'other' || note.trim())
+              return <button type="button" disabled={!ok || busy} onClick={closeWithoutInvoice} style={{ ...btn(true), opacity: ok ? 1 : 0.5 }}>Close without invoice</button>
+            })()}
+            <button type="button" onClick={() => { setNoInv(false); setNoInvReason('') }} style={btn(false)}>Cancel</button>
           </>
         ) : due === 'setup_closed' && dt != null && dt > 0 ? (
           <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>Setup is on {fmtDay(setup.date)} — close it once the work is done.</span>
@@ -211,7 +279,10 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
         ) : due ? (
           <button type="button" disabled={busy} onClick={() => act('mark', due)} style={btn(true)}>{STEPS[due].action}</button>
         ) : (
-          <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--green, #3dba7a)' }}>Property closed.</span>
+          <>
+            <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--green, #3dba7a)' }}>Property closed.</span>
+            {state.data.no_invoice && <NoInvoiceFlag ni={state.data.no_invoice} />}
+          </>
         )}
 
         {setup?.done && !setupClosed && !moving && due !== 'setup_date' && (
