@@ -188,7 +188,7 @@ function PropTable({ rows, stageByPid, sort, setSort, onOpen, onArchive, onBin }
                 <td style={{ ...td, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis' }} title={realName(r) || ''}>{realName(r) || <span style={{ color: 'var(--text-muted, #6b6d82)' }}>—</span>}</td>
                 <td style={{ ...td, color: 'var(--text-dim, #9394a8)' }}>{r.type ? titleCase(r.type) : '—'}</td>
                 <td style={{ ...td, color: 'var(--text-dim, #9394a8)' }}>
-                  {st ? <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: URG_DOT(st.urgency), marginRight: 7 }} />{st.stage_label}</> : <span style={{ color: 'var(--text-muted, #6b6d82)' }}>—</span>}
+                  {st ? <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: URG_DOT(st.urgency), marginRight: 7 }} />{st.stage_label}</> : <span style={{ color: 'var(--text-muted, #6b6d82)' }}>{r.paused ? 'paused · clean slate' : '—'}</span>}
                   {r.no_invoice_reason && (
                     <span title={`Closed without a landlord invoice — ${NO_INVOICE_REASONS[r.no_invoice_reason] || r.no_invoice_reason}`}
                       style={{ marginLeft: 8, padding: '1px 7px', borderRadius: 6, border: '1px solid rgba(200,150,62,0.45)', color: 'var(--accent, #c8963e)', fontFamily: MONO_T, fontSize: 10.5, whiteSpace: 'nowrap' }}>no invoice</span>
@@ -248,7 +248,7 @@ export default function Properties() {
     Promise.all([
       supabase
         .from('properties')
-        .select('pid, name, type, address, created_at, no_invoice_reason')
+        .select('pid, name, type, address, created_at, no_invoice_reason, journey_paused_at')
         .is('deleted_at', null)
         .order('created_at', { ascending: false }),
       supabase
@@ -302,6 +302,7 @@ export default function Properties() {
           type: (pidMap.get(p.pid)?.type) || p.type,
           property_created_at: p.created_at,
           no_invoice_reason: p.no_invoice_reason,
+          paused: !!p.journey_paused_at,
         })
       }
       // Coalesce inspector: inspection.owner_email → estimate created_by → null

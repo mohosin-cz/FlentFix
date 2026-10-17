@@ -40,6 +40,7 @@ begin
        and p.pid !~* '^\s*no\s*pid\s*$'
        and p.pid !~* '^test'                       -- test properties stay out of team numbers
   ),
+  act as (select * from live where journey_paused_at is null),   -- not paused at the clean slate
   sent as (   -- when each estimate first went to the landlord (sent_at is missing on older rows)
     select es.id, es.pid, es.total, es.status, es.approved_at,
            coalesce(es.sent_at, (select min(x.created_at) from estimate_events x where x.estimate_id = es.id and x.event_type = 'sent'),
@@ -116,9 +117,9 @@ begin
 
     'people', coalesce((select jsonb_agg(jsonb_build_object(
         'email', e.who,
-        'verify', (select count(*) from work_order_items i join work_orders w on w.id = i.work_order_id join live l on l.pid = w.pid
+        'verify', (select count(*) from work_order_items i join work_orders w on w.id = i.work_order_id join act l on l.pid = w.pid
                     where l.who = e.who and i.status = 'vendor_closed'),
-        'verify_oldest', (select min(i.vendor_closed_at) from work_order_items i join work_orders w on w.id = i.work_order_id join live l on l.pid = w.pid
+        'verify_oldest', (select min(i.vendor_closed_at) from work_order_items i join work_orders w on w.id = i.work_order_id join act l on l.pid = w.pid
                     where l.who = e.who and i.status = 'vendor_closed'),
         'last_active', greatest(
             (select max(last_sign_in_at) from auth.users u where lower(u.email) = e.who),
@@ -134,15 +135,15 @@ begin
     'money', jsonb_build_object(
       'with_landlords', (select jsonb_build_object('value', coalesce(sum(s.total), 0), 'n', count(*))
                            from (select distinct on (s.pid) s.* from sent s order by s.pid, s.sent_at desc nulls last) s
-                           join live l on l.pid = s.pid
+                           join act l on l.pid = s.pid
                           where s.status in ('sent', 'viewed', 'partially_approved') and l.estimate_final_at is null and l.closed_at is null
                             and s.sent_at > now() - interval '60 days'),
       'not_invoiced', (select jsonb_build_object('value', coalesce(sum(a.v), 0), 'n', count(*))
-                         from live l join approved_val a on a.pid = l.pid
+                         from act l join approved_val a on a.pid = l.pid
                         where l.estimate_final_at is not null and l.closed_at is null and a.v > 0
                           and not exists (select 1 from has_inv h where h.pid = l.pid)),
       'closed_no_invoice', (select jsonb_build_object('value', coalesce(sum(a.v), 0), 'n', count(*))
-                              from live l left join approved_val a on a.pid = l.pid
+                              from act l left join approved_val a on a.pid = l.pid
                              where l.no_invoice_reason is not null and l.closed_at > now() - interval '30 days')),
 
     'exceptions', jsonb_build_array(
@@ -157,28 +158,28 @@ begin
                   and x.property_name !~* '^\s*\[test\]' and (x.visit_date >= today or x.created_at > now() - interval '2 days')
                   and not exists (select 1 from exploratory_assignments a where a.request_id = x.id)), '[]')),
       jsonb_build_object('key', 'closed_no_invoice', 'sev', 'red', 'title', 'Closed without a landlord invoice',
-        'n', (select count(*) from live where no_invoice_reason is not null and closed_at > now() - interval '30 days'),
+        'n', (select count(*) from act where no_invoice_reason is not null and closed_at > now() - interval '30 days'),
         'items', coalesce((select jsonb_agg(jsonb_build_object('pid', pid, 'name', nm, 'who', who,
                    'line', initcap(replace(no_invoice_reason, '_', ' ')) || coalesce(' — ' || no_invoice_note, '')) order by closed_at desc)
-                 from live where no_invoice_reason is not null and closed_at > now() - interval '30 days'), '[]')),
+                 from act where no_invoice_reason is not null and closed_at > now() - interval '30 days'), '[]')),
       jsonb_build_object('key', 'verify_waiting', 'sev', 'red', 'title', 'Vendor work waiting over 3 days for verification',
-        'n', (select count(distinct w.id) from work_order_items i join work_orders w on w.id = i.work_order_id join live l on l.pid = w.pid
+        'n', (select count(distinct w.id) from work_order_items i join work_orders w on w.id = i.work_order_id join act l on l.pid = w.pid
                where i.status = 'vendor_closed' and i.vendor_closed_at < now() - interval '3 days'),
         'items', coalesce((select jsonb_agg(x order by x->>'since') from (
                    select jsonb_build_object('pid', l.pid, 'name', l.nm, 'who', l.who,
                           'line', coalesce(max(w.vendor_name), 'Vendor') || ' · ' || count(*) || ' item' || case when count(*) = 1 then '' else 's' end,
                           'since', min(i.vendor_closed_at)) x
-                     from work_order_items i join work_orders w on w.id = i.work_order_id join live l on l.pid = w.pid
+                     from work_order_items i join work_orders w on w.id = i.work_order_id join act l on l.pid = w.pid
                     where i.status = 'vendor_closed' and i.vendor_closed_at < now() - interval '3 days'
                     group by w.id, l.pid, l.nm, l.who) z), '[]')),
       jsonb_build_object('key', 'never_opened', 'sev', 'amber', 'title', 'Estimates sent but never opened (3+ days)',
-        'n', (select count(*) from (select distinct on (s.pid) s.* from sent s order by s.pid, s.sent_at desc nulls last) s join live l on l.pid = s.pid
+        'n', (select count(*) from (select distinct on (s.pid) s.* from sent s order by s.pid, s.sent_at desc nulls last) s join act l on l.pid = s.pid
                where s.status = 'sent' and s.sent_at < now() - interval '3 days' and s.sent_at > now() - interval '60 days' and l.closed_at is null),
         'items', coalesce((select jsonb_agg(jsonb_build_object('pid', l.pid, 'name', l.nm, 'who', l.who, 'line', 'sent ' || to_char(s.sent_at, 'DD Mon'), 'since', s.sent_at))
-                 from (select distinct on (s.pid) s.* from sent s order by s.pid, s.sent_at desc nulls last) s join live l on l.pid = s.pid
+                 from (select distinct on (s.pid) s.* from sent s order by s.pid, s.sent_at desc nulls last) s join act l on l.pid = s.pid
                 where s.status = 'sent' and s.sent_at < now() - interval '3 days' and s.sent_at > now() - interval '60 days' and l.closed_at is null), '[]')),
       jsonb_build_object('key', 'utilities_stale', 'sev', 'amber', 'title', 'Utilities requested 10+ days ago, never registered',
-        'n', (select count(*) from live l where l.closed_at is null and (
+        'n', (select count(*) from act l where l.closed_at is null and (
                (l.wifi_requested_at < now() - interval '10 days' and coalesce(l.wifi_plan_months, 1) <> 0
                  and not exists (select 1 from property_utilities u where u.pid = l.pid and u.utility_type = 'wifi' and u.status = 'active'))
             or (l.ro_requested_at < now() - interval '10 days' and coalesce(l.ro_plan_months, 1) <> 0

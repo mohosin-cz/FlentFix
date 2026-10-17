@@ -12,6 +12,7 @@ import RecordStatus, { usePropertyJourneyRow } from '../components/property/Reco
 import RecordTimeline from '../components/property/RecordTimeline'
 import LandlordPanel from '../components/property/LandlordPanel'
 import ExploratoryPanel from '../components/property/ExploratoryPanel'
+import PausedBanner from '../components/property/PausedBanner'
 import UtilityRequest from '../components/property/UtilityRequest'
 import JourneyPhases from '../components/property/JourneyPhases'
 import { useSetupPanel, SetupPanel, AttendanceHistory } from '../components/property/SetupDay'
@@ -557,6 +558,7 @@ export default function PropertyDetail() {
       </header>
 
       {/* ── Journey: six phases, where it is now, and the one next thing ── */}
+      {!loading && <PausedBanner pid={pid} onResumed={() => { engine.reload(); setupPanel.reload() }} />}
       {!loading && <JourneyPhases pid={pid} row={engine.row} onChange={() => { engine.reload(); setupPanel.reload() }} />}
 
 

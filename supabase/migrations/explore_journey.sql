@@ -388,6 +388,7 @@ begin
   xk as materialized (
     select x.*, exploratory_building_key(x.property_name) bk from stage_exploratory x
      where x.archived_at is null and coalesce(x.property_name, '') !~* '^\s*\[test\]'
+       and not exists (select 1 from explore_cleared c where c.request_id = x.id)   -- cleared at the clean slate
   ),
   base as (
     select x.*, a.assignee, a.confirmed_at, a.declined_by, a.decline_reason, a.stage_conflict,

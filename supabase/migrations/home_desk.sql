@@ -134,6 +134,7 @@ declare
   today date := (now() at time zone 'Asia/Kolkata')::date;
   ist_hour int := extract(hour from now() at time zone 'Asia/Kolkata');
   mine  text[];
+  active text[];
   out   jsonb;
 begin
   if auth.uid() is null then raise exception 'not signed in'; end if;
@@ -148,16 +149,18 @@ begin
   select coalesce(array_agg(pid), '{}') into mine from properties
    where deleted_at is null and (lower(owner_email) = me or lower(assigned_to) = me)
      and pid !~* '^\s*no\s*pid\s*$';
+  -- properties paused at the clean slate raise nothing here (renewals still show: tenants' WiFi/RO)
+  select coalesce(array_agg(pid), '{}') into active from properties where pid = any(mine) and journey_paused_at is null;
 
   with names as (
     select p.pid, coalesce(nullif(btrim(p.name), ''), flent_site_name(p.pid), p.pid) as name
-      from properties p where p.pid = any(mine)
+      from properties p where p.pid = any(active)
   ),
 
   -- since you last looked ------------------------------------------------
   ev as (
     select e.*, es.pid from estimate_events e join estimates es on es.id = e.estimate_id
-     where es.pid = any(mine) and e.created_at > since
+     where es.pid = any(active) and e.created_at > since
   ),
   feed as (
     -- approvals, one line per estimate
@@ -180,20 +183,20 @@ begin
     -- whole = every one of them already verified
     select 'vendor_closed', w.pid, max(i.vendor_closed_at), count(*), bool_and(i.status = 'verified'), coalesce(max(v.full_name), max(w.vendor_name)), max(w.trade)
       from work_order_items i join work_orders w on w.id = i.work_order_id left join vendors v on v.id = w.vendor_id
-     where w.pid = any(mine) and i.vendor_closed_at > since and i.status in ('vendor_closed', 'verified')
+     where w.pid = any(active) and i.vendor_closed_at > since and i.status in ('vendor_closed', 'verified')
      group by w.id, w.pid
     union all
     -- payments logged by someone else
     select 'payment', pp.pid, pp.created_at, 1, false, split_part(coalesce(pp.created_by, ''), '@', 1),
            '₹' || to_char(coalesce(pp.amount, 0), 'FM99,99,99,999') || coalesce(' to ' || nullif(btrim(pp.payee_name), ''), '')
       from property_payments pp
-     where pp.pid = any(mine) and pp.created_at > since and lower(coalesce(pp.created_by, '')) <> me
+     where pp.pid = any(active) and pp.created_at > since and lower(coalesce(pp.created_by, '')) <> me
     union all
     -- journey moves by someone else (dates set or moved, milestones)
     select 'journey', j.pid, j.changed_at, 1, false, split_part(coalesce(j.changed_by, ''), '@', 1),
            initcap(replace(j.stage, '_', ' ')) || coalesce(' · ' || nullif(btrim(j.notes), ''), '')
       from property_journey j
-     where j.pid = any(mine) and j.changed_at > since and lower(coalesce(j.changed_by, '')) not in (me, 'system', '')
+     where j.pid = any(active) and j.changed_at > since and lower(coalesce(j.changed_by, '')) not in (me, 'system', '')
     union all
     -- exploratory: supply raised one (admins hear about every new request)
     select 'explore_raised', 'explore:' || x.id, x.created_at, 1, false, coalesce(x.requester, 'supply'),
@@ -225,7 +228,7 @@ begin
       join work_orders w on w.id = i.work_order_id
       left join vendors v on v.id = w.vendor_id
       left join inspection_line_items li on li.id = i.inspection_line_item_id
-     where w.pid = any(mine) and i.status = 'vendor_closed'
+     where w.pid = any(active) and i.status = 'vendor_closed'
      group by w.id, w.pid
   ),
 
@@ -234,7 +237,7 @@ begin
     select distinct on (es.pid) es.id, es.pid, es.status, es.total, es.first_viewed_at,
            coalesce(es.sent_at, (select max(x.created_at) from estimate_events x where x.estimate_id = es.id and x.event_type = 'sent')) sent_at
       from estimates es
-     where es.pid = any(mine) and es.status in ('sent', 'viewed', 'partially_approved') and coalesce(es.locked, false) = false
+     where es.pid = any(active) and es.status in ('sent', 'viewed', 'partially_approved') and coalesce(es.locked, false) = false
        -- still undecided: the property is not marked final or closed
        and exists (select 1 from properties p where p.pid = es.pid and p.estimate_final_at is null and p.closed_at is null)
      order by es.pid, es.created_at desc
@@ -261,10 +264,10 @@ begin
 
   -- this week ----------------------------------------------------------------
   wk as (
-    select p.pid, 'setup' kind, p.setup_date d from properties p where p.pid = any(mine) and p.setup_date between today and today + 6
+    select p.pid, 'setup' kind, p.setup_date d from properties p where p.pid = any(active) and p.setup_date between today and today + 6
     union all
     select p.pid, 'handover', p.handover_date from properties p
-     where p.pid = any(mine) and p.handover_done_at is null and p.handover_date between today and today + 6
+     where p.pid = any(active) and p.handover_done_at is null and p.handover_date between today and today + 6
     union all
     select '·' || x.id::text, 'exploratory', x.visit_date from stage_exploratory x
       left join exploratory_assignments a on a.request_id = x.id
@@ -272,7 +275,7 @@ begin
        and x.archived_at is null and x.visit_date between today and today + 6
     union all
     select w.pid, 'close_by', min(coalesce(w.scheduled_end, w.scheduled_start))::date from work_orders w
-     where w.pid = any(mine) and w.status not in ('verified', 'cancelled')
+     where w.pid = any(active) and w.status not in ('verified', 'cancelled')
      group by w.pid having min(coalesce(w.scheduled_end, w.scheduled_start))::date between today and today + 6
   ),
 
@@ -282,7 +285,7 @@ begin
       from properties p
       join work_orders w on w.pid = p.pid and w.vendor_id is not null
       left join vendors v on v.id = w.vendor_id
-     where p.pid = any(mine) and p.setup_date = today and ist_hour >= 11
+     where p.pid = any(active) and p.setup_date = today and ist_hour >= 11
        and exists (select 1 from work_order_items i where i.work_order_id = w.id and i.status in ('pending', 'disputed'))
        and not exists (select 1 from vendor_attendance a where a.vendor_id = w.vendor_id and a.pid = p.pid and a.punch_type = 'in'
                         and (a.punched_at at time zone 'Asia/Kolkata')::date = today)
@@ -342,10 +345,10 @@ begin
                                                            'ro',   jsonb_build_object('requested_at', p.ro_requested_at, 'months', p.ro_plan_months),
                                                            'panel', case when k.kind = 'setup' then property_setup_panel(p.pid) - 'history' end) order by k.d, k.kind)
                          from (select pid, 'setup' kind, setup_date d from properties
-                                where pid = any(mine) and setup_date between today and today + 6 and setup_closed_at is null
+                                where pid = any(active) and setup_date between today and today + 6 and setup_closed_at is null
                                union all
                                select pid, 'handover', handover_date from properties
-                                where pid = any(mine) and handover_done_at is null and handover_date between today and today + 6) k
+                                where pid = any(active) and handover_done_at is null and handover_date between today and today + 6) k
                          join properties p on p.pid = k.pid left join names n on n.pid = k.pid), '[]'),
 
     'noshow', coalesce((select jsonb_agg(jsonb_build_object('pid', ns.pid, 'name', n.name, 'vendor', ns.vendor, 'trade', ns.trade, 'phone', ns.phone))
