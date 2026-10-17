@@ -7,6 +7,7 @@ import DisputeThread from '../components/DisputeThread'
 import QueryThread from '../components/QueryThread'
 import { useIsMobile } from '../hooks/useIsMobile'
 import LogoSpinner from '../components/LogoSpinner'
+import AppHeader from '../components/AppHeader'
 
 const STATUS_COLOR = {
   draft:              '#9898a4',
@@ -257,7 +258,8 @@ export default function EstimateWorkspace() {
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-doc, Poppins, sans-serif)' }}>
 
       {/* ── Header ── */}
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 56, background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 0, zIndex: 10 }}>
+      <AppHeader />
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 52, background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 10 }}>
         <button
           onClick={() => navigate(`/properties/${pid}`)}
           style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-dim, #9394a8)', cursor: 'pointer' }}
@@ -292,7 +294,7 @@ export default function EstimateWorkspace() {
         </div>
       </header>
 
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px 80px' }}>
+      <div style={{ padding: '20px 16px 80px' }}>
 
         {genError && (
           <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.35)', borderRadius: 8, fontSize: 12, color: '#f87171', lineHeight: 1.4 }}>

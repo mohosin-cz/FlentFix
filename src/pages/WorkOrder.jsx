@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useIsMobile'
 import LogoSpinner from '../components/LogoSpinner'
+import AppHeader from '../components/AppHeader'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
 const MONO = 'var(--font-mono, monospace)'
@@ -112,7 +113,8 @@ export default function WorkOrder() {
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', flexDirection: 'column', fontFamily: SANS, color: 'var(--text, #e8e8f0)' }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', minHeight: 56, paddingTop: 'env(safe-area-inset-top)', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 0, zIndex: 10 }}>
+      <AppHeader />
+      <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', minHeight: 52, background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 10 }}>
         <button onClick={() => navigate('/')} aria-label="Back"
           style={{ width: 40, height: 40, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', color: 'var(--text-dim, #9394a8)', cursor: 'pointer', flexShrink: 0 }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -127,7 +129,7 @@ export default function WorkOrder() {
         </div>
       </header>
 
-      <main style={{ flex: 1, width: '100%', maxWidth: 860, margin: '0 auto', padding: phone ? '14px 16px 90px' : '18px 20px 60px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <main style={{ flex: 1, width: '100%', padding: phone ? '14px 16px 90px' : '18px 20px 60px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {loading && <LogoSpinner />}
 
         {!loading && error && <ErrStrip onRetry={retry}>Couldn’t load work orders: {error}</ErrStrip>}

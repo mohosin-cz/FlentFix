@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { purgeBinnedPid, restoreBinnedPid } from '../utils/pidStatus'
 import LogoSpinner from '../components/LogoSpinner'
+import AppHeader from '../components/AppHeader'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -76,6 +77,7 @@ export default function PropertyBin() {
     <div style={s.page}>
 
       {/* Header */}
+      <AppHeader />
       <header style={s.header}>
         <button style={s.backBtn} onClick={() => navigate('/properties')}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -191,10 +193,10 @@ const s = {
   },
   header: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 20px', height: 56,
+    padding: '0 20px', height: 52,
     background: 'var(--bg-panel, #1e2028)',
     borderBottom: '1px solid var(--border, #2e3040)',
-    position: 'sticky', top: 0, zIndex: 10,
+    position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 10,
   },
   backBtn: {
     width: 36, height: 36,
@@ -213,7 +215,7 @@ const s = {
     fontFamily: 'var(--font-mono, monospace)',
     textAlign: 'center',
   },
-  main: { flex: 1, padding: '16px 20px 48px', maxWidth: 860, width: '100%', margin: '0 auto' },
+  main: { flex: 1, padding: '16px 24px 48px', width: '100%', boxSizing: 'border-box' },
   empty: { textAlign: 'center', padding: '60px 0', fontSize: 13, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' },
   emptyState: {
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',

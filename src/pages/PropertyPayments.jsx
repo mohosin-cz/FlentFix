@@ -6,6 +6,7 @@ import PaymentSheet from '../components/property/PaymentSheet'
 import { LineageToggle } from '../components/LineageStrip'
 import { useHashScroll } from '../hooks/useHashScroll'
 import { TRADES, KINDS, inr, fmtDayShort, fmtQty, billUrl, splitOf, itemSummary } from '../utils/payments'
+import AppHeader from '../components/AppHeader'
 
 // Everything spent on a property during setup, and what it adds up to.
 
@@ -300,7 +301,8 @@ export default function PropertyPayments() {
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: SANS, display: 'flex', flexDirection: 'column' }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', minHeight: 56, paddingTop: 'env(safe-area-inset-top)', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 0, zIndex: 10 }}>
+      <AppHeader />
+      <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', minHeight: 52, background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 10 }}>
         <button onClick={() => navigate(`/properties/${pid}`)} aria-label="Back to property"
           style={{ width: 40, height: 40, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', color: 'var(--text-dim, #9394a8)', cursor: 'pointer', flexShrink: 0 }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -316,7 +318,7 @@ export default function PropertyPayments() {
         </button>
       </header>
 
-      <main style={{ flex: 1, width: '100%', maxWidth: 860, margin: '0 auto', padding: phone ? '14px 16px 110px' : '18px 20px 110px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <main style={{ flex: 1, width: '100%', padding: phone ? '14px 16px 110px' : '18px 20px 110px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {loading && <div style={{ padding: '24px 0', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Loading…</div>}
         {!loading && error && <ErrStrip onRetry={() => load()}>Couldn’t load payments: {error}</ErrStrip>}
 
@@ -391,7 +393,8 @@ export default function PropertyPayments() {
               </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <style>{`.pay-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-items: start; } @media (min-width: 1000px) { .pay-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } } @media (min-width: 1500px) { .pay-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } } .pay-grid > .pay-empty { grid-column: 1 / -1; }`}</style>
+            <div className="pay-grid">
               {shown.map(r => (
                 <div key={r.id} id={`pay-${r.id}`} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 11, padding: '12px 14px', scrollMarginTop: 96 }}>
                   {/* What it was, then how much. The description is what a
@@ -463,7 +466,7 @@ export default function PropertyPayments() {
                 </div>
               ))}
               {shown.length === 0 && (
-                <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
+                <div className="pay-empty" style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
                   Nothing matches that.
                 </div>
               )}

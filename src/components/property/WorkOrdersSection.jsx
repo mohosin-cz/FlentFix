@@ -1223,6 +1223,10 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
         </div>
       )}
 
+      {/* One trade per card; on a wide screen they sit two abreast instead of
+          stretching a vendor picker and two date fields across 1500px. */}
+      <style>{`.wo-trades { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; } @media (min-width: 1200px) { .wo-trades { grid-template-columns: repeat(2, minmax(0, 1fr)); } }`}</style>
+      <div className="wo-trades">
       {!loading && loaded && displayGroups.map(g => (
         <TradeCard
           key={g.trade}
@@ -1251,6 +1255,7 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
           refreshing={refreshing}
         />
       ))}
+      </div>
 
       {toast && (
         <div role="status" aria-live="polite"

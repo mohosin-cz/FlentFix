@@ -5,6 +5,7 @@ import ShareSheet from '../components/vendor/ShareSheet'
 import BriefTranscript from '../components/property/BriefTranscript'
 import DesignScopeSection from '../components/property/DesignScopeSection'
 import { briefProgress } from '../utils/designerBrief'
+import AppHeader from '../components/AppHeader'
 
 // The staff side of the designer's brief.
 //
@@ -73,10 +74,11 @@ export default function PropertyDesignBrief() {
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', flexDirection: 'column', fontFamily: SANS, color: 'var(--text, #e8e8f0)' }}>
+      <AppHeader />
       <header style={{
-        display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', minHeight: 56,
-        paddingTop: 'env(safe-area-inset-top)', background: 'var(--bg-panel, #1e2028)',
-        borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 0, zIndex: 10,
+        display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', minHeight: 52,
+        background: 'var(--bg-panel, #1e2028)',
+        borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 10,
       }}>
         <button onClick={() => navigate(`/properties/${pid}`)} aria-label="Back to property"
           style={{ width: 40, height: 40, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', color: 'var(--text-dim, #9394a8)', cursor: 'pointer', flexShrink: 0 }}>
@@ -93,7 +95,7 @@ export default function PropertyDesignBrief() {
         </button>
       </header>
 
-      <main style={{ flex: 1, width: '100%', maxWidth: 860, margin: '0 auto', padding: '14px 16px calc(90px + env(safe-area-inset-bottom))', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <main style={{ flex: 1, width: '100%', padding: '14px 16px calc(90px + env(safe-area-inset-bottom))', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         {err && (
           <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {err}</div>

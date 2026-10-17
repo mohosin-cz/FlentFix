@@ -8,6 +8,7 @@ import {
   money, compact, mLabel, mShort, pctChange, share, downloadCsv,
 } from '../utils/analytics'
 import { Card, Stat, Legend, Columns, HBars, SplitBar, Flag } from '../components/analytics'
+import AppHeader from '../components/AppHeader'
 
 // Every rupee spent on every property, in one place. The per-property page
 // answers "what did this flat cost"; this one answers the questions that only
@@ -343,7 +344,8 @@ export default function PaymentsAnalytics() {
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', flexDirection: 'column', fontFamily: SANS, color: 'var(--text, #e8e8f0)' }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', minHeight: 56, paddingTop: 'env(safe-area-inset-top)', background: SURFACE, borderBottom: `1px solid ${GRID}`, position: 'sticky', top: 0, zIndex: 10 }}>
+      <AppHeader />
+      <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', minHeight: 52, background: SURFACE, borderBottom: `1px solid ${GRID}`, position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 10 }}>
         <button onClick={() => navigate('/properties')} aria-label="Back to properties"
           style={{ width: 40, height: 40, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-input, #252731)', border: `1px solid ${GRID}`, color: 'var(--text-dim, #9394a8)', cursor: 'pointer', flexShrink: 0 }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -357,7 +359,7 @@ export default function PaymentsAnalytics() {
         <button onClick={exportProperties} className="tct tct-raised" style={{ ...chipSty, borderRadius: 8 }} disabled={loading}>⤓ CSV</button>
       </header>
 
-      <main style={{ flex: 1, width: '100%', maxWidth: 1180, margin: '0 auto', padding: phone ? '14px 16px 96px' : '20px 20px 72px', display: 'flex', flexDirection: 'column', gap: 14, boxSizing: 'border-box' }}>
+      <main style={{ flex: 1, width: '100%', padding: phone ? '14px 16px 96px' : '20px 20px 72px', display: 'flex', flexDirection: 'column', gap: 14, boxSizing: 'border-box' }}>
         {loading ? <LogoSpinner /> : error ? (
           <div style={{ padding: 14, background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 10, fontSize: 12.5, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>
             Couldn’t load payments: {error}

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { KINDS, TRADES, inr, cleanAmount, cleanQty, fmtQty, parseCSV, parseDateLoose, guessMapping, fmtDate, normaliseKind, normaliseTrade } from '../utils/payments'
+import AppHeader from '../components/AppHeader'
 
 // Bringing years of spend out of a spreadsheet. The rule throughout: never
 // write anything the person has not seen parsed back to them first. Every row
@@ -209,7 +210,8 @@ export default function PaymentsImport() {
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: SANS }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', minHeight: 56, paddingTop: 'env(safe-area-inset-top)', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 0, zIndex: 10 }}>
+      <AppHeader />
+      <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', minHeight: 52, background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 10 }}>
         <button onClick={() => navigate(`/properties/${pid}/payments`)} aria-label="Back to payments"
           style={{ width: 40, height: 40, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', color: 'var(--text-dim, #9394a8)', cursor: 'pointer', flexShrink: 0 }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -220,7 +222,7 @@ export default function PaymentsImport() {
         </div>
       </header>
 
-      <main style={{ width: '100%', maxWidth: 900, margin: '0 auto', padding: phone ? '14px 16px 60px' : '18px 20px 60px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <main style={{ width: '100%', padding: phone ? '14px 16px 60px' : '18px 20px 60px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         {result ? (
           <div style={{ padding: '20px 18px', background: 'rgba(61,186,122,0.09)', border: '1px solid rgba(61,186,122,0.32)', borderRadius: 12 }}>
