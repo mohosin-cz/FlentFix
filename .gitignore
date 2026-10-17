@@ -33,3 +33,6 @@ supabase/.temp/
 # Holy Grail exports carry landlord PANs and financials — never commit them
 Flent Holy Grail*.csv
 Flent Holy Grail*.xlsx
+
+# Holy Grail import address cache (property coordinates)
+scripts/.holy-grail-geo.json

@@ -12,7 +12,7 @@ export default function LandlordPanel({ pid }) {
 
   useEffect(() => {
     let alive = true
-    supabase.from('properties').select('landlord_name, units, maps_url, sheet_synced_at').eq('pid', pid).maybeSingle()
+    supabase.from('properties').select('landlord_name, units, maps_url, flat_no, floor, address, sheet_synced_at').eq('pid', pid).maybeSingle()
       .then(({ data, error }) => { if (alive) setState({ loading: false, error: error ? error.message : null, row: data }) })
     return () => { alive = false }
   }, [pid])
@@ -38,7 +38,9 @@ export default function LandlordPanel({ pid }) {
       <div style={title}>property</div>
       <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '7px 14px', margin: '12px 0 0', alignItems: 'baseline' }}>
         <dt style={dt}>Landlord</dt><dd style={dd}>{row.landlord_name || <span style={{ color: 'var(--amber, #c8963e)' }}>not in the sheet</span>}</dd>
+        <dt style={dt}>Flat</dt><dd style={{ ...dd, fontFamily: MONO }}>{row.flat_no ? `${row.flat_no}${row.floor ? ` · floor ${row.floor}` : ''}` : '—'}</dd>
         <dt style={dt}>Units</dt><dd style={{ ...dd, fontFamily: MONO }}>{row.units || '—'}</dd>
+        {row.address && <><dt style={dt}>Address</dt><dd style={{ ...dd, fontSize: 12.5, color: 'var(--text-dim, #9394a8)' }}>{row.address}</dd></>}
         <dt style={dt}>Map</dt>
         <dd style={dd}>{row.maps_url
           ? <a href={row.maps_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent, #c8963e)', fontFamily: MONO, fontSize: 12, textDecoration: 'none' }}>Open in Google Maps ↗</a>

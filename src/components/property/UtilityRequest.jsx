@@ -27,7 +27,9 @@ function message(kind, prop, months, sender) {
     `Hi, we need ${kind.what} at a Flent home.`,
     '',
     `Property: ${prop.name || 'PID ' + prop.pid} (PID ${prop.pid})`,
-    `Address: ${prop.maps_url || ''}`,
+    prop.flat_no ? `Flat: ${prop.flat_no}${prop.floor ? `, floor ${prop.floor}` : ''}` : null,
+    `Address: ${prop.address || ''}`,
+    prop.maps_url ? `Map: ${prop.maps_url}` : null,
     prop.units ? `Units: ${prop.units}` : null,
     `Plan: ${months} month${months === 1 ? '' : 's'}`,
     setup ? `Needed by: ${needBy} (setup on ${fmtDay(setup)})` : 'Needed by: ',
@@ -91,7 +93,7 @@ function KindCard({ kind, prop, check, locked, sender, onDone }) {
             <>
               <textarea value={text} onChange={e => setText(e.target.value)} rows={9} aria-label={`Message to the ${kind.partner}`}
                 style={{ width: '100%', boxSizing: 'border-box', marginTop: 10, padding: 10, borderRadius: 9, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontSize: 13.5, lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical' }} />
-              {!prop.maps_url && <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--amber, #c8963e)', marginTop: 4 }}>No map link for this property — fill the address in before sending.</div>}
+              {!prop.address && <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--amber, #c8963e)', marginTop: 4 }}>No address for this property yet — fill it in before sending.</div>}
               <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                 <button type="button" onClick={async () => setCopied(await copy(text))} style={btn(!copied)}>{copied ? 'Copied ✓' : `Copy message for the ${kind.partner}`}</button>
                 <button type="button" disabled={busy} onClick={() => mark(months)} style={btn(copied)}>{busy ? 'Saving…' : 'Mark requested'}</button>
@@ -112,7 +114,7 @@ export default function UtilityRequest({ pid, onChange }) {
 
   const load = useCallback(async () => {
     const [p, m] = await Promise.all([
-      supabase.from('properties').select('pid, name, maps_url, units, setup_date, estimate_final_at, setup_closed_at').eq('pid', pid).maybeSingle(),
+      supabase.from('properties').select('pid, name, maps_url, units, flat_no, floor, address, setup_date, estimate_final_at, setup_closed_at').eq('pid', pid).maybeSingle(),
       supabase.rpc('property_milestones', { p_pid: pid }),
     ])
     const err = p.error || m.error
