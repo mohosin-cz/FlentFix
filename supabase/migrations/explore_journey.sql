@@ -449,7 +449,7 @@ begin
         when 'explore_decision'   then 3
         when 'explore_create_pid' then 2
         when 'explore_link'       then 2
-        when 'explore_deal'       then 21
+        -- deal closing is supply's pace, not a threshold of ours: no limit
         when 'explore_slot'       then 2
         else null end as limit_days
       from th t

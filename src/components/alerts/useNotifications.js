@@ -19,6 +19,8 @@ import { useAuth } from '../../contexts/AuthContext'
 
 const POLL_MS = 60_000
 
+const SWEEP_EVERY_MS = 5 * 60 * 1000
+
 export function useNotifications({ enabled = true, pollMs = POLL_MS } = {}) {
   const { session } = useAuth()
   const email = (session?.user?.email ?? '').toLowerCase()
@@ -54,7 +56,14 @@ export function useNotifications({ enabled = true, pollMs = POLL_MS } = {}) {
     if (!active) return
     let cancelled = false
     ;(async () => {
-      await supabase.rpc('journey_alerts_sweep')
+      // The sweep raises journey alerts for everyone; once every few minutes is
+      // plenty, not on every page opened.
+      let last = 0
+      try { last = +localStorage.getItem('pulse.alerts.sweep_at') || 0 } catch { /* private window */ }
+      if (Date.now() - last > SWEEP_EVERY_MS) {
+        try { localStorage.setItem('pulse.alerts.sweep_at', String(Date.now())) } catch { /* private window */ }
+        await supabase.rpc('journey_alerts_sweep')
+      }
       if (!cancelled) reload()
     })()
     return () => { cancelled = true }
