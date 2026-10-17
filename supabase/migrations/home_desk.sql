@@ -289,6 +289,7 @@ begin
        and exists (select 1 from work_order_items i where i.work_order_id = w.id and i.status in ('pending', 'disputed'))
        and not exists (select 1 from vendor_attendance a where a.vendor_id = w.vendor_id and a.pid = p.pid and a.punch_type = 'in'
                         and (a.punched_at at time zone 'Asia/Kolkata')::date = today)
+       and not vendor_on_leave(w.vendor_id, today)   -- on approved leave is not a no-show
      group by p.pid, w.vendor_id, v.full_name, v.phone
   )
 

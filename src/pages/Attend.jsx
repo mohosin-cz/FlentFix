@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase, anonSupabase } from '../lib/supabase'
 import PortalPayroll from '../components/vendor/PortalPayroll'
+import PortalLeave, { LeaveTodayBanner, unseenDecisions } from '../components/vendor/PortalLeave'
+import { rangeLabel, payLine } from '../utils/leave'
 import { Field, Input } from '../components/ui'
 import { getPosition, fmtTime, fmtDate, fmtDuration, fmtElapsed, fmtBreakLeft, maskAccount, initials, avatarColor } from '../utils/vendorHub'
 import { compressForUpload, newSubmissionId } from '../utils/vendorOnboard'
@@ -235,10 +237,11 @@ function WoCard({ w, onOpen }) {
 // Payroll sits in the middle — it is the thing a vendor now comes here to do
 // besides punching, and the middle of a three-up bar is the easiest reach on a
 // phone. Profile moves right: it is looked at rarely.
-const PORTAL_TABS = [{ key: 'time', label: 'Time', icon: '⏱' }, { key: 'wo', label: 'WO', icon: '▤' }, { key: 'payroll', label: 'Payroll', icon: '₹' }, { key: 'profile', label: 'Profile', icon: '☰' }]
+// Leave sits beside Payroll: both are about time paid for.
+const PORTAL_TABS = [{ key: 'time', label: 'Time', icon: '⏱' }, { key: 'wo', label: 'WO', icon: '▤' }, { key: 'payroll', label: 'Payroll', icon: '₹' }, { key: 'leave', label: 'Leave', icon: '◐' }, { key: 'profile', label: 'Profile', icon: '☰' }]
 // The WO tab only exists for vendors who have been given work. A dead tab a
 // cleaner never has anything in is a permanent question they cannot answer.
-function PortalNav({ tab, onTab, woCount }) {
+function PortalNav({ tab, onTab, woCount, dots = {} }) {
   const tabs = PORTAL_TABS.filter(t => t.key !== 'wo' || woCount > 0)
   return (
     <div style={{ flexShrink: 0, display: 'flex', background: 'var(--bg-panel, #1e2028)', borderTop: '1px solid var(--border, #2e3040)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -246,7 +249,9 @@ function PortalNav({ tab, onTab, woCount }) {
         const on = tab === t.key
         return (
           <button key={t.key} type="button" onClick={() => onTab(t.key)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '9px 0', background: 'none', border: 'none', cursor: 'pointer', color: on ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', WebkitTapHighlightColor: 'transparent' }}>
-            <span style={{ fontSize: 17, lineHeight: 1 }}>{t.icon}</span>
+            <span style={{ position: 'relative', fontSize: 17, lineHeight: 1 }}>{t.icon}
+              {dots[t.key] && <span style={{ position: 'absolute', top: -2, right: -6, width: 7, height: 7, borderRadius: 4, background: 'var(--accent, #c8963e)' }} />}
+            </span>
             <span style={{ fontSize: 10, fontWeight: on ? 700 : 500, fontFamily: 'var(--font-mono, monospace)' }}>{t.label}</span>
           </button>
         )
@@ -340,6 +345,8 @@ export default function Attend() {
   const [breakBusy, setBreakBusy] = useState('')
   const [breakErr, setBreakErr] = useState('')
   const [tick, setTick] = useState(() => Date.now()) // 1s clock, only while on the clock
+  const [leave, setLeave] = useState(null)           // attend_leave_status
+  const [leaveErr, setLeaveErr] = useState('')
 
   const captureLocation = useCallback(async () => {
     setGeoErr(''); setGeoBusy(true)
@@ -375,6 +382,12 @@ export default function Attend() {
     setBreakErr(''); setBreaks(data || [])
   }, [])
 
+  const loadLeave = useCallback(async () => {
+    const { data, error } = await supabase.rpc('attend_leave_status', { p_token: tokenRef.current })
+    if (error) { setLeaveErr(error.message); return }
+    setLeaveErr(''); setLeave(data)
+  }, [])
+
   const loadEditStatus = useCallback(async () => {
     const { data, error } = await supabase.rpc('attend_edit_status', { p_token: tokenRef.current })
     if (error) return
@@ -383,8 +396,8 @@ export default function Attend() {
 
   const enterPortal = useCallback(async (v) => {
     setVendor(v); setTab('time'); setStep('portal')
-    loadHistory(); loadProfile(); loadEditStatus(); loadBreaks(); loadWorkOrders(); captureLocation()
-  }, [captureLocation, loadHistory, loadProfile, loadEditStatus, loadBreaks, loadWorkOrders])
+    loadHistory(); loadProfile(); loadEditStatus(); loadBreaks(); loadWorkOrders(); loadLeave(); captureLocation()
+  }, [captureLocation, loadHistory, loadProfile, loadEditStatus, loadBreaks, loadWorkOrders, loadLeave])
 
   const isGranted = editReq && editReq.status === 'granted' && editReq.expires_at && new Date(editReq.expires_at).getTime() > nowTs
   const minsLeft = editReq && editReq.expires_at ? Math.max(0, Math.ceil((new Date(editReq.expires_at).getTime() - nowTs) / 60000)) : 0
@@ -678,6 +691,7 @@ export default function Attend() {
   const isOt = kind === 'overtime'
   const days = groupHistory(history)
   const headerAvatar = profile && avatarUrl(profile.avatar_path)
+  const freshDecisions = tab === 'leave' ? [] : unseenDecisions(leave)
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', flexDirection: 'column', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}>
@@ -700,6 +714,21 @@ export default function Attend() {
 
           {/* ── TIME ─────────────────────────────────────────────────────── */}
           {tab === 'time' && <>
+            <LeaveTodayBanner status={leave} onOpen={() => setTab('leave')} />
+            {/* An answer to a leave request, said where they will see it. */}
+            {freshDecisions.map(l => (
+              <button key={l.id} type="button" onClick={() => setTab('leave')}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '11px 13px', borderRadius: 10, cursor: 'pointer',
+                  background: l.status === 'approved' ? 'rgba(111,154,126,0.14)' : 'rgba(176,100,91,0.14)',
+                  border: `1px solid ${l.status === 'approved' ? 'rgba(111,154,126,0.4)' : 'rgba(176,100,91,0.4)'}`, color: 'var(--text, #e8e8f0)' }}>
+                <span style={{ fontSize: 16 }}>{l.status === 'approved' ? '✓' : '✕'}</span>
+                <span style={{ flex: 1, fontSize: 12.5, lineHeight: 1.45 }}>
+                  Leave {rangeLabel(l.start, l.end, l.half)} <b>{l.status === 'approved' ? 'approved' : 'not approved'}</b>
+                  {l.status === 'approved' && payLine(l) ? ` · ${payLine(l)}` : ''}{l.note ? ` — “${l.note}”` : ''}
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)' }}>›</span>
+              </button>
+            ))}
             {/* One object, not four stacked boxes.
                 Where you stand, and everything you set before punching, on a
                 single card with its own hierarchy — the state large at the top,
@@ -1030,6 +1059,9 @@ export default function Attend() {
             </>}
           </> : <div style={{ padding: '30px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading profile…</div>)}
 
+          {/* ── LEAVE ────────────────────────────────────────────────────── */}
+          {tab === 'leave' && <PortalLeave token={tokenRef.current} status={leave} error={leaveErr} reload={loadLeave} />}
+
           {/* ── PAYROLL ──────────────────────────────────────────────────── */}
           {tab === 'payroll' && (
             <PortalPayroll token={tokenRef.current} vendorName={vendor?.full_name || profile?.full_name || ''} />
@@ -1055,7 +1087,7 @@ export default function Attend() {
         </div>
       )}
 
-      <PortalNav tab={tab} onTab={(k) => { setOpenWo(null); setTab(k) }} woCount={workOrders.length} />
+      <PortalNav tab={tab} onTab={(k) => { setOpenWo(null); setTab(k); if (k === 'leave') loadLeave() }} woCount={workOrders.length} dots={{ leave: freshDecisions.length > 0 }} />
     </div>
   )
 }

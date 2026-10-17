@@ -109,6 +109,7 @@ begin
               and (a.punched_at at time zone 'Asia/Kolkata')::date = l.setup_date)) missed
       from live l join work_orders w on w.pid = l.pid and w.vendor_id is not null
      where l.setup_date between today - 60 and today - 1
+       and not vendor_on_leave(w.vendor_id, l.setup_date)   -- a day on approved leave was never a chance
      group by w.vendor_id
   )
 
