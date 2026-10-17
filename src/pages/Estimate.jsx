@@ -541,9 +541,12 @@ function EstimateWorkbenchInner() {
           fields: trades.slice(0, 10).map(([t, v]) => ({ type: 'mrkdwn', text: `${cap(t)}  \`${inr(v)}\`` })) },
       ] : []),
       { type: 'divider' },
-      { type: 'section', text: { type: 'mrkdwn', text: `*Access code*   \`${code}\`\n<${url}|${url.replace(/^https?:\/\//, '')}>` },
+      { type: 'section', text: { type: 'mrkdwn', text: '*Share with the landlord*\nCopy the block below and send it as is.' },
         accessory: { type: 'button', text: { type: 'plain_text', text: 'Open estimate' }, url, style: 'primary' } },
-      { type: 'context', elements: [{ type: 'mrkdwn', text: 'Share the link and code with the landlord — they enter their email + the code to open it. Flent logins open it directly. Every approval records the approver’s email.' }] },
+      // Link and code in one code block: one tap selects both, and Slack
+      // leaves the text exactly as written when it is copied.
+      { type: 'section', text: { type: 'mrkdwn', text: '```Your Flent estimate: ' + url + '\nAccess code: ' + code + '```' } },
+      { type: 'context', elements: [{ type: 'mrkdwn', text: 'The landlord enters their email + the code to open it. Flent logins open it directly. Every approval records the approver’s email.' }] },
     ]
     const { data, error } = await supabase.functions.invoke('wo-report-notify', { body: { text, pid, blocks } })
     const ok = !error && data?.ok !== false
