@@ -3,6 +3,8 @@ import { useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import FixedTheme from './components/FixedTheme'
 import { AuthProvider } from './contexts/AuthContext'
+import { NotepadProvider } from './components/notepad/NotepadContext'
+import Notepad from './components/notepad/Notepad'
 import ProtectedRoute from './components/ProtectedRoute'
 import FloatingNav from './components/FloatingNav'
 import Login from './pages/Login'
@@ -95,6 +97,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+      <NotepadProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
@@ -274,6 +277,8 @@ export default function App() {
         </Routes>
         <FloatingNav />
         <StaffGlobals />
+        <Notepad />
+      </NotepadProvider>
       </AuthProvider>
     </BrowserRouter>
   )

@@ -91,6 +91,7 @@ export default function ProfileDropdown({ name, email, onLogout }) {
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-mono, monospace)' }}>{name}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono, monospace)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{email}</div>
               </div>
+              <DropItem icon="✎"  label="My notes" onClick={() => { setOpen(false); window.dispatchEvent(new CustomEvent('pulse:notepad', { detail: { view: 'list' } })) }} />
               <DropItem icon="👤" label="Profile"  onClick={() => setSub('profile')} />
               <DropItem icon="⎋"  label="Log Out"  onClick={onLogout} danger />
             </>
