@@ -53,7 +53,7 @@ const ago = (ts) => {
 // it stay the app's own. Set as variables on the sheet, so everything inside it
 // (title, dictation preview, the text) takes the ink colours.
 const PAPER = {
-  '--bg-panel': '#d9d5cc', '--text': '#26241f', '--text-dim': '#57534a', '--text-muted': '#7d786d', '--accent': '#8a5d00',
+  '--bg-panel': '#b4afa3', '--text': '#211f1a', '--text-dim': '#45423b', '--text-muted': '#5e5a51', '--accent': '#6e4a00',
   colorScheme: 'light',
 }
 
@@ -517,7 +517,7 @@ function Pad({ userId, email, pathname }) {
           ? <><Pill>Team note · shared with everyone on PID {team.pid}</Pill>{team.updated_at && <Pill>edited {ago(team.updated_at)}</Pill>}</>
           : <>{cur.context?.label && <Pill>started on {cur.context.label}</Pill>}<Pill>{ago(cur.created_at || cur.updated_at)}</Pill>{scopePid && names[scopePid] && <Pill>{names[scopePid]}</Pill>}</>}
       </div>
-      <div style={{ ...PAPER, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', margin: '10px 12px 12px', background: 'var(--bg-panel)', borderRadius: 10, boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.12)', color: 'var(--text)' }}>
+      <div style={{ ...PAPER, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', margin: '10px 12px 12px', background: 'linear-gradient(180deg, #b4afa3 0%, #aca79b 100%)', borderRadius: 10, border: '1px solid rgba(0,0,0,0.35)', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.25)', color: 'var(--text)' }}>
       {cur && (
         <input value={cur.title || ''} onChange={e => patch(cur.id, { title: e.target.value })} placeholder="Title (optional)" aria-label="Title"
           style={{ border: 'none', background: 'none', outline: 'none', padding: '10px 14px 0', fontSize: 16, fontWeight: 600, color: C.text, fontFamily: F, width: '100%', boxSizing: 'border-box' }} />
