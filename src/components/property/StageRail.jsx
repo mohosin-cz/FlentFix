@@ -54,6 +54,13 @@ export const RAIL_FOR_CODE = {
   execution_day: 'estimate_approved', in_progress: 'estimate_approved', qc_pending: 'estimate_approved', disputed: 'estimate_approved',
   handover_unknown: 'setup_date', handover_scheduled: 'setup_date', handover_today: 'tday', handover_overdue: 'tday',
   handover_done: 'handover', invoice_draft: 'invoice_created', invoiced: 'invoice_created',
+  // journey engine v2
+  property_created: 'T-5', inspection_complete: 'inspection_done', landlord_deciding: 'estimate_shared',
+  estimate_final_pending: 'estimate_shared', setup_date_pending: 'estimate_approved', utilities_unplanned: 'utility_planned',
+  work_orders_unplanned: 'setup_date', wo_undated: 'setup_date', wo_awaiting_day: 'setup_date',
+  setup_day: 'tday', vendors_on_site: 'tday', setup_in_progress: 'tday', items_to_verify: 'tday', wo_overdue: 'tday', setup_close_pending: 'tday',
+  payments_pending: 'handover', utility_details_pending: 'handover', qc_pending: 'handover', handover_pending: 'handover',
+  wo_share_pending: 'invoice_created', invoice_pending: 'invoice_created', close_pending: 'invoice_created', closed: 'invoice_created',
 }
 export function derivedRailKey(stages, threads) {
   const idx = (threads || []).map(t => stages.findIndex(s => s.key === RAIL_FOR_CODE[t.code])).filter(i => i >= 0)

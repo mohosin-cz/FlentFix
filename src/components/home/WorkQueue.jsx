@@ -32,6 +32,8 @@ const headline = (r) => (r.open_threads && r.open_threads[0]) || { code: r.stage
 const VIEWS = [
   { key: 'needs_me',  label: 'Needs me',           pick: (rows, ctx) => rows.filter(r => r.blocked_on === 'setup_ops' && r.urgency !== 'done' && isMine(r, ctx.assigned, ctx.me)).map(r => ({ r, t: headline(r) })) },
   { key: 'needs_team', label: 'Needs the team',    pick: (rows) => rows.filter(r => r.blocked_on === 'setup_ops' && r.urgency !== 'done').map(r => ({ r, t: headline(r) })) },
+  { key: 'supply',    label: 'Waiting on supply',   pick: (rows) => rows.flatMap(r => { const t = (r.open_threads || []).find(x => (x.waiting_on || x.blocked_on) === 'supply' && x.urgency !== 'done'); return t ? [{ r, t }] : [] }) },
+  { key: 'setups',    label: 'Setups this week',    pick: (rows) => rows.filter(r => r.days_to_setup != null && r.days_to_setup >= 0 && r.days_to_setup <= 6).sort((a, b) => a.days_to_setup - b.days_to_setup).map(r => ({ r, t: headline(r) })) },
   { key: 'landlord',  label: 'Waiting on landlord', pick: (rows) => rows.flatMap(r => { const t = (r.open_threads || []).find(x => x.blocked_on === 'landlord' && x.urgency !== 'done'); return t ? [{ r, t }] : [] }) },
   { key: 'vendor',    label: 'Waiting on vendor',   pick: (rows) => rows.flatMap(r => { const t = (r.open_threads || []).find(x => x.blocked_on === 'vendor' && x.urgency !== 'done'); return t ? [{ r, t }] : [] }) },
   { key: 'overdue',   label: 'Overdue',            pick: (rows) => rows.filter(r => r.urgency === 'overdue').map(r => ({ r, t: headline(r) })) },
@@ -40,7 +42,7 @@ const VIEWS = [
 ]
 const EMPTY = {
   needs_me: 'Nothing needs you.', needs_team: 'Nothing needs the team.', landlord: 'No landlord is holding anything up.',
-  vendor: 'No vendor is holding anything up.', overdue: 'Nothing is past its threshold.', unowned: 'Every property has an owner.', all: 'No live properties.',
+  vendor: 'No vendor is holding anything up.', supply: 'Nothing is with supply.', setups: 'No setups in the next 7 days.', overdue: 'Nothing is past its threshold.', unowned: 'Every property has an owner.', all: 'No live properties.',
 }
 
 const COLS = [
@@ -49,11 +51,13 @@ const COLS = [
   { key: 'stage',   label: 'Stage',       sort: (x) => x.t.stage_no ?? 0 },
   { key: 'blocked', label: 'Waiting on',  sort: (x) => x.t.blocked_on },
   { key: 'age',     label: 'Age',         sort: (x) => (URGENCY_RANK[x.t.urgency] ?? 9) * -10000 + (x.t.age_days ?? 0) },
+  { key: 'setup',   label: 'Setup',       sort: (x) => x.r.days_to_setup ?? 9999 },
   { key: 'action',  label: 'Next action', sort: (x) => x.t.next_action_label || '' },
   { key: 'owner',   label: 'Owner',       sort: (x) => x.owner },
 ]
 
-const WHO = { setup_ops: 'you', landlord: 'landlord', vendor: 'vendor', none: '—' }
+const WHO = { setup_ops: 'you', supply: 'supply', landlord: 'landlord', vendor: 'vendor', none: '—' }
+const setupText = (d) => d == null ? '—' : d === 0 ? 'today' : d > 0 ? `in ${d}d` : `${-d}d ago`
 const dotFor = (u) => u === 'overdue' ? 'var(--red, #e05c6a)' : (u === 'today' || u === 'soon') ? 'var(--amber, #c8963e)' : u === 'done' ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)'
 
 function SlaDot({ urgency, title }) {
@@ -148,11 +152,7 @@ export default function WorkQueue() {
     setSel(new Set()); reload()
   }
 
-  const overdueBy = (x) => {
-    const limitKey = { onboarded: 'onboarded_days', inspection_in_progress: 'inspection_draft_days', estimate_not_created: 'estimate_not_created_days', estimate_draft: 'estimate_draft_days', estimate_sent: 'estimate_unopened_days', estimate_viewed: 'landlord_silent_days', landlord_queried: 'query_reply_days', landlord_partially_decided: 'landlord_silent_days', work_order_pending: 'work_order_pending_days', wo_unassigned: 'wo_unassigned_days', wo_unscheduled: 'wo_unscheduled_days', qc_pending: 'qc_pending_days', disputed: 'dispute_days', handover_unknown: 'handover_unknown_days', invoice_draft: 'invoice_draft_days' }[x.t.code]
-    const lim = limitKey && thresholds ? Number(thresholds[limitKey]) : null
-    return x.t.urgency === 'overdue' && lim ? Math.max(1, (x.t.age_days ?? 0) - lim) : null
-  }
+  const overdueBy = (x) => x.t.urgency === 'overdue' ? (x.t.overdue_by ?? null) : null
   const ageText = (x) => { const od = overdueBy(x); return od ? `${x.t.age_days}d · over by ${od}` : `${x.t.age_days ?? '—'}d · ${ago(x.t.since, x.t.age_days)}` }
 
   const openRecord = (pid) => navigate(`/properties/${encodeURIComponent(pid)}`)
@@ -189,6 +189,13 @@ export default function WorkQueue() {
           style={{ minHeight: 34, padding: '0 12px', borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontFamily: MONO, fontSize: 12, outline: 'none', width: phone ? undefined : 220, flex: phone ? '1 1 160px' : undefined, minWidth: 0 }} />
         <button onClick={() => { reload(); loadMeta() }} title="Refresh" style={btn(false)}>↻</button>
       </div>
+
+      {/* enrichment never blocks anything; it is a quiet count, nothing more */}
+      {rows && rows.some(r => r.enrichment_missing) && (
+        <div style={{ marginTop: 8, fontFamily: MONO, fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>
+          {rows.filter(r => r.enrichment_missing).length} properties awaiting enrichment from the Holy Grail sheet
+        </div>
+      )}
 
       {/* bulk bar */}
       {sel.size > 0 && (
@@ -243,7 +250,7 @@ export default function WorkQueue() {
                   <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}><span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--accent, #c8963e)' }}>{x.r.pid}</span><span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.r.property_name}</span></div>
                   <div style={{ fontSize: 13.5, marginTop: 2 }}>{x.t.label}</div>
                   <div style={{ fontSize: 10.5, fontFamily: MONO, color: 'var(--text-muted, #6b6d82)', marginTop: 3, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span><SlaDot urgency={x.t.urgency} />{ageText(x)}</span><span>· {WHO[x.t.blocked_on]}</span><span>· {local(x.owner)}</span>
+                    <span><SlaDot urgency={x.t.urgency} />{ageText(x)}</span><span>· {WHO[x.t.waiting_on || x.t.blocked_on]}</span><span>· {local(x.owner)}</span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <button onClick={e => openAction(e, x)} style={{ ...btn(true), minHeight: 36, flex: '1 1 auto', minWidth: 0, textAlign: 'left', whiteSpace: 'normal' }}>{x.t.next_action_label} ›</button>
@@ -276,8 +283,9 @@ export default function WorkQueue() {
                     <td style={{ padding: '8px 10px', fontFamily: MONO, color: 'var(--accent, #c8963e)', whiteSpace: 'nowrap' }}>{x.r.pid}</td>
                     <td style={{ padding: '8px 10px', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.r.property_name}</td>
                     <td style={{ padding: '8px 10px', color: 'var(--text-dim, #9394a8)' }}>{x.t.label}</td>
-                    <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, color: x.t.blocked_on === 'setup_ops' ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)' }}>{WHO[x.t.blocked_on]}</td>
+                    <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, color: (x.t.waiting_on || x.t.blocked_on) === 'setup_ops' ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)' }}>{WHO[x.t.waiting_on || x.t.blocked_on]}</td>
                     <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, whiteSpace: 'nowrap', color: x.t.urgency === 'overdue' ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}><SlaDot urgency={x.t.urgency} />{ageText(x)}</td>
+                    <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, whiteSpace: 'nowrap', color: x.r.days_to_setup != null && x.r.days_to_setup >= 0 && x.r.days_to_setup <= 2 ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)' }}>{setupText(x.r.days_to_setup)}</td>
                     <td style={{ padding: '6px 10px' }}><button onClick={e => openAction(e, x)} style={{ ...btn(true), minHeight: 30, padding: '0 10px' }}>{x.t.next_action_label} ›</button></td>
                     <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, color: x.owner === me ? 'var(--text, #e8e8f0)' : 'var(--text-dim, #9394a8)', whiteSpace: 'nowrap' }}>{local(x.owner)}</td>
                     <td style={{ padding: '4px 6px' }} onClick={e => e.stopPropagation()}><DraftMessageButton pid={x.r.pid} code={x.t.code} compact /></td>

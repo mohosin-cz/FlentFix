@@ -19,11 +19,11 @@ const RED = 'var(--red, #e05c6a)'
 
 // Worst category first. A missed handover is a landlord standing outside a flat.
 const CATEGORIES = [
-  { key: 'handover_overdue',    label: 'Handover overdue',       hint: 'T-Day passed, nobody recorded the keys going over' },
+  { key: 'setup_overdue',       label: 'Setup overdue',          hint: 'work still open past its closure date' },
   { key: 'disputed_twice',      label: 'Disputed twice',         hint: 'the vendor has been sent back to the same item at least twice' },
   { key: 'scheduled_no_vendor', label: 'Scheduled, no vendor',   hint: 'a date is set and nobody is coming' },
   { key: 'past_sla',            label: 'Past SLA',               hint: 'setup-ops steps older than their threshold' },
-  { key: 'estimate_silent',     label: 'Landlord silent',        hint: 'estimate in their hands with no decision for over a week' },
+  { key: 'estimate_silent',     label: 'Estimate stalled',       hint: 'with supply or the landlord past its limit, no decision' },
 ]
 const SEV_RANK = { critical: 0, high: 1, medium: 2 }
 

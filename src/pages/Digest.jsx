@@ -34,6 +34,7 @@ function sentence(c, team) {
   const parts = []
   parts.push(`${who} ${n(c.needs_you, 'thing', 'things')} to do`)
   if (c.today > 0) parts.push(`${n(c.today, 'vendor or handover is', 'vendors or handovers are')} on site today`)
+  if (c.waiting_supply > 0) parts.push(`${c.waiting_supply} ${c.waiting_supply === 1 ? 'is' : 'are'} with supply`)
   if (c.waiting_landlord > 0) parts.push(`${c.waiting_landlord} ${c.waiting_landlord === 1 ? 'is' : 'are'} waiting on landlords`)
   if (c.waiting_vendor > 0) parts.push(`${c.waiting_vendor} on vendors`)
   parts.push(c.going_wrong > 0 ? `${c.going_wrong} ${c.going_wrong === 1 ? 'is' : 'are'} going wrong` : 'nothing is going wrong')
@@ -167,6 +168,7 @@ export default function Digest() {
   const needs = data?.needs_you || []
   const today = data?.today || []
   const wrong = data?.going_wrong || []
+  const supply = (data?.waiting || []).filter(w => w.blocked_on === 'supply')
   const landlord = (data?.waiting || []).filter(w => w.blocked_on === 'landlord')
   const vendor = (data?.waiting || []).filter(w => w.blocked_on === 'vendor')
   const moved = data?.moved_recently || []
@@ -267,10 +269,10 @@ export default function Digest() {
               </Para>
             )}
 
-            <Para lead={landlord.length + vendor.length === 0 ? 'Nobody is holding anything up.' : `Waiting on others — ${n(landlord.length, 'landlord')}, ${n(vendor.length, 'vendor')}. Not ${team ? "the team's" : 'yours'} to do; ages showing.`}>
+            <Para lead={supply.length + landlord.length + vendor.length === 0 ? 'Nobody is holding anything up.' : `Waiting on others — ${n(supply.length, 'with supply', 'with supply')}, ${n(landlord.length, 'landlord')}, ${n(vendor.length, 'vendor')}. Not ${team ? "the team's" : 'yours'} to do; ages showing.`}>
               {landlord.length + vendor.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: phone ? '1fr' : '1fr 1fr', gap: 12 }}>
-                  {[['Landlords', landlord], ['Vendors', vendor]].map(([lane, items]) => (
+                <div style={{ display: 'grid', gridTemplateColumns: phone ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+                  {[['Supply', supply], ['Landlords', landlord], ['Vendors', vendor]].map(([lane, items]) => (
                     <div key={lane} style={panel}>
                       <div style={{ padding: '8px 14px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, borderBottom: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)' }}>
                         {lane} · {items.length}

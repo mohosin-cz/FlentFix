@@ -10,7 +10,7 @@ import { ago } from '../home/JourneyPanels'
 // panel — the same answer Home gives, for one property.
 
 const MONO = 'var(--font-mono, monospace)'
-const WHO = { setup_ops: 'Flent', landlord: 'the landlord', vendor: 'the vendor', none: 'nobody' }
+const WHO = { setup_ops: 'Flent', supply: 'supply', landlord: 'the landlord', vendor: 'the vendor', none: 'nobody' }
 const dot = (u) => u === 'overdue' ? 'var(--red, #e05c6a)' : (u === 'today' || u === 'soon') ? 'var(--amber, #c8963e)' : u === 'done' ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)'
 
 // The engine's row for one property. The page reads it once and hands it to
@@ -66,8 +66,10 @@ export default function RecordStatus({ journey }) {
         <span style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.3 }}>{row.stage_label}</span>
       </div>
       <div style={{ fontSize: 11.5, fontFamily: MONO, color: row.urgency === 'overdue' ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)', marginTop: 5 }}>
-        Waiting on {WHO[row.blocked_on] || row.blocked_on} · {ago(row.since, row.age_days)}{row.urgency === 'overdue' ? ' · overdue' : ''}
+        Waiting on {WHO[row.waiting_on || row.blocked_on] || row.blocked_on} · {ago(row.since, row.age_days)}{row.urgency === 'overdue' ? ' · overdue' : ''}
+        {row.days_to_setup != null && <> · setup {row.days_to_setup === 0 ? 'today' : row.days_to_setup > 0 ? `in ${row.days_to_setup}d` : `started ${-row.days_to_setup}d ago`}</>}
       </div>
+      {row.open_threads?.[0]?.note && <div style={{ fontSize: 11, fontFamily: MONO, color: 'var(--text-muted, #6b6d82)', marginTop: 4 }}>{row.open_threads[0].note}</div>}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', alignItems: 'center' }}>
         {row.next_action_route && (
@@ -88,7 +90,7 @@ export default function RecordStatus({ journey }) {
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: dot(t.urgency), marginTop: 6, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12.5 }}>{t.label}</div>
-                <div style={{ fontSize: 10.5, fontFamily: MONO, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>{WHO[t.blocked_on]} · {ago(t.since, t.age_days)} · {t.next_action_label}</div>
+                <div style={{ fontSize: 10.5, fontFamily: MONO, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>{WHO[t.waiting_on || t.blocked_on]} · {ago(t.since, t.age_days)} · {t.next_action_label}{t.note ? ` · ${t.note}` : ''}</div>
               </div>
             </div>
           ))}

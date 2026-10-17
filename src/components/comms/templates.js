@@ -40,6 +40,15 @@ const THREAD_TEMPLATE = {
   handover_scheduled:         ['tell_landlord_complete',  'landlord'],
   handover_today:             ['tell_landlord_complete',  'landlord'],
   verified:                   ['tell_landlord_complete',  'landlord'],
+  // journey engine v2 (pulse-journey-prompt.md)
+  landlord_deciding:          ['chase_silent_landlord',   'landlord'],
+  wo_awaiting_day:            ['tell_vendor_scheduled',   'vendor'],
+  setup_day:                  ['tell_vendor_scheduled',   'vendor'],
+  wo_undated:                 ['tell_vendor_scheduled',   'vendor'],
+  vendors_on_site:            ['chase_vendor_open_items', 'vendor'],
+  setup_in_progress:          ['chase_vendor_open_items', 'vendor'],
+  wo_overdue:                 ['chase_vendor_open_items', 'vendor'],
+  handover_pending:           ['tell_landlord_complete',  'landlord'],
 }
 
 /** → { key, audience } for a thread code, or null when nobody needs a message. */
@@ -153,14 +162,20 @@ export function pickWorkOrder(ctx, code, opts = {}) {
     case 'disputed':
       return by(w => (w.sent_back_count || 0) > 0, (a, b) => b.sent_back_count - a.sent_back_count)
     case 'in_progress':
+    case 'vendors_on_site':
+    case 'setup_in_progress':
+    case 'wo_overdue':
       return by(w => open(w) && (w.status === 'in_progress' || (w.status === 'assigned' && w.scheduled_start && w.scheduled_start < today)),
                 (a, b) => (b.open_count || 0) - (a.open_count || 0))
         || by(w => open(w) && notDone(w))
     case 'execution_day':
+    case 'setup_day':
       return by(w => w.scheduled_start === today && notDone(w))
     case 'wo_scheduled':
+    case 'wo_awaiting_day':
       return by(w => w.scheduled_start && w.scheduled_start >= today && notDone(w), (a, b) => a.scheduled_start.localeCompare(b.scheduled_start))
     case 'wo_unscheduled':
+    case 'wo_undated':
       return by(w => !w.scheduled_start && notDone(w))
     default:
       return by(w => open(w) && notDone(w)) || wos[0]
