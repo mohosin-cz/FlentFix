@@ -112,12 +112,13 @@ function KindChip({ ot, small }) {
 }
 
 // prominent PID badge (loud, top of a tile)
-function PidBadge({ pid, siteMap }) {
+function PidBadge({ pid, siteMap, flag }) {
   if (!pid) return null
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 11px', background: 'rgba(200,150,62,0.12)', border: '1px solid rgba(200,150,62,0.32)', borderRadius: 8, width: 'fit-content' }}>
       <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>PID</span>
       <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.02em' }}>{(siteMap && siteMap[pid]) || pid}</span>
+      {flag === 'unknown_pid' && <span title="This PID is not a known Flent property — check where they were" style={{ fontSize: 10, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>check PID</span>}
     </div>
   )
 }
@@ -260,7 +261,7 @@ function SessionTile({ ses, siteMap, brk, now, onClosed, onBreakEnded }) {
         </>
       )}
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        <PidBadge pid={pid} siteMap={siteMap} />
+        <PidBadge pid={pid} flag={(ses.inP && ses.inP.pid_flag) || null} siteMap={siteMap} />
         <KindChip ot={ot} />
         {open && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginInlineStart: 'auto', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', color: kt.ink, fontFamily: 'var(--font-mono, monospace)' }}>
@@ -428,6 +429,8 @@ function VendorDayDetail({ s, dateLabel, siteMap, date, now, onChanged, onClose 
                   <PunchTag p={p} big />
                   <span style={{ fontSize: 12, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtTime(p.punched_at)}</span>
                   {p.pid && <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>· {siteMap[p.pid] || p.pid}</span>}
+                  {/* typed PID that matches no Flent property — the office checks these */}
+                  {p.pid_flag === 'unknown_pid' && <span title="This PID is not a known Flent property — check where they were" style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--red, #e05c6a)', border: '1px solid rgba(224,92,106,0.45)', borderRadius: 6, padding: '1px 6px', fontFamily: 'var(--font-mono, monospace)' }}>check PID</span>}
                 </div>
                 <div style={{ marginTop: 3 }}><Loc p={p} /></div>
               </div>

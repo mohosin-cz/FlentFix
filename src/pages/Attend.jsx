@@ -8,6 +8,7 @@ import { breakTotals, fmtMs } from '../utils/attendance'
 import FlentWordmark from '../components/FlentWordmark'
 import VendorWorkOrder from './VendorWorkOrder'
 import { InstallBanner, InstallRow } from '../components/vendor/InstallApp'
+import SitePicker from '../components/attend/SitePicker'
 
 const TOKEN_KEY = 'flent_attend_token'
 const avatarUrl = (path) => {
@@ -553,7 +554,7 @@ export default function Attend() {
   // a punch always captures a selfie first: open the camera, then record on capture
   function startPunch(type) {
     setErr(''); setConfirm(null)
-    if (type === 'in' && !pid.trim()) { setErr('Enter the site / property ID you are working at.'); return }
+    if (type === 'in' && !pid.trim()) { setErr('Pick the property you are at.'); return }
     setPendingType(type)
     if (selfieRef.current) selfieRef.current.click()
   }
@@ -739,11 +740,8 @@ export default function Attend() {
                         style={{ flex: 1, padding: '8px', fontSize: 12.5, fontWeight: on ? 700 : 500, border: 'none', borderRadius: 7, cursor: 'pointer', background: on ? 'var(--bg-input, #252731)' : 'transparent', color: on ? c : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', boxShadow: on ? `inset 0 0 0 1px ${c}55` : 'none' }}>{o.l}</button>
                     })}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'stretch', background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 9, overflow: 'hidden' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', color: 'var(--text-muted, #6b6d82)', borderRight: '1px solid var(--border, #2e3040)', fontFamily: 'var(--font-mono, monospace)' }}>PID</span>
-                    <input value={pid} onChange={e => setPid(e.target.value)} placeholder="which property?" autoCapitalize="characters" autoCorrect="off"
-                      style={{ flex: 1, minWidth: 0, padding: '12px', fontSize: 16, color: 'var(--text, #e8e8f0)', background: 'none', border: 'none', outline: 'none', fontFamily: 'inherit' }} />
-                  </div>
+                  {/* pick the property, don't type it — see SitePicker */}
+                  <SitePicker token={tokenRef.current} value={pid} onChange={setPid} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px' }}>
                     <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: geo ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }} />
                     <span style={{ flex: 1, fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
