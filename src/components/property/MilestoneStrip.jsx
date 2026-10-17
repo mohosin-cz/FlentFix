@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useIsMobile } from '../../hooks/useIsMobile'
 
@@ -35,6 +36,34 @@ function daysTo(d) {
   return Math.round((t - today) / 86400000)
 }
 const todayIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+
+// Setup can't close until every payment is confirmed logged and the WiFi and
+// RO details are registered on the Utilities page (unless marked not needed
+// when they were requested). The database enforces the same rule.
+function SetupCloseChecklist({ pid, checks, busy, btn, onPayments, onClose }) {
+  const navigate = useNavigate()
+  const pay = !!checks.payments_logged?.at
+  const wifiOk = checks.wifi?.not_needed || checks.wifi?.registered
+  const roOk = checks.ro?.not_needed || checks.ro?.registered
+  const ready = pay && wifiOk && roOk
+  const item = (ok, label, action) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 10px', borderRadius: 8, border: `1px solid ${ok ? 'rgba(61,186,122,0.4)' : 'var(--border, #2e3040)'}`, fontFamily: MONO, fontSize: 12 }}>
+      <span style={{ color: ok ? 'var(--green, #3dba7a)' : 'var(--amber, #c8963e)' }}>{ok ? '✓' : '○'}</span>
+      <span style={{ color: ok ? 'var(--text-dim, #9394a8)' : 'var(--text, #e8e8f0)' }}>{label}</span>
+      {action}
+    </span>
+  )
+  const link = (txt, onClick) => <button type="button" onClick={onClick} disabled={busy} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--accent, #c8963e)', fontFamily: MONO, fontSize: 11.5, cursor: 'pointer' }}>{txt}</button>
+  return (
+    <>
+      {item(pay, pay ? 'All payments logged' : 'All payments logged?', pay ? link('undo', () => onPayments(false)) : <>{link('Payments ›', () => navigate(`/properties/${pid}/payments`))}{link('Confirm', () => onPayments(true))}</>)}
+      {item(wifiOk, checks.wifi?.not_needed ? 'WiFi not needed' : 'WiFi details registered', !wifiOk && link('Utilities ›', () => navigate(`/properties/${pid}/utilities`)))}
+      {item(roOk, checks.ro?.not_needed ? 'RO not needed' : 'RO details registered', !roOk && link('Utilities ›', () => navigate(`/properties/${pid}/utilities`)))}
+      <button type="button" disabled={!ready || busy} onClick={onClose} title={ready ? '' : 'Finish the checks first'}
+        style={{ ...btn(ready), opacity: ready ? 1 : 0.5, cursor: ready ? 'pointer' : 'not-allowed' }}>Mark setup closed</button>
+    </>
+  )
+}
 
 export default function MilestoneStrip({ pid }) {
   const phone = useIsMobile(720)
@@ -131,6 +160,16 @@ export default function MilestoneStrip({ pid }) {
           </>
         ) : due === 'setup_closed' && dt != null && dt > 0 ? (
           <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>Setup is on {fmtDay(setup.date)} — close it once the work is done.</span>
+        ) : due === 'setup_closed' && state.data.checks ? (
+          <SetupCloseChecklist pid={pid} checks={state.data.checks} busy={busy} btn={btn}
+            onPayments={async (done) => {
+              setErr(null); setBusy(true)
+              const { data, error } = await supabase.rpc('property_mark_payments_logged', { p_pid: pid, p_done: done })
+              setBusy(false)
+              if (error) { setErr(error.message); return }
+              setState({ loading: false, error: null, data })
+            }}
+            onClose={() => act('mark', 'setup_closed')} />
         ) : due ? (
           <button type="button" disabled={busy} onClick={() => act('mark', due)} style={btn(true)}>{STEPS[due].action}</button>
         ) : (

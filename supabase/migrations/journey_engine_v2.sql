@@ -94,7 +94,7 @@ as $$
         when 'work_orders_unplanned' then 11 when 'wo_unassigned' then 12 when 'wo_undated' then 12
         when 'wo_awaiting_day' then 13 when 'setup_day' then 14 when 'vendors_on_site' then 15 when 'setup_in_progress' then 15
         when 'items_to_verify' then 15 when 'disputed' then 16 when 'wo_overdue' then 16 when 'setup_close_pending' then 17
-        when 'payments_pending' then 18 when 'utility_details_pending' then 19 when 'qc_pending' then 20
+        when 'payments_pending' then 17 when 'utility_details_pending' then 17 when 'qc_pending' then 20
         when 'handover_pending' then 21 when 'wo_share_pending' then 22 when 'invoice_pending' then 23
         when 'close_pending' then 24 when 'closed' then 25 when 'archived' then 99 else 0 end,
     'label', p_label,
@@ -241,6 +241,10 @@ begin
     ),
     util as (
       select b.pid,
+             bool_or(u.utility_type = 'wifi' and u.status = 'active' and nullif(u.account_number,'') is not null
+                     and nullif(u.ssid,'') is not null and nullif(u.wifi_password,'') is not null) wifi_ok,
+             bool_or(u.utility_type = 'water_purifier' and u.status = 'active' and nullif(u.provider,'') is not null
+                     and u.start_date is not null) ro_ok,
              count(*) filter (where u.status = 'active') n_active,
              count(*) filter (where u.status = 'active' and (
                  (u.utility_type = 'wifi' and (nullif(u.account_number,'') is null or nullif(u.ssid,'') is null or nullif(u.wifi_password,'') is null))
@@ -273,6 +277,8 @@ begin
            w.last_item_done, w.disputed_since,
            coalesce(a.on_site_today,0) on_site_today, coalesce(a.since_setup,0) on_site_since_setup, a.first_in,
            coalesce(u.n_active,0) util_n, coalesce(u.n_incomplete,0) util_incomplete,
+           coalesce(u.wifi_ok, false) wifi_ok, coalesce(u.ro_ok, false) ro_ok,
+           b.wifi_requested_at, b.wifi_plan_months, b.ro_requested_at, b.ro_plan_months, b.payments_logged_at,
            coalesce(pa.n,0) pay_n, coalesce(pa.n_since_final,0) pay_since_final,
            inv.inspection_id inv_insp_id, inv.created_at inv_at
       from base b
@@ -314,15 +320,7 @@ begin
       th := th || public.journey_step('closed', 'Property closed', 'none', r.closed_at, 'Done', r_prop, null, 'done');
 
     elsif closed_eff then
-      -- 18–24 · after setup. Payments and utility details run alongside the marked chain.
-      if r.pay_since_final = 0 then
-        th := th || public.journey_step('payments_pending', 'Setup closed, no spend logged', 'setup_ops', closed_since,
-               'Log the setup payments', r_pay, (t->>'payments_days')::int);
-      end if;
-      if r.util_incomplete > 0 then
-        th := th || public.journey_step('utility_details_pending', r.util_incomplete || ' utilit' || case when r.util_incomplete = 1 then 'y' else 'ies' end || ' missing account details', 'setup_ops', closed_since,
-               'Complete utility details', r_util, (t->>'utility_details_days')::int);
-      end if;
+      -- 20–24 · after setup closed (payments and utility details were checked before closing)
       if r.qc_done_at is null then
         th := th || public.journey_step('qc_pending', 'Setup closed, QC not done', 'setup_ops', closed_since,
                'Mark QC done', r_prop, (t->>'qc_days')::int, null, closed_note);
@@ -347,9 +345,14 @@ begin
         th := th || public.journey_step('setup_date_pending', 'Estimate final, no setup date', 'setup_ops', fin_since,
                'Set the setup date', r_prop, (t->>'setup_date_days')::int, null, fin_note);
       end if;
-      if r.setup_date is not null and r.util_n = 0 and d >= 0 then
-        th := th || public.journey_step('utilities_unplanned', 'Utilities not planned (WiFi, RO)', 'setup_ops', fin_since,
-               'Plan utilities', r_util, null, public.journey_lead_urgency(d, (t->>'utilities_lead_days')::int));
+      -- planning utilities = the request to the WiFi and RO partners (a tick on the property page)
+      if r.setup_date is not null and d >= 0 and (r.wifi_requested_at is null or r.ro_requested_at is null) then
+        th := th || public.journey_step('utilities_unplanned',
+               case when r.wifi_requested_at is null and r.ro_requested_at is null then 'WiFi and RO not requested from partners'
+                    when r.wifi_requested_at is null then 'WiFi not requested from the partner'
+                    else 'RO not requested from the partner' end,
+               'setup_ops', fin_since, 'Request utilities', r_prop || '#utilities-request', null,
+               public.journey_lead_urgency(d, (t->>'utilities_lead_days')::int));
       end if;
       if r.wo_n = 0 then
         if r.setup_date is not null then
@@ -396,8 +399,24 @@ begin
                  'Verify closed items', r_wo, (t->>'items_to_verify_days')::int);
         end if;
         if r.items_open = 0 and r.items_to_verify = 0 then
-          th := th || public.journey_step('setup_close_pending', 'All work done, setup not closed', 'setup_ops', coalesce(r.last_item_done, r.setup_date::timestamptz),
-                 'Mark setup closed', r_prop, (t->>'setup_close_days')::int);
+          -- setup can't close until payments are confirmed logged and the utility details are registered
+          if r.payments_logged_at is null then
+            th := th || public.journey_step('payments_pending', 'Work done — confirm all payments are logged', 'setup_ops', coalesce(r.last_item_done, r.setup_date::timestamptz),
+                   'Log payments, then confirm', r_pay, (t->>'payments_days')::int);
+          end if;
+          if (not r.wifi_ok and coalesce(r.wifi_plan_months, -1) <> 0) or (not r.ro_ok and coalesce(r.ro_plan_months, -1) <> 0) then
+            th := th || public.journey_step('utility_details_pending',
+                   case when not r.wifi_ok and coalesce(r.wifi_plan_months, -1) <> 0 and not r.ro_ok and coalesce(r.ro_plan_months, -1) <> 0 then 'WiFi and RO details not registered'
+                        when not r.wifi_ok and coalesce(r.wifi_plan_months, -1) <> 0 then 'WiFi details not registered'
+                        else 'RO details not registered' end,
+                   'setup_ops', coalesce(r.last_item_done, r.setup_date::timestamptz),
+                   'Register utility details', r_util, (t->>'utility_details_days')::int);
+          end if;
+          if r.payments_logged_at is not null
+             and (r.wifi_ok or coalesce(r.wifi_plan_months, -1) = 0) and (r.ro_ok or coalesce(r.ro_plan_months, -1) = 0) then
+            th := th || public.journey_step('setup_close_pending', 'All work done, ready to close setup', 'setup_ops', coalesce(r.last_item_done, r.setup_date::timestamptz),
+                   'Mark setup closed', r_prop, (t->>'setup_close_days')::int);
+          end if;
         end if;
       end if;
 
