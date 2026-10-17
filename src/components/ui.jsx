@@ -32,7 +32,7 @@ export function NavBar({ title, subtitle, onBack, right }) { // eslint-disable-l
       position: 'sticky', top: 0, zIndex: 100,
     }}>
       {/* the way out is home (pulse); stepping back is the browser's swipe or back key */}
-      <HomeMark />
+      <HomeMark bare />
       <div style={{ flex: 1, textAlign: 'center', padding: '0 12px' }}>
         <div style={{
           fontSize: 14, fontWeight: 600,
