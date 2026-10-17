@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { DraftMessageButton } from '../comms/DraftMessage'
+import { readDraftProgress } from '../../utils/draftProgress'
 
 // My desk — the top of Home, tailored to the person signed in (or, for an
 // admin, whoever they choose to view as). Everything comes from two reads:
@@ -195,9 +196,15 @@ export default function MyDesk({ home, desk, viewing, onPickView, onChanged }) {
 // ── panels ────────────────────────────────────────────────────────────────
 function QuickStart({ drafts, viewing, navigate }) {
   if (viewing) return null
-  const card = { flex: '1 1 240px', display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 13px', cursor: 'pointer', color: C.text, minWidth: 0 }
-  const big = { width: 34, height: 34, borderRadius: 9, display: 'grid', placeItems: 'center', background: SOFT.amber, color: C.accent, fontSize: 18, fontWeight: 700, flex: 'none' }
-  const hasLocal = (pid) => { try { return ['outdoor', 'indoor', 'appliances'].some(k => localStorage.getItem(`flentfix_${k}_draft_${pid}`)) } catch { return false } }
+  const card = { flex: '1 1 260px', display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 14px', cursor: 'pointer', color: C.text, minWidth: 0 }
+  const big = { width: 36, height: 36, borderRadius: 9, display: 'grid', placeItems: 'center', background: SOFT.amber, color: C.accent, fontSize: 19, fontWeight: 700, flex: 'none' }
+  // what this phone has saved for the draft: the section furthest along
+  const progress = (pid) => {
+    const p = readDraftProgress(pid)
+    const parts = [['outdoor', p.outdoor], ['indoor', p.indoor], ['appliances', p.appliances]].filter(([, x]) => x.started && x.total)
+    if (!parts.length) return null
+    return parts.map(([k, x]) => `${k} ${x.done} of ${x.total}`).join(' · ')
+  }
   return (
     <div className="dk-quick">
       <button type="button" style={card} onClick={() => navigate('/inspections/new')}>
@@ -206,11 +213,14 @@ function QuickStart({ drafts, viewing, navigate }) {
       {drafts.map(dr => {
         const c = dr.config || {}
         const state = { pid: dr.pid, inspectionType: c.inspectionType, propertyType: c.propertyType, layout: c.layout, rooms: c.rooms }
+        const prog = progress(dr.pid)
         return (
           <button key={dr.id} type="button" style={card} onClick={() => navigate('/inspections/mode', { state })}>
             <span style={big}>↺</span>
-            <span style={{ minWidth: 0 }}><T1>Continue: <Pid pid={dr.pid} />{dr.name !== dr.pid ? dr.name : ''}</T1>
-              <T2>started {ago(dr.created_at)}{hasLocal(dr.pid) ? ' · progress saved on this device' : ' · no saved progress on this device'}</T2></span>
+            <span style={{ minWidth: 0 }}>
+              <T1>Continue: <Pid pid={dr.pid} />{dr.name !== dr.pid ? clean(dr.name, dr.pid) : ''}</T1>
+              <T2>{prog ? `${prog} · saved on this device` : `started ${ago(dr.created_at)} · progress is on the device that started it`}</T2>
+            </span>
           </button>
         )
       })}
@@ -245,28 +255,50 @@ function WeekAhead({ week, navigate }) {
   )
 }
 
+// One card per setup or handover in the next 7 days, each carrying what that
+// step needs: arrivals on the day, utilities and vendors before it, QC and the
+// landlord message before a handover.
+function utilLine(k, u, active) {
+  const n = k === 'wifi' ? 'WiFi' : 'RO'
+  if (active) return [`${n} active`, C.green]
+  if (u?.requested_at && u.months === 0) return [`${n} not needed`, C.muted]
+  if (u?.requested_at) return [`${n} requested`, C.accent]
+  return [`${n} not requested`, C.red]
+}
 function Today({ today, navigate }) {
   if (!today.length) return null
-  const t = isoDay(0)
+  const whenTxt = (x) => x.days === 0 ? 'today' : x.days === 1 ? 'tomorrow' : new Date(x.date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
   return (
-    <Panel title="Today & tomorrow" meta="where you need to be">
+    <Panel title="Coming up" meta="setups and handovers, next 7 days">
       <div className="dk-today">
         {today.map(x => {
           const p = x.panel, vendors = p?.vendors || []
-          const arrived = vendors.filter(v => v.first_in_today).length
+          const arrived = vendors.filter(v => v.first_in_today), missing = vendors.filter(v => !v.first_in_today)
           const total = vendors.reduce((s, v) => s + (v.items_total || 0), 0), closed = vendors.reduce((s, v) => s + (v.items_closed || 0), 0)
-          const live = x.date === t
+          const live = x.days === 0
+          const lines = []
+          if (x.kind === 'setup' && live) {
+            lines.push([vendors.length ? `${arrived.length} of ${vendors.length} vendors in${missing.length ? ` · ${missing.slice(0, 2).map(v => v.name.split(' ')[0]).join(', ')} not arrived` : ''}` : 'no vendors assigned', vendors.length && !missing.length ? C.green : missing.length ? C.red : C.red])
+          } else if (x.kind === 'setup') {
+            const w = utilLine('wifi', x.wifi, p?.utilities?.wifi), r = utilLine('ro', x.ro, p?.utilities?.ro)
+            lines.push([<><span style={{ color: w[1] }}>{w[0]}</span> · <span style={{ color: r[1] }}>{r[0]}</span></>, C.muted])
+            lines.push([vendors.length ? `${vendors.length} vendor${vendors.length === 1 ? '' : 's'} assigned` : 'no vendors assigned yet', vendors.length ? C.muted : C.red])
+          } else {
+            lines.push([x.qc_done ? 'QC done' : 'QC not marked yet', x.qc_done ? C.green : C.accent])
+          }
           return (
-            <button key={x.kind + x.pid} type="button" onClick={() => navigate(`/properties/${x.pid}`)}
-              style={{ textAlign: 'left', border: `1px solid ${live ? 'rgba(200,150,62,0.45)' : C.border}`, borderRadius: 9, padding: '11px 12px', display: 'grid', gap: 6, background: live ? SOFT.amber : C.bg, cursor: 'pointer', color: C.text }}>
-              <span style={{ fontFamily: MONO, fontSize: 11, color: C.accent, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{live ? '● ' : ''}{x.kind} · {live ? 'today' : 'tomorrow'}</span>
-              <span><Pid pid={x.pid} /><b>{clean(x.name, x.pid)}</b></span>
-              {x.kind === 'setup' ? <>
-                <T2>{vendors.length ? `${arrived} of ${vendors.length} vendors in today` : 'no vendors assigned'}{vendors.filter(v => !v.first_in_today).slice(0, 2).map(v => ` · ${v.name} not in`).join('')}</T2>
-                <span style={{ height: 6, borderRadius: 3, background: C.input, overflow: 'hidden' }}><span style={{ display: 'block', height: '100%', width: `${total ? Math.round(100 * closed / total) : 0}%`, background: C.green }} /></span>
+            <div key={x.kind + x.pid} style={{ border: `1px solid ${live ? 'rgba(200,150,62,0.45)' : C.border}`, borderRadius: 9, padding: '11px 12px', display: 'grid', gap: 6, background: live ? SOFT.amber : C.bg, minWidth: 0 }}>
+              <button type="button" onClick={() => navigate(`/properties/${x.pid}`)} style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: C.text, display: 'grid', gap: 6 }}>
+                <span style={{ fontFamily: MONO, fontSize: 11, color: C.accent, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{live ? '● ' : ''}{x.kind} · {whenTxt(x)}</span>
+                <span><Pid pid={x.pid} /><b>{clean(x.name, x.pid)}</b></span>
+                {lines.map(([t, col], i) => <span key={i} style={{ fontFamily: MONO, fontSize: 11.5, color: col }}>{t}</span>)}
+              </button>
+              {x.kind === 'setup' && total > 0 && <>
+                <span style={{ height: 6, borderRadius: 3, background: C.input, overflow: 'hidden' }}><span style={{ display: 'block', height: '100%', width: `${Math.round(100 * closed / total)}%`, background: C.green }} /></span>
                 <T2>items {closed} of {total} closed</T2>
-              </> : <T2>handover planned — mark it on the journey once done</T2>}
-            </button>
+              </>}
+              {x.kind === 'handover' && <span><DraftMessageButton pid={x.pid} code={live ? 'handover_today' : 'handover_scheduled'} label="Draft the handover message" compact /></span>}
+            </div>
           )
         })}
       </div>

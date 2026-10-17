@@ -299,12 +299,17 @@ begin
     'week', coalesce((select jsonb_agg(jsonb_build_object('pid', w.pid, 'name', n.name, 'kind', w.kind, 'date', w.d) order by w.d, w.kind)
                         from wk w left join names n on n.pid = w.pid), '[]'),
 
-    'today', coalesce((select jsonb_agg(jsonb_build_object('pid', p.pid, 'name', n.name, 'kind', k.kind, 'date', k.d,
-                                                           'panel', case when k.kind = 'setup' then property_setup_panel(p.pid) end) order by k.d, k.kind)
-                         from (select pid, 'setup' kind, setup_date d from properties where pid = any(mine) and setup_date between today and today + 1
+    -- coming up: setups and handovers in the next 7 days, with what each needs
+    'today', coalesce((select jsonb_agg(jsonb_build_object('pid', p.pid, 'name', n.name, 'kind', k.kind, 'date', k.d, 'days', k.d - today,
+                                                           'qc_done', p.qc_done_at is not null,
+                                                           'wifi', jsonb_build_object('requested_at', p.wifi_requested_at, 'months', p.wifi_plan_months),
+                                                           'ro',   jsonb_build_object('requested_at', p.ro_requested_at, 'months', p.ro_plan_months),
+                                                           'panel', case when k.kind = 'setup' then property_setup_panel(p.pid) - 'history' end) order by k.d, k.kind)
+                         from (select pid, 'setup' kind, setup_date d from properties
+                                where pid = any(mine) and setup_date between today and today + 6 and setup_closed_at is null
                                union all
                                select pid, 'handover', handover_date from properties
-                                where pid = any(mine) and handover_done_at is null and handover_date between today and today + 1) k
+                                where pid = any(mine) and handover_done_at is null and handover_date between today and today + 6) k
                          join properties p on p.pid = k.pid left join names n on n.pid = k.pid), '[]'),
 
     'noshow', coalesce((select jsonb_agg(jsonb_build_object('pid', ns.pid, 'name', n.name, 'vendor', ns.vendor, 'trade', ns.trade, 'phone', ns.phone))
