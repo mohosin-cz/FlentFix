@@ -97,6 +97,13 @@ def load(project, sql_text, fn, tag):
     return path
 
 
+def parse(out):
+    """The JSON result from `supabase db query -o json`, ignoring anything the
+    CLI prints before it ("Initialising login role…") or after it (update
+    notices on CI)."""
+    return json.JSONDecoder().raw_decode(out[out.index('{'):])[0]
+
+
 def cli(*args):
     r = subprocess.run(['supabase', *args], capture_output=True, text=True)
     if r.returncode != 0:
@@ -106,8 +113,7 @@ def cli(*args):
 
 def main(dry):
     out = cli('db', 'query', '--linked', '--project-ref', STAGE, '-o', 'json', QUERY)
-    out = out[out.index('{'):]                       # the CLI may print a login line first
-    rows = json.loads(json.loads(out)['rows'][0]['rows'])
+    rows = json.loads(parse(out)['rows'][0]['rows'])
     payload = json.dumps(rows, ensure_ascii=False, default=str)
     tag = '$sg$'
     if tag in payload:
@@ -123,16 +129,16 @@ def main(dry):
         print(f'SQL written to {path} (not loaded)')
         return
     res = cli('db', 'query', '--linked', '--project-ref', PULSE, '-o', 'json', '-f', path)
-    loaded = json.loads(res[res.index('{'):])['rows'][0]['result']
+    loaded = parse(res)['rows'][0]['result']
     print(f"Loaded into Pulse: {loaded['rows']} dates (the previous snapshot was replaced)")
     os.remove(path)
 
     # the exploratory pipeline
     out = cli('db', 'query', '--linked', '--project-ref', STAGE, '-o', 'json', EXPLORATORY)
-    reqs = json.loads(json.loads(out[out.index('{'):])['rows'][0]['rows'])
+    reqs = json.loads(parse(out)['rows'][0]['rows'])
     path = load(PULSE, json.dumps(reqs, ensure_ascii=False, default=str), 'stage_exploratory_ingest', '$ex$')
     res = cli('db', 'query', '--linked', '--project-ref', PULSE, '-o', 'json', '-f', path)
-    r = json.loads(res[res.index('{'):])['rows'][0]['result']
+    r = parse(res)['rows'][0]['result']
     print(f"Exploratory: {r['requests']} requests mirrored · {r['alerts']} new alert(s) for admins")
     os.remove(path)
 
