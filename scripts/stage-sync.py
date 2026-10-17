@@ -97,11 +97,16 @@ def load(project, sql_text, fn, tag):
     return path
 
 
-def parse(out):
-    """The JSON result from `supabase db query -o json`, ignoring anything the
-    CLI prints before it ("Initialising login role…") or after it (update
-    notices on CI)."""
-    return json.JSONDecoder().raw_decode(out[out.index('{'):])[0]
+def rows_of(out):
+    """The result rows from `supabase db query -o json`, whichever shape this
+    CLI version prints: {"rows": [...], "boundary": …} (older) or a bare
+    [...] (newer) — ignoring anything printed before ("Initialising login
+    role…") or after (update notices on CI)."""
+    starts = [i for i in (out.find('{'), out.find('[')) if i >= 0]
+    if not starts:
+        sys.exit(f'No JSON in the CLI output:\n{out[:500]}')
+    doc = json.JSONDecoder().raw_decode(out[min(starts):])[0]
+    return doc['rows'] if isinstance(doc, dict) and 'rows' in doc else doc
 
 
 def cli(*args):
@@ -113,7 +118,8 @@ def cli(*args):
 
 def main(dry):
     out = cli('db', 'query', '--linked', '--project-ref', STAGE, '-o', 'json', QUERY)
-    rows = json.loads(parse(out)['rows'][0]['rows'])
+    rows = rows_of(out)[0]['rows']
+    rows = json.loads(rows) if isinstance(rows, str) else rows
     payload = json.dumps(rows, ensure_ascii=False, default=str)
     tag = '$sg$'
     if tag in payload:
@@ -129,16 +135,19 @@ def main(dry):
         print(f'SQL written to {path} (not loaded)')
         return
     res = cli('db', 'query', '--linked', '--project-ref', PULSE, '-o', 'json', '-f', path)
-    loaded = parse(res)['rows'][0]['result']
+    loaded = rows_of(res)[0]['result']
+    loaded = json.loads(loaded) if isinstance(loaded, str) else loaded
     print(f"Loaded into Pulse: {loaded['rows']} dates (the previous snapshot was replaced)")
     os.remove(path)
 
     # the exploratory pipeline
     out = cli('db', 'query', '--linked', '--project-ref', STAGE, '-o', 'json', EXPLORATORY)
-    reqs = json.loads(parse(out)['rows'][0]['rows'])
+    reqs = rows_of(out)[0]['rows']
+    reqs = json.loads(reqs) if isinstance(reqs, str) else reqs
     path = load(PULSE, json.dumps(reqs, ensure_ascii=False, default=str), 'stage_exploratory_ingest', '$ex$')
     res = cli('db', 'query', '--linked', '--project-ref', PULSE, '-o', 'json', '-f', path)
-    r = parse(res)['rows'][0]['result']
+    r = rows_of(res)[0]['result']
+    r = json.loads(r) if isinstance(r, str) else r
     print(f"Exploratory: {r['requests']} requests mirrored · {r['alerts']} new alert(s) for admins")
     os.remove(path)
 
