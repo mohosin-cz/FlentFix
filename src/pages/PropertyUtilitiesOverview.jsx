@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import { useIsMobile } from '../hooks/useIsMobile'
+import AppHeader from '../components/AppHeader'
 import LogoSpinner from '../components/LogoSpinner'
 import UtilitiesAnalytics from '../components/UtilitiesAnalytics'
 import UtilitiesExplore from '../components/utilities/UtilitiesExplore'
@@ -305,15 +306,13 @@ export default function PropertyUtilitiesOverview() {
     <>
       <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
       <div style={s.page}>
-        <header style={s.header}>
-          <button style={s.backBtn} onClick={() => navigate('/')} aria-label="Back">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </button>
+        <AppHeader />
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '10px 24px', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
           <span className="pulse-title" style={{ fontSize: 15.5 }}>Utilities</span>
-          <div style={{ width: 36 }} />
-        </header>
+          <span style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>every property's services, recharges and dues</span>
+        </div>
 
-        <main style={{ ...s.main, maxWidth: tab === 'list' ? (narrow ? 640 : 1140) : 1520 }}>
+        <main style={s.main}>
           {loading ? <LogoSpinner /> : error ? (
             <div style={{ padding: 16, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 10, fontSize: 13, color: '#f87171', fontFamily: MONO }}>Couldn’t load: {error}</div>
           ) : (
@@ -404,6 +403,6 @@ const s = {
   page: { minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', flexDirection: 'column', fontFamily: SANS, color: 'var(--text, #e8e8f0)' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 56, background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 0, zIndex: 10 },
   backBtn: { width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-dim, #9394a8)', cursor: 'pointer' },
-  main: { flex: 1, padding: '20px 20px 48px', width: '100%', margin: '0 auto' },
+  main: { flex: 1, padding: '18px 24px 48px', width: '100%', boxSizing: 'border-box' },
   row: { display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, cursor: 'pointer' },
 }

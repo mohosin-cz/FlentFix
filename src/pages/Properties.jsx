@@ -7,6 +7,8 @@ import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import LogoSpinner from '../components/LogoSpinner'
+import AppHeader from '../components/AppHeader'
+import { ago } from '../components/home/JourneyPanels'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -135,10 +137,93 @@ function PropFilter({ label, value, onChange, options, allLabel, mobile }) {
   )
 }
 
+// The list as a table, the way a CRM shows an index: one row per property,
+// every column sortable, the live stage beside the inspection facts, and the
+// archive / bin actions at the end of the row where the cards had them.
+const MONO_T = 'var(--font-mono, monospace)'
+const URG_DOT = (u) => u === 'overdue' ? 'var(--red, #e05c6a)' : (u === 'today' || u === 'soon') ? 'var(--amber, #c8963e)' : u === 'done' ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)'
+const PCOLS = [
+  { key: 'pid',       label: 'PID',        val: r => String(r.pid) },
+  { key: 'name',      label: 'Property',   val: r => (realName(r) || '').toLowerCase() },
+  { key: 'type',      label: 'Type',       val: r => r.type || '' },
+  { key: 'stage',     label: 'Stage',      val: (r, st) => st?.open_threads?.[0]?.stage_no ?? 99 },
+  { key: 'age',       label: 'Waiting',    val: (r, st) => st ? st.age_days : -1 },
+  { key: 'inspected', label: 'Inspected',  val: r => r.inspection_date || '' },
+  { key: 'inspector', label: 'Inspector',  val: r => r.inspector || '' },
+  { key: 'status',    label: 'Inspection', val: r => r.status || '' },
+  { key: 'created',   label: 'Created',    val: r => r.property_created_at || '' },
+]
+function PropTable({ rows, stageByPid, sort, setSort, onOpen, onArchive, onBin }) {
+  const col = PCOLS.find(c => c.key === sort.key) || PCOLS[5]
+  const sorted = [...rows].sort((a, b) => {
+    const A = col.val(a, stageByPid.get(String(a.pid))), B = col.val(b, stageByPid.get(String(b.pid)))
+    return (A < B ? -1 : A > B ? 1 : 0) * (sort.dir === 'asc' ? 1 : -1)
+  })
+  const th = { textAlign: 'left', padding: '9px 12px', fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: MONO_T, cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none' }
+  const td = { padding: '9px 12px', borderTop: '1px solid var(--border, #2e3040)', whiteSpace: 'nowrap' }
+  const iconBtn = { width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-muted, #6b6d82)', cursor: 'pointer' }
+  return (
+    <div style={{ border: '1px solid var(--border, #2e3040)', borderRadius: 10, overflowX: 'auto', background: 'var(--bg-panel, #1e2028)' }}>
+      <style>{`.p-row:hover { background: var(--bg-input, #252731); } .p-act:hover { border-color: var(--accent, #c8963e) !important; color: var(--accent, #c8963e) !important; } .p-bin:hover { border-color: rgba(224,92,106,0.5) !important; color: #e05c6a !important; }`}</style>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: 'var(--bg-input, #252731)' }}>
+            {PCOLS.map(c => (
+              <th key={c.key} onClick={() => setSort(s => s.key === c.key ? { key: c.key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: c.key, dir: ['inspected', 'created', 'age'].includes(c.key) ? 'desc' : 'asc' })}
+                aria-sort={sort.key === c.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                style={{ ...th, color: sort.key === c.key ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)' }}>
+                {c.label}{sort.key === c.key ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}
+              </th>
+            ))}
+            <th style={{ ...th, cursor: 'default', width: 80 }} />
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map(r => {
+            const st = stageByPid.get(String(r.pid))
+            return (
+              <tr key={r.pid} className="p-row" onClick={() => onOpen(r.pid)} style={{ cursor: 'pointer' }}>
+                <td style={{ ...td, fontFamily: MONO_T, color: 'var(--accent, #c8963e)' }}>{r.pid}</td>
+                <td style={{ ...td, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis' }} title={realName(r) || ''}>{realName(r) || <span style={{ color: 'var(--text-muted, #6b6d82)' }}>—</span>}</td>
+                <td style={{ ...td, color: 'var(--text-dim, #9394a8)' }}>{r.type ? titleCase(r.type) : '—'}</td>
+                <td style={{ ...td, color: 'var(--text-dim, #9394a8)' }}>
+                  {st ? <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: URG_DOT(st.urgency), marginRight: 7 }} />{st.stage_label}</> : <span style={{ color: 'var(--text-muted, #6b6d82)' }}>—</span>}
+                </td>
+                <td style={{ ...td, fontFamily: MONO_T, fontSize: 11.5, color: st?.urgency === 'overdue' ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}>{st ? `${ago(st.since, st.age_days)}${st.blocked_on && st.blocked_on !== 'setup_ops' ? ` · ${st.blocked_on}` : ''}` : '—'}</td>
+                <td style={{ ...td, fontFamily: MONO_T, fontSize: 11.5 }}>{fmtDate(r.inspection_date)}</td>
+                <td style={{ ...td, color: 'var(--text-dim, #9394a8)' }}>{r.inspector || '—'}</td>
+                <td style={td}><StatusBadge status={r.status} /></td>
+                <td style={{ ...td, fontFamily: MONO_T, fontSize: 11.5, color: 'var(--text-muted, #6b6d82)' }}>{r.property_created_at ? fmtDate(r.property_created_at) : '—'}</td>
+                <td style={{ ...td, textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                  <span style={{ display: 'inline-flex', gap: 6 }}>
+                    <button className="p-act" style={iconBtn} title="Archive" aria-label={`Archive PID ${r.pid}`} onClick={() => onArchive(r.pid)}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="4" rx="1" stroke="currentColor" strokeWidth="2.2"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/><path d="M10 12h4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/></svg>
+                    </button>
+                    <button className="p-bin" style={iconBtn} title="Move to bin" aria-label={`Move PID ${r.pid} to bin`} onClick={() => onBin(r.pid)}>×</button>
+                  </span>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export default function Properties() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const isMobile = useIsMobile()
+
+  // Where each property stands, from the journey engine — one read, keyed by PID.
+  const [stageByPid, setStageByPid] = useState(() => new Map())
+  useEffect(() => {
+    supabase.rpc('property_journey_state', { p_scope: 'all' }).then(({ data, error }) => {
+      if (!error) setStageByPid(new Map((data || []).map(r => [String(r.pid), r])))
+    })
+  }, [])
+  const [sort, setSort] = useState({ key: 'inspected', dir: 'desc' })
   const [rows, setRows]             = useState([])
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
@@ -380,22 +465,34 @@ export default function Properties() {
       <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
       <div style={s.page}>
 
-      {/* Header */}
-      <header style={s.header}>
-        <button style={s.backBtn} onClick={() => navigate('/')}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-        <div style={s.headerCenter}>
-          <span style={s.headerTitle}>properties</span>
-          <span style={s.headerSub}>{loading ? '…' : `${grouped.length} unit${grouped.length !== 1 ? 's' : ''}`}</span>
+      <AppHeader />
+
+      {/* Page bar — what this is, how many, search, and the places a property goes when it leaves the list */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '10px 24px', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <span style={{ fontSize: 15, fontWeight: 600 }}>Properties</span>
+          <span style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{loading ? '…' : `${grouped.length} unit${grouped.length !== 1 ? 's' : ''}`}</span>
         </div>
-        {/* Archive + bin, as a pair. Both are places things go when they leave
-            this list, so they sit together rather than in separate corners.
-            Payments sits ahead of them — it is about the live list, not about
-            what has left it. */}
-        <div style={s.headerBtns}>
+        <div style={{ position: 'relative', width: '100%', maxWidth: 360, flex: '1 1 220px' }}>
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #6b6d82)', pointerEvents: 'none', display: 'flex' }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M9.5 9.5l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+            </svg>
+          </span>
+          <input
+            type="text"
+            placeholder="search pid, name, address, inspector…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ width: '100%', padding: '9px 32px 9px 34px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 100, color: 'var(--text, #e8e8f0)', fontSize: 13, fontFamily: 'var(--font-mono, monospace)', outline: 'none', boxSizing: 'border-box' }}
+          />
+          {search && (
+            <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 16, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
+          )}
+        </div>
+        <div style={{ marginLeft: 'auto' }}>
+          <div style={s.headerBtns}>
           <button
             style={s.binHeaderBtn}
             onClick={() => navigate('/properties/payments')}
@@ -442,7 +539,9 @@ export default function Properties() {
             {binCount > 0 && <span style={s.binBadge}>{binCount}</span>}
           </button>
         </div>
-      </header>
+        </div>
+      </div>
+
 
       {archiveError && (
         <div style={s.errorStrip}>
@@ -452,28 +551,6 @@ export default function Properties() {
           )}
         </div>
       )}
-
-      {/* Search */}
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 20px', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
-        <div style={{ position: 'relative', width: '100%', maxWidth: 340 }}>
-          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #6b6d82)', pointerEvents: 'none', display: 'flex' }}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.4"/>
-              <path d="M9.5 9.5l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-            </svg>
-          </span>
-          <input
-            type="text"
-            placeholder="search pid, name, address, inspector…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: '100%', padding: '9px 32px 9px 34px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 100, color: 'var(--text, #e8e8f0)', fontSize: 13, fontFamily: 'var(--font-mono, monospace)', outline: 'none', boxSizing: 'border-box' }}
-          />
-          {search && (
-            <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 16, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
-          )}
-        </div>
-      </div>
 
       {/* Grid */}
       <main style={s.main}>
@@ -508,6 +585,9 @@ export default function Properties() {
               </>
             )}
           </div>
+        ) : !isMobile ? (
+          <PropTable rows={filtered} stageByPid={stageByPid} sort={sort} setSort={setSort}
+            onOpen={(pid) => navigate(`/properties/${pid}`)} onArchive={setArchivePid} onBin={setConfirmPid} />
         ) : (
           <div style={s.list}>
             {filtered.map(row => (
@@ -671,7 +751,7 @@ const s = {
     background: 'transparent', border: 'none',
     color: 'var(--text-muted, #6b6d82)', fontSize: 16, cursor: 'pointer', lineHeight: 1, padding: 0,
   },
-  main: { flex: 1, padding: '16px 20px 48px', maxWidth: 860, width: '100%', margin: '0 auto' },
+  main: { flex: 1, padding: '14px 24px 48px', width: '100%', boxSizing: 'border-box' },
   empty: {
     textAlign: 'center', padding: '60px 0',
     fontSize: 13, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)',
@@ -684,8 +764,8 @@ const s = {
   // them rather than in the header strip — the panel background and border
   // are gone because it is now part of the content, not the chrome.
   fbar: {
-    display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
-    gap: 8, marginBottom: 16,
+    display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-start',
+    gap: 8, marginBottom: 14,
   },
   fsel: {
     position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 7,

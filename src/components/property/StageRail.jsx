@@ -43,19 +43,41 @@ function Node({ state, onClick, title }) {
   )
 }
 
-export default function StageRail({ stages, currentKey, journey = [], isRejected, onAdvance, actions = [] }) {
+// Which rail step each engine thread belongs to. The rail shows the earliest
+// step still open — that is what is holding the property up.
+export const RAIL_FOR_CODE = {
+  onboarded: 'T-5', inspection_in_progress: 'T-5',
+  estimate_not_created: 'inspection_done',
+  estimate_draft: 'estimate_created',
+  estimate_sent: 'estimate_shared', estimate_viewed: 'estimate_shared', landlord_queried: 'estimate_shared', landlord_partially_decided: 'estimate_shared',
+  work_order_pending: 'estimate_approved', wo_unassigned: 'estimate_approved', wo_unscheduled: 'estimate_approved', wo_scheduled: 'estimate_approved',
+  execution_day: 'estimate_approved', in_progress: 'estimate_approved', qc_pending: 'estimate_approved', disputed: 'estimate_approved',
+  handover_unknown: 'setup_date', handover_scheduled: 'setup_date', handover_today: 'tday', handover_overdue: 'tday',
+  handover_done: 'handover', invoice_draft: 'invoice_created', invoiced: 'invoice_created',
+}
+export function derivedRailKey(stages, threads) {
+  const idx = (threads || []).map(t => stages.findIndex(s => s.key === RAIL_FOR_CODE[t.code])).filter(i => i >= 0)
+  return idx.length ? stages[Math.min(...idx)].key : null
+}
+
+// `loggedKey` is the stage someone set by hand (properties.stage). The rail
+// itself shows `currentKey`, worked out from what actually happened; when the
+// two disagree the logged one is named, not hidden.
+export default function StageRail({ stages, currentKey, loggedKey, derivedLabel, journey = [], isRejected, onAdvance, actions = [] }) {
   const phone = useIsMobile(720)
   const [pending, setPending] = useState(null)   // a stage awaiting confirmation
 
   const currentIndex = stages.findIndex(s => s.key === currentKey)
   const current = stages[currentIndex]
-  const entry = journey.find(j => j.stage === current?.key)
+  const logged = loggedKey ? stages.find(s => s.key === loggedKey) : null
+  const mismatch = logged && current && logged.key !== current.key
+  const entry = [...journey].reverse().find(j => j.stage === (logged?.key || current?.key))
   const pendingIndex = pending ? stages.findIndex(s => s.key === pending) : -1
   const skips = pendingIndex - currentIndex - 1
 
   return (
     <div style={{ background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
-      <div style={{ maxWidth: 600, width: '100%', margin: '0 auto', padding: phone ? '13px 20px 15px' : '15px 20px 17px', boxSizing: 'border-box' }}>
+      <div style={{ width: '100%', padding: phone ? '13px 16px 15px' : '15px 24px 17px', boxSizing: 'border-box' }}>
 
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: phone ? 14 : 16 }}>
           <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
@@ -64,9 +86,17 @@ export default function StageRail({ stages, currentKey, journey = [], isRejected
           <span style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>
             {current?.label || '—'}
           </span>
-          {entry && (
+          {derivedLabel && (
+            <span style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', fontFamily: MONO }}>· {derivedLabel}</span>
+          )}
+          {mismatch ? (
+            <span title="The stage someone set by hand. The rail shows where the property actually is, from its estimate, work orders and invoice."
+              style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--amber, #c8963e)', fontFamily: MONO, border: '1px solid rgba(200,150,62,0.35)', borderRadius: 6, padding: '2px 8px' }}>
+              logged by hand as {logged.label}{entry ? ` · ${fmtDay(entry.changed_at)}${entry.changed_by ? ` · ${entry.changed_by.split('@')[0]}` : ''}` : ''}
+            </span>
+          ) : entry && (
             <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
-              since {fmtDay(entry.changed_at)}{entry.changed_by ? ` · ${entry.changed_by.split('@')[0]}` : ''}
+              logged {fmtDay(entry.changed_at)}{entry.changed_by ? ` · ${entry.changed_by.split('@')[0]}` : ''}
             </span>
           )}
         </div>
@@ -76,13 +106,12 @@ export default function StageRail({ stages, currentKey, journey = [], isRejected
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {stages.map((stage, i) => {
             const state = i < currentIndex ? 'done' : i === currentIndex ? 'current' : 'future'
-            const isNext = i > currentIndex
             return (
               <div key={stage.key} style={{ display: 'flex', alignItems: 'center', flex: i === stages.length - 1 ? '0 0 auto' : 1, minWidth: 0 }}>
                 <Node
                   state={state}
-                  title={state === 'current' ? `Current stage: ${stage.label}` : isNext ? `Move to ${stage.label}` : stage.label}
-                  onClick={isNext && !isRejected ? () => setPending(stage.key) : undefined}
+                  title={state === 'current' ? `Now: ${stage.label}` : stage.label}
+                  onClick={undefined}
                 />
                 {i < stages.length - 1 && (
                   <span style={{

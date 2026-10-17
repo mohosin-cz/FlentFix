@@ -8,9 +8,9 @@ import { logActivity } from '../utils/activityUtils'
 import { pidStatus, pidStatusMessage, purgeBinnedPid } from '../utils/pidStatus'
 import { realName } from '../utils/propertyName'
 import LogoSpinner from '../components/LogoSpinner'
-import StageRail from '../components/property/StageRail'
+import StageRail, { derivedRailKey } from '../components/property/StageRail'
 import MoneyTrail from '../components/property/MoneyTrail'
-import RecordStatus from '../components/property/RecordStatus'
+import RecordStatus, { usePropertyJourneyRow } from '../components/property/RecordStatus'
 import RecordTimeline from '../components/property/RecordTimeline'
 import AppHeader from '../components/AppHeader'
 import ShareSheet from '../components/vendor/ShareSheet'
@@ -380,6 +380,7 @@ export default function PropertyDetail() {
   const [quickNote, setQuickNote]     = useState(null)
   const [propName, setPropName]       = useState(null)
   const [currentStage, setCurrentStage] = useState('T-5')
+  const engine = usePropertyJourneyRow(pid)
   const [journey, setJourney]           = useState([])
   const [userEmail, setUserEmail]       = useState(null)
   const [menuOpen, setMenuOpen]         = useState(false)
@@ -585,7 +586,9 @@ export default function PropertyDetail() {
       {!loading && (
         <StageRail
           stages={MAIN_SEQUENCE}
-          currentKey={currentStage}
+          currentKey={derivedRailKey(MAIN_SEQUENCE, engine.row?.open_threads) || currentStage}
+          loggedKey={currentStage}
+          derivedLabel={engine.row?.stage_label}
           journey={journey}
           isRejected={isRejected}
           onAdvance={handleManualAdvance}
@@ -610,7 +613,7 @@ export default function PropertyDetail() {
             `}</style>
             <div className="rec-grid">
               <div className="rec-l">
-                <RecordStatus pid={pid} />
+                <RecordStatus journey={engine} />
                 {/* Summary stats — always render */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
                   {[

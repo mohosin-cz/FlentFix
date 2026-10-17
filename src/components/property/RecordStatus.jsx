@@ -13,10 +13,10 @@ const MONO = 'var(--font-mono, monospace)'
 const WHO = { setup_ops: 'Flent', landlord: 'the landlord', vendor: 'the vendor', none: 'nobody' }
 const dot = (u) => u === 'overdue' ? 'var(--red, #e05c6a)' : (u === 'today' || u === 'soon') ? 'var(--amber, #c8963e)' : u === 'done' ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)'
 
-export default function RecordStatus({ pid }) {
-  const navigate = useNavigate()
+// The engine's row for one property. The page reads it once and hands it to
+// both the stage rail and this card, so the two can never disagree.
+export function usePropertyJourneyRow(pid) {
   const [state, setState] = useState({ loading: true, error: null, row: null })
-
   const load = useCallback(async () => {
     setState(s => ({ ...s, loading: true, error: null }))
     const { data, error } = await supabase.rpc('property_journey_state', { p_scope: 'all' })
@@ -24,8 +24,12 @@ export default function RecordStatus({ pid }) {
     setState({ loading: false, error: null, row: (data || []).find(r => String(r.pid) === String(pid)) || null })
   }, [pid])
   useEffect(() => { load() }, [load])
+  return { ...state, reload: load }
+}
 
-  const { loading, error, row } = state
+export default function RecordStatus({ journey }) {
+  const navigate = useNavigate()
+  const { loading, error, row, reload: load } = journey
   const box = { background: 'var(--bg-panel, #1e2028)', border: `1px solid ${row?.urgency === 'overdue' ? 'rgba(224,92,106,0.35)' : 'var(--border, #2e3040)'}`, borderRadius: 10, padding: 16 }
   const title = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.08em' }
 
