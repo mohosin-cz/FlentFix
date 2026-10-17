@@ -9,6 +9,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import AlertWindow from './pages/AlertWindow'
 import Digest from './pages/Digest'
+import SetupCalendar from './pages/SetupCalendar'
 import CommandSurface from './components/command/CommandPalette'
 import { useAuth } from './contexts/AuthContext'
 import { useLocation } from 'react-router-dom'
@@ -198,6 +199,7 @@ export default function App() {
             }
           />
           <Route path="/utilities" element={<ProtectedRoute><PropertyUtilitiesOverview /></ProtectedRoute>} />
+          <Route path="/calendar" element={<ProtectedRoute><SetupCalendar /></ProtectedRoute>} />
           <Route path="/properties/:pid/utilities" element={<ProtectedRoute><PropertyUtilities /></ProtectedRoute>} />
           <Route path="/properties/:pid/design-brief" element={<ProtectedRoute><PropertyDesignBrief /></ProtectedRoute>} />
           <Route path="/properties/:pid/raw" element={<ProtectedRoute><RawInspectionData /></ProtectedRoute>} />

@@ -5,6 +5,7 @@ import { Link, useLocation } from 'react-router-dom'
 const NAV_ITEMS = [
   { label: 'Inspect',           path: '/inspections/new' },
   { label: 'Properties',        path: '/properties' },
+  { label: 'Calendar',          path: '/calendar' },
   { label: 'Utilities',         path: '/utilities' },
   { label: 'Inventory',         path: '/inventory' },
   { label: 'Rate card',         path: '/inventory/public-rc' },

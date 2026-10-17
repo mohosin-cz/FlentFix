@@ -232,7 +232,8 @@ function WeekAhead({ week, navigate }) {
   const days = Array.from({ length: 7 }, (_, i) => isoDay(i))
   const tone = { setup: [C.accent, SOFT.amber, 'setup'], handover: [C.green, SOFT.green, 'handover'], close_by: [C.dim, C.input, 'close by'] }
   return (
-    <Panel id="dk-week" title="Week ahead" meta="setups · handovers · work-order close-by dates">
+    <Panel id="dk-week" title="Week ahead" meta="setups · handovers · work-order close-by dates"
+      action={<button type="button" onClick={() => navigate('/calendar')} style={{ background: 'none', border: 'none', padding: 0, color: C.accent, fontFamily: MONO, fontSize: 11.5, cursor: 'pointer' }}>Full calendar ›</button>}>
       {week.length === 0 ? <Empty>Nothing dated in the next 7 days. Setup and handover dates appear here once they’re set on the journey.</Empty> : (
         <div className="dk-week">
           {days.map((iso, i) => {
