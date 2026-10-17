@@ -339,6 +339,7 @@ export default function LandlordInvoice() {
   const [editing, setEditing]       = useState(false)
   const [saving, setSaving]         = useState(false)
   const [loading, setLoading]       = useState(true)
+  const [noInvoice, setNoInvoice]   = useState(null)   // {pid} when this inspection has no invoice yet
   const isNewInvoice = useRef(false)
   const [error, setError]           = useState('')
   const [copied, setCopied]         = useState(false)
@@ -399,10 +400,25 @@ export default function LandlordInvoice() {
       return
     }
 
-    // Create new invoice
+    // No invoice yet. Opening this page used to create a draft on the spot,
+    // which left an empty invoice on every property someone merely looked at
+    // (25 of 28 on file). Now a draft is made only when someone asks for one.
+    const { data: insp } = await supabase
+      .from('inspections').select('pid').eq('id', inspectionId).maybeSingle()
+    setNoInvoice({ pid: insp?.pid || null })
+    setLoading(false)
+  }
+
+  async function createInvoice() {
+    setNoInvoice(null)
+    setLoading(true)
     const year = new Date().getFullYear()
-    const { count } = await supabase.from('landlord_invoices').select('id', { count: 'exact', head: true })
-    const invoiceNumber = `INV-${year}-${String((count || 0) + 1).padStart(4, '0')}`
+    // Next number = highest this year + 1. Counting rows broke the moment a row
+    // was ever removed: the count drops and the next number collides.
+    const { data: last } = await supabase.from('landlord_invoices').select('invoice_number')
+      .like('invoice_number', `INV-${year}-%`).order('invoice_number', { ascending: false }).limit(1)
+    const lastN = parseInt(((last && last[0] && last[0].invoice_number) || '').split('-')[2], 10) || 0
+    const invoiceNumber = `INV-${year}-${String(lastN + 1).padStart(4, '0')}`
 
     // Load inspection data
     const { data: insp } = await supabase
@@ -701,6 +717,24 @@ export default function LandlordInvoice() {
   const total     = subtotal + taxAmount
 
   // ── Loading / Error states ──
+  // No invoice yet: say so, and make one only on purpose.
+  if (noInvoice && !loading) return (
+    <div style={{ minHeight: '100svh', background: '#f4f4f2', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}>
+      <div style={{ maxWidth: 420, width: '100%', background: '#fff', border: '1px solid #e4e4e0', borderRadius: 12, padding: 28, textAlign: 'center' }}>
+        <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>No invoice yet{noInvoice.pid ? ` for PID ${noInvoice.pid}` : ''}</div>
+        <div style={{ fontSize: 13, color: '#666', marginTop: 8, lineHeight: 1.6 }}>
+          Creating one starts a draft with the property's verified work-order lines and the landlord's name already filled in.
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 20, flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => navigate(noInvoice.pid ? `/properties/${noInvoice.pid}` : -1)}
+            style={{ minHeight: 40, padding: '0 16px', borderRadius: 8, border: '1px solid #ddd', background: '#fff', color: '#444', fontSize: 13, cursor: 'pointer' }}>Back</button>
+          <button type="button" onClick={createInvoice}
+            style={{ minHeight: 40, padding: '0 18px', borderRadius: 8, border: 'none', background: '#1a1a1a', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Create invoice</button>
+        </div>
+      </div>
+    </div>
+  )
+
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: SANS, color: '#888', fontSize: 14 }}>
       Loading invoice…
