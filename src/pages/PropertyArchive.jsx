@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import LogoSpinner from '../components/LogoSpinner'
-import AppHeader from '../components/AppHeader'
 
 // The archive bucket. Sits beside the bin and reads the same way on purpose,
 // but the two mean different things: the bin is for things that were a mistake
@@ -112,7 +111,6 @@ export default function PropertyArchive() {
     <div style={s.page}>
 
       {/* Header */}
-      <AppHeader />
       <header style={s.header}>
         <button style={s.backBtn} onClick={() => navigate('/properties')} aria-label="Back to properties">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

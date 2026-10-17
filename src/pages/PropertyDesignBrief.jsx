@@ -5,7 +5,6 @@ import ShareSheet from '../components/vendor/ShareSheet'
 import BriefTranscript from '../components/property/BriefTranscript'
 import DesignScopeSection from '../components/property/DesignScopeSection'
 import { briefProgress } from '../utils/designerBrief'
-import AppHeader from '../components/AppHeader'
 
 // The staff side of the designer's brief.
 //
@@ -74,7 +73,6 @@ export default function PropertyDesignBrief() {
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', flexDirection: 'column', fontFamily: SANS, color: 'var(--text, #e8e8f0)' }}>
-      <AppHeader />
       <header style={{
         display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', minHeight: 52,
         background: 'var(--bg-panel, #1e2028)',

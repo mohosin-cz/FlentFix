@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { purgeBinnedPid, restoreBinnedPid } from '../utils/pidStatus'
 import LogoSpinner from '../components/LogoSpinner'
-import AppHeader from '../components/AppHeader'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -77,7 +76,6 @@ export default function PropertyBin() {
     <div style={s.page}>
 
       {/* Header */}
-      <AppHeader />
       <header style={s.header}>
         <button style={s.backBtn} onClick={() => navigate('/properties')}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

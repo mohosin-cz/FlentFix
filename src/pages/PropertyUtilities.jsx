@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
-import AppHeader from '../components/AppHeader'
 import LogoSpinner from '../components/LogoSpinner'
 import UtilityIcon from '../components/UtilityIcon'
 import {
@@ -566,7 +565,6 @@ export default function PropertyUtilities() {
     <>
       <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
       <div style={st.page}>
-        <AppHeader />
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 24px', height: 52, borderBottom: '1px solid var(--border, #2e3040)' }}>
           <button style={st.backBtn} onClick={() => navigate(`/properties/${pid}`)} aria-label="Back to the property">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>

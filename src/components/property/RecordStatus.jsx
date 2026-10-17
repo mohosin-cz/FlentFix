@@ -21,7 +21,14 @@ export function usePropertyJourneyRow(pid) {
     setState(s => ({ ...s, loading: true, error: null }))
     const { data, error } = await supabase.rpc('property_journey_state', { p_scope: 'all' })
     if (error) { setState({ loading: false, error: error.message, row: null }); return }
-    setState({ loading: false, error: null, row: (data || []).find(r => String(r.pid) === String(pid)) || null })
+    const row = (data || []).find(r => String(r.pid) === String(pid)) || null
+    // no row: say why — paused at the clean slate reads differently from archived
+    let paused = false
+    if (!row) {
+      const { data: p } = await supabase.from('properties').select('journey_paused_at').eq('pid', pid).maybeSingle()
+      paused = !!p?.journey_paused_at
+    }
+    setState({ loading: false, error: null, row, paused })
   }, [pid])
   useEffect(() => { load() }, [load])
   return { ...state, reload: load }
@@ -29,7 +36,7 @@ export function usePropertyJourneyRow(pid) {
 
 export default function RecordStatus({ journey }) {
   const navigate = useNavigate()
-  const { loading, error, row, reload: load } = journey
+  const { loading, error, row, paused, reload: load } = journey
   const box = { background: 'var(--bg-panel, #1e2028)', border: `1px solid ${row?.urgency === 'overdue' ? 'rgba(224,92,106,0.35)' : 'var(--border, #2e3040)'}`, borderRadius: 10, padding: 16 }
   const title = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.08em' }
 
@@ -49,7 +56,9 @@ export default function RecordStatus({ journey }) {
   if (!row) return (
     <section style={box}>
       <div style={title}>status</div>
-      <div style={{ marginTop: 10, fontFamily: MONO, fontSize: 12, color: 'var(--text-muted, #6b6d82)', lineHeight: 1.5 }}>Not in the live portfolio (archived, deleted, or a payments-only record).</div>
+      <div style={{ marginTop: 10, fontFamily: MONO, fontSize: 12, color: 'var(--text-muted, #6b6d82)', lineHeight: 1.5 }}>
+        {paused ? 'Paused at the clean slate — no tasks or alerts. Tap “Resume journey” at the top to bring it back.' : 'Not in the live portfolio (archived, deleted, or a payments-only record).'}
+      </div>
     </section>
   )
 

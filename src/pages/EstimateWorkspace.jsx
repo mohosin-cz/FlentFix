@@ -7,7 +7,6 @@ import DisputeThread from '../components/DisputeThread'
 import QueryThread from '../components/QueryThread'
 import { useIsMobile } from '../hooks/useIsMobile'
 import LogoSpinner from '../components/LogoSpinner'
-import AppHeader from '../components/AppHeader'
 
 const STATUS_COLOR = {
   draft:              '#9898a4',
@@ -258,7 +257,6 @@ export default function EstimateWorkspace() {
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-doc, Poppins, sans-serif)' }}>
 
       {/* ── Header ── */}
-      <AppHeader />
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 52, background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 10 }}>
         <button
           onClick={() => navigate(`/properties/${pid}`)}

@@ -16,7 +16,6 @@ import PausedBanner from '../components/property/PausedBanner'
 import UtilityRequest from '../components/property/UtilityRequest'
 import JourneyPhases from '../components/property/JourneyPhases'
 import { useSetupPanel, SetupPanel, AttendanceHistory } from '../components/property/SetupDay'
-import AppHeader from '../components/AppHeader'
 import ShareSheet from '../components/vendor/ShareSheet'
 
 function fmtDate(str) {
@@ -514,7 +513,6 @@ export default function PropertyDetail() {
       <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
       <div style={s.page}>
 
-      <AppHeader />
 
       {/* Record bar — back, which property, record menu */}
       <header style={s.header}>
@@ -838,11 +836,13 @@ const s = {
     fontFamily: 'var(--font-sans, Poppins, sans-serif)',
     color: 'var(--text, #e8e8f0)',
   },
+  // the record's own bar is the page header now (no main nav above it)
   header: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 24px', height: 52, gap: 14,
-    background: 'var(--bg, #16171f)',
+    padding: '0 24px', paddingTop: 'env(safe-area-inset-top, 0px)', minHeight: 56, gap: 14,
+    background: 'var(--bg-panel, #1e2028)',
     borderBottom: '1px solid var(--border, #2e3040)',
+    position: 'sticky', top: 0, zIndex: 100,
   },
   backBtn: {
     width: 36, height: 36,
