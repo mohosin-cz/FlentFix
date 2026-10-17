@@ -1,3 +1,4 @@
+import HomeMark from './HomeMark'
 // ─── Shared UI primitives — Dark Terminal Theme ────────────────────────────
 
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -18,7 +19,8 @@ export function PageShell({ children }) {
 }
 
 // ── Top nav bar ───────────────────────────────────────────────────────────────
-export function NavBar({ title, subtitle, onBack, right }) {
+// onBack is still accepted (older callers) but no longer drawn as a button.
+export function NavBar({ title, subtitle, onBack, right }) { // eslint-disable-line no-unused-vars
   return (
     <header style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -29,25 +31,8 @@ export function NavBar({ title, subtitle, onBack, right }) {
       borderBottom: '1px solid var(--border, #2e3040)',
       position: 'sticky', top: 0, zIndex: 100,
     }}>
-      <button
-        onClick={onBack}
-        style={{
-          width: 44, height: 44, borderRadius: 8,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'var(--bg-input, #252731)',
-          border: '1px solid var(--border, #2e3040)',
-          color: 'var(--text-dim, #9394a8)',
-          cursor: 'pointer',
-          flexShrink: 0,
-          transition: 'border-color 0.15s',
-          WebkitTapHighlightColor: 'transparent',
-          touchAction: 'manipulation',
-        }}
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
+      {/* the way out is home (pulse); stepping back is the browser's swipe or back key */}
+      <HomeMark />
       <div style={{ flex: 1, textAlign: 'center', padding: '0 12px' }}>
         <div style={{
           fontSize: 14, fontWeight: 600,

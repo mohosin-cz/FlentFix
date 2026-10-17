@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import HomeMark from '../components/HomeMark'
 import { uploadMedia } from '../utils/mediaUtils'
 import { first, slotText, VERDICT, CAPEX_BANDS, checklistFor, readAsk, stageCopy, copyText } from '../utils/explore'
 
@@ -204,7 +205,7 @@ function Frame({ title = 'Visit log', sub, saving, onBack, children }) {
   return (
     <div style={{ minHeight: '100svh', background: C.bg, color: C.text, fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}>
       <header style={{ position: 'sticky', top: 'env(safe-area-inset-top, 0px)', zIndex: 5, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: C.panel, borderBottom: `1px solid ${C.border}` }}>
-        <button onClick={onBack} aria-label="Back" style={{ minHeight: 40, minWidth: 40, borderRadius: 9, border: `1px solid ${C.border}`, background: C.input, color: C.dim, fontSize: 18, cursor: 'pointer' }}>‹</button>
+        <HomeMark />
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 700 }}>{title}</div>
           {sub && <div style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</div>}
