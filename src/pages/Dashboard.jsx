@@ -13,7 +13,8 @@ import { supabase } from '../lib/supabase'
 // changed since they last looked, what is waiting on them. An admin can view
 // anyone's desk. One journey-engine read feeds both halves, so the counts on
 // the desk and the rows in the queue always agree.
-const MONO = 'var(--font-mono, monospace)'
+// One typeface on Home: the nav's (Urbanist). Numbers stay aligned with tabular figures.
+const MONO = "var(--font-nav, 'Urbanist', 'Poppins', sans-serif)"
 const firstName = (email) => { const s = (email || '').split('@')[0]; return s ? s[0].toUpperCase() + s.slice(1) : '' }
 
 export default function Dashboard() {
@@ -39,7 +40,7 @@ export default function Dashboard() {
   const who = viewing || me
 
   return (
-    <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-sans, Poppins, sans-serif)', color: 'var(--text, #e8e8f0)' }}>
+    <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', display: 'flex', flexDirection: 'column', fontFamily: "var(--font-nav, 'Urbanist', 'Poppins', sans-serif)", color: 'var(--text, #e8e8f0)' }}>
       <AppHeader />
       <main style={{ flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px 14px', flexWrap: 'wrap', padding: '16px 20px 0' }}>

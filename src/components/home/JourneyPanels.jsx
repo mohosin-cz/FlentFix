@@ -8,8 +8,9 @@ import { DraftMessageButton } from '../comms/DraftMessage'
 // here: every row says what it is, who it waits on, how long, and the exact
 // route that does the next thing. The client sorts and groups.
 
-const MONO = 'var(--font-mono, monospace)'
-const SANS = 'var(--font-sans, Poppins, sans-serif)'
+// One typeface on Home: the nav's (Urbanist). Numbers stay aligned with tabular figures.
+const MONO = "var(--font-nav, 'Urbanist', 'Poppins', sans-serif)"
+const SANS = "var(--font-nav, 'Urbanist', 'Poppins', sans-serif)"
 const DAY = 86400000
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const URGENCY_RANK = { overdue: 0, today: 1, soon: 2, waiting: 3, done: 4 }
@@ -134,7 +135,7 @@ export function useJourneyHome(scope) {
 const P = {
   panel: { background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, padding: 16 },
   head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 },
-  title: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.08em' },
+  title: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, },
   hint: { fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textAlign: 'right' },
   empty: { padding: '14px 4px', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.5 },
   list: { display: 'flex', flexDirection: 'column' },

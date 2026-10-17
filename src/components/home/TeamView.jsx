@@ -8,7 +8,8 @@ import { clean } from './MyDesk'
 // rows Home already holds (so they match the queue); the rest from
 // home_team(). Test properties are left out of the team numbers.
 
-const MONO = 'var(--font-mono, monospace)'
+// One typeface on Home: the nav's (Urbanist). Numbers stay aligned with tabular figures.
+const MONO = "var(--font-nav, 'Urbanist', 'Poppins', sans-serif)"
 const C = {
   panel: 'var(--bg-panel, #1e2028)', input: 'var(--bg-input, #252731)', bg: 'var(--bg, #16171f)', border: 'var(--border, #2e3040)',
   text: 'var(--text, #e8e8f0)', dim: 'var(--text-dim, #9394a8)', muted: 'var(--text-muted, #6b6d82)',
@@ -39,12 +40,12 @@ const CSS = `
 .tv-col{display:grid;gap:14px;min-width:0}
 .tv-money{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:12px 14px}
 .tv table{width:100%;border-collapse:collapse;font-size:13px}
-.tv th{font-family:var(--font-mono,monospace);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted,#6b6d82);text-align:left;font-weight:700;padding:9px 14px;border-bottom:1px solid var(--border,#2e3040);white-space:nowrap}
+.tv th{font-family:var(--font-nav, Urbanist, Poppins, sans-serif);font-size:12px;color:var(--text-muted,#6b6d82);text-align:left;font-weight:700;padding:9px 14px;border-bottom:1px solid var(--border,#2e3040);white-space:nowrap}
 .tv td{padding:10px 14px;border-bottom:1px solid var(--border,#2e3040);white-space:nowrap;vertical-align:middle}
 .tv tr:last-child td{border-bottom:0}
-.tv .n{font-family:var(--font-mono,monospace);font-variant-numeric:tabular-nums}
+.tv .n{font-family:var(--font-nav, Urbanist, Poppins, sans-serif);font-variant-numeric:tabular-nums}
 .tv-rows>*+*{border-top:1px solid var(--border,#2e3040)}
-.tv-btn{min-height:32px;padding:0 11px;border-radius:8px;font-family:var(--font-mono,monospace);font-size:11.5px;font-weight:700;white-space:nowrap;cursor:pointer;border:1px solid var(--border,#2e3040);background:var(--bg-input,#252731);color:var(--text-dim,#9394a8)}
+.tv-btn{min-height:32px;padding:0 11px;border-radius:8px;font-family:var(--font-nav, Urbanist, Poppins, sans-serif);font-size:11.5px;font-weight:700;white-space:nowrap;cursor:pointer;border:1px solid var(--border,#2e3040);background:var(--bg-input,#252731);color:var(--text-dim,#9394a8)}
 @media (max-width:1100px){.tv-grid{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:720px){
   .tv{padding:12px 12px 4px}
@@ -68,7 +69,7 @@ function Panel({ title, meta, children }) {
   return (
     <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '11px 14px', borderBottom: `1px solid ${C.border}`, flexWrap: 'wrap' }}>
-        <h2 style={{ margin: 0, fontFamily: MONO, fontSize: 11, letterSpacing: '0.09em', textTransform: 'uppercase', color: C.muted, fontWeight: 700 }}>{title}</h2>
+        <h2 style={{ margin: 0, fontFamily: MONO, fontSize: 13.5, color: C.text, fontWeight: 600 }}>{title}</h2>
         {meta && <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>{meta}</span>}
       </div>
       {children}
@@ -150,7 +151,7 @@ export default function TeamView({ home, team, onViewDesk, onPickView, queue }) 
         {stats.map(s => (
           <button key={s.k} type="button" onClick={s.go} disabled={!s.go}
             style={{ textAlign: 'left', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 13px', display: 'grid', gap: 4, cursor: s.go ? 'pointer' : 'default', color: C.text, minWidth: 0 }}>
-            <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted }}>{s.k}</span>
+            <span style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>{s.k}</span>
             <span style={{ fontSize: 26, fontWeight: 600, lineHeight: 1, color: s.v ? (s.tone || C.text) : C.text, fontVariantNumeric: 'tabular-nums' }}>{s.v}</span>
             <span style={{ fontSize: 12, color: C.dim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.h}</span>
           </button>
@@ -238,7 +239,7 @@ export default function TeamView({ home, team, onViewDesk, onPickView, queue }) 
                 ['Approved, not invoiced', t.money.not_invoiced, 'final estimates with no invoice yet'],
                 ['Closed, no invoice', t.money.closed_no_invoice, 'approved value, last 30 days']].map(([k, m, h]) => (
                 <div key={k} style={{ border: `1px solid ${C.border}`, borderRadius: 9, padding: '11px 12px', background: C.bg, display: 'grid', gap: 4 }}>
-                  <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.07em', textTransform: 'uppercase', color: C.muted }}>{k}</span>
+                  <span style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>{k}</span>
                   <span style={{ fontSize: 21, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{inr(m?.value)}</span>
                   <span style={{ fontSize: 12, color: C.dim }}>{m?.n || 0} propert{m?.n === 1 ? 'y' : 'ies'} · {h}</span>
                 </div>
@@ -289,14 +290,14 @@ function ExploreFunnel({ f, calls, people }) {
       <div style={{ padding: '12px 14px', display: 'grid', gap: 6 }}>
         {steps.map(([k, v], i) => (
           <div key={k} style={{ display: 'grid', gridTemplateColumns: '78px 1fr 90px', gap: 10, alignItems: 'center' }}>
-            <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k}</span>
+            <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted, }}>{k}</span>
             <span style={{ height: 10, borderRadius: 5, background: C.input, overflow: 'hidden' }}><i style={{ display: 'block', height: '100%', width: `${Math.round(100 * (v || 0) / max)}%`, background: i === 4 ? M.green : '#9e5a52', opacity: 1 - i * 0.12 }} /></span>
             <span className="n" style={{ fontSize: 12.5 }}><b>{v || 0}</b>{i > 0 && steps[i - 1][1] ? <span style={{ color: C.muted, fontSize: 11 }}> · {Math.round(100 * (v || 0) / steps[i - 1][1])}%</span> : ''}</span>
           </div>
         ))}
       </div>
       <div style={{ borderTop: `1px solid ${C.border}`, padding: '10px 14px', display: 'grid', gap: 6 }}>
-        <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted, letterSpacing: '0.07em', textTransform: 'uppercase' }}>Whose calls match supply’s</div>
+        <div style={{ fontFamily: MONO, fontSize: 12, color: C.muted, }}>Whose calls match supply’s</div>
         {mine.length === 0 && <div style={{ fontSize: 12.5, color: C.muted }}>No decided visits with a verdict yet.</div>}
         {[...mine, ...others].map(c => (
           <div key={c.email} title={(c.misses || []).map(m => `${m.name}: said ${m.said === 'go' ? 'Go' : 'No-go'}, supply ${m.supply}`).join('\n')}
@@ -304,10 +305,10 @@ function ExploreFunnel({ f, calls, people }) {
             <b style={{ minWidth: 80 }}>{first(c.email)}</b>
             <span className="n" style={{ color: c.match === c.n ? M.green : M.amber }}>{c.match} of {c.n}</span>
             {(c.misses || []).length > 0 && <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>· {c.misses.map(m => m.name).join(', ')}</span>}
-            {!people.includes(c.email) && <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted }}>supply / other</span>}
+            {!people.includes(c.email) && <span style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>supply / other</span>}
           </div>
         ))}
-        <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted }}>A verdict is the visitor’s Go / No-go in Pulse, or the outcome they recorded in Stage.</div>
+        <div style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>A verdict is the visitor’s Go / No-go in Pulse, or the outcome they recorded in Stage.</div>
       </div>
     </Panel>
   )

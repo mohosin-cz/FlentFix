@@ -10,7 +10,8 @@ import { readDraftProgress } from '../../utils/draftProgress'
 // for the panels the engine does not carry. Nothing is estimated; a panel
 // with no data says so plainly.
 
-const MONO = 'var(--font-mono, monospace)'
+// One typeface on Home: the nav's (Urbanist). Numbers stay aligned with tabular figures.
+const MONO = "var(--font-nav, 'Urbanist', 'Poppins', sans-serif)"
 const C = {
   panel: 'var(--bg-panel, #1e2028)', input: 'var(--bg-input, #252731)', bg: 'var(--bg, #16171f)', border: 'var(--border, #2e3040)',
   text: 'var(--text, #e8e8f0)', dim: 'var(--text-dim, #9394a8)', muted: 'var(--text-muted, #6b6d82)',
@@ -29,7 +30,7 @@ const CSS = `
 .dk-today{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;padding:12px 14px}
 .dk-row{display:flex;gap:10px;align-items:center;padding:10px 14px;flex-wrap:wrap}
 .dk-rows>*+*{border-top:1px solid var(--border,#2e3040)}
-.dk-btn{min-height:34px;padding:0 12px;border-radius:8px;font-family:var(--font-mono,monospace);font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
+.dk-btn{min-height:34px;padding:0 12px;border-radius:8px;font-family:var(--font-nav, Urbanist, Poppins, sans-serif);font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
 @media (max-width:1100px){.dk-grid{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:720px){
   .dk{padding:12px 12px 4px}
@@ -66,7 +67,7 @@ function Panel({ title, meta, action, children, id, style }) {
   return (
     <section id={id} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, minWidth: 0, ...style }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '11px 14px', borderBottom: `1px solid ${C.border}`, flexWrap: 'wrap' }}>
-        <h2 style={{ margin: 0, fontFamily: MONO, fontSize: 11, letterSpacing: '0.09em', textTransform: 'uppercase', color: C.muted, fontWeight: 700 }}>{title}</h2>
+        <h2 style={{ margin: 0, fontFamily: MONO, fontSize: 13.5, color: C.text, fontWeight: 600 }}>{title}</h2>
         {meta && <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>{meta}</span>}
         {action && <span style={{ marginLeft: 'auto' }}>{action}</span>}
       </div>
@@ -133,7 +134,7 @@ export default function MyDesk({ home, desk, viewing, onPickView, onChanged }) {
         {stats.map(s => (
           <button key={s.k} type="button" onClick={s.go}
             style={{ textAlign: 'left', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 13px', display: 'grid', gap: 4, cursor: 'pointer', color: C.text, minWidth: 0 }}>
-            <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted }}>{s.k}</span>
+            <span style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>{s.k}</span>
             <span style={{ fontSize: 26, fontWeight: 600, lineHeight: 1, color: s.tone, fontVariantNumeric: 'tabular-nums' }}>{s.v}</span>
             <span style={{ fontSize: 12, color: C.dim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.h}</span>
           </button>
@@ -166,7 +167,7 @@ export default function MyDesk({ home, desk, viewing, onPickView, onChanged }) {
                 {moves.map(r => (
                   <div key={r.pid + r.stage_code} className="dk-row">
                     <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-                      <T1>{r.is_prospect ? <span style={{ fontFamily: MONO, fontSize: 11, color: '#e07ba8', marginRight: 6 }}>EXPLORE</span> : <Pid pid={r.pid} />}{r.is_prospect ? r.stage_label.replace(/^Explore · /, '') : (r.next_action_label || r.stage_label)}</T1>
+                      <T1>{r.is_prospect ? <span style={{ fontFamily: MONO, fontSize: 11, color: '#e07ba8', marginRight: 6 }}>Explore</span> : <Pid pid={r.pid} />}{r.is_prospect ? r.stage_label.replace(/^Explore · /, '') : (r.next_action_label || r.stage_label)}</T1>
                       <T2>{r.is_prospect ? r.property_name : `${clean(r.property_name, r.pid) || r.pid} · ${r.stage_label}`}</T2>
                     </div>
                     <Chip tone={r.urgency === 'overdue' ? 'red' : r.urgency === 'today' ? 'amber' : 'grey'}>
@@ -254,8 +255,8 @@ function ExploratoryVisits({ list, navigate, onChanged, viewing }) {
           return (
             <div key={x.id} style={{ padding: '11px 14px', display: 'grid', gap: 8, background: x.overdue ? SOFT.red : live ? 'rgba(224,123,168,0.08)' : undefined, borderLeft: live ? '3px solid #e07ba8' : undefined }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: x.overdue ? C.red : '#e07ba8', letterSpacing: '0.04em' }}>
-                  {x.overdue ? `● VISIT WAS ${dayLbl(x.date).toUpperCase()} — FINDINGS DUE` : `${live ? '● ' : ''}EXPLORE · ${x.days === 0 ? 'TODAY' : x.days === 1 ? 'TOMORROW' : dayLbl(x.date).toUpperCase()}${x.time ? ` ${t(x.time).toUpperCase()}` : ''}`}
+                <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: x.overdue ? C.red : '#e07ba8', }}>
+                  {x.overdue ? `● Visit was ${dayLbl(x.date)} — findings due` : `${live ? '● ' : ''}Explore · ${x.days === 0 ? 'today' : x.days === 1 ? 'tomorrow' : dayLbl(x.date)}${x.time ? `, ${t(x.time)}` : ''}`}
                 </span>
                 {x.pulse_assigned && !x.confirmed && !x.overdue && <Chip tone="amber">not confirmed yet</Chip>}
               </div>
@@ -263,7 +264,7 @@ function ExploratoryVisits({ list, navigate, onChanged, viewing }) {
                 <T1>{x.name}{x.config ? <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }}> · {x.config}</span> : ''}</T1>
                 <T2>{(x.address || '').split('\n')[0]}{x.owner_name ? ` · landlord ${x.owner_name}` : ''}</T2>
               </button>
-              {x.notes && <div style={{ borderLeft: '3px solid #e07ba8', background: 'rgba(224,123,168,0.10)', padding: '6px 10px', borderRadius: '0 8px 8px 0', fontSize: 12.5 }}><span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.08em', color: '#e07ba8', display: 'block' }}>SUPPLY’S ASK</span>{x.notes}</div>}
+              {x.notes && <div style={{ borderLeft: '3px solid #e07ba8', background: 'rgba(224,123,168,0.10)', padding: '6px 10px', borderRadius: '0 8px 8px 0', fontSize: 12.5 }}><span style={{ fontFamily: MONO, fontSize: 10, color: '#e07ba8', display: 'block' }}>Supply’s ask</span>{x.notes}</div>}
               {asking === x.id ? (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   <input value={why[x.id] || ''} onChange={e => setWhy(w => ({ ...w, [x.id]: e.target.value }))} placeholder="Why can’t you go? (goes to the admin)" autoFocus
@@ -305,7 +306,7 @@ function WaitingOnSupply({ rows, navigate }) {
         {rows.sort((a, b) => (b.age_days || 0) - (a.age_days || 0)).map(r => (
           <div key={r.pid} className="dk-row">
             <button type="button" onClick={() => navigate(`/explore/${r.request_id}`)} style={{ flex: '1 1 200px', minWidth: 0, background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: C.text }}>
-              <T1><span style={{ fontFamily: MONO, fontSize: 11, color: '#e07ba8', marginRight: 6 }}>EXPLORE</span>{r.property_name}</T1>
+              <T1><span style={{ fontFamily: MONO, fontSize: 11, color: '#e07ba8', marginRight: 6 }}>Explore</span>{r.property_name}</T1>
               <T2>{name1(r.owner_email)} visited · supply hasn’t decided</T2>
             </button>
             <Chip tone={r.urgency === 'overdue' ? 'red' : 'grey'}>{r.age_days || 0}d</Chip>
@@ -329,7 +330,7 @@ function WeekAhead({ week, navigate }) {
             const evs = week.filter(w => w.date === iso)
             return (
               <div key={iso} style={{ border: `1px solid ${i === 0 ? 'rgba(200,150,62,0.45)' : C.border}`, borderRadius: 8, padding: 8, minHeight: 78, display: 'grid', alignContent: 'start', gap: 5, background: C.bg }}>
-                <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{i === 0 ? 'Today' : dayLbl(iso)}</span>
+                <span style={{ fontFamily: MONO, fontSize: 12, color: C.muted, }}>{i === 0 ? 'Today' : dayLbl(iso)}</span>
                 {evs.map(e => (
                   <button key={e.kind + e.pid} type="button" onClick={() => e.kind === 'exploratory' ? navigate(`/explore/${e.request_id}`) : navigate(`/properties/${e.pid}`)} title={`${e.name} · ${tone[e.kind][2]}`}
                     style={{ textAlign: 'left', fontSize: 11.5, lineHeight: 1.25, padding: '3px 6px', borderRadius: 5, border: 'none', cursor: 'pointer', color: tone[e.kind][0], background: tone[e.kind][1] }}>
@@ -379,7 +380,7 @@ function Today({ today, navigate }) {
           return (
             <div key={x.kind + x.pid} style={{ border: `1px solid ${live ? 'rgba(200,150,62,0.45)' : C.border}`, borderRadius: 9, padding: '11px 12px', display: 'grid', gap: 6, background: live ? SOFT.amber : C.bg, minWidth: 0 }}>
               <button type="button" onClick={() => navigate(`/properties/${x.pid}`)} style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: C.text, display: 'grid', gap: 6 }}>
-                <span style={{ fontFamily: MONO, fontSize: 11, color: C.accent, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{live ? '● ' : ''}{x.kind} · {whenTxt(x)}</span>
+                <span style={{ fontFamily: MONO, fontSize: 11, color: C.accent, fontWeight: 700, }}>{live ? '● ' : ''}{x.kind} · {whenTxt(x)}</span>
                 <span><Pid pid={x.pid} /><b>{clean(x.name, x.pid)}</b></span>
                 {lines.map(([t, col], i) => <span key={i} style={{ fontFamily: MONO, fontSize: 11.5, color: col }}>{t}</span>)}
               </button>
@@ -421,7 +422,7 @@ function SinceFeed({ feed, since, navigate }) {
               <button key={i} type="button" className="dk-row" onClick={() => navigate(String(f.pid).startsWith('explore:') ? `/explore/${f.pid.slice(8)}` : `/properties/${f.pid}`)}
                 style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', color: C.text, alignItems: 'flex-start' }}>
                 <span style={{ width: 24, height: 24, borderRadius: 7, display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 12, fontWeight: 700, color: ic[1], background: ic[2], flex: 'none' }}>{ic[0]}</span>
-                <span style={{ flex: '1 1 180px', minWidth: 0 }}><T1>{t}</T1><T2>{String(f.pid).startsWith('explore:') ? <span style={{ color: '#e07ba8', marginRight: 6 }}>EXPLORE</span> : <><Pid pid={f.pid} />{clean(f.name, f.pid)}</>}{sub ? `${String(f.pid).startsWith('explore:') ? '' : ' · '}${sub}` : ''}</T2></span>
+                <span style={{ flex: '1 1 180px', minWidth: 0 }}><T1>{t}</T1><T2>{String(f.pid).startsWith('explore:') ? <span style={{ color: '#e07ba8', marginRight: 6 }}>Explore</span> : <><Pid pid={f.pid} />{clean(f.name, f.pid)}</>}{sub ? `${String(f.pid).startsWith('explore:') ? '' : ' · '}${sub}` : ''}</T2></span>
                 <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>{ago(f.at)}</span>
               </button>
             )

@@ -14,8 +14,9 @@ import { ago } from './JourneyPanels'
 // Every row comes from property_journey_state('all'); the views are filters
 // over it, and "mine" is a filter too, not a mode.
 
-const MONO = 'var(--font-mono, monospace)'
-const SANS = 'var(--font-sans, Poppins, sans-serif)'
+// One typeface on Home: the nav's (Urbanist). Numbers stay aligned with tabular figures.
+const MONO = "var(--font-nav, 'Urbanist', 'Poppins', sans-serif)"
+const SANS = "var(--font-nav, 'Urbanist', 'Poppins', sans-serif)"
 const URGENCY_RANK = { overdue: 0, today: 1, soon: 2, waiting: 3, done: 4 }
 
 const LS = {
@@ -196,7 +197,7 @@ export default function WorkQueue({ home, pickView, scope = 'mine', title, embed
 
       {title && embedded && (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '11px 14px', borderBottom: '1px solid var(--border, #2e3040)', flexWrap: 'wrap' }}>
-          <h2 style={{ margin: 0, fontFamily: MONO, fontSize: 11, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontWeight: 700 }}>{title}</h2>
+          <h2 style={{ margin: 0, fontFamily: MONO, fontSize: 13.5, color: 'var(--text, #e8e8f0)', fontWeight: 600 }}>{title}</h2>
           <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>every open step across the team</span>
         </div>
       )}
@@ -216,7 +217,7 @@ export default function WorkQueue({ home, pickView, scope = 'mine', title, embed
               <button key={v.key} role="tab" aria-selected={on} onClick={() => { setView(v.key); setSel(new Set()) }}
                 style={{ ...btn(on), display: 'flex', gap: 7, alignItems: 'center', border: on ? '1px solid var(--accent, #c8963e)' : '1px solid transparent', background: on ? 'rgba(200,150,62,0.12)' : 'transparent' }}>
                 {v.label}
-                <span style={{ fontSize: 10.5, color: on ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontVariantNumeric: 'tabular-nums' }}>{n ?? '…'}</span>
+                <span style={{ fontSize: 12, color: on ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontVariantNumeric: 'tabular-nums' }}>{n ?? '…'}</span>
               </button>
             )
           })}
@@ -296,7 +297,7 @@ export default function WorkQueue({ home, pickView, scope = 'mine', title, embed
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}><span style={{ fontFamily: MONO, fontSize: 12, color: x.r.is_prospect ? '#e07ba8' : 'var(--accent, #c8963e)' }}>{pidText(x.r)}</span><span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.r.property_name}</span></div>
                   <div style={{ fontSize: 13.5, marginTop: 2 }}>{x.t.label}</div>
-                  <div style={{ fontSize: 10.5, fontFamily: MONO, color: 'var(--text-muted, #6b6d82)', marginTop: 3, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 12, fontFamily: MONO, color: 'var(--text-muted, #6b6d82)', marginTop: 3, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span><SlaDot urgency={x.t.urgency} />{ageText(x)}</span><span>· {WHO[x.t.waiting_on || x.t.blocked_on]}</span><span>· {local(x.owner)}</span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -315,7 +316,7 @@ export default function WorkQueue({ home, pickView, scope = 'mine', title, embed
                   <th style={{ width: 36, padding: '9px 10px' }}><input type="checkbox" checked={!!allSelected} onChange={toggleAll} aria-label="Select all" style={{ accentColor: 'var(--accent, #c8963e)' }} /></th>
                   {COLS.filter(c => !embedded || !['blocked', 'setup'].includes(c.key)).map(c => (
                     <th key={c.key} onClick={() => toggleSort(c.key)} aria-sort={sort.key === c.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      style={{ textAlign: 'left', padding: '9px 10px', fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: sort.key === c.key ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: MONO, cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none' }}>
+                      style={{ textAlign: 'left', padding: '9px 10px', fontSize: 12, fontWeight: 700, color: sort.key === c.key ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: MONO, cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none' }}>
                       {c.label}{sort.key === c.key ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}
                     </th>
                   ))}
@@ -351,7 +352,7 @@ export default function WorkQueue({ home, pickView, scope = 'mine', title, embed
           {board.map(col => (
             <div key={col.code} style={{ flex: '0 0 280px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 10 }}>
               <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border, #2e3040)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col.label}</span>
                 <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--text-dim, #9394a8)' }}>{col.items.length}</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, maxHeight: 'calc(100vh - 260px)', overflowY: 'auto' }}>
@@ -363,7 +364,7 @@ export default function WorkQueue({ home, pickView, scope = 'mine', title, embed
                       <span style={{ fontFamily: MONO, fontSize: 12, color: x.r.is_prospect ? '#e07ba8' : 'var(--accent, #c8963e)' }}>{pidText(x.r)}</span>
                       <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.r.property_name}</span>
                     </div>
-                    <div style={{ fontSize: 10.5, fontFamily: MONO, color: x.t.urgency === 'overdue' ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', marginTop: 6 }}><SlaDot urgency={x.t.urgency} />{ageText(x)} · {local(x.owner)}</div>
+                    <div style={{ fontSize: 12, fontFamily: MONO, color: x.t.urgency === 'overdue' ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', marginTop: 6 }}><SlaDot urgency={x.t.urgency} />{ageText(x)} · {local(x.owner)}</div>
                     <button onClick={e => openAction(e, x)} style={{ ...btn(true), minHeight: 30, padding: '0 10px', marginTop: 8, width: '100%', textAlign: 'left' }}>{x.t.next_action_label} ›</button>
                   </div>
                 ))}
