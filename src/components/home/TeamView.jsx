@@ -14,7 +14,10 @@ const C = {
   text: 'var(--text, #e8e8f0)', dim: 'var(--text-dim, #9394a8)', muted: 'var(--text-muted, #6b6d82)',
   accent: 'var(--accent, #c8963e)', green: 'var(--green, #3dba7a)', red: 'var(--red, #e05c6a)',
 }
-const SOFT = { red: 'rgba(224,92,106,0.12)', amber: 'rgba(200,150,62,0.12)', green: 'rgba(61,186,122,0.12)' }
+const SOFT = { red: 'rgba(158,90,82,0.16)', amber: 'rgba(160,132,82,0.16)', green: 'rgba(94,138,110,0.16)' }
+// matte: the Team view is read at a glance, so status colours are muted,
+// not neon — the same red / amber / green, with the saturation taken out
+const M = { red: '#b0645b', amber: '#a8895a', green: '#6f9a7e' }
 const WAIT = [['setup_ops', 'Setup ops'], ['landlord', 'Landlord'], ['vendor', 'Vendor'], ['supply', 'Supply']]
 // Steps whose engine label carries a count ("9 of 21 items approved") are
 // grouped under one name, so the grid has one row per step.
@@ -132,10 +135,10 @@ export default function TeamView({ home, team, onViewDesk, onPickView, queue }) 
   const overdueBy = people.filter(p => p.overdue).map(p => `${p.overdue} ${first(p.email)}`).join(' · ')
   const stats = [
     { k: 'Live properties', v: live.length, h: `${rows.length - live.length} done or quiet`, go: () => onPickView('all') },
-    { k: 'Overdue', v: rows.filter(r => r.urgency === 'overdue').length, tone: C.red, h: overdueBy || 'none', go: () => onPickView('overdue') },
+    { k: 'Overdue', v: rows.filter(r => r.urgency === 'overdue').length, tone: M.red, h: overdueBy || 'none', go: () => onPickView('overdue') },
     { k: 'Setups this week', v: rows.filter(r => r.days_to_setup != null && r.days_to_setup >= 0 && r.days_to_setup <= 6).length, h: people.filter(p => p.setups).map(p => `${p.setups} ${first(p.email)}`).join(' · ') || 'none dated', go: () => onPickView('setups') },
-    { k: 'To verify', v: verifyAll, tone: verifyAll ? C.accent : C.text, h: oldestVerify ? `oldest ${ago(oldestVerify)}` : 'all clear' },
-    { k: 'Unowned', v: unowned.length, tone: unownedMoving.length ? C.accent : C.text, h: `${unownedMoving.length} moving this month`, go: () => onPickView('unowned') },
+    { k: 'To verify', v: verifyAll, tone: verifyAll ? M.amber : C.text, h: oldestVerify ? `oldest ${ago(oldestVerify)}` : 'all clear' },
+    { k: 'Unowned', v: unowned.length, tone: unownedMoving.length ? M.amber : C.text, h: `${unownedMoving.length} moving this month`, go: () => onPickView('unowned') },
   ]
   const maxOwned = Math.max(1, ...people.map(p => p.owned))
   const speedOf = (email, k) => t.speed.find(s => s.email === email && s.k === k)
@@ -166,13 +169,13 @@ export default function TeamView({ home, team, onViewDesk, onPickView, queue }) 
                   <td>
                     <span title={`${p.onThem} waiting on them · ${p.onOthers} waiting on others · ${p.quiet} quiet`}
                       style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: C.input, width: Math.max(24, Math.round(140 * p.owned / maxOwned)) }}>
-                      {[[p.onThem, C.red], [p.onOthers, C.accent], [p.quiet, C.green]].map(([v, col], i) => <i key={i} style={{ display: 'block', height: '100%', width: `${p.owned ? 100 * v / p.owned : 0}%`, background: col }} />)}
+                      {[[p.onThem, M.red], [p.onOthers, M.amber], [p.quiet, M.green]].map(([v, col], i) => <i key={i} style={{ display: 'block', height: '100%', width: `${p.owned ? 100 * v / p.owned : 0}%`, background: col }} />)}
                     </span>
                   </td>
-                  <td className="n" style={{ color: p.overdue ? C.red : undefined }}>{p.overdue}</td>
+                  <td className="n" style={{ color: p.overdue ? M.red : undefined }}>{p.overdue}</td>
                   <td className="n">{p.today}</td>
                   <td className="n">{p.setups}</td>
-                  <td className="n" style={{ color: p.verify ? C.accent : undefined }} title={p.verify_oldest ? `oldest closed ${ago(p.verify_oldest)}` : ''}>{p.verify}{p.verify_oldest ? <span style={{ color: C.muted, fontSize: 11 }}> · {ago(p.verify_oldest)}</span> : ''}</td>
+                  <td className="n" style={{ color: p.verify ? M.amber : undefined }} title={p.verify_oldest ? `oldest closed ${ago(p.verify_oldest)}` : ''}>{p.verify}{p.verify_oldest ? <span style={{ color: C.muted, fontSize: 11 }}> · {ago(p.verify_oldest)}</span> : ''}</td>
                   <td className="n" style={{ color: C.muted, fontSize: 11.5 }}>{ago(p.last_active)}</td>
                   <td><button type="button" className="tv-btn" onClick={() => onViewDesk(p.email)}>Their desk ›</button></td>
                 </tr>
@@ -194,8 +197,8 @@ export default function TeamView({ home, team, onViewDesk, onPickView, queue }) 
                       <td key={k}>
                         <span className="n" style={{ fontWeight: 700 }}>{s.now_n ? days(s.now) : '—'}</span>
                         {s.now_n > 0 && <span className="n" style={{ color: C.muted, fontSize: 11 }}> n={s.now_n}</span>}
-                        {delta != null && Math.abs(delta) >= 0.5 && <span className="n" style={{ fontSize: 11, marginLeft: 6, color: delta > 0 ? C.red : C.green }}>{delta > 0 ? '+' : '−'}{Math.abs(Math.round(delta * 10) / 10)}d</span>}
-                        {s.open_n > 0 && <div className="n" style={{ fontSize: 11, color: C.accent }}>{s.open_n} still waiting</div>}
+                        {delta != null && Math.abs(delta) >= 0.5 && <span className="n" style={{ fontSize: 11, marginLeft: 6, color: delta > 0 ? M.red : M.green }}>{delta > 0 ? '+' : '−'}{Math.abs(Math.round(delta * 10) / 10)}d</span>}
+                        {s.open_n > 0 && <div className="n" style={{ fontSize: 11, color: M.amber }}>{s.open_n} still waiting</div>}
                       </td>
                     )
                   })}
@@ -216,7 +219,7 @@ export default function TeamView({ home, team, onViewDesk, onPickView, queue }) 
                       const od = c.filter(x => x.overdue).length
                       return (
                         <td key={k} className="n" style={{ textAlign: 'center' }} title={c.map(x => x.pid + (x.overdue ? ' (overdue)' : '')).join(', ')}>
-                          {c.length ? <span style={{ display: 'inline-block', minWidth: 26, padding: '2px 6px', borderRadius: 6, background: od ? SOFT.red : SOFT.amber, color: od ? C.red : C.accent }}>{c.length}</span> : <span style={{ color: C.muted }}>·</span>}
+                          {c.length ? <span style={{ display: 'inline-block', minWidth: 26, padding: '2px 6px', borderRadius: 6, background: od ? SOFT.red : SOFT.amber, color: od ? M.red : M.amber }}>{c.length}</span> : <span style={{ color: C.muted }}>·</span>}
                         </td>
                       )
                     })}
@@ -257,9 +260,9 @@ export default function TeamView({ home, team, onViewDesk, onPickView, queue }) 
                     <tr key={v.id}>
                       <td><b>{v.name}</b> <span style={{ color: C.muted, fontFamily: MONO, fontSize: 11 }}>{v.trade}</span></td>
                       <td className="n">{v.closed}/{v.items}</td>
-                      <td className="n" style={{ color: back >= 15 ? C.red : back > 0 ? C.accent : undefined }}>{back == null ? '—' : `${back}%`}</td>
+                      <td className="n" style={{ color: back >= 15 ? M.red : back > 0 ? M.amber : undefined }}>{back == null ? '—' : `${back}%`}</td>
                       <td className="n">{days(v.days_to_close) || '—'}</td>
-                      <td className="n" style={{ color: v.noshow_missed ? C.red : C.muted }}>{v.noshow_chances ? `${v.noshow_missed} of ${v.noshow_chances}` : <span title="No setup days with this vendor assigned yet">—</span>}</td>
+                      <td className="n" style={{ color: v.noshow_missed ? M.red : C.muted }}>{v.noshow_chances ? `${v.noshow_missed} of ${v.noshow_chances}` : <span title="No setup days with this vendor assigned yet">—</span>}</td>
                     </tr>
                   )
                 })}</tbody>
@@ -287,7 +290,7 @@ function ExploreFunnel({ f, calls, people }) {
         {steps.map(([k, v], i) => (
           <div key={k} style={{ display: 'grid', gridTemplateColumns: '78px 1fr 90px', gap: 10, alignItems: 'center' }}>
             <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k}</span>
-            <span style={{ height: 10, borderRadius: 5, background: C.input, overflow: 'hidden' }}><i style={{ display: 'block', height: '100%', width: `${Math.round(100 * (v || 0) / max)}%`, background: i === 4 ? 'rgba(61,186,122,0.55)' : '#9e5a52', opacity: 1 - i * 0.12 }} /></span>
+            <span style={{ height: 10, borderRadius: 5, background: C.input, overflow: 'hidden' }}><i style={{ display: 'block', height: '100%', width: `${Math.round(100 * (v || 0) / max)}%`, background: i === 4 ? M.green : '#9e5a52', opacity: 1 - i * 0.12 }} /></span>
             <span className="n" style={{ fontSize: 12.5 }}><b>{v || 0}</b>{i > 0 && steps[i - 1][1] ? <span style={{ color: C.muted, fontSize: 11 }}> · {Math.round(100 * (v || 0) / steps[i - 1][1])}%</span> : ''}</span>
           </div>
         ))}
@@ -299,7 +302,7 @@ function ExploreFunnel({ f, calls, people }) {
           <div key={c.email} title={(c.misses || []).map(m => `${m.name}: said ${m.said === 'go' ? 'Go' : 'No-go'}, supply ${m.supply}`).join('\n')}
             style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 13, opacity: people.includes(c.email) ? 1 : 0.6 }}>
             <b style={{ minWidth: 80 }}>{first(c.email)}</b>
-            <span className="n" style={{ color: c.match === c.n ? C.green : C.accent }}>{c.match} of {c.n}</span>
+            <span className="n" style={{ color: c.match === c.n ? M.green : M.amber }}>{c.match} of {c.n}</span>
             {(c.misses || []).length > 0 && <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>· {c.misses.map(m => m.name).join(', ')}</span>}
             {!people.includes(c.email) && <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted }}>supply / other</span>}
           </div>
@@ -310,7 +313,7 @@ function ExploreFunnel({ f, calls, people }) {
   )
 }
 
-const SEV = { red: C.red, amber: C.accent, grey: C.border }
+const SEV = { red: M.red, amber: M.amber, grey: C.border }
 function Exceptions({ list, navigate }) {
   const [open, setOpen] = useState({})
   const shown = list.filter(e => e.n > 0)
@@ -335,7 +338,7 @@ function Exceptions({ list, navigate }) {
                   {e.items.slice(0, 12).map((it, i) => (
                     <button key={i} type="button" onClick={() => it.request_id ? navigate(`/explore/${it.request_id}`) : it.pid && navigate(`/properties/${encodeURIComponent(it.pid)}`)}
                       style={{ display: 'flex', gap: 8, flexWrap: 'wrap', background: 'none', border: 'none', padding: '3px 0', textAlign: 'left', cursor: 'pointer', color: C.text, fontSize: 12.5 }}>
-                      <span style={{ fontFamily: MONO, color: C.accent }}>{it.pid}</span>
+                      <span style={{ fontFamily: MONO, color: M.amber }}>{it.pid}</span>
                       <span>{clean(it.name, it.pid)}</span>
                       <span style={{ color: C.dim }}>· {it.line}</span>
                       {it.who && <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>· {first(it.who)}</span>}
