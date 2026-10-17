@@ -173,24 +173,24 @@ set search_path = public
 as $$
 declare n int;
 begin
-  with cand as (
-    select x.id, min(p.pid) pid, count(*) c
-      from stage_exploratory x
-      join properties p on p.deleted_at is null and exploratory_building_key(x.property_name) is not null
-        and (exploratory_building_key(p.name) like exploratory_building_key(x.property_name) || '%'
-          or exploratory_building_key(x.property_name) like exploratory_building_key(p.name) || '%')
-        and p.created_at >= x.created_at - interval '14 days'
-        and not exists (select 1 from exploratory_links k where k.pid = p.pid)
+  with pk as (
+    select p.pid, p.created_at, exploratory_building_key(p.name) k from properties p
+     where p.deleted_at is null and not exists (select 1 from exploratory_links k where k.pid = p.pid)
+  ),
+  xk as (
+    select x.id, x.created_at, exploratory_building_key(x.property_name) bk from stage_exploratory x
      where x.status in ('approved', 'converted') and not exists (select 1 from exploratory_links k where k.request_id = x.id)
+  ),
+  sk as (select distinct sd.pid, exploratory_building_key(sd.name) k from stage_dates sd),
+  cand as (
+    select x.id, min(pk.pid) pid, count(*) c
+      from xk x join pk on x.bk is not null and pk.k is not null and (pk.k like x.bk || '%' or x.bk like pk.k || '%')
+       and pk.created_at >= x.created_at - interval '14 days'
      group by x.id
   ), viastage as (   -- Stage gave the building a PID that Pulse has
-    select x.id, min(sd.pid) pid, count(distinct sd.pid) c
-      from stage_exploratory x
-      join stage_dates sd on exploratory_building_key(x.property_name) is not null
-        and (exploratory_building_key(sd.name) like exploratory_building_key(x.property_name) || '%'
-          or exploratory_building_key(x.property_name) like exploratory_building_key(sd.name) || '%')
-      join properties p on p.pid = sd.pid and p.deleted_at is null and not exists (select 1 from exploratory_links k where k.pid = p.pid)
-     where x.status in ('approved', 'converted') and not exists (select 1 from exploratory_links k where k.request_id = x.id)
+    select x.id, min(sk.pid) pid, count(distinct sk.pid) c
+      from xk x join sk on x.bk is not null and sk.k is not null and (sk.k like x.bk || '%' or x.bk like sk.k || '%')
+      join pk on pk.pid = sk.pid
      group by x.id
   ), one as (select * from cand where c = 1 union select * from viastage where c = 1 and id not in (select id from cand))
   insert into exploratory_links (request_id, pid, linked_by)
@@ -362,26 +362,35 @@ declare today date := (now() at time zone 'Asia/Kolkata')::date; admin text := (
 begin
   if auth.uid() is null then raise exception 'not signed in'; end if;
   return query
-  with base as (
+  -- each name is cleaned once here, not once per request (that was 100k+ regex calls)
+  with pk as materialized (
+    select p.pid, exploratory_building_key(p.name) k from properties p
+     where p.deleted_at is null and not exists (select 1 from exploratory_links k where k.pid = p.pid)
+  ),
+  sk as materialized (
+    select sd.pid, exploratory_building_key(min(sd.name)) k from stage_dates sd
+     where not exists (select 1 from properties p where p.pid = sd.pid and p.deleted_at is null)
+     group by sd.pid
+  ),
+  xk as materialized (
+    select x.*, exploratory_building_key(x.property_name) bk from stage_exploratory x
+     where x.archived_at is null and coalesce(x.property_name, '') !~* '^\s*\[test\]'
+  ),
+  base as (
     select x.*, a.assignee, a.confirmed_at, a.declined_by, a.decline_reason, a.stage_conflict,
            coalesce(a.assignee, case when a.request_id is null or a.stage_written_at is null then x.stage_inspector end) as who,
            (a.assignee is not null) as pulse_assigned,
            l.pid as linked_pid,
            (select lg from exploratory_logs lg where lg.request_id = x.id and lg.submitted_at is not null order by lg.submitted_at desc limit 1) as log,
            (select max(nullif(v->>'created_at', '')::timestamptz) from jsonb_array_elements(x.visits) v) as stage_visit_at,
-           (select count(*) from properties p where p.deleted_at is null and exploratory_building_key(x.property_name) is not null
-               and not exists (select 1 from exploratory_links k where k.pid = p.pid)
-               and (exploratory_building_key(p.name) like exploratory_building_key(x.property_name) || '%'
-                 or exploratory_building_key(x.property_name) like exploratory_building_key(p.name) || '%'))::int as matches,
-           (select min(sd.pid) from stage_dates sd where exploratory_building_key(x.property_name) is not null
-               and (exploratory_building_key(sd.name) like exploratory_building_key(x.property_name) || '%'
-                 or exploratory_building_key(x.property_name) like exploratory_building_key(sd.name) || '%')
-               and not exists (select 1 from properties p where p.pid = sd.pid and p.deleted_at is null)) as stage_pid
-      from stage_exploratory x
+           (select count(*) from pk where x.bk is not null and pk.k is not null
+               and (pk.k like x.bk || '%' or x.bk like pk.k || '%'))::int as matches,
+           (select min(sk.pid) from sk where x.bk is not null and sk.k is not null
+               and (sk.k like x.bk || '%' or x.bk like sk.k || '%')) as stage_pid
+      from xk x
       left join exploratory_assignments a on a.request_id = x.id
       left join exploratory_links l on l.request_id = x.id
-     where x.archived_at is null and coalesce(x.property_name, '') !~* '^\s*\[test\]'
-       and not (x.status in ('approved', 'converted') and l.pid is not null)    -- the property carries on from here
+     where not (x.status in ('approved', 'converted') and l.pid is not null)    -- the property carries on from here
        -- approvals that old with no link were settled outside Pulse
        and not (x.status in ('approved', 'converted') and l.pid is null and coalesce(x.stage_updated_at, x.created_at) < now() - interval '45 days')
   ),
