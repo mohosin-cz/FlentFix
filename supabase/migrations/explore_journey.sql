@@ -421,8 +421,11 @@ begin
         when s.status in ('approved', 'converted') and s.stage_pid is not null then 'explore_create_pid'
         when s.status = 'converted' then 'explore_create_pid'
         when s.status = 'approved' then 'explore_deal'
-        when s.logged and coalesce(s.stage_visit_at, s.stage_updated_at, s.created_at) < now() - interval '30 days' and (s.log).id is null then 'explore_stale'
-        when s.logged then 'explore_decision'
+        -- Stage's status is the verdict: only its "inspection done / under review" means supply is deciding
+        when s.status in ('inspection_done', 'under_review') and coalesce(s.stage_updated_at, s.created_at) < now() - interval '30 days' then 'explore_stale'
+        when s.status in ('inspection_done', 'under_review') then 'explore_decision'
+        -- logged in Pulse, but Stage still shows the visit as booked: the findings need to go into Stage
+        when (s.log).id is not null then 'explore_paste_main'
         -- the slot passed long ago, nothing logged, nobody in Pulse on it: Stage never closed it
         when s.visit_date < today - 3 and not s.pulse_assigned then 'explore_stale'
         when s.visit_date is null then 'explore_slot'
@@ -440,7 +443,8 @@ begin
         when 'explore_create_pid' then case when t.stage_pid is not null then 'Create PID ' || t.stage_pid || ' in Pulse — supply has it in Stage' else 'Converted — create the PID in Pulse' end
         when 'explore_deal'       then 'Approved — supply closing the deal with the landlord'
         when 'explore_link'       then 'Approved — link it to its PID'
-        when 'explore_stale'      then case when t.logged then 'No decision in Stage for a month' else 'Visit date passed — still open in Stage' end
+        when 'explore_stale'      then case when t.status in ('inspection_done', 'under_review') then 'No decision in Stage for a month' else 'Visit date passed — still open in Stage' end
+        when 'explore_paste_main' then 'Logged — paste the findings into Stage'
         when 'explore_decision'   then 'Waiting on supply’s decision'
         when 'explore_slot'       then 'Waiting on supply for a visit slot'
         when 'explore_assign'     then case when t.declined_by is not null then split_part(t.declined_by, '@', 1) || ' can’t go — assign someone else · ' else 'Assign someone for the visit · ' end || t.slot
@@ -451,7 +455,8 @@ begin
       case when t.code in ('explore_decision', 'explore_slot', 'explore_stale', 'explore_deal') then 'supply' when t.code = 'explore_not_taken' then null else 'setup_ops' end as blk,
       case when t.code in ('explore_assign', 'explore_stale') then admin when t.code = 'explore_not_taken' then t.who else coalesce(t.who, admin) end as owner,
       case t.code
-        when 'explore_decision'   then coalesce((t.log).submitted_at, t.stage_visit_at, t.stage_updated_at)
+        when 'explore_decision'   then coalesce(t.stage_updated_at, t.stage_visit_at, (t.log).submitted_at)
+        when 'explore_paste_main' then (t.log).submitted_at
         when 'explore_create_pid' then coalesce(t.stage_updated_at, t.created_at)
         when 'explore_link'       then coalesce(t.stage_updated_at, t.created_at)
         when 'explore_deal'       then coalesce(t.stage_updated_at, t.created_at)
@@ -462,6 +467,7 @@ begin
         when 'explore_decision'   then 3
         when 'explore_create_pid' then 2
         when 'explore_link'       then 2
+        when 'explore_paste_main' then 1
         -- deal closing is supply's pace, not a threshold of ours: no limit
         when 'explore_slot'       then 2
         else null end as limit_days
@@ -483,8 +489,9 @@ begin
          t.owner, t.code, 'Explore · ' || t.label, t.blk, t.since_at, t.age,
          case t.code when 'explore_assign' then 'Assign' when 'explore_confirm' then 'Confirm' when 'explore_visit' then 'Open the visit'
                      when 'explore_log' then 'Log the findings' when 'explore_create_pid' then 'Create the PID' when 'explore_link' then 'Link the PID'
+                     when 'explore_paste_main' then 'Copy for Stage'
                      when 'explore_decision' then 'Open' when 'explore_slot' then 'Open' else 'Open' end,
-         case when t.code = 'explore_log' then '/explore/' || t.id || '/log'
+         case when t.code in ('explore_log', 'explore_paste_main') then '/explore/' || t.id || '/log'
               when t.code = 'explore_create_pid' then '/inspections/new?explore=' || t.id || coalesce('&pid=' || t.stage_pid, '')
               else '/explore/' || t.id end,
          t.urg,
@@ -493,8 +500,8 @@ begin
            'age_days', t.age, 'limit_days', t.limit_days,
            'overdue_by', case when t.urg = 'overdue' then greatest(1, case when t.code in ('explore_log', 'explore_assign', 'explore_confirm', 'explore_visit')
                                                                          then today - t.visit_date else t.age - coalesce(t.limit_days, 0) end) end,
-           'next_action_label', case t.code when 'explore_assign' then 'Assign' when 'explore_log' then 'Log the findings' when 'explore_create_pid' then 'Create the PID' when 'explore_link' then 'Link the PID' else 'Open' end,
-           'next_action_route', case when t.code = 'explore_log' then '/explore/' || t.id || '/log' else '/explore/' || t.id end,
+           'next_action_label', case t.code when 'explore_assign' then 'Assign' when 'explore_log' then 'Log the findings' when 'explore_create_pid' then 'Create the PID' when 'explore_link' then 'Link the PID' when 'explore_paste_main' then 'Copy for Stage' else 'Open' end,
+           'next_action_route', case when t.code in ('explore_log', 'explore_paste_main') then '/explore/' || t.id || '/log' else '/explore/' || t.id end,
            'note', case when t.stage_conflict is not null then 'Stage says ' || split_part(t.stage_conflict, '@', 1) || ' is going' end,
            'urgency', t.urg))
          || case when (t.log).id is not null and (t.log).in_stage_at is null and t.code in ('explore_decision', 'explore_create_pid', 'explore_link', 'explore_not_taken') then

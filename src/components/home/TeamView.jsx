@@ -23,7 +23,7 @@ const STEP_NAME = {
   explore_assign: 'Explore · assign someone', explore_confirm: 'Explore · confirm the visit', explore_visit: 'Explore · visit booked',
   explore_log: 'Explore · log the findings', explore_decision: 'Explore · supply to decide', explore_deal: 'Explore · supply closing the deal',
   explore_link: 'Explore · link to its PID', explore_create_pid: 'Explore · create the PID', explore_slot: 'Explore · supply to set a slot',
-  explore_stale: 'Explore · stale in Stage', explore_paste: 'Explore · paste findings into Stage', items_to_verify: 'Vendor work to verify', disputed: 'Items sent back to vendor',
+  explore_stale: 'Explore · stale in Stage', explore_paste: 'Explore · paste findings into Stage', explore_paste_main: 'Explore · logged, not in Stage yet', items_to_verify: 'Vendor work to verify', disputed: 'Items sent back to vendor',
   setup_day: 'Setup day', setup_in_progress: 'Work under way', vendors_on_site: 'Vendors on site', wo_awaiting_day: 'Waiting for setup day',
   wo_overdue: 'Items open past closure date', wo_unassigned: 'Work orders with no vendor', wo_undated: 'Work orders with no closure date',
 }

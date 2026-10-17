@@ -142,6 +142,12 @@ export default function ExploreRecord() {
             <span style={{ flex: '1 1 240px', fontSize: 14, color: C.red }}><b>The visit was {slotText(r.visit_date)} — findings not logged yet</b> · {first(who)}</span>
             {(myVisit || isAdmin) && <button style={btn('primary')} onClick={() => navigate(`/explore/${id}/log`)}>Log the findings</button>}
           </>)
+      case 'explore_paste_main':
+        return (
+          <>
+            <span style={{ flex: '1 1 280px', fontSize: 14 }}><b>Logged — paste the findings into Stage.</b> Stage still shows the visit as booked; supply decides once it’s there.</span>
+            {lastPulse && <CopyButton text={stageCopy(r, lastPulse, lastPulse.author)} onDone={() => setToast('Copied — paste it into the visit form in Stage. Pulse moves on when Stage’s status changes.')} />}
+          </>)
       case 'explore_decision':
         return (
           <>
@@ -211,6 +217,7 @@ export default function ExploreRecord() {
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
           <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: MONO, color: C.muted }}>Next</span>
           {next}
+          <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 11, color: C.muted }} title="Stage's status is the verdict; Pulse's step follows it">Stage: {(r.status || '').replace('_', ' ')}</span>
         </div>
         {paste && <PasteBar r={r} log={lastPulse} onCopied={() => setToast('Copied — paste it into the visit form in Stage. Pulse ticks it when the sync sees it.')} />}
         {err && <div role="alert" style={{ fontFamily: MONO, fontSize: 12, color: C.red }}>{err}</div>}
