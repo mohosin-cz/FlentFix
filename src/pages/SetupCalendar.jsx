@@ -361,6 +361,15 @@ function DayPanel({ day, ev, vs, onOpen, warnOf, doneOf }) {
 function Sheet({ e, isAdmin, team, busy, vendors, warn, onClose, navigate, act, setSetup, onMove, onCopied }) {
   const k = KIND[e.kind]
   const rid = e.x?.request_id
+  // for a visit: what each person already has that day, to choose who goes
+  const [people, setPeople] = useState(null)
+  useEffect(() => {
+    setPeople(null)
+    if (e.kind !== 'visit' || !rid || !isAdmin) return
+    let alive = true
+    supabase.rpc('exploratory_record', { p_id: rid }).then(({ data }) => { if (alive) setPeople(data?.people || []) })
+    return () => { alive = false }
+  }, [e.kind, rid, isAdmin])
   const facts = []
   let actions = null
   const openProp = () => navigate(`/properties/${encodeURIComponent(e.pid)}`)
@@ -371,10 +380,17 @@ function Sheet({ e, isAdmin, team, busy, vendors, warn, onClose, navigate, act, 
     const live = ['new_request', 'visit_scheduled'].includes(e.x?.status) && !e.x?.logged
     actions = (
       <>
-        {isAdmin && live && team.map(m => (
-          <button key={m.email} type="button" disabled={busy || e.owner === m.email} onClick={() => act('exploratory_assign', { p_id: rid, p_email: m.email }, `Assigned ${first(m.email)} — on their desk now; written to Stage on the next sync`)}
-            style={{ ...btn(e.owner === m.email ? '' : 'primary'), opacity: e.owner === m.email ? 0.6 : 1 }}>{e.owner === m.email ? `✓ ${first(m.email)} is going` : `Assign ${first(m.email)}`}</button>
-        ))}
+        {isAdmin && live && (people ? [...people].sort((a, b) => (!(a.day || []).length === !(b.day || []).length ? (a.week || 0) - (b.week || 0) : (a.day || []).length ? 1 : -1)) : team.map(m => ({ email: m.email }))).map((m, i) => {
+          const free = people && !(m.day || []).length
+          return (
+            <button key={m.email} type="button" disabled={busy || e.owner === m.email} onClick={() => act('exploratory_assign', { p_id: rid, p_email: m.email }, `Assigned ${first(m.email)} — on their desk now; written to Stage on the next sync`)}
+              style={{ ...btn(e.owner === m.email ? '' : i === 0 && free ? 'primary' : ''), opacity: e.owner === m.email ? 0.6 : 1, whiteSpace: 'normal', display: 'grid', gap: 2, padding: '7px 12px', height: 'auto' }}>
+              <span>{e.owner === m.email ? `✓ ${first(m.email)} is going` : `Assign ${first(m.email)}`}{i === 0 && free && e.owner !== m.email ? ' · best fit' : ''}</span>
+              {people && <span style={{ fontWeight: 500, fontSize: 11, color: free ? C.green : C.accent }}>{free ? 'nothing else that day' : `also: ${m.day.join(' · ')}`}</span>}
+              {people && <span style={{ fontWeight: 500, fontSize: 10.5, color: C.muted }}>{m.week || 0} visit{m.week === 1 ? '' : 's'} around then{m.seen ? ' · has seen this building/landlord' : ''}</span>}
+            </button>
+          )
+        })}
         {isAdmin && live && <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>Assigning is the one thing Pulse writes to Stage.</div>}
         <button type="button" onClick={() => navigate(`/explore/${rid}`)} style={btn()}>Open the record ›</button>
         {live && <button type="button" onClick={async () => { if (await copyText(`Hi — could we move the exploratory visit to ${e.name} (${nice(e.date)}${e.time ? `, ${e.time}` : ''})? Please update the slot in Stage.`)) onCopied() }} style={btn()}>✎ Copy a note to supply to move the slot</button>}

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { DraftMessageButton } from '../comms/DraftMessage'
@@ -44,6 +45,13 @@ export default function JourneyPhases({ pid, row, onChange }) {
   const navigate = useNavigate()
   const phone = useIsMobile(720)
   const [ms, setMs] = useState(null)
+  // Explore comes first: the exploratory visit this property came from, if any
+  const [ex, setEx] = useState(undefined)
+  useEffect(() => {
+    let alive = true
+    supabase.rpc('exploratory_for_property', { p_pid: pid }).then(({ data, error }) => { if (alive) setEx(error ? null : data) })
+    return () => { alive = false }
+  }, [pid])
 
   if (!row) return null
   const threads = row.open_threads || []
@@ -56,7 +64,26 @@ export default function JourneyPhases({ pid, row, onChange }) {
   return (
     <div style={{ background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', padding: phone ? '12px 16px' : '14px 24px' }}>
       {/* the phases */}
-      <div style={{ display: 'grid', gridTemplateColumns: phone ? 'repeat(3, minmax(0, 1fr))' : `repeat(${PHASES.length}, minmax(0, 1fr))`, gap: 6 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: phone ? 'repeat(3, minmax(0, 1fr))' : `repeat(${PHASES.length + 1}, minmax(0, 1fr))`, gap: 6 }}>
+        {(() => {
+          const r = ex?.linked ? ex.request : null
+          const v = r?.log || null, sv = r?.last_visit || null
+          const by = r?.assignee || r?.stage_inspector || v?.author || sv?.by
+          const sub = r ? [by && `visited by ${who(by)}`, r.visit_date && when(r.visit_date + 'T00:00:00'),
+                           v?.verdict ? ({ go: 'Go', no_go: 'No-go', unsure: 'Unsure' })[v.verdict] : sv?.outcome].filter(Boolean).join(' · ')
+            : ex?.suggestions?.length ? 'may match an exploratory — link it' : 'no exploratory on record'
+          return (
+            <button type="button" onClick={() => r ? navigate(`/explore/${r.id}`) : null} title={r ? 'Open the exploratory visit' : sub}
+              style={{ textAlign: 'left', padding: '8px 10px', borderRadius: 8, cursor: r ? 'pointer' : 'default', minWidth: 0, fontFamily: 'inherit',
+                       border: `1px solid ${r ? 'rgba(61,186,122,0.30)' : 'var(--border, #2e3040)'}`, background: 'transparent', color: 'var(--text, #e8e8f0)', opacity: r ? 1 : 0.7 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: r ? 'var(--green, #3dba7a)' : 'var(--border, #2e3040)' }} />
+                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: MONO, color: r ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }}>Explore</span>
+              </div>
+              <div title={sub} style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: MONO }}>{ex === undefined ? ' ' : sub}</div>
+            </button>
+          )
+        })()}
         {PHASES.map((p, i) => {
           const done = i < curIdx, now = i === curIdx
           // every milestone in the phase, with who marked it and when — nothing hidden by merging

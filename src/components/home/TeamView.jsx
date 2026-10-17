@@ -242,6 +242,8 @@ export default function TeamView({ home, team, onViewDesk, onPickView }) {
             </div>
           </Panel>
 
+          <ExploreFunnel f={t.funnel} calls={t.calls || []} people={people.map(p => p.email)} />
+
           <Exceptions list={t.exceptions} navigate={navigate} />
 
           <Panel title="Vendor reliability" meta="last 60 days">
@@ -266,6 +268,43 @@ export default function TeamView({ home, team, onViewDesk, onPickView }) {
         </div>
       </div>
     </div>
+  )
+}
+
+// Exploratory work, end to end: raised → visited → decided → approved → set up
+// (last 90 days), and how often each person's verdict matched supply's call.
+function ExploreFunnel({ f, calls, people }) {
+  if (!f) return null
+  const steps = [['Raised', f.raised], ['Visited', f.visited], ['Decided', f.decided], ['Approved', f.approved], ['Set up', f.set_up]]
+  const max = Math.max(1, f.raised || 0)
+  const mine = calls.filter(c => people.includes(c.email))
+  const others = calls.filter(c => !people.includes(c.email))
+  return (
+    <Panel title="Exploratory · last 90 days" meta={[f.raise_to_visit != null && `visited ~${Math.round(f.raise_to_visit)}d after raised`, f.visit_to_decision != null && `decided ~${Math.round(f.visit_to_decision)}d after the visit`].filter(Boolean).join(' · ')}>
+      <div style={{ padding: '12px 14px', display: 'grid', gap: 6 }}>
+        {steps.map(([k, v], i) => (
+          <div key={k} style={{ display: 'grid', gridTemplateColumns: '78px 1fr 90px', gap: 10, alignItems: 'center' }}>
+            <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k}</span>
+            <span style={{ height: 10, borderRadius: 5, background: C.input, overflow: 'hidden' }}><i style={{ display: 'block', height: '100%', width: `${Math.round(100 * (v || 0) / max)}%`, background: i === 4 ? C.green : '#e07ba8', opacity: 1 - i * 0.1 }} /></span>
+            <span className="n" style={{ fontSize: 12.5 }}><b>{v || 0}</b>{i > 0 && steps[i - 1][1] ? <span style={{ color: C.muted, fontSize: 11 }}> · {Math.round(100 * (v || 0) / steps[i - 1][1])}%</span> : ''}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ borderTop: `1px solid ${C.border}`, padding: '10px 14px', display: 'grid', gap: 6 }}>
+        <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted, letterSpacing: '0.07em', textTransform: 'uppercase' }}>Whose calls match supply’s</div>
+        {mine.length === 0 && <div style={{ fontSize: 12.5, color: C.muted }}>No decided visits with a verdict yet.</div>}
+        {[...mine, ...others].map(c => (
+          <div key={c.email} title={(c.misses || []).map(m => `${m.name}: said ${m.said === 'go' ? 'Go' : 'No-go'}, supply ${m.supply}`).join('\n')}
+            style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 13, opacity: people.includes(c.email) ? 1 : 0.6 }}>
+            <b style={{ minWidth: 80 }}>{first(c.email)}</b>
+            <span className="n" style={{ color: c.match === c.n ? C.green : C.accent }}>{c.match} of {c.n}</span>
+            {(c.misses || []).length > 0 && <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>· {c.misses.map(m => m.name).join(', ')}</span>}
+            {!people.includes(c.email) && <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted }}>supply / other</span>}
+          </div>
+        ))}
+        <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted }}>A verdict is the visitor’s Go / No-go in Pulse, or the outcome they recorded in Stage.</div>
+      </div>
+    </Panel>
   )
 }
 

@@ -156,7 +156,7 @@ export default function MyDesk({ home, desk, viewing, onPickView, onChanged }) {
 
       <div className="dk-grid">
         <div className="dk-col">
-          <ExploratoryVisits list={d.exploratory || []} navigate={navigate} />
+          <ExploratoryVisits list={d.exploratory || []} navigate={navigate} onChanged={onChanged} viewing={viewing} />
           <WeekAhead week={d.week} navigate={navigate} />
           <Today today={d.today} navigate={navigate} />
 
@@ -186,6 +186,7 @@ export default function MyDesk({ home, desk, viewing, onPickView, onChanged }) {
 
         <div className="dk-col">
           <SinceFeed feed={d.feed} since={d.since} navigate={navigate} />
+          <WaitingOnSupply rows={(home.rows || []).filter(r => r.is_prospect && r.stage_code === 'explore_decision' && (d.is_admin && !viewing ? true : (r.owner_email || '').toLowerCase() === d.me))} navigate={navigate} />
           <Verify groups={d.verify} navigate={navigate} onChanged={onChanged} readOnly={!!viewing} />
           <Estimates list={d.estimates} navigate={navigate} />
           <Pins pins={d.pins} rows={rows} navigate={navigate} onChanged={onChanged} readOnly={!!viewing} />
@@ -232,22 +233,83 @@ function QuickStart({ drafts, viewing, navigate }) {
 
 // Exploratory visits supply raised in Stage that I'm going on — the slot, the
 // map, the landlord's number; and any whose date passed with no findings yet.
-function ExploratoryVisits({ list, navigate }) {
+function ExploratoryVisits({ list, navigate, onChanged, viewing }) {
+  const [busy, setBusy] = useState(null)
+  const [why, setWhy] = useState({})
+  const [asking, setAsking] = useState(null)
   if (!list.length) return null
   const t = (s) => { if (!s) return ''; const [h, m] = s.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}` }
+  async function respond(x, ok) {
+    setBusy(x.id)
+    const { error } = await supabase.rpc('exploratory_respond', { p_id: x.id, p_ok: ok, p_reason: ok ? null : why[x.id] })
+    setBusy(null)
+    if (!error) { setAsking(null); onChanged && onChanged() }
+  }
   return (
     <Panel title="Your exploratory visits" meta="raised by supply in Stage"
       action={<button type="button" onClick={() => navigate('/calendar')} style={{ background: 'none', border: 'none', padding: 0, color: C.accent, fontFamily: MONO, fontSize: 11.5, cursor: 'pointer' }}>Calendar ›</button>}>
       <div className="dk-rows">
-        {list.map(x => (
-          <div key={x.id} className="dk-row" style={x.overdue ? { background: SOFT.red } : x.days === 0 ? { background: SOFT.amber } : undefined}>
-            <button type="button" onClick={() => navigate(`/explore/${x.id}`)} style={{ flex: '1 1 220px', minWidth: 0, background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: C.text }}>
-              <T1>{x.name}{x.config ? <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }}> · {x.config}</span> : ''}</T1>
-              <T2>{x.overdue ? `visit was ${dayLbl(x.date)} — add the findings in Stage` : `${x.days === 0 ? 'today' : x.days === 1 ? 'tomorrow' : dayLbl(x.date)}${x.time ? `, ${t(x.time)}` : ''}`}{x.owner_name ? ` · ${x.owner_name}` : ''}</T2>
+        {list.map(x => {
+          const live = x.days === 0
+          return (
+            <div key={x.id} style={{ padding: '11px 14px', display: 'grid', gap: 8, background: x.overdue ? SOFT.red : live ? 'rgba(224,123,168,0.08)' : undefined, borderLeft: live ? '3px solid #e07ba8' : undefined }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: x.overdue ? C.red : '#e07ba8', letterSpacing: '0.04em' }}>
+                  {x.overdue ? `● VISIT WAS ${dayLbl(x.date).toUpperCase()} — FINDINGS DUE` : `${live ? '● ' : ''}EXPLORE · ${x.days === 0 ? 'TODAY' : x.days === 1 ? 'TOMORROW' : dayLbl(x.date).toUpperCase()}${x.time ? ` ${t(x.time).toUpperCase()}` : ''}`}
+                </span>
+                {x.pulse_assigned && !x.confirmed && !x.overdue && <Chip tone="amber">not confirmed yet</Chip>}
+              </div>
+              <button type="button" onClick={() => navigate(`/explore/${x.id}`)} style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: C.text }}>
+                <T1>{x.name}{x.config ? <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }}> · {x.config}</span> : ''}</T1>
+                <T2>{(x.address || '').split('\n')[0]}{x.owner_name ? ` · landlord ${x.owner_name}` : ''}</T2>
+              </button>
+              {x.notes && <div style={{ borderLeft: '3px solid #e07ba8', background: 'rgba(224,123,168,0.10)', padding: '6px 10px', borderRadius: '0 8px 8px 0', fontSize: 12.5 }}><span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.08em', color: '#e07ba8', display: 'block' }}>SUPPLY’S ASK</span>{x.notes}</div>}
+              {asking === x.id ? (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <input value={why[x.id] || ''} onChange={e => setWhy(w => ({ ...w, [x.id]: e.target.value }))} placeholder="Why can’t you go? (goes to the admin)" autoFocus
+                    style={{ flex: '1 1 200px', minHeight: 36, padding: '0 10px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.input, color: C.text, fontSize: 13 }} />
+                  <Btn disabled={!why[x.id]?.trim() || busy === x.id} onClick={() => respond(x, false)}>Send</Btn>
+                  <Btn onClick={() => setAsking(null)}>Cancel</Btn>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {!viewing && x.pulse_assigned && !x.confirmed && !x.overdue && <>
+                    <Btn kind="primary" disabled={busy === x.id} onClick={() => respond(x, true)}>Got it</Btn>
+                    <Btn onClick={() => setAsking(x.id)}>Can’t make it</Btn>
+                  </>}
+                  {!viewing && (live || x.overdue || x.draft) && <Btn kind="primary" onClick={() => navigate(`/explore/${x.id}/log`)}>{x.draft ? 'Continue the log' : live ? 'Start visit' : 'Log the findings'}</Btn>}
+                  {x.maps_link && <a href={x.maps_link} target="_blank" rel="noreferrer" className="dk-btn" style={{ ...btnStyle(), display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>Map</a>}
+                  {x.owner_phone && <a href={`tel:${x.owner_phone}`} className="dk-btn" style={{ ...btnStyle(), display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>Call landlord</a>}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </Panel>
+  )
+}
+
+// Visits logged, waiting on supply's decision — with a nudge ready to send.
+function WaitingOnSupply({ rows, navigate }) {
+  const [copied, setCopied] = useState(null)
+  if (!rows.length) return null
+  async function nudge(r) {
+    const text = `Hi — ${r.property_name} was visited and the findings are in Stage. Could you share the decision so we can plan next steps?`
+    try { await navigator.clipboard.writeText(text) } catch { /* clipboard blocked */ }
+    setCopied(r.request_id); setTimeout(() => setCopied(null), 2200)
+  }
+  return (
+    <Panel title="Waiting on supply" meta="visited, not decided yet">
+      <div className="dk-rows">
+        {rows.sort((a, b) => (b.age_days || 0) - (a.age_days || 0)).map(r => (
+          <div key={r.pid} className="dk-row">
+            <button type="button" onClick={() => navigate(`/explore/${r.request_id}`)} style={{ flex: '1 1 200px', minWidth: 0, background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: C.text }}>
+              <T1><span style={{ fontFamily: MONO, fontSize: 11, color: '#e07ba8', marginRight: 6 }}>EXPLORE</span>{r.property_name}</T1>
+              <T2>{name1(r.owner_email)} visited · supply hasn’t decided</T2>
             </button>
-            {x.overdue ? <Chip tone="red">findings due</Chip> : x.days <= 1 ? <Chip tone="amber">{x.days === 0 ? 'today' : 'tomorrow'}</Chip> : null}
-            {x.maps_link && <a href={x.maps_link} target="_blank" rel="noreferrer" className="dk-btn" style={{ ...btnStyle(), display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>Map</a>}
-            {x.owner_phone && <a href={`tel:${x.owner_phone}`} className="dk-btn" style={{ ...btnStyle('primary'), display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>Call landlord</a>}
+            <Chip tone={r.urgency === 'overdue' ? 'red' : 'grey'}>{r.age_days || 0}d</Chip>
+            <Btn onClick={() => nudge(r)}>{copied === r.request_id ? '✓ Copied' : '✎ Nudge supply'}</Btn>
           </div>
         ))}
       </div>
@@ -334,7 +396,7 @@ function Today({ today, navigate }) {
   )
 }
 
-const FEED_ICON = { approved: ['✓', C.green, SOFT.green], queried: ['?', C.red, SOFT.red], viewed: ['◉', C.dim, C.input], vendor_closed: ['◆', C.accent, SOFT.amber], payment: ['₹', C.dim, C.input], journey: ['·', C.dim, C.input] }
+const FEED_ICON = { explore_raised: ['+', '#e07ba8', 'rgba(224,123,168,0.13)'], explore_logged: ['◉', '#e07ba8', 'rgba(224,123,168,0.13)'], explore_decided: ['✓', C.green, SOFT.green], approved: ['✓', C.green, SOFT.green], queried: ['?', C.red, SOFT.red], viewed: ['◉', C.dim, C.input], vendor_closed: ['◆', C.accent, SOFT.amber], payment: ['₹', C.dim, C.input], journey: ['·', C.dim, C.input] }
 function feedText(f) {
   switch (f.kind) {
     case 'approved': return [f.whole ? 'Landlord approved the estimate' : `Landlord approved ${f.n} line${f.n === 1 ? '' : 's'}`, f.who ? `by ${f.who}` : '']
@@ -342,6 +404,9 @@ function feedText(f) {
     case 'viewed': return [`Landlord opened the estimate${f.n > 1 ? ` ${f.n}×` : ''}`, '']
     case 'vendor_closed': return [`${f.who || 'Vendor'} closed ${f.n} item${f.n === 1 ? '' : 's'}${f.whole ? ' · verified' : ' — verify'}`, f.detail || '']
     case 'payment': return [`Payment logged · ${f.detail}`, f.who ? `by ${f.who}` : '']
+    case 'explore_raised': return [`Supply raised ${(f.detail || '').split(' · ')[0]} for an exploratory`, (f.detail || '').split(' · ').slice(1).join(' · ')]
+    case 'explore_logged': return [`${name1(f.who)} logged ${f.detail} — ${({ 1: 'Go', 2: 'No-go', 3: 'Unsure' })[f.n]}`, f.whole ? 'findings in Stage ✓' : 'not pasted into Stage yet']
+    case 'explore_decided': return [`Supply ${f.who === 'rejected' ? 'turned down' : f.who === 'converted' ? 'converted' : 'approved'} ${f.detail}`, '']
     default: return [f.detail || 'Journey updated', f.who ? `by ${f.who}` : '']
   }
 }
@@ -353,10 +418,10 @@ function SinceFeed({ feed, since, navigate }) {
           {feed.slice(0, 12).map((f, i) => {
             const [t, sub] = feedText(f), ic = FEED_ICON[f.kind] || FEED_ICON.journey
             return (
-              <button key={i} type="button" className="dk-row" onClick={() => navigate(`/properties/${f.pid}`)}
+              <button key={i} type="button" className="dk-row" onClick={() => navigate(String(f.pid).startsWith('explore:') ? `/explore/${f.pid.slice(8)}` : `/properties/${f.pid}`)}
                 style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', color: C.text, alignItems: 'flex-start' }}>
                 <span style={{ width: 24, height: 24, borderRadius: 7, display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 12, fontWeight: 700, color: ic[1], background: ic[2], flex: 'none' }}>{ic[0]}</span>
-                <span style={{ flex: '1 1 180px', minWidth: 0 }}><T1>{t}</T1><T2><Pid pid={f.pid} />{clean(f.name, f.pid)}{sub ? ` · ${sub}` : ''}</T2></span>
+                <span style={{ flex: '1 1 180px', minWidth: 0 }}><T1>{t}</T1><T2>{String(f.pid).startsWith('explore:') ? <span style={{ color: '#e07ba8', marginRight: 6 }}>EXPLORE</span> : <><Pid pid={f.pid} />{clean(f.name, f.pid)}</>}{sub ? `${String(f.pid).startsWith('explore:') ? '' : ' · '}${sub}` : ''}</T2></span>
                 <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>{ago(f.at)}</span>
               </button>
             )

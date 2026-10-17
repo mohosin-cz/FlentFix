@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { readDraftProgress } from '../utils/draftProgress'
+import ExploratoryHeadStart from '../components/property/ExploratoryHeadStart'
 import { useEffect, useState } from 'react'
 import { NavBar } from '../components/ui'
 import QuickNotes from '../components/QuickNotes'
@@ -387,6 +388,8 @@ export default function InspectionMode() {
             Switch freely between sections. End inspection when all sections are complete.
           </p>
         </div>
+
+        <ExploratoryHeadStart pid={state.pid} />
 
         {/* mode cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

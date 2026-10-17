@@ -194,6 +194,24 @@ begin
            initcap(replace(j.stage, '_', ' ')) || coalesce(' · ' || nullif(btrim(j.notes), ''), '')
       from property_journey j
      where j.pid = any(mine) and j.changed_at > since and lower(coalesce(j.changed_by, '')) not in (me, 'system', '')
+    union all
+    -- exploratory: supply raised one (admins hear about every new request)
+    select 'explore_raised', 'explore:' || x.id, x.created_at, 1, false, coalesce(x.requester, 'supply'),
+           coalesce(x.property_name, 'a property') || coalesce(' · ' || x.configuration, '') || ' · ' || explore_slot_text(x.visit_date, x.visit_time)
+      from stage_exploratory x
+     where me = any(pulse_admins()) and x.created_at > since and x.archived_at is null and coalesce(x.property_name, '') !~* '^\s*\[test\]'
+    union all
+    -- exploratory: someone logged a visit (admins; n = 1 go, 2 no-go, 3 unsure)
+    select 'explore_logged', 'explore:' || l.request_id, l.submitted_at,
+           case l.verdict when 'go' then 1 when 'no_go' then 2 else 3 end, l.in_stage_at is not null, split_part(l.author, '@', 1), x.property_name
+      from exploratory_logs l join stage_exploratory x on x.id = l.request_id
+     where me = any(pulse_admins()) and l.submitted_at > since and l.author <> me
+    union all
+    -- exploratory: supply decided one I'm on (or any, for admins)
+    select 'explore_decided', 'explore:' || x.id, x.stage_updated_at, 1, x.status = 'rejected', x.status, x.property_name
+      from stage_exploratory x left join exploratory_assignments a on a.request_id = x.id
+     where x.status in ('approved', 'rejected', 'converted') and x.stage_updated_at > since
+       and (me = any(pulse_admins()) or lower(coalesce(a.assignee, x.stage_inspector)) = me)
   ),
 
   -- ready to verify --------------------------------------------------------
@@ -310,7 +328,9 @@ begin
     'exploratory', coalesce((select jsonb_agg(jsonb_build_object('id', x.id, 'name', x.property_name, 'config', x.configuration,
                                'address', x.address, 'maps_link', x.maps_link, 'owner_name', x.owner_name, 'owner_phone', x.owner_phone,
                                'date', x.visit_date, 'time', x.visit_time, 'status', x.status, 'days', x.visit_date - today,
-                               'overdue', x.visit_date < today) order by x.visit_date)
+                               'overdue', x.visit_date < today, 'notes', x.notes,
+                               'pulse_assigned', a.assignee is not null, 'confirmed', a.confirmed_at is not null,
+                               'draft', exists (select 1 from exploratory_logs l where l.request_id = x.id and l.author = me and l.submitted_at is null)) order by x.visit_date)
                           from stage_exploratory x left join exploratory_assignments a on a.request_id = x.id
                          where lower(coalesce(a.assignee, x.stage_inspector)) = me and x.archived_at is null
                            and x.status in ('new_request', 'visit_scheduled') and x.visit_date >= today - 14), '[]'),

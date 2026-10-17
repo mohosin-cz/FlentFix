@@ -130,6 +130,19 @@ begin
      and not exists (select 1 from notifications nn where nn.dedupe_key = 'exploratory_new:' || e.id and nn.user_email = a);
   get diagnostics fresh = row_count;
 
+  -- the evening before a visit, remind whoever is going (from 5 pm IST)
+  insert into notifications (user_email, kind, pid, title, body, route, dedupe_key)
+  select w.who, 'exploratory_tomorrow', null, 'Tomorrow: ' || coalesce(w.property_name, 'exploratory visit') || coalesce(' · ' || ltrim(to_char(w.visit_time, 'HH12:MI am'), '0'), ''),
+         concat_ws(' · ', nullif(split_part(coalesce(w.address, ''), E'\n', 1), ''), case when w.owner_name is not null then 'landlord ' || w.owner_name end,
+                   case when w.notes is not null then 'supply asks: ' || left(w.notes, 80) end),
+         '/explore/' || w.id, 'exploratory_tomorrow:' || w.id || ':' || w.visit_date
+    from (select x.*, lower(coalesce(a.assignee, case when a.request_id is null or a.stage_written_at is null then x.stage_inspector end)) who
+            from stage_exploratory x left join exploratory_assignments a on a.request_id = x.id) w
+   where w.who is not null and w.status in ('new_request', 'visit_scheduled') and w.archived_at is null
+     and w.visit_date = (now() at time zone 'Asia/Kolkata')::date + 1
+     and (now() at time zone 'Asia/Kolkata')::time >= time '17:00'
+     and not exists (select 1 from notifications nn where nn.dedupe_key = 'exploratory_tomorrow:' || w.id || ':' || w.visit_date);
+
   insert into stage_sync_runs (rows_in, note) values (n, 'exploratory');
   return jsonb_build_object('requests', n, 'alerts', fresh, 'conflicts', conflicts, 'pasted', pasted, 'linked', exploratory_autolink());
 end
@@ -491,6 +504,42 @@ begin
             else '[]'::jsonb end,
          t.blk, null::date, null::int, false, true, t.id
     from t3 t;
+end
+$$;
+
+-- The head start on a property: its exploratory — who went, Stage's visit and
+-- Pulse's own log (findings, capex). Works from the moment the PID is linked,
+-- before the property row exists (the inspection is how it gets created).
+create or replace function public.exploratory_for_property(p_pid text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare p properties%rowtype; out jsonb;
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  select jsonb_build_object('linked', true, 'request', to_jsonb(x) || jsonb_build_object(
+           'assignee', a.assignee,
+           'last_visit', (select v from jsonb_array_elements(x.visits) v order by (v->>'date') desc nulls last limit 1),
+           'log', (select to_jsonb(lg) from exploratory_logs lg where lg.request_id = x.id and lg.submitted_at is not null order by lg.submitted_at desc limit 1)))
+    into out
+    from exploratory_links l join stage_exploratory x on x.id = l.request_id
+    left join exploratory_assignments a on a.request_id = x.id
+   where l.pid = p_pid;
+  if out is not null then return out; end if;
+  select * into p from properties where pid = p_pid and deleted_at is null;
+  if not found then return null; end if;
+  return jsonb_build_object('linked', false, 'suggestions', coalesce((
+    select jsonb_agg(jsonb_build_object('id', x.id, 'name', x.property_name, 'config', x.configuration, 'status', x.status,
+                                        'visit_date', x.visit_date, 'who', coalesce(a.assignee, x.stage_inspector)) order by x.visit_date desc nulls last)
+      from stage_exploratory x left join exploratory_assignments a on a.request_id = x.id
+     where x.status in ('approved', 'converted')
+       and not exists (select 1 from exploratory_links l where l.request_id = x.id)
+       and exploratory_building_key(x.property_name) is not null
+       and (exploratory_building_key(p.name) like exploratory_building_key(x.property_name) || '%'
+         or exploratory_building_key(x.property_name) like exploratory_building_key(p.name) || '%')), '[]'));
 end
 $$;
 

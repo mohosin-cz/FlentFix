@@ -97,6 +97,8 @@ function EstimateWorkbenchInner() {
   const [access, setAccess]               = useState(null)
   const [accessOpen, setAccessOpen]       = useState(false)
   const [accessCopied, setAccessCopied]   = useState(false)
+  // what the exploratory visit guessed this would cost, to compare with the estimate
+  const [exGuess, setExGuess]             = useState(null)
   const [lightbox, setLightbox]           = useState(null)
   const [disputeMap, setDisputeMap]       = useState({})
   const [drawerInitTab, setDrawerInitTab] = useState('details')
@@ -474,6 +476,18 @@ function EstimateWorkbenchInner() {
     } catch { /* ignore clipboard */ }
     setCopied(true); setTimeout(() => setCopied(false), 2200)
   }
+
+  useEffect(() => {
+    if (!estimate?.pid) return
+    let alive = true
+    supabase.rpc('exploratory_for_property', { p_pid: estimate.pid }).then(({ data }) => {
+      if (!alive || !data?.linked) return
+      const r = data.request, log = r.log, sv = r.last_visit
+      const band = log?.capex_band || (sv?.capex != null ? '₹' + Math.round(sv.capex).toLocaleString('en-IN') : null)
+      if (band) setExGuess({ band, by: (log?.author || r.assignee || r.stage_inspector || sv?.by || '').split('@')[0], id: r.id })
+    })
+    return () => { alive = false }
+  }, [estimate?.pid])
 
   const landlordUrl = () => `${window.location.origin}/e/${estimate?.share_token}`
   const pricedTotal = () => items
@@ -957,6 +971,12 @@ function EstimateWorkbenchInner() {
               {hasUnsent && !isLocked && <span className="pill" style={{ marginLeft:8,background:'rgba(248,113,113,0.15)',color:'#f87171',border:'1px solid rgba(248,113,113,0.3)' }}>● unsent changes</span>}
               {isLocked && <span className="pill" style={{ marginLeft:8,background:'rgba(200,150,62,0.15)',color:'var(--gold)',border:'1px solid rgba(200,150,62,0.3)' }}>FINAL</span>}
             </div>
+            {exGuess && (
+              <button type="button" onClick={() => navigate(`/explore/${exGuess.id}`)} title="Open the exploratory visit"
+                style={{ background:'none',border:'none',padding:0,marginTop:3,cursor:'pointer',fontFamily:'var(--mono)',fontSize:11,color:'var(--muted)',textAlign:'left' }}>
+                exploratory guessed <span style={{ color:'#e07ba8' }}>{exGuess.band}</span>{exGuess.by ? ` (${exGuess.by})` : ''} · this estimate <span style={{ color:'var(--ink)' }}>₹{Math.round(pricedTotal()).toLocaleString('en-IN')}</span>
+              </button>
+            )}
           </div>
         </div>
         <div className="acts">
