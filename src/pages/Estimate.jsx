@@ -15,6 +15,7 @@ import DisputeThread from '../components/DisputeThread'
 import QueryThread from '../components/QueryThread'
 import LogoSpinner from '../components/LogoSpinner'
 import { useHashScroll } from '../hooks/useHashScroll'
+import HomeMark from '../components/HomeMark'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -961,7 +962,7 @@ function EstimateWorkbenchInner() {
       {/* Command bar */}
       <header className="cmd" ref={cmdRef}>
         <div className="l">
-          <button className="back" onClick={() => navigate(`/properties/${pid}/estimates`)}>‹</button>
+          <HomeMark style={{ marginRight: 4 }} />
           <div>
             <div className="ttl">
               PID {pid}

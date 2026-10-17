@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import LogoSpinner from '../components/LogoSpinner'
+import HomeMark from '../components/HomeMark'
 
 // The archive bucket. Sits beside the bin and reads the same way on purpose,
 // but the two mean different things: the bin is for things that were a mistake
@@ -112,11 +113,7 @@ export default function PropertyArchive() {
 
       {/* Header */}
       <header style={s.header}>
-        <button style={s.backBtn} onClick={() => navigate('/properties')} aria-label="Back to properties">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
+        <HomeMark />
         <div style={s.headerCenter}>
           <span style={s.headerTitle}>archive</span>
           <span style={s.headerSub}>{loading ? '…' : `${rows.length} propert${rows.length !== 1 ? 'ies' : 'y'}`}</span>

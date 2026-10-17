@@ -5,6 +5,7 @@ import ShareSheet from '../components/vendor/ShareSheet'
 import BriefTranscript from '../components/property/BriefTranscript'
 import DesignScopeSection from '../components/property/DesignScopeSection'
 import { briefProgress } from '../utils/designerBrief'
+import HomeMark from '../components/HomeMark'
 
 // The staff side of the designer's brief.
 //
@@ -78,10 +79,7 @@ export default function PropertyDesignBrief() {
         background: 'var(--bg-panel, #1e2028)',
         borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 10,
       }}>
-        <button onClick={() => navigate(`/properties/${pid}`)} aria-label="Back to property"
-          style={{ width: 40, height: 40, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', color: 'var(--text-dim, #9394a8)', cursor: 'pointer', flexShrink: 0 }}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        </button>
+        <HomeMark />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="pulse-title" style={{ fontSize: 15.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Design brief</div>
           <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 1 }}>PID {pid}</div>

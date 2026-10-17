@@ -10,6 +10,7 @@ import OnboardingTab from './vendors/OnboardingTab'
 import AttendanceTab from './vendors/AttendanceTab'
 import PayrollTab from './vendors/PayrollTab'
 import AssetsTab from './vendors/AssetsTab'
+import HomeMark from '../components/HomeMark'
 
 // Tab registry — new tabs slot in here with their own component; the shell does
 // not need to change.
@@ -69,9 +70,7 @@ export default function VendorHub() {
         paddingTop: 'env(safe-area-inset-top)', background: 'var(--bg-panel, #1e2028)',
         borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 0, zIndex: 100,
       }}>
-        <button onClick={() => navigate('/')} style={{ width: 40, height: 40, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', color: 'var(--text-dim, #9394a8)', cursor: 'pointer', flexShrink: 0 }}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        </button>
+        <HomeMark />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="pulse-title" style={{ fontSize: 15.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {phone ? 'Vendors' : 'Vendor Management'}

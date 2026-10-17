@@ -17,6 +17,7 @@ import UtilityRequest from '../components/property/UtilityRequest'
 import JourneyPhases from '../components/property/JourneyPhases'
 import { useSetupPanel, SetupPanel, AttendanceHistory } from '../components/property/SetupDay'
 import ShareSheet from '../components/vendor/ShareSheet'
+import HomeMark from '../components/HomeMark'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -516,11 +517,7 @@ export default function PropertyDetail() {
 
       {/* Record bar — back, which property, record menu */}
       <header style={s.header}>
-        <button style={s.backBtn} onClick={() => navigate('/properties')}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
+        <HomeMark />
         <div style={s.headerCenter}>
           <span style={s.headerTitle}>PID {pid}</span>
           {/* The name leads the second line, ahead of type and date: it is the

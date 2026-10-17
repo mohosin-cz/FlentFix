@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { purgeBinnedPid, restoreBinnedPid } from '../utils/pidStatus'
 import LogoSpinner from '../components/LogoSpinner'
+import HomeMark from '../components/HomeMark'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -77,11 +78,7 @@ export default function PropertyBin() {
 
       {/* Header */}
       <header style={s.header}>
-        <button style={s.backBtn} onClick={() => navigate('/properties')}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
+        <HomeMark />
         <div style={s.headerCenter}>
           <span style={s.headerTitle}>bin</span>
           <span style={s.headerSub}>{loading ? '…' : `${rows.length} item${rows.length !== 1 ? 's' : ''}`}</span>

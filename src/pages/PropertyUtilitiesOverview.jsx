@@ -14,6 +14,7 @@ import UtilityRecordSheet from '../components/utilities/UtilityRecordSheet'
 import { UTILITY_TYPES, typeLabel, typeColor, dueInfo, dueBucket, monthlyCost, installsInMonth, pidQuery, LIVE_STATUSES } from '../utils/propertyUtils'
 import { DIMS, buildChecks, monthlyOf, annualOf, canonPlan, missingOf } from '../utils/utilitiesModel'
 import UtilityIcon from '../components/UtilityIcon'
+import HomeMark from '../components/HomeMark'
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
 const MONO = 'var(--font-mono, monospace)'
@@ -306,10 +307,7 @@ export default function PropertyUtilitiesOverview() {
       <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
       <div style={s.page}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '8px 24px', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 8px)', minHeight: 56, background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 0, zIndex: 100, boxSizing: 'border-box' }}>
-          <button onClick={() => navigate('/')} aria-label="Back to Home"
-            style={{ width: 40, height: 40, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', color: 'var(--text-dim, #9394a8)', cursor: 'pointer', flexShrink: 0 }}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          </button>
+          <HomeMark />
           <span className="pulse-title" style={{ fontSize: 15.5 }}>Utilities</span>
           <span style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>every property's services, recharges and dues</span>
         </div>
