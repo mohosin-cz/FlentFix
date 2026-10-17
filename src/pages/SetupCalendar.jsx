@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import AppHeader from '../components/AppHeader'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -237,13 +236,16 @@ export default function SetupCalendar() {
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, color: C.text, fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}>
-      <AppHeader />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: phone ? '8px 12px' : '8px 20px', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 8px)', minHeight: 56, background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 0, zIndex: 100, boxSizing: 'border-box' }}>
+        <button onClick={() => navigate('/')} aria-label="Back to Home"
+            style={{ width: 40, height: 40, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', color: 'var(--text-dim, #9394a8)', cursor: 'pointer', flexShrink: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+        <span className="pulse-title" style={{ fontSize: 15.5 }}>Calendar</span>
+        {!phone && <span style={{ fontSize: 12.5, color: C.dim }}>visits, setups, move-ins and handovers — act on anything where it sits</span>}
+        <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 11.5, color: C.muted }} title="Stage dates and visits refresh every 30 minutes">Stage synced {ago(d?.synced_at)}</span>
+      </div>
       <main style={{ padding: phone ? '12px 12px calc(96px + env(safe-area-inset-bottom, 0px))' : '16px 20px 40px', display: 'grid', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px 14px', flexWrap: 'wrap' }}>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600 }}>Calendar</h1>
-          <span style={{ fontSize: 13, color: C.dim }}>visits, setups, move-ins and handovers — act on anything where it sits</span>
-          <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 11.5, color: C.muted }} title="Stage dates and visits refresh every 30 minutes">Flent-Stage synced {ago(d?.synced_at)}</span>
-        </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: phone ? 'minmax(0,1fr)' : '270px minmax(0,1fr)', gap: 12, alignItems: 'start' }}>
           <div style={{ display: 'grid', gap: 12, order: phone ? 2 : 0 }}>
