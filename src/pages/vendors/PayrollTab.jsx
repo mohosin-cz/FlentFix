@@ -477,7 +477,7 @@ function ReviewTable({ period, rows: initialRows, onReload }) {
                 </td>
                 <td style={td}><input value={r.beneficiary_name || ''} readOnly={locked} onChange={e => upd(r.id, { beneficiary_name: e.target.value })} placeholder="Name" style={cellIn(160, true)} /></td>
                 <td style={td}><input value={r.fixed_pay ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { fixed_pay: num(e.target.value) })} style={cellIn(92)} /></td>
-                <td style={td}><input value={r.days_worked ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { days_worked: num(e.target.value) })} style={cellIn(58)} /></td>
+                <td style={td}><input title={/^Leave:/.test(r.comments || '') ? r.comments : undefined} value={r.days_worked ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { days_worked: num(e.target.value) })} style={cellIn(58)} /></td>
                 <td style={td}><input value={r.ot_days ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { ot_days: num(e.target.value) })} style={cellIn(52)} /></td>
                 <td style={td}><input value={r.allowance ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { allowance: num(e.target.value) })} style={cellIn(80)} /></td>
                 <td style={td}><input value={r.advance_given ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { advance_given: num(e.target.value) })} style={cellIn(80)} /></td>
@@ -700,6 +700,10 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
               <NumField label="Monthly salary" prefix="₹" value={cur.fixed_pay} onChange={v => upd({ fixed_pay: v })} />
               <NumField label="Days / 30" value={cur.days_worked} onChange={v => upd({ days_worked: v })} />
             </div>
+            {/* Filled from approved leave by payroll_fill_month — why days isn't 30. */}
+            {/^Leave:/.test(cur.comments || '') && (
+              <div style={{ fontSize: 11.5, color: '#a8895a', fontFamily: mono }}>{cur.comments}</div>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <NumField label="OT days" value={cur.ot_days} onChange={v => upd({ ot_days: v })} />
               <NumField label="Allowance" prefix="₹" value={cur.allowance} onChange={v => upd({ allowance: v })} />

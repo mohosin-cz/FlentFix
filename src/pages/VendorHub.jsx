@@ -10,6 +10,7 @@ import OnboardingTab from './vendors/OnboardingTab'
 import AttendanceTab from './vendors/AttendanceTab'
 import PayrollTab from './vendors/PayrollTab'
 import AssetsTab from './vendors/AssetsTab'
+import LeaveTab from './vendors/LeaveTab'
 import HomeMark from '../components/HomeMark'
 
 // Tab registry — new tabs slot in here with their own component; the shell does
@@ -17,6 +18,7 @@ import HomeMark from '../components/HomeMark'
 const TABS = [
   { key: 'onboarding', label: 'Onroll vendors', Comp: OnboardingTab },
   { key: 'attendance', label: 'Attendance', Comp: AttendanceTab },
+  { key: 'leave',      label: 'Leave',      Comp: LeaveTab },
   { key: 'payroll',    label: 'Payroll',    Comp: PayrollTab },
   { key: 'assets',     label: 'Assets',     Comp: AssetsTab },
   { key: 'exit',       label: 'Exit',       Comp: null },
@@ -53,11 +55,24 @@ export default function VendorHub() {
   const [sharing, setSharing] = useState(false)
   const [showReq, setShowReq] = useState(false)
   const [reqCount, setReqCount] = useState(0)
+  const [leaveCount, setLeaveCount] = useState(0)
   const phone = useIsMobile(640)
 
   useEffect(() => {
     supabase.from('vendor_edit_requests').select('id', { count: 'exact', head: true })
       .in('status', ['requested', 'submitted']).then(({ count }) => setReqCount(count || 0))
+  }, [])
+
+  // Leave waiting for a decision, on the tab itself — kept live so the number
+  // drops the moment someone approves from any screen.
+  useEffect(() => {
+    const count = () => supabase.from('vendor_leaves').select('id', { count: 'exact', head: true })
+      .eq('status', 'pending').then(({ count: n, error }) => { if (!error) setLeaveCount(n || 0) })
+    count()
+    const ch = supabase.channel('vendor-leave-count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendor_leaves' }, count)
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
   }, [])
 
   const ActiveComp = TABS[tab].Comp
@@ -94,7 +109,7 @@ export default function VendorHub() {
       </header>
 
       <div style={{ position: 'sticky', top: 'calc(env(safe-area-inset-top) + 56px)', zIndex: 90 }}>
-        <TabBar tabs={TABS.map(t => t.label)} active={tab} onChange={setTab} variant="nav" />
+        <TabBar tabs={TABS.map(t => (t.key === 'leave' && leaveCount ? `${t.label} · ${leaveCount}` : t.label))} active={tab} onChange={setTab} variant="nav" />
       </div>
 
       <div style={{ flex: 1, padding: '16px', paddingBottom: 'calc(80px + env(safe-area-inset-bottom))' }}>

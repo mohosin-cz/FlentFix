@@ -459,6 +459,10 @@ export default function AttendanceTab() {
   // summaries on every render instead, so realtime flows straight into it.
   const [selectedVid, setSelectedVid] = useState(null)
   const [breaks, setBreaks] = useState([])
+  // Approved leave and the holiday for the day, so someone off is not counted
+  // as "not marked". Missing tables (migration not applied) just mean none.
+  const [onLeave, setOnLeave] = useState([])
+  const [holiday, setHoliday] = useState(null)
   // A running shift is a number that changes every second. The board showed a
   // frozen one — or none at all — while the vendor's own phone counted up.
   const [now, setNow] = useState(() => Date.now())
@@ -467,7 +471,7 @@ export default function AttendanceTab() {
     setLoading(true); setError('')
     const start = new Date(`${date}T00:00:00`)
     const end = new Date(start); end.setDate(end.getDate() + 1)
-    const [pRes, vRes, sRes, bRes] = await Promise.all([
+    const [pRes, vRes, sRes, bRes, lRes, hRes] = await Promise.all([
       supabase.from('vendor_attendance')
         .select('*, vendor:vendors(full_name,trade,pod,vendor_code,avatar_path)')
         .gte('punched_at', start.toISOString()).lt('punched_at', end.toISOString())
@@ -475,6 +479,8 @@ export default function AttendanceTab() {
       supabase.from('vendors').select('id,full_name,trade,pod,vendor_code').eq('status', 'approved'),
       supabase.rpc('attend_sites'),
       supabase.from('vendor_breaks').select('*').eq('break_day', date),
+      supabase.from('vendor_leaves').select('vendor_id,kind,half').eq('status', 'approved').lte('start_date', date).gte('end_date', date),
+      supabase.from('vendor_holidays').select('name').eq('day', date).maybeSingle(),
     ])
     const e = pRes.error || vRes.error
     if (e) { setError(e.message); setPunches(null) }
@@ -483,6 +489,8 @@ export default function AttendanceTab() {
       const map = {}; for (const s of sRes.data || []) map[s.pid] = s.label
       setSiteMap(map)
       setBreaks(bRes.data || [])
+      setOnLeave(lRes.error ? [] : (lRes.data || []))
+      setHoliday(hRes.error ? null : (hRes.data?.name || null))
     }
     setLoading(false)
   }, [date])
@@ -535,7 +543,9 @@ export default function AttendanceTab() {
   const overrun = summaries.filter(s => s.bt.overMs > 0)
   const out = summaries.filter(s => s.status === 'checked_out').length
   const punchedIds = new Set(Object.keys(byVendor))
-  const absent = approved.filter(v => !punchedIds.has(v.id)).length
+  const leaveIds = new Set(onLeave.map(l => l.vendor_id))
+  const leaveCount = approved.filter(v => leaveIds.has(v.id) && !punchedIds.has(v.id)).length
+  const absent = approved.filter(v => !punchedIds.has(v.id) && !leaveIds.has(v.id)).length
   const totalReg = summaries.reduce((a, s) => a + s.regMs, 0)
   const totalOt = summaries.reduce((a, s) => a + s.otMs, 0)
   const isToday = date === todayStr()
@@ -575,8 +585,14 @@ export default function AttendanceTab() {
           <div style={{ display: 'flex', gap: 10 }}>
             <Tile label={isToday ? 'On site now' : 'On site'} value={onSite} sub={onBreakNow > 0 ? `${onBreakNow} on break` : null} color="var(--green, #3dba7a)" />
             <Tile label="Checked out" value={out} color="var(--text-dim, #9394a8)" />
+            {leaveCount > 0 && <Tile label="On leave" value={leaveCount} color="#6f9a7e" />}
             <Tile label="Not marked" value={absent} color="var(--amber, #c8963e)" />
           </div>
+          {holiday && (
+            <div style={{ padding: '9px 13px', borderRadius: 10, background: 'rgba(127,147,184,0.14)', border: '1px solid rgba(127,147,184,0.35)', fontSize: 12.5, color: 'var(--text, #e8e8f0)' }}>
+              {holiday} — a holiday. Nobody is expected in.
+            </div>
+          )}
           {overrun.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '11px 13px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.38)', borderRadius: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
