@@ -108,25 +108,105 @@ export function SetupPanel({ pid, panel }) {
               : 'assigned'
             const tone = v.on_site_now ? 'var(--green, #3dba7a)' : (isDay && !v.first_in_today) || (d < 0 && !v.days_on_site_since_setup && v.items_closed < v.items_total) ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)'
             return (
-              <div key={v.vendor_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', borderTop: '1px solid var(--border, #2e3040)', flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 160px', minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>{v.name}</div>
-                  <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{(v.trades || []).join(', ')}{v.closure_date ? ` · close by ${new Date(v.closure_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}</div>
-                </div>
-                <span style={{ fontFamily: MONO, fontSize: 11.5, color: tone, flex: '0 1 auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {v.on_site_now && <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--green, #3dba7a)' }} />}{status}
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
-                  <span style={{ width: 80, height: 6, borderRadius: 3, background: 'var(--bg-input, #252731)', overflow: 'hidden' }}><span style={{ display: 'block', height: '100%', width: `${pct}%`, background: 'var(--green, #3dba7a)' }} /></span>
-                  <span style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--text-dim, #9394a8)', minWidth: 54 }}>{v.items_closed}/{v.items_total} done</span>
-                  {v.items_sent_back > 0 && <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--red, #e05c6a)' }}>{v.items_sent_back} sent back</span>}
-                </span>
-              </div>
+              <VendorRow key={v.vendor_id} pid={pid} v={v} status={status} tone={tone} pct={pct} />
             )
           })}
         </div>
       )}
     </section>
+  )
+}
+
+// One assigned vendor. The name opens the row to show exactly what they were
+// given — loaded on first open, so the panel itself stays one read.
+const ITEM_STATE = {
+  verified:      ['Verified',      'var(--green, #3dba7a)'],
+  vendor_closed: ['Done · to verify', 'var(--accent, #c8963e)'],
+  disputed:      ['Sent back',     'var(--red, #e05c6a)'],
+  pending:       ['To do',         'var(--text-muted, #6b6d82)'],
+}
+function VendorRow({ pid, v, status, tone, pct }) {
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const [items, setItems] = useState(null)
+  const [err, setErr] = useState('')
+
+  async function toggle() {
+    const next = !open
+    setOpen(next)
+    if (!next || items) return
+    const { data, error } = await supabase.from('work_orders')
+      .select('id, trade, work_order_items(id, area, description, fix_type, quantity, status, included, sort_order, vendor_note, dispute_reason, inspection_line_item_id)')
+      .eq('pid', pid).eq('vendor_id', v.vendor_id)
+    if (error) { setErr(error.message); return }
+    // the item's name ("Ceiling Fan") lives on the inspection line, not the
+    // work-order item, whose description is only the finding ("Needs replacement")
+    const ids = [...new Set((data || []).flatMap(w => (w.work_order_items || []).map(i => i.inspection_line_item_id)).filter(Boolean))]
+    const names = {}
+    if (ids.length) {
+      const { data: li } = await supabase.from('inspection_line_items').select('id, item_name').in('id', ids)
+      ;(li || []).forEach(l => { names[l.id] = l.item_name })
+    }
+    setItems((data || []).flatMap(w => (w.work_order_items || [])
+      .filter(i => i.included !== false)
+      .map(i => ({ ...i, trade: w.trade, item_name: names[i.inspection_line_item_id] || null })))
+      .sort((x, y) => (x.trade || '').localeCompare(y.trade || '') || (x.sort_order ?? 0) - (y.sort_order ?? 0)))
+  }
+
+  return (
+    <div style={{ borderTop: '1px solid var(--border, #2e3040)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', flexWrap: 'wrap' }}>
+        <button type="button" onClick={toggle} aria-expanded={open}
+          style={{ flex: '1 1 160px', minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit' }}>
+          <div style={{ fontSize: 13.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ display: 'inline-block', width: 10, fontSize: 9, color: 'var(--text-muted, #6b6d82)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>▶</span>
+            {v.name}
+          </div>
+          <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--text-muted, #6b6d82)', paddingLeft: 16 }}>{(v.trades || []).join(', ')}{v.closure_date ? ` · close by ${new Date(v.closure_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}</div>
+        </button>
+        <span style={{ fontFamily: MONO, fontSize: 11.5, color: tone, flex: '0 1 auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          {v.on_site_now && <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--green, #3dba7a)' }} />}{status}
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
+          <span style={{ width: 80, height: 6, borderRadius: 3, background: 'var(--bg-input, #252731)', overflow: 'hidden' }}><span style={{ display: 'block', height: '100%', width: `${pct}%`, background: 'var(--green, #3dba7a)' }} /></span>
+          <span style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--text-dim, #9394a8)', minWidth: 54 }}>{v.items_closed}/{v.items_total} done</span>
+          {v.items_sent_back > 0 && <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--red, #e05c6a)' }}>{v.items_sent_back} sent back</span>}
+        </span>
+      </div>
+
+      {open && (
+        <div style={{ margin: '0 0 12px 16px', padding: '4px 12px', background: 'var(--bg-input, #252731)', borderRadius: 8 }}>
+          {err ? <div style={{ fontFamily: MONO, fontSize: 12, color: 'var(--red, #e05c6a)', padding: '8px 0' }}>{err}</div>
+          : !items ? <div style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-muted, #6b6d82)', padding: '8px 0' }}>Loading…</div>
+          : items.length === 0 ? <div style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-muted, #6b6d82)', padding: '8px 0' }}>No items on their work order yet.</div>
+          : items.map((i, n) => {
+              const [label, color] = ITEM_STATE[i.status] || ITEM_STATE.pending
+              const note = i.status === 'disputed' ? i.dispute_reason : i.vendor_note
+              return (
+                <div key={i.id} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '8px 0', borderTop: n ? '1px solid var(--border, #2e3040)' : 'none', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                    <div style={{ fontSize: 13 }}>
+                      {i.item_name
+                        ? <><span style={{ fontWeight: 600 }}>{i.item_name}</span>{i.description && i.description !== i.item_name && <span style={{ color: 'var(--text-dim, #9394a8)' }}> — {i.description}</span>}</>
+                        : (i.description || '—')}
+                      {i.quantity > 1 && <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}> ×{i.quantity}</span>}
+                    </div>
+                    <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>
+                      {[i.area, i.fix_type, (v.trades || []).length > 1 && i.trade].filter(Boolean).join(' · ')}
+                    </div>
+                    {note && <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', marginTop: 2, fontStyle: 'italic' }}>“{note}”</div>}
+                  </div>
+                  <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color, whiteSpace: 'nowrap' }}>{label}</span>
+                </div>
+              )
+            })}
+          <div style={{ padding: '8px 0', borderTop: items?.length ? '1px solid var(--border, #2e3040)' : 'none' }}>
+            <button type="button" onClick={() => navigate(`/properties/${pid}/work-orders`)}
+              style={{ background: 'none', border: 'none', padding: 0, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: MONO, fontSize: 12 }}>Open work orders ›</button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
