@@ -15,7 +15,7 @@ const STEPS = {
   setup_date:     { label: 'Setup date',     hint: 'The day the vendors go in',                       action: 'Set setup date' },
   setup_closed:   { label: 'Setup closed',   hint: 'All setup work is finished',                     action: 'Mark setup closed' },
   qc_done:        { label: 'QC done',        hint: 'Quality check passed',                           action: 'Mark QC done' },
-  handover_done:  { label: 'Handed over',    hint: 'Property handed over',                           action: 'Mark handed over' },
+  handover_done:  { label: 'Handed over',    hint: 'Property handed over (on the handover date)',     action: 'Mark handed over' },
   wo_shared:      { label: 'WO on Slack',    hint: 'Work order shared to Slack',                     action: 'Mark shared on Slack' },
   closed:         { label: 'Closed',         hint: 'Property closed',                                action: 'Close property' },
 }
@@ -77,6 +77,8 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
   const [note, setNote] = useState('')
   const [closeDate, setCloseDate] = useState(todayIso())
   const [moving, setMoving] = useState(false)
+  const [hoDate, setHoDate] = useState('')
+  const [hoMoving, setHoMoving] = useState(false)
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc('property_milestones', { p_pid: pid })
@@ -94,7 +96,7 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
       ...s.data,
       milestones: s.data.milestones.map(m => m.key !== key ? m
         : kind === 'mark' ? { ...m, done: true, at: new Date().toISOString(), by: me, date: extra.p_date || m.date }
-        : { ...m, done: false, at: null, by: null, date: null }),
+        : { ...m, done: false, at: null, by: null, date: m.key === 'handover_done' ? m.date : null }),
     } }))
     setBusy(true)
     const { data, error } = kind === 'mark'
@@ -104,6 +106,19 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
     if (error) { setState(s => ({ ...s, data: before })); setErr(error.message); return }
     setState({ loading: false, error: null, data })
     setDate(''); setNote(''); setMoving(false)
+    onChange && onChange()
+  }
+
+  // The handover date is a plan, not a mark: it can be set any time after the
+  // setup date, moved until the handover is marked, and is what the
+  // "handover tomorrow" alert keys off.
+  async function setHandoverDate() {
+    setErr(null); setBusy(true)
+    const { data, error } = await supabase.rpc('property_set_handover_date', { p_pid: pid, p_date: hoDate })
+    setBusy(false)
+    if (error) { setErr(error.message); return }
+    setState({ loading: false, error: null, data })
+    setHoDate(''); setHoMoving(false)
     onChange && onChange()
   }
 
@@ -120,6 +135,9 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
   const setup = milestones.find(m => m.key === 'setup_date')
   const setupClosed = milestones.find(m => m.key === 'setup_closed')?.done
   const dt = daysTo(setup?.date)
+  const handover = milestones.find(m => m.key === 'handover_done')
+  const hdt = daysTo(handover?.date)
+  const rel = (n) => n == null ? '' : n === 0 ? 'today' : n > 0 ? `in ${n}d` : `${-n}d ago`
 
   const btn = (primary) => ({ minHeight: 36, padding: '0 14px', borderRadius: 8, border: `1px solid ${primary ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, background: primary ? 'rgba(200,150,62,0.12)' : 'var(--bg-input, #252731)', color: primary ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)', fontFamily: MONO, fontSize: 12, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', whiteSpace: 'nowrap' })
   const input = { minHeight: 36, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontFamily: MONO, fontSize: 12.5 }
@@ -139,7 +157,9 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
                 {m.done ? '✓ ' : ''}{s.label}
               </div>
               <div style={{ fontSize: 11, fontFamily: MONO, color: 'var(--text-dim, #9394a8)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {m.key === 'setup_date' && m.done ? `${fmtDay(m.date)}${dt != null ? ` · ${dt === 0 ? 'today' : dt > 0 ? `in ${dt}d` : `${-dt}d ago`}` : ''}`
+                {m.key === 'setup_date' && m.done ? `${fmtDay(m.date)}${dt != null ? ` · ${rel(dt)}` : ''}`
+                  : m.key === 'handover_done' && m.done && m.date ? `${fmtDay(m.date)} · ${who(m.by)}`
+                  : m.key === 'handover_done' && m.date ? `planned ${fmtDay(m.date)} · ${rel(hdt)}`
                   : m.done ? `${who(m.by)}, ${when(m.at)}`
                   : isDue ? 'due now' : '—'}
               </div>
@@ -156,6 +176,13 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
             <input type="date" value={date} min={todayIso()} onChange={e => setDate(e.target.value)} style={input} aria-label="Setup date" />
             <button type="button" disabled={!date || busy} onClick={() => act('mark', 'setup_date', { p_date: date })} style={{ ...btn(true), opacity: date ? 1 : 0.5 }}>{moving ? 'Move' : 'Set setup date'}</button>
             {moving && <button type="button" onClick={() => { setMoving(false); setDate('') }} style={btn(false)}>Cancel</button>}
+          </>
+        ) : hoMoving || (due === 'handover_done' && !handover?.date) ? (
+          <>
+            <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>{handover?.date ? 'Move handover date to' : 'Handover date'}</span>
+            <input type="date" value={hoDate} onChange={e => setHoDate(e.target.value)} style={input} aria-label="Handover date" />
+            <button type="button" disabled={!hoDate || busy} onClick={setHandoverDate} style={{ ...btn(true), opacity: hoDate ? 1 : 0.5 }}>{handover?.date ? 'Move' : 'Set handover date'}</button>
+            {hoMoving && <button type="button" onClick={() => { setHoMoving(false); setHoDate('') }} style={btn(false)}>Cancel</button>}
           </>
         ) : due === 'closed' ? (
           <>
@@ -176,6 +203,11 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
               onChange && onChange()
             }}
             onClose={() => act('mark', 'setup_closed')} />
+        ) : due === 'handover_done' ? (
+          <>
+            <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>Handover {fmtDay(handover.date)} · {rel(hdt)}</span>
+            <button type="button" disabled={busy} onClick={() => act('mark', 'handover_done')} style={btn(true)}>Mark handed over</button>
+          </>
         ) : due ? (
           <button type="button" disabled={busy} onClick={() => act('mark', due)} style={btn(true)}>{STEPS[due].action}</button>
         ) : (
@@ -184,6 +216,12 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
 
         {setup?.done && !setupClosed && !moving && due !== 'setup_date' && (
           <button type="button" onClick={() => { setMoving(true); setDate(setup.date || '') }} style={btn(false)}>Move setup date</button>
+        )}
+        {setup?.done && handover && !handover.done && !hoMoving && !moving && due !== 'setup_date' && (due !== 'handover_done' || handover.date) && (
+          <button type="button" onClick={() => { setHoMoving(true); setHoDate(handover.date || '') }} style={btn(false)}
+            title={handover.date ? `Handover planned for ${fmtDay(handover.date)}` : 'Plan the handover day ahead'}>
+            {handover.date ? `Move handover date` : 'Set handover date'}
+          </button>
         )}
         {undoable && (
           <button type="button" disabled={busy} onClick={() => act('undo', undoable)} style={{ ...btn(false), marginLeft: 'auto' }}

@@ -60,9 +60,12 @@ export default function JourneyPhases({ pid, row, onChange }) {
         {PHASES.map((p, i) => {
           const done = i < curIdx, now = i === curIdx
           // every milestone in the phase, with who marked it and when — nothing hidden by merging
-          const marked = p.marks.map(mark).filter(m => m?.done)
-          const markText = marked.map(m => m.key === 'setup_date' && m.date
-            ? `setup ${new Date(m.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+          const day = d => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+          // a planned handover date shows before it is marked, like the setup date
+          const marked = p.marks.map(mark).filter(m => m?.done || (m?.key === 'handover_done' && m.date))
+          const markText = marked.map(m => m.key === 'setup_date' && m.date ? `setup ${day(m.date)}`
+            : m.key === 'handover_done' && !m.done ? `handover ${day(m.date)} (planned)`
+            : m.key === 'handover_done' && m.date ? `handed over ${day(m.date)} · ${who(m.by)}`
             : `${MARK_LABEL[m.key]} · ${who(m.by)}, ${when(m.at)}`).join(' · ')
           const sub = now ? (row.stage_label || '') : done ? (markText || 'done') : ''
           const sub2 = now ? markText : ''
