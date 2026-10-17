@@ -21,6 +21,7 @@
 --
 -- An invoice on its own proves nothing: opening a property's invoice page
 -- creates a draft, so a draft can exist before there is even an estimate.
+-- Only an invoice with lines counts as one (25 of 28 on file were empty).
 --
 -- Holy Grail enrichment never blocks, never sets urgency, never becomes the
 -- next action (§3) — it is a flag only.
@@ -252,8 +253,11 @@ begin
         from base b join property_payments pp on pp.pid = b.pid group by b.pid
     ),
     inv as (
+      -- an invoice counts only once it has lines: opening the invoice page creates an empty draft
       select distinct on (li.pid) li.pid, li.inspection_id, li.created_at
-        from base b join landlord_invoices li on li.pid = b.pid order by li.pid, li.created_at desc
+        from base b join landlord_invoices li on li.pid = b.pid
+       where exists (select 1 from landlord_invoice_items ii where ii.invoice_id = li.id)
+       order by li.pid, li.created_at desc
     )
     select b.pid, b.name, b.owner, b.created_at, b.archived_at,
            b.setup_date, b.estimate_final_at, b.setup_closed_at, b.qc_done_at, b.handover_done_at, b.wo_shared_at, b.closed_at,
@@ -337,60 +341,63 @@ begin
       end if;
 
     elsif fin_eff then
-      -- 9–17 · from estimate final to setup closed
+      -- 9–17 · from estimate final to setup closed. Planning counts back from the
+      -- setup date; work already under way shows whether or not a date is set.
       if r.setup_date is null then
         th := th || public.journey_step('setup_date_pending', 'Estimate final, no setup date', 'setup_ops', fin_since,
                'Set the setup date', r_prop, (t->>'setup_date_days')::int, null, fin_note);
-      else
-        -- planning, in parallel, counted back from the setup date
-        if r.util_n = 0 and (d is null or d >= 0) then
-          th := th || public.journey_step('utilities_unplanned', 'Utilities not planned (WiFi, RO)', 'setup_ops', fin_since,
-                 'Plan utilities', r_util, null, public.journey_lead_urgency(d, (t->>'utilities_lead_days')::int));
-        end if;
-        if r.wo_n = 0 then
+      end if;
+      if r.setup_date is not null and r.util_n = 0 and d >= 0 then
+        th := th || public.journey_step('utilities_unplanned', 'Utilities not planned (WiFi, RO)', 'setup_ops', fin_since,
+               'Plan utilities', r_util, null, public.journey_lead_urgency(d, (t->>'utilities_lead_days')::int));
+      end if;
+      if r.wo_n = 0 then
+        if r.setup_date is not null then
           th := th || public.journey_step('work_orders_unplanned', 'No work orders raised', 'setup_ops', fin_since,
                  'Plan work orders', r_wo, null, public.journey_lead_urgency(d, (t->>'wo_lead_days')::int));
-        elsif r.wo_no_vendor > 0 then
-          th := th || public.journey_step('wo_unassigned', r.wo_no_vendor || ' work order' || case when r.wo_no_vendor > 1 then 's' else '' end || ' with no vendor', 'setup_ops', r.no_vendor_since,
-                 'Assign vendors', r_wo, null, public.journey_lead_urgency(d, (t->>'assign_lead_days')::int));
-        elsif r.wo_undated > 0 then
-          th := th || public.journey_step('wo_undated', r.wo_undated || ' work order' || case when r.wo_undated > 1 then 's' else '' end || ' with no closure date', 'setup_ops', r.wo_first,
-                 'Set closure dates', r_wo, null, public.journey_lead_urgency(d, (t->>'assign_lead_days')::int));
         end if;
+      elsif r.wo_no_vendor > 0 then
+        th := th || public.journey_step('wo_unassigned', r.wo_no_vendor || ' work order' || case when r.wo_no_vendor > 1 then 's' else '' end || ' with no vendor', 'setup_ops', r.no_vendor_since,
+               'Assign vendors', r_wo, case when d is null then (t->>'wo_unassigned_days')::int end,
+               case when d is not null then public.journey_lead_urgency(d, (t->>'assign_lead_days')::int) end);
+      elsif r.wo_undated > 0 then
+        th := th || public.journey_step('wo_undated', r.wo_undated || ' work order' || case when r.wo_undated > 1 then 's' else '' end || ' with no closure date', 'setup_ops', r.wo_first,
+               'Set closure dates', r_wo, case when d is null then (t->>'wo_unscheduled_days')::int end,
+               case when d is not null then public.journey_lead_urgency(d, (t->>'assign_lead_days')::int) end);
+      end if;
 
-        if d > 0 then
-          if r.wo_n > 0 and r.wo_no_vendor = 0 then
-            th := th || public.journey_step('wo_awaiting_day', 'Setup in ' || d || ' day' || case when d = 1 then '' else 's' end, 'vendor', r.wo_first,
-                   'Vendors due ' || to_char(r.setup_date, 'DD Mon'), r_wo, null,
-                   case when d <= (t->>'setup_soon_days')::int then 'soon' else 'waiting' end);
-          end if;
-        elsif d = 0 then
-          th := th || public.journey_step('setup_day', 'Setup day · ' || r.on_site_today || ' of ' || r.wo_vendors || ' vendors punched in', 'vendor', r.setup_date::timestamptz,
-                 'Check who has arrived', r_wo, null, 'today');
-        else
-          -- the setup has started
-          if r.items_open > 0 and r.overdue_since is not null then
-            th := th || public.journey_step('wo_overdue', r.items_open || ' item' || case when r.items_open = 1 then '' else 's' end || ' still open past the closure date', 'vendor', r.overdue_since::timestamptz,
-                   'Chase the vendors', r_wo, 0);
-          elsif r.items_open > 0 and r.on_site_since_setup > 0 then
-            th := th || public.journey_step('vendors_on_site', r.on_site_since_setup || ' vendor' || case when r.on_site_since_setup = 1 then '' else 's' end || ' on site · ' || r.items_open || ' items open', 'vendor', r.first_in,
-                   'Vendors working', r_wo, null, 'waiting');
-          elsif r.items_open > 0 then
-            th := th || public.journey_step('setup_in_progress', 'Setup under way · ' || r.items_open || ' items open', 'vendor', r.setup_date::timestamptz,
-                   'Vendors working', r_wo, null, 'waiting', case when r.on_site_since_setup = 0 then 'no vendor has punched in at this PID since setup day' end);
-          end if;
-          if r.items_disputed > 0 then
-            th := th || public.journey_step('disputed', r.items_disputed || ' item' || case when r.items_disputed = 1 then '' else 's' end || ' sent back to the vendor', 'vendor', r.disputed_since,
-                   'Vendor to fix sent-back items', r_wo, (t->>'dispute_days')::int);
-          end if;
-          if r.items_to_verify > 0 then
-            th := th || public.journey_step('items_to_verify', r.items_to_verify || ' item' || case when r.items_to_verify = 1 then '' else 's' end || ' to verify', 'setup_ops', r.to_verify_since,
-                   'Verify closed items', r_wo, (t->>'items_to_verify_days')::int);
-          end if;
-          if r.wo_n > 0 and r.items_open = 0 and r.items_to_verify = 0 then
-            th := th || public.journey_step('setup_close_pending', 'All work done, setup not closed', 'setup_ops', coalesce(r.last_item_done, r.setup_date::timestamptz),
-                   'Mark setup closed', r_prop, (t->>'setup_close_days')::int);
-          end if;
+      if d > 0 and r.wo_n > 0 and r.wo_no_vendor = 0 then
+        th := th || public.journey_step('wo_awaiting_day', 'Setup in ' || d || ' day' || case when d = 1 then '' else 's' end, 'vendor', r.wo_first,
+               'Vendors due ' || to_char(r.setup_date, 'DD Mon'), r_wo, null,
+               case when d <= (t->>'setup_soon_days')::int then 'soon' else 'waiting' end);
+      elsif d = 0 then
+        th := th || public.journey_step('setup_day', 'Setup day · ' || r.on_site_today || ' of ' || r.wo_vendors || ' vendors punched in', 'vendor', r.setup_date::timestamptz,
+               'Check who has arrived', r_wo, null, 'today');
+      end if;
+
+      if r.wo_n > 0 and (d is null or d < 0) then
+        if r.items_open > 0 and r.overdue_since is not null then
+          th := th || public.journey_step('wo_overdue', r.items_open || ' item' || case when r.items_open = 1 then '' else 's' end || ' still open past the closure date', 'vendor', r.overdue_since::timestamptz,
+                 'Chase the vendors', r_wo, 0);
+        elsif r.items_open > 0 and r.on_site_since_setup > 0 then
+          th := th || public.journey_step('vendors_on_site', r.on_site_since_setup || ' vendor' || case when r.on_site_since_setup = 1 then '' else 's' end || ' on site · ' || r.items_open || ' items open', 'vendor', r.first_in,
+                 'Vendors working', r_wo, null, 'waiting');
+        elsif r.items_open > 0 and r.wo_no_vendor = 0 and r.wo_undated = 0 then
+          th := th || public.journey_step('setup_in_progress', 'Work under way · ' || r.items_open || ' items open', 'vendor', coalesce(r.setup_date::timestamptz, r.wo_first),
+                 'Vendors working', r_wo, null, 'waiting',
+                 case when r.setup_date is not null and r.on_site_since_setup = 0 then 'no vendor has punched in at this PID since setup day' end);
+        end if;
+        if r.items_disputed > 0 then
+          th := th || public.journey_step('disputed', r.items_disputed || ' item' || case when r.items_disputed = 1 then '' else 's' end || ' sent back to the vendor', 'vendor', r.disputed_since,
+                 'Vendor to fix sent-back items', r_wo, (t->>'dispute_days')::int);
+        end if;
+        if r.items_to_verify > 0 then
+          th := th || public.journey_step('items_to_verify', r.items_to_verify || ' item' || case when r.items_to_verify = 1 then '' else 's' end || ' to verify', 'setup_ops', r.to_verify_since,
+                 'Verify closed items', r_wo, (t->>'items_to_verify_days')::int);
+        end if;
+        if r.items_open = 0 and r.items_to_verify = 0 then
+          th := th || public.journey_step('setup_close_pending', 'All work done, setup not closed', 'setup_ops', coalesce(r.last_item_done, r.setup_date::timestamptz),
+                 'Mark setup closed', r_prop, (t->>'setup_close_days')::int);
         end if;
       end if;
 
