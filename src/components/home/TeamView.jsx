@@ -86,7 +86,7 @@ export function useTeam(enabled) {
   return { ...state, reload: load }
 }
 
-export default function TeamView({ home, team, onViewDesk, onPickView }) {
+export default function TeamView({ home, team, onViewDesk, onPickView, queue }) {
   const navigate = useNavigate()
   const t = team.data
   const rows = useMemo(() => (home.rows || []).filter(r => !/^test/i.test(r.pid)), [home.rows])
@@ -225,6 +225,7 @@ export default function TeamView({ home, team, onViewDesk, onPickView }) {
               </table></Scroll>
             )}
           </Panel>
+          {queue}
         </div>
 
         <div className="tv-col">
@@ -265,6 +266,7 @@ export default function TeamView({ home, team, onViewDesk, onPickView }) {
               </table></Scroll>
             )}
           </Panel>
+
         </div>
       </div>
     </div>

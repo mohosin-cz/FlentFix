@@ -82,7 +82,12 @@ const btn = (on) => ({ minHeight: 34, padding: '0 12px', borderRadius: 7, border
 
 // home: the journey engine read, owned by Home so the desk above shares it.
 // pickView: { key, at } — the desk asks the queue to open a view.
-export default function WorkQueue({ home, pickView }) {
+// scope 'team' (an admin's Team view) shows the team's views and opens on
+// "Needs the team"; 'mine' shows everything, personal views first.
+const TEAM_VIEWS = ['needs_team', 'supply', 'landlord', 'vendor', 'setups', 'overdue', 'prospects', 'unowned', 'all', 'not_taken']
+// embedded: sits as a panel inside the Team view — tabs and rows only (no
+// table/board switch, no filter box), and the columns a team tab already implies are left out.
+export default function WorkQueue({ home, pickView, scope = 'mine', title, embedded = false }) {
   const navigate = useNavigate()
   const phone = useIsMobile(640)
   const { session } = useAuth()
@@ -103,20 +108,23 @@ export default function WorkQueue({ home, pickView }) {
   }, [])
   useEffect(() => { loadMeta() }, [loadMeta])
 
-  const [view, setView] = useState(() => LS.get('pulse.queue.view', 'needs_me'))
-  const [mode, setMode] = useState(() => LS.get('pulse.queue.mode', 'table'))
+  const viewKey = scope === 'team' ? 'pulse.queue.view.team' : 'pulse.queue.view'
+  const views = scope === 'team' ? VIEWS.filter(v => TEAM_VIEWS.includes(v.key)) : VIEWS
+  const [view, setView] = useState(() => { const v = LS.get(viewKey, scope === 'team' ? 'needs_team' : 'needs_me'); return views.some(x => x.key === v) ? v : views[0].key })
+  const [modePref, setMode] = useState(() => LS.get('pulse.queue.mode', 'table'))
+  const mode = embedded ? 'table' : modePref
   const [sort, setSort] = useState(() => LS.get('pulse.queue.sort2', { key: 'priority', dir: 'asc' }))
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(() => new Set())
   const [busy, setBusy] = useState(null)
   const [toast, setToast] = useState(null)
-  useEffect(() => LS.set('pulse.queue.view', view), [view])
+  useEffect(() => LS.set(viewKey, view), [view, viewKey])
   useEffect(() => {
     if (!pickView?.key) return
     setView(pickView.key); setSel(new Set())
     document.getElementById('work-queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [pickView])
-  useEffect(() => LS.set('pulse.queue.mode', mode), [mode])
+  useEffect(() => { if (!embedded) LS.set('pulse.queue.mode', modePref) }, [modePref, embedded])
   useEffect(() => LS.set('pulse.queue.sort2', sort), [sort])
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3500); return () => clearTimeout(t) }, [toast])
 
@@ -182,12 +190,26 @@ export default function WorkQueue({ home, pickView }) {
 
   // ── chrome ────────────────────────────────────────────────────────────────
   return (
-    <div id="work-queue" style={{ width: '100%', boxSizing: 'border-box', scrollMarginTop: 64, padding: phone ? '10px 12px calc(90px + env(safe-area-inset-bottom, 0px))' : '12px 24px 48px', fontFamily: SANS, color: 'var(--text, #e8e8f0)' }}>
+    <div id="work-queue" style={embedded
+      ? { width: '100%', boxSizing: 'border-box', scrollMarginTop: 64, fontFamily: SANS, color: 'var(--text, #e8e8f0)', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, minWidth: 0, overflow: 'hidden' }
+      : { width: '100%', boxSizing: 'border-box', scrollMarginTop: 64, padding: phone ? '10px 12px calc(90px + env(safe-area-inset-bottom, 0px))' : '12px 24px 48px', fontFamily: SANS, color: 'var(--text, #e8e8f0)' }}>
 
+      {title && embedded && (
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '11px 14px', borderBottom: '1px solid var(--border, #2e3040)', flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0, fontFamily: MONO, fontSize: 11, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontWeight: 700 }}>{title}</h2>
+          <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>every open step across the team</span>
+        </div>
+      )}
+      {title && !embedded && (
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, margin: '6px 0 10px', flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{title}</h2>
+          <span style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--text-muted, #6b6d82)' }}>{scope === 'team' ? 'every open step across the team — pick a view' : 'every open step, as a list — pick a view'}</span>
+        </div>
+      )}
       {/* VIEWS — saved filters with live counts */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <div role="tablist" aria-label="Views" style={{ display: 'flex', gap: 4, overflowX: 'auto', flex: phone ? '1 1 100%' : 1, minWidth: 0, paddingBottom: 2 }}>
-          {VIEWS.map(v => {
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: embedded ? '10px 12px' : 0 }}>
+        <div role="tablist" aria-label="Views" style={{ display: 'flex', gap: 4, flexWrap: phone ? 'nowrap' : 'wrap', overflowX: phone ? 'auto' : 'visible', flex: phone ? '1 1 100%' : 1, minWidth: 0, paddingBottom: 2 }}>
+          {views.map(v => {
             const on = v.key === view
             const n = counts[v.key]
             return (
@@ -199,7 +221,7 @@ export default function WorkQueue({ home, pickView }) {
             )
           })}
         </div>
-        {!phone && (
+        {!phone && !embedded && (
           <div role="group" aria-label="Layout" style={{ display: 'flex', gap: 2, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 2 }}>
             {[['table', 'Table'], ['board', 'Board']].map(([k, l]) => (
               <button key={k} onClick={() => setMode(k)} aria-pressed={mode === k}
@@ -207,12 +229,12 @@ export default function WorkQueue({ home, pickView }) {
             ))}
           </div>
         )}
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Filter this view…" aria-label="Filter this view"
-          style={{ minHeight: 34, padding: '0 12px', borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontFamily: MONO, fontSize: 12, outline: 'none', width: phone ? undefined : 220, flex: phone ? '1 1 160px' : undefined, minWidth: 0 }} />
-        {sort.key !== 'priority' && (
+        {!embedded && <input value={q} onChange={e => setQ(e.target.value)} placeholder="Filter this view…" aria-label="Filter this view"
+          style={{ minHeight: 34, padding: '0 12px', borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontFamily: MONO, fontSize: 12, outline: 'none', width: phone ? undefined : 220, flex: phone ? '1 1 160px' : undefined, minWidth: 0 }} />}
+        {!embedded && sort.key !== 'priority' && (
           <button onClick={() => setSort({ key: 'priority', dir: 'asc' })} title="Urgency, then nearest setup date, then longest waiting" style={btn(false)}>Default order</button>
         )}
-        <button onClick={() => { reload(); loadMeta() }} title="Refresh" style={btn(false)}>↻</button>
+        {!embedded && <button onClick={() => { reload(); loadMeta() }} title="Refresh" style={btn(false)}>↻</button>}
       </div>
 
       {/* enrichment never blocks anything; it is a quiet count, nothing more */}
@@ -286,12 +308,12 @@ export default function WorkQueue({ home, pickView }) {
             ))}
           </div>
         ) : (
-          <div style={{ marginTop: 12, border: '1px solid var(--border, #2e3040)', borderRadius: 10, overflow: 'auto', background: 'var(--bg-panel, #1e2028)' }}>
+          <div style={embedded ? { borderTop: '1px solid var(--border, #2e3040)', overflow: 'auto' } : { marginTop: 12, border: '1px solid var(--border, #2e3040)', borderRadius: 10, overflow: 'auto', background: 'var(--bg-panel, #1e2028)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: 'var(--bg-input, #252731)' }}>
                   <th style={{ width: 36, padding: '9px 10px' }}><input type="checkbox" checked={!!allSelected} onChange={toggleAll} aria-label="Select all" style={{ accentColor: 'var(--accent, #c8963e)' }} /></th>
-                  {COLS.map(c => (
+                  {COLS.filter(c => !embedded || !['blocked', 'setup'].includes(c.key)).map(c => (
                     <th key={c.key} onClick={() => toggleSort(c.key)} aria-sort={sort.key === c.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
                       style={{ textAlign: 'left', padding: '9px 10px', fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: sort.key === c.key ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', fontFamily: MONO, cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none' }}>
                       {c.label}{sort.key === c.key ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}
@@ -308,9 +330,9 @@ export default function WorkQueue({ home, pickView }) {
                     <td style={{ padding: '8px 10px', fontFamily: MONO, color: x.r.is_prospect ? '#e07ba8' : 'var(--accent, #c8963e)', whiteSpace: 'nowrap' }}>{pidText(x.r)}</td>
                     <td style={{ padding: '8px 10px', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.r.property_name}</td>
                     <td style={{ padding: '8px 10px', color: 'var(--text-dim, #9394a8)' }}>{x.t.label}</td>
-                    <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, color: (x.t.waiting_on || x.t.blocked_on) === 'setup_ops' ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)' }}>{WHO[x.t.waiting_on || x.t.blocked_on]}</td>
+{!embedded && (<td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, color: (x.t.waiting_on || x.t.blocked_on) === 'setup_ops' ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)' }}>{WHO[x.t.waiting_on || x.t.blocked_on]}</td>)}
                     <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, whiteSpace: 'nowrap', color: x.t.urgency === 'overdue' ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}><SlaDot urgency={x.t.urgency} />{ageText(x)}</td>
-                    <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, whiteSpace: 'nowrap', color: x.r.days_to_setup != null && x.r.days_to_setup >= 0 && x.r.days_to_setup <= 2 ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)' }}>{setupText(x.r.days_to_setup)}</td>
+                    {!embedded && (<td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, whiteSpace: 'nowrap', color: x.r.days_to_setup != null && x.r.days_to_setup >= 0 && x.r.days_to_setup <= 2 ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)' }}>{setupText(x.r.days_to_setup)}</td>)}
                     <td style={{ padding: '6px 10px' }}><button onClick={e => openAction(e, x)} style={{ ...btn(true), minHeight: 30, padding: '0 10px' }}>{x.t.next_action_label} ›</button></td>
                     <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, color: x.owner === me ? 'var(--text, #e8e8f0)' : 'var(--text-dim, #9394a8)', whiteSpace: 'nowrap' }}>{local(x.owner)}</td>
                     <td style={{ padding: '4px 6px' }} onClick={e => e.stopPropagation()}>{!x.r.is_prospect && <DraftMessageButton pid={x.r.pid} code={x.t.code} compact />}</td>
