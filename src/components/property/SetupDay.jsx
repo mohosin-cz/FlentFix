@@ -23,11 +23,38 @@ const dayLabel = (k) => {
   return new Date(k + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
+// WiFi / RO run in two steps (see UtilityRequest): asked the partner during
+// planning, then the details registered on the Utilities page at closure.
+// The badge says which step it is at — "not booked" alone read as if the
+// request had never been made.
+const TONE = {
+  green: ['var(--green, #3dba7a)', 'rgba(61,186,122,0.45)'],
+  amber: ['var(--accent, #c8963e)', 'rgba(200,150,62,0.45)'],
+  red:   ['var(--red, #e05c6a)', 'rgba(224,92,106,0.45)'],
+  muted: ['var(--text-muted, #6b6d82)', 'var(--border, #2e3040)'],
+}
+function utilityState(k, data) {
+  const name = k === 'wifi' ? 'WiFi' : 'RO'
+  const active = !!data.utilities?.[k]
+  const r = data.requests || {}
+  const at = r[`${k}_requested_at`], months = r[`${k}_plan_months`]
+  const pick = (tone, label, step, hint) => ({ label, step, hint, color: TONE[tone][0], border: TONE[tone][1] })
+  if (active) return pick('green', `${name} active`, 'registered', `${name} details are registered on the Utilities page`)
+  if (at && months === 0) return pick('muted', `${name} not needed`, 'registered', `Marked as not needed for this property`)
+  if (at) return pick('amber', `${name} requested${months ? ` · ${months} mo` : ''}`, 'register',
+    `Requested ${new Date(at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} — register the details on the Utilities page once it is installed`)
+  return pick('red', `${name} not requested`, 'request', `Not yet requested from the partner`)
+}
+
 export function useSetupPanel(pid) {
   const [state, setState] = useState({ loading: true, error: null, data: null })
   const load = useCallback(async () => {
-    const { data, error } = await supabase.rpc('property_setup_panel', { p_pid: pid })
-    setState({ loading: false, error: error ? error.message : null, data })
+    const [{ data, error }, { data: req }] = await Promise.all([
+      supabase.rpc('property_setup_panel', { p_pid: pid }),
+      // the planning step — asked the partner, which plan — lives on the property
+      supabase.from('properties').select('wifi_requested_at, wifi_plan_months, ro_requested_at, ro_plan_months').eq('pid', pid).maybeSingle(),
+    ])
+    setState({ loading: false, error: error ? error.message : null, data: data ? { ...data, requests: req || {} } : data })
   }, [pid])
   useEffect(() => { load() }, [load])
   return { ...state, reload: load }
@@ -52,13 +79,17 @@ export function SetupPanel({ pid, panel }) {
           {isDay ? `${arrived} of ${vendors.length} vendors in` : d > 0 ? `in ${d} day${d === 1 ? '' : 's'}` : `started ${-d} day${d === -1 ? '' : 's'} ago`}
         </span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-          {[['WiFi', data.utilities?.wifi], ['RO', data.utilities?.ro]].map(([l, ok]) => (
-            <button key={l} type="button" onClick={() => navigate(`/properties/${pid}/utilities`)}
-              style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 7, cursor: 'pointer', background: 'transparent',
-                       border: `1px solid ${ok ? 'rgba(61,186,122,0.45)' : 'rgba(224,92,106,0.45)'}`, color: ok ? 'var(--green, #3dba7a)' : 'var(--red, #e05c6a)' }}>
-              {l} {ok ? 'booked' : 'not booked'}
-            </button>
-          ))}
+          {['wifi', 'ro'].map(k => {
+            const u = utilityState(k, data)
+            return (
+              <button key={k} type="button" title={u.hint}
+                onClick={() => u.step === 'request' ? navigate(`/properties/${pid}#utilities-request`) : navigate(`/properties/${pid}/utilities`)}
+                style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 7, cursor: 'pointer', background: 'transparent',
+                         border: `1px solid ${u.border}`, color: u.color }}>
+                {u.label}
+              </button>
+            )
+          })}
         </span>
       </div>
 

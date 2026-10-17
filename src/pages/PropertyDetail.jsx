@@ -556,7 +556,7 @@ export default function PropertyDetail() {
       </header>
 
       {/* ── Journey: six phases, where it is now, and the one next thing ── */}
-      {!loading && <JourneyPhases pid={pid} row={engine.row} onChange={engine.reload} />}
+      {!loading && <JourneyPhases pid={pid} row={engine.row} onChange={() => { engine.reload(); setupPanel.reload() }} />}
 
 
       <main style={s.main}>
@@ -578,7 +578,7 @@ export default function PropertyDetail() {
             <div className="rec-grid">
               <div className="rec-l">
                 <RecordStatus journey={engine} />
-                <UtilityRequest pid={pid} onChange={engine.reload} />
+                <UtilityRequest pid={pid} onChange={() => { engine.reload(); setupPanel.reload() }} />
                 <LandlordPanel pid={pid} />
                 {/* Summary stats — always render */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
