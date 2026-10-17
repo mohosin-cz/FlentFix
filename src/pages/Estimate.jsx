@@ -92,6 +92,11 @@ function EstimateWorkbenchInner() {
   const [locking, setLocking]             = useState(false)
   const [sending, setSending]             = useState(false)
   const [sendError, setSendError]         = useState(null)
+  // Landlord access: the code that, with an email, opens the link. Shown to
+  // staff here and posted to Slack on Send. { code, slack: 'posting'|'posted'|string(error) }
+  const [access, setAccess]               = useState(null)
+  const [accessOpen, setAccessOpen]       = useState(false)
+  const [accessCopied, setAccessCopied]   = useState(false)
   const [lightbox, setLightbox]           = useState(null)
   const [disputeMap, setDisputeMap]       = useState({})
   const [drawerInitTab, setDrawerInitTab] = useState('details')
@@ -470,6 +475,63 @@ function EstimateWorkbenchInner() {
     setCopied(true); setTimeout(() => setCopied(false), 2200)
   }
 
+  const landlordUrl = () => `${window.location.origin}/e/${estimate?.share_token}`
+  const pricedTotal = () => items
+    .filter(i => !['removed', 'excluded'].includes(i.status) && i.cost_type === 'priced')
+    .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
+
+  async function getAccessCode() {
+    const { data, error } = await supabase.rpc('estimate_access_code', { p_estimate_id: id })
+    if (error) throw error
+    return data
+  }
+
+  async function showAccess() {
+    setAccessOpen(true)
+    if (access?.code) return
+    try { const code = await getAccessCode(); setAccess(a => ({ ...a, code })) }
+    catch (e) { setAccess(a => ({ ...a, error: e.message })) }
+  }
+
+  // What the team forwards to the landlord: link + code, ready to paste.
+  function copyForLandlord() {
+    const text = `Your Flent estimate for PID ${estimate?.pid}:\n${landlordUrl()}\n\nTo open it, enter your email and this access code: ${access?.code}`
+    try { navigator.clipboard.writeText(text) } catch { /* ignore clipboard */ }
+    setAccessCopied(true); setTimeout(() => setAccessCopied(false), 2200)
+  }
+
+  // The Slack post: property, estimate summary, link and code. Goes to the
+  // setup-ops channel through wo-report-notify (staff-only, webhook held server side).
+  async function postToSlack(code, version, total) {
+    setAccess(a => ({ ...a, code, slack: 'posting' }))
+    const pid = estimate?.pid
+    const { data: prop } = await supabase.from('properties')
+      .select('name, address, flat_no, floor, landlord_name, maps_url').eq('pid', pid).maybeSingle()
+    const live = items.filter(i => !['removed', 'excluded'].includes(i.status) && i.cost_type !== 'nil')
+    const lineTotal = i => ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1)
+    const priced = live.filter(i => i.cost_type === 'priced')
+    const actuals = live.filter(i => i.cost_type !== 'priced')
+    const byTrade = {}
+    priced.forEach(i => { const t = i.trade || 'misc'; byTrade[t] = (byTrade[t] || 0) + lineTotal(i) })
+    const inr = n => '₹' + Math.round(n).toLocaleString('en-IN')
+    const trades = Object.entries(byTrade).sort((a, b) => b[1] - a[1])
+      .map(([t, v]) => `${t[0].toUpperCase() + t.slice(1)} ${inr(v)}`).join(' · ')
+    const where = [prop?.flat_no && `Flat ${prop.flat_no}`, prop?.floor && `Floor ${prop.floor}`, prop?.address].filter(Boolean).join(', ')
+    const text = [
+      `:page_facing_up: *Estimate ${version > 1 ? `v${version} ` : ''}ready — PID ${pid}${prop?.name ? ` · ${prop.name}` : ''}*`,
+      where && `:round_pushpin: ${where}${prop?.maps_url ? ` (<${prop.maps_url}|map>)` : ''}`,
+      prop?.landlord_name && `:bust_in_silhouette: Landlord: ${prop.landlord_name}`,
+      `*Total ${inr(total)}* · ${priced.length} priced line${priced.length === 1 ? '' : 's'}${actuals.length ? ` · ${actuals.length} at actuals` : ''}`,
+      trades && trades,
+      `:link: ${landlordUrl()}`,
+      `:key: Access code: *${code}*  _(landlord enters their email + this code; Flent logins open it directly)_`,
+    ].filter(Boolean).join('\n')
+    const { data, error } = await supabase.functions.invoke('wo-report-notify', { body: { text, pid } })
+    const ok = !error && data?.ok !== false
+    setAccess(a => ({ ...a, slack: ok ? 'posted' : (data?.error || error?.message || 'Slack post failed') }))
+    if (ok) logActivity(supabase, id, { action: 'slack_posted', new_value: `v${version}`, changed_by: userEmail })
+  }
+
   async function handleSend() {
     if (sending) return
     setSending(true)
@@ -570,8 +632,18 @@ function EstimateWorkbenchInner() {
     setEstimate(p => ({ ...p, current_version: nextVersion, status: 'sent', sent_at: now }))
     setHasUnsent(false)
     logActivity(supabase, id, { action: 'send', old_value: String(snapTotal), new_value: String(nextVersion), changed_by: userEmail })
-    copyLink()
     setSending(false)
+
+    // ── Step 7: access code + Slack ─────────────────────────────────────────────
+    // The send itself has succeeded; a code or Slack failure only shows in the
+    // access panel, where it can be retried.
+    setAccessOpen(true)
+    try {
+      const code = await getAccessCode()
+      await postToSlack(code, nextVersion, snapTotal)
+    } catch (e) {
+      setAccess(a => ({ ...a, error: e.message }))
+    }
   }
 
   async function handleLock() {
@@ -870,6 +942,7 @@ function EstimateWorkbenchInner() {
           <button className="btn ghost tct tct-bare" onClick={() => setNotesEditing(p => !p)}>Notes</button>
           {shareUrl && <button className="btn ghost tct tct-bare" onClick={() => window.open(shareUrl,'_blank')}>Preview</button>}
           <button className="btn ghost tct tct-bare" onClick={copyLink}>{copied ? 'Copied!' : 'Copy link'}</button>
+          {shareUrl && status !== 'draft' && <button className="btn ghost tct tct-bare" onClick={() => accessOpen ? setAccessOpen(false) : showAccess()}>Access code</button>}
           {sendError && (
             <span style={{ fontSize:11,color:'#f87171',fontFamily:'var(--mono)',maxWidth:260,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }} title={sendError}>
               ⚠ {sendError}
@@ -896,6 +969,27 @@ function EstimateWorkbenchInner() {
           )}
         </div>
       </header>
+
+      {/* Landlord access — link, code, Slack status */}
+      {accessOpen && shareUrl && (
+        <div style={{ display:'flex',flexWrap:'wrap',alignItems:'center',gap:'8px 16px',padding:'10px 20px',background:'var(--panel)',borderBottom:'1px solid var(--line)',fontSize:12,fontFamily:'var(--mono)' }}>
+          <span style={{ color:'var(--muted)' }}>LANDLORD ACCESS</span>
+          <a href={shareUrl} target="_blank" rel="noreferrer" style={{ color:'var(--ink)',overflowWrap:'anywhere' }}>{shareUrl}</a>
+          <span>code <b style={{ letterSpacing:'0.2em',fontSize:14 }}>{access?.code || (access?.error ? '—' : '…')}</b></span>
+          {access?.code && <button className="btn ghost tct tct-bare" onClick={copyForLandlord}>{accessCopied ? 'Copied!' : 'Copy link + code'}</button>}
+          {access?.slack === 'posting' && <span style={{ color:'var(--muted)' }}>posting to Slack…</span>}
+          {access?.slack === 'posted' && <span style={{ color:'var(--good)' }}>✓ posted to Slack</span>}
+          {access?.slack && !['posting', 'posted'].includes(access.slack) && (
+            <span style={{ color:'#f87171' }}>⚠ {access.slack}
+              {' '}<button className="btn ghost tct tct-bare" onClick={() => postToSlack(access.code, estimate?.current_version || 1, pricedTotal())}>Retry</button>
+            </span>
+          )}
+          {access?.code && !access?.slack && <button className="btn ghost tct tct-bare" onClick={() => postToSlack(access.code, estimate?.current_version || 1, pricedTotal())}>Post to Slack</button>}
+          {access?.error && <span style={{ color:'#f87171' }}>⚠ {access.error}</span>}
+          <span style={{ color:'var(--muted)',flexBasis:'100%' }}>Flent logins open the link directly. Anyone else enters their email + this code; every approval records the email.</span>
+          <button className="btn ghost tct tct-bare" style={{ marginLeft:'auto' }} onClick={() => setAccessOpen(false)}>Close</button>
+        </div>
+      )}
 
       {/* Shift content when drawer open */}
       <div style={{ marginRight: mrShift, transition:'margin-right .16s' }}>
@@ -1111,8 +1205,9 @@ function EstimateWorkbenchInner() {
                                 <span className="ar-area">{item.area || '—'}</span>
                                 {item.status === 'approved' && (
                                   <button className="spill spill-approved"
+                                    title={item.approved_by_email ? `Approved by ${item.approved_by_email}${item.approved_at ? ' · ' + new Date(item.approved_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : ''}` : undefined}
                                     onClick={e => { e.stopPropagation(); setDrawerInitTab(hasDispute ? 'thread' : 'details'); setPinnedId(item.id) }}>
-                                    ✓ Approved
+                                    ✓ Approved{item.approved_by_email ? ` · ${item.approved_by_email}` : ''}
                                   </button>
                                 )}
                               </div>

@@ -626,133 +626,98 @@ export default function LandlordEstimate() {
     return () => document.removeEventListener('keydown', h)
   }, [lightbox])
 
+  // ── Access ────────────────────────────────────────────────────────────────
+  // A Pulse login with an @flent.in email opens the estimate as is. Anyone
+  // else enters their email + the code the team shared with the link; that
+  // opens a 30-day session on this device. Every read and action goes through
+  // the estimate_* functions, which check one or the other and record the
+  // email of whoever approves or asks.
+  const sessionKey = `le_session_${token}`
+  const readSession = () => { try { return JSON.parse(localStorage.getItem(sessionKey) || 'null') } catch { return null } }
+  const [access, setAccess]       = useState(readSession)   // { session, email } for landlords
+  const [locked, setLocked]       = useState(false)
+  const [viewerEmail, setViewerEmail] = useState('')
+  const [gateEmail, setGateEmail] = useState(() => readSession()?.email || '')
+  const [gateCode, setGateCode]   = useState('')
+  const [gateError, setGateError] = useState('')
+  const [gateBusy, setGateBusy]   = useState(false)
+  const sessionId = access?.session ?? null
+
+  const apply = useCallback((v, { keepPhotos = false } = {}) => {
+    const media = v.media || {}
+    setEstimate(v.estimate)
+    setSnapshotTotal(v.snapshot_total ?? null)
+    setVersionSnapshotMissing(!!v.version_snapshot_missing)
+    setItems(prev => (v.items || []).map(item => ({
+      ...item,
+      _photos: media[item.line_item_id] || (keepPhotos ? prev.find(p => p.id === item.id)?._photos : null) || [],
+    })))
+    setDisputes(v.disputes || [])
+    setInspection(v.inspection)
+    setViewerEmail(v.email || '')
+    // approvals and questions are attributed to the email that opened it
+    if (v.email) setLandlordName(v.email)
+  }, [])
+
+  const view = useCallback(async (preview) => {
+    const { data, error } = await supabase.rpc('estimate_view', { p_token: token, p_session: sessionId, p_preview: preview })
+    if (error) {
+      if (error.code === '28000' || /locked/.test(error.message)) return { locked: true }
+      if (/not valid/.test(error.message)) return { notFound: true }
+      throw error
+    }
+    return { data }
+  }, [token, sessionId])
+
   const load = useCallback(async () => {
-    // 0. Check if this is a flent.in internal session (for admin banners)
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    const flentSession = authUser?.email?.endsWith('@flent.in') ?? false
+    const flentSession = authUser?.email?.toLowerCase().endsWith('@flent.in') ?? false
     setIsFlentSession(flentSession)
 
-    // 1. Resolve share_token → estimate (no embedded joins — avoids RLS silent-empty issues)
-    const { data: est } = await supabase
-      .from('estimates')
-      .select('*')
-      .eq('share_token', token)
-      .maybeSingle()
-
-    if (!est) { setNotFound(true); setLoading(false); return }
-
-    // 2. Fetch items: if a version has been sent, load the snapshot; otherwise load live items.
-    let estItems = null
-    let versionTotal = null
-    if (est.current_version) {
-      // Load the current sent version
-      const { data: ver } = await supabase
-        .from('estimate_versions')
-        .select('id, total')
-        .eq('estimate_id', est.id)
-        .eq('version_number', est.current_version)
-        .maybeSingle()
-      if (ver) {
-        versionTotal = ver.total
-        const { data: verItems } = await supabase
-          .from('estimate_version_items')
-          .select('*')
-          .eq('version_id', ver.id)
-          .order('sort_order')
-        if (verItems && verItems.length > 0) {
-          estItems = verItems
-        } else {
-          // Version row exists but has no items — snapshot is corrupt; fall back to live
-          console.warn('[LandlordEstimate] version snapshot empty, falling back to live items',
-            { estimate_id: est.id, version_number: est.current_version, version_id: ver.id })
-          setVersionSnapshotMissing(true)
-        }
-      } else {
-        // current_version set but no matching version row — same corruption pattern
-        console.warn('[LandlordEstimate] current_version set but no version row found',
-          { estimate_id: est.id, current_version: est.current_version })
-        setVersionSnapshotMissing(true)
+    if (!flentSession && !sessionId) { setLocked(true); setLoading(false); return }
+    try {
+      const r = await view(isPreview)
+      if (r.notFound) { setNotFound(true); setLoading(false); return }
+      if (r.locked) {
+        try { localStorage.removeItem(sessionKey) } catch { /* private mode */ }
+        setAccess(null); setLocked(true); setLoading(false); return
       }
-    }
-    // Fallback: live estimate_items (draft not yet sent, or snapshot was missing)
-    if (!estItems) {
-      const { data: liveItems } = await supabase
-        .from('estimate_items')
-        .select('*, inspection_line_items(section_name, item_score, notes, availability_status)')
-        .eq('estimate_id', est.id)
-        .order('sort_order')
-      estItems = liveItems
-    }
-
-    // 3. Fetch disputes
-    const { data: estDisputes } = await supabase
-      .from('estimate_disputes')
-      .select('*')
-      .eq('estimate_id', est.id)
-
-    // 4. Fetch inspection metadata (date, address — display only)
-    let insp = null
-    if (est.inspection_id) {
-      const { data } = await supabase
-        .from('inspections')
-        .select('id, pid, house_type, inspection_date, config, owner_email')
-        .eq('id', est.inspection_id)
-        .maybeSingle()
-      insp = data
-    }
-
-    // 5. Fetch media keyed on line_item_id
-    const lineItemIds = (estItems || []).map(i => i.line_item_id).filter(Boolean)
-    const mediaMap = {}
-    if (lineItemIds.length > 0) {
-      const { data: media } = await supabase
-        .from('line_item_media').select('line_item_id, url').in('line_item_id', lineItemIds)
-      if (media) media.forEach(m => {
-        if (!mediaMap[m.line_item_id]) mediaMap[m.line_item_id] = []
-        mediaMap[m.line_item_id].push(m.url)
-      })
-    }
-
-    setEstimate(est)
-    setSnapshotTotal(versionTotal)
-    setItems((estItems || []).map(item => ({ ...item, _photos: mediaMap[item.line_item_id] || [] })))
-    setDisputes(estDisputes || [])
-    setInspection(insp)
-
-    // Every open is logged, not just the first. A single 'viewed' row could only
-    // ever answer "did they look?" — counting them answers "are they still
-    // chewing on it?", which is what tells you to pick up the phone.
-    // first_viewed_at is still stamped once, so "how long since" stays stable.
-    if (!isPreview) {
-      if (!est.first_viewed_at) {
-        await supabase.from('estimates')
-          .update({ first_viewed_at: new Date().toISOString(), status: 'viewed' }).eq('id', est.id)
-      }
-      await supabase.from('estimate_events').insert({ estimate_id: est.id, event_type: 'viewed', actor: 'landlord' })
+      setLocked(false)
+      apply(r.data)
+    } catch (e) {
+      console.error('[LandlordEstimate] load failed:', e)
+      setNotFound(true)
     }
     setLoading(false)
-  }, [token])
+  }, [sessionId, isPreview, view, apply, sessionKey])
 
   useEffect(() => { load() }, [load])
 
+  async function unlock(e) {
+    e?.preventDefault()
+    setGateError(''); setGateBusy(true)
+    const { data, error } = await supabase.rpc('estimate_unlock', { p_token: token, p_email: gateEmail, p_code: gateCode.replace(/\s/g, '') })
+    setGateBusy(false)
+    if (error) { setGateError(error.message.replace(/^.*?: /, '')); return }
+    try { localStorage.setItem(sessionKey, JSON.stringify(data)) } catch { /* private mode: this visit only */ }
+    setLoading(true)
+    setAccess(data)          // load() re-runs with the new session
+  }
+
+  // Keep in step with the team's replies and edits — a quiet re-read every
+  // 20 seconds while the tab is visible (no longer a table subscription:
+  // the tables are not readable without a login now).
+  const refresh = useCallback(async () => {
+    try {
+      const r = await view(true)
+      if (r.data) apply(r.data, { keepPhotos: true })
+    } catch { /* next tick */ }
+  }, [view, apply])
   useEffect(() => {
-    if (!estimate?.id) return
-    const refresh = async () => {
-      const { data: fresh } = await supabase
-        .from('estimate_items')
-        .select('*, inspection_line_items(section_name, item_score, notes, availability_status)')
-        .eq('estimate_id', estimate.id)
-        .order('sort_order')
-      if (fresh) setItems(prev => fresh.map(item => ({ ...item, _photos: prev.find(p => p.id === item.id)?._photos || [] })))
-      const { data: freshD } = await supabase.from('estimate_disputes').select('*').eq('estimate_id', estimate.id)
-      if (freshD) setDisputes(freshD)
-    }
-    const ch = supabase.channel(`le-${estimate.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'estimate_items',    filter: `estimate_id=eq.${estimate.id}` }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'estimate_disputes', filter: `estimate_id=eq.${estimate.id}` }, refresh)
-      .subscribe()
-    return () => supabase.removeChannel(ch)
-  }, [estimate?.id])
+    if (!estimate?.id || locked) return
+    const t = setInterval(() => { if (document.visibilityState === 'visible') refresh() }, 20000)
+    return () => clearInterval(t)
+  }, [estimate?.id, locked, refresh])
 
   function requireName(action) {
     if (landlordName.trim()) { action(); return }
@@ -764,13 +729,20 @@ export default function LandlordEstimate() {
     if (pendingAction.current) { pendingAction.current(); pendingAction.current = null }
   }
 
+  const rpcArgs = () => ({ p_token: token, p_session: sessionId })
+  const failed = (error, what) => {
+    console.error(`[LandlordEstimate] ${what} failed:`, error)
+    if (error?.code === '28000' || /locked/.test(error?.message || '')) { setLocked(true); return }
+    setQueryError(`${what} did not go through — please try again.`)
+  }
+
   async function approveItem(itemId) {
     // Version items carry estimate_item_id pointing to the live twin; live items don't have it.
     const liveItemId = items.find(i => i.id === itemId)?.estimate_item_id ?? itemId
     setSubmitting(s => ({ ...s, [itemId]: true }))
-    await supabase.from('estimate_items').update({ status: 'approved' }).eq('id', liveItemId)
-    await supabase.from('estimate_events').insert({ estimate_id: estimate.id, event_type: 'item_approved', actor: 'landlord', meta: { item_id: liveItemId, name: landlordName } })
-    setItems(prev => prev.map(i => i.id === itemId ? { ...i, status: 'approved' } : i))
+    const { error } = await supabase.rpc('estimate_approve_item', { ...rpcArgs(), p_item_id: liveItemId })
+    if (error) failed(error, 'Your approval')
+    else setItems(prev => prev.map(i => i.id === itemId ? { ...i, status: 'approved', approved_by_email: viewerEmail } : i))
     setSubmitting(s => ({ ...s, [itemId]: false }))
   }
 
@@ -781,25 +753,14 @@ export default function LandlordEstimate() {
     setSubmitting(s => ({ ...s, [itemId]: true }))
     const note = disputeMsg[itemId]?.trim()
     const message = note ? `${opt.label}\n\n${note}` : opt.label
-    // Version items carry estimate_item_id (live twin); live items don't — FK requires live id
     const liveItemId = items.find(i => i.id === itemId)?.estimate_item_id ?? itemId
-    const { error: insertErr } = await supabase.from('estimate_disputes').insert({
-      estimate_item_id: liveItemId, estimate_id: estimate.id,
-      author_type: 'landlord', author_name: landlordName || 'Landlord',
-      reason_tag: opt.key, message,
-    })
-    if (insertErr) {
-      console.error('[sendQuery] dispute insert failed:', insertErr)
-      setQueryError('Your question could not be sent — please try again.')
+    const { error } = await supabase.rpc('estimate_post_query', { ...rpcArgs(), p_item_id: liveItemId, p_message: message, p_reason_tag: opt.key })
+    if (error) {
+      failed(error, 'Your question')
       setSubmitting(s => ({ ...s, [itemId]: false }))
       return
     }
-    await supabase.from('estimate_events').insert({
-      estimate_id: estimate.id, event_type: 'queried', actor: 'landlord',
-      meta: { item_id: liveItemId, query: opt.key, name: landlordName },
-    })
-    const { data: freshD } = await supabase.from('estimate_disputes').select('*').eq('estimate_id', estimate.id)
-    if (freshD) setDisputes(freshD)
+    await refresh()
     setDisputeOpen(s => ({ ...s, [itemId]: false }))
     setAskStep(s => ({ ...s, [itemId]: 'options' }))
     setAskSelected(s => ({ ...s, [itemId]: '' }))
@@ -812,19 +773,13 @@ export default function LandlordEstimate() {
     if (!txt) return
     setReplySending(s => ({ ...s, [itemId]: true }))
     const liveItemId = items.find(i => i.id === itemId)?.estimate_item_id ?? itemId
-    const { error: insertErr } = await supabase.from('estimate_disputes').insert({
-      estimate_item_id: liveItemId, estimate_id: estimate.id,
-      author_type: 'landlord', author_name: landlordName || 'Landlord',
-      message: txt,
-    })
-    if (insertErr) {
-      console.error('[sendThreadReply] insert failed:', insertErr)
-      setQueryError('Your reply could not be sent — please try again.')
+    const { error } = await supabase.rpc('estimate_post_query', { ...rpcArgs(), p_item_id: liveItemId, p_message: txt, p_reason_tag: null })
+    if (error) {
+      failed(error, 'Your reply')
       setReplySending(s => ({ ...s, [itemId]: false }))
       return
     }
-    const { data: freshD } = await supabase.from('estimate_disputes').select('*').eq('estimate_id', estimate.id)
-    if (freshD) setDisputes(freshD)
+    await refresh()
     setReplyMsg(s => ({ ...s, [itemId]: '' }))
     setReplySending(s => ({ ...s, [itemId]: false }))
   }
@@ -836,17 +791,9 @@ export default function LandlordEstimate() {
       if (!ok) return
     }
     setApproving(true)
-    await supabase.from('estimate_items').update({ status: 'approved' }).eq('estimate_id', estimate.id).eq('status', 'pending')
-    const refreshed = items.map(i => (!i.status || i.status === 'pending') ? { ...i, status: 'approved' } : i)
-    setItems(refreshed)
-    const allApproved = refreshed.every(i => i.status === 'approved' || i.status === 'removed')
-    await supabase.from('estimates').update({
-      status: allApproved ? 'approved' : 'partially_approved',
-      approved_at: allApproved ? new Date().toISOString() : null,
-      approved_by_name: landlordName || 'Landlord',
-    }).eq('id', estimate.id)
-    await supabase.from('estimate_events').insert({ estimate_id: estimate.id, event_type: allApproved ? 'approved' : 'partially_approved', actor: 'landlord', meta: { name: landlordName } })
-    setEstimate(prev => ({ ...prev, status: allApproved ? 'approved' : 'partially_approved' }))
+    const { error } = await supabase.rpc('estimate_approve_all', rpcArgs())
+    if (error) failed(error, 'Approving the estimate')
+    await refresh()
     setApproving(false)
   }
 
@@ -901,6 +848,41 @@ export default function LandlordEstimate() {
         <div style={{ fontSize: 48, marginBottom: 12 }}>🔗</div>
         <div style={{ fontSize: 18, fontWeight: 600, color: '#211C44', marginBottom: 6 }}>Link not found</div>
         <div style={{ fontSize: 13, color: '#5E5872' }}>This estimate link is invalid or has expired.</div>
+      </div>
+    </div>
+  )
+
+  if (locked) return (
+    <div className="le-wrap">
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div className="le-topbar">
+        <FlentWordmark height={22} variant="dark" />
+        <span className="le-topbar-tag">Estimate Review</span>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 16px' }}>
+        <form className="le-name-modal" onSubmit={unlock} style={{ boxShadow: 'none', border: '1px solid var(--le-hairline-strong)' }}>
+          <div className="le-name-modal-title">Open your estimate</div>
+          <div className="le-name-modal-sub">
+            Enter your email and the access code the Flent team shared with this link.
+            Your email is recorded against every approval you make.
+          </div>
+          <input
+            className="le-name-input" type="email" placeholder="you@example.com" autoComplete="email"
+            value={gateEmail} onChange={e => setGateEmail(e.target.value)} autoFocus={!gateEmail}
+          />
+          <input
+            className="le-name-input" inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code" maxLength={8}
+            value={gateCode} onChange={e => setGateCode(e.target.value.replace(/[^\d ]/g, ''))} autoFocus={!!gateEmail}
+            style={{ letterSpacing: '0.3em', fontFamily: 'var(--le-mono)' }}
+          />
+          {gateError && <div style={{ color: '#9b2c2c', fontSize: 13, marginBottom: 12, fontFamily: 'var(--le-sans)' }}>{gateError}</div>}
+          <button className="le-btn-name-confirm" type="submit" disabled={gateBusy || !gateEmail.trim() || gateCode.replace(/\s/g, '').length < 6}>
+            {gateBusy ? 'Checking…' : 'Open estimate'}
+          </button>
+          <div className="le-name-modal-sub" style={{ marginTop: 14, marginBottom: 0, fontSize: 12 }}>
+            Flent team? <a href={`/login?next=${encodeURIComponent(`/e/${token}`)}`} style={{ color: 'var(--le-ink)' }}>Sign in to Pulse</a> instead.
+          </div>
+        </form>
       </div>
     </div>
   )
@@ -980,7 +962,7 @@ export default function LandlordEstimate() {
             <span>✓</span>
             <span>
               Estimate {estimate.status === 'partially_approved' ? 'partially approved' : 'approved'}
-              {estimate.approved_by_name ? ` — confirmed by ${estimate.approved_by_name}` : ''}
+              {(estimate.approved_by_email || estimate.approved_by_name) ? ` — confirmed by ${estimate.approved_by_email || estimate.approved_by_name}` : ''}
               {estimate.approved_at ? ` on ${fmtDate(estimate.approved_at)}` : ''}
             </span>
           </div>
@@ -1156,7 +1138,9 @@ export default function LandlordEstimate() {
                         {!isLocked && (
                           <div className="le-plate-actions">
                             {status === 'approved' ? (
-                              <span className="le-plate-state le-plate-state--approved">Approved</span>
+                              <span className="le-plate-state le-plate-state--approved" title={item.approved_by_email ? `Approved by ${item.approved_by_email}` : undefined}>
+                                Approved{item.approved_by_email ? ` · ${item.approved_by_email}` : ''}
+                              </span>
                             ) : (
                               <>
                                 {/* Approve when Flent replied last or no thread yet */}

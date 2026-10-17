@@ -31,7 +31,10 @@ export default function Login() {
       setLoading(false)
       return
     }
-    navigate('/', { replace: true })
+    // ?next= brings someone back to the page that sent them here (an estimate
+    // link, say) — same-site paths only.
+    const next = new URLSearchParams(window.location.search).get('next') || ''
+    navigate(/^\/(?!\/)/.test(next) ? next : '/', { replace: true })
   }
 
   return (
