@@ -52,7 +52,7 @@ const ago = (ts) => {
 // the panel (the app's input tone, so it follows light and dark), a hairline
 // edge and a soft lift. A page, without a new colour or a pattern.
 const SHEET = {
-  flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', margin: '0 10px 10px',
+  flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', margin: '9px 10px 10px',
   background: 'var(--bg-input, #252731)', border: '1px solid var(--border-dash, #3a3d52)', borderRadius: 10,
   boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 6px 16px rgba(0,0,0,0.3)', color: 'var(--text, #e8e8f0)',
 }
