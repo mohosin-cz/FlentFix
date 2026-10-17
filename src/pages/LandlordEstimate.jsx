@@ -560,11 +560,11 @@ const QUERY_OPTIONS = [
   { key: 'why_needed',     label: 'What is this repair for?'  },
   { key: 'more_photos',    label: 'Can I see more photos?'    },
   { key: 'cost_breakdown', label: 'Can you explain the cost?' },
-  { key: 'self_arrange',   label: 'I can arrange this myself' },
 ]
 
 // Label lookup for thread display
-const ALL_TAG_LABELS = Object.fromEntries(QUERY_OPTIONS.map(t => [t.key, t.label]))
+// self_arrange is no longer offered, but older threads still carry it.
+const ALL_TAG_LABELS = { self_arrange: 'I can arrange this myself', ...Object.fromEntries(QUERY_OPTIONS.map(t => [t.key, t.label])) }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function LandlordEstimate() {
