@@ -6,6 +6,9 @@
 // Required secret (Supabase → Project Settings → Edge Functions):
 //   SLACK_WEBHOOK_URL — an Incoming Webhook from api.slack.com/apps
 //                       (Incoming Webhooks → Add to Workspace → pick a channel)
+// Optional, one per extra channel — the client names the channel in the body:
+//   SLACK_ESTIMATES_WEBHOOK_URL — channel "estimates" (estimate Send posts).
+//   Until it is set, those posts go to the default channel above.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const cors = {
@@ -31,7 +34,11 @@ Deno.serve(async (req: Request) => {
   // pattern, is what keeps that safe — nothing else can be picked up by it.
   const isSlackHook = (v: string) => /^https:\/\/hooks\.slack\.com\/services\//.test(v.trim());
   const env = Deno.env.toObject();
-  const fallbackKey = Object.keys(env).find((k) => k !== "SLACK_WEBHOOK_URL" && isSlackHook(env[k] ?? ""));
+  // Named channels have their own secret; they are never picked up by the
+  // default channel's fallback below, so reports cannot land in the wrong place.
+  const CHANNELS: Record<string, string> = { estimates: "SLACK_ESTIMATES_WEBHOOK_URL" };
+  const channelKeys = new Set(Object.values(CHANNELS));
+  const fallbackKey = Object.keys(env).find((k) => k !== "SLACK_WEBHOOK_URL" && !channelKeys.has(k) && isSlackHook(env[k] ?? ""));
   const canonical = Deno.env.get("SLACK_WEBHOOK_URL");
   const WEBHOOK = (canonical && isSlackHook(canonical) ? canonical : null) ?? (fallbackKey ? env[fallbackKey] : null);
   const usedKey = canonical && isSlackHook(canonical) ? "SLACK_WEBHOOK_URL" : fallbackKey;
@@ -62,13 +69,21 @@ Deno.serve(async (req: Request) => {
 
   let text = "";
   let pid = "";
+  let channel = "";
   let blocks: unknown[] = [];
   try {
     const body = await req.json();
     text = (body?.text ?? "").toString();
     pid = (body?.pid ?? "").toString();
+    channel = (body?.channel ?? "").toString();
     if (Array.isArray(body?.blocks)) blocks = body.blocks;
   } catch { /* ignore */ }
+
+  // A named channel with its secret set goes there; otherwise the default.
+  const channelKey = CHANNELS[channel];
+  const channelHook = channelKey ? (env[channelKey] ?? "") : "";
+  const target = channelHook && isSlackHook(channelHook) ? channelHook.trim() : WEBHOOK;
+  const via = channelHook && isSlackHook(channelHook) ? channelKey : usedKey;
 
   if (!text.trim()) return json({ ok: false, error: "Nothing to post" }, 400);
 
@@ -87,7 +102,7 @@ Deno.serve(async (req: Request) => {
     payload.text = `${text}\n\n_${attribution}_`;
   }
 
-  const res = await fetch(WEBHOOK, {
+  const res = await fetch(target!, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -99,5 +114,5 @@ Deno.serve(async (req: Request) => {
   }
 
   // Say which secret was used (name only) so a fallback match is never silent.
-  return json({ ok: true, via: usedKey });
+  return json({ ok: true, via });
 });

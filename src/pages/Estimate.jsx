@@ -548,7 +548,7 @@ function EstimateWorkbenchInner() {
       { type: 'section', text: { type: 'mrkdwn', text: '```Your Flent estimate: ' + url + '\nAccess code: ' + code + '```' } },
       { type: 'context', elements: [{ type: 'mrkdwn', text: 'Anyone opening it enters their email + the code (logged-in Pulse users go straight in). Every approval records the approver’s email.' }] },
     ]
-    const { data, error } = await supabase.functions.invoke('wo-report-notify', { body: { text, pid, blocks } })
+    const { data, error } = await supabase.functions.invoke('wo-report-notify', { body: { text, pid, blocks, channel: 'estimates' } })
     const ok = !error && data?.ok !== false
     setAccess(a => ({ ...a, slack: ok ? 'posted' : (data?.error || error?.message || 'Slack post failed') }))
     if (ok) logActivity(supabase, id, { action: 'slack_posted', new_value: `v${version}`, changed_by: userEmail })
