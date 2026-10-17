@@ -48,13 +48,13 @@ const ago = (ts) => {
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
-// Only the writing surface is paper: a matte, softened warm white set into
-// the panel, so the page you write on reads as a page and the controls around
-// it stay the app's own. Set as variables on the sheet, so everything inside it
-// (title, dictation preview, the text) takes the ink colours.
-const PAPER = {
-  '--bg-panel': '#b4afa3', '--text': '#211f1a', '--text-dim': '#45423b', '--text-muted': '#5e5a51', '--accent': '#6e4a00',
-  colorScheme: 'light',
+// The writing surface is a card resting in the panel: one step lighter than
+// the panel (the app's input tone, so it follows light and dark), a hairline
+// edge and a soft lift. A page, without a new colour or a pattern.
+const SHEET = {
+  flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', margin: '0 10px 10px',
+  background: 'var(--bg-input, #252731)', border: '1px solid var(--border-dash, #3a3d52)', borderRadius: 10,
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 6px 16px rgba(0,0,0,0.3)', color: 'var(--text, #e8e8f0)',
 }
 
 const CSS = `
@@ -517,10 +517,10 @@ function Pad({ userId, email, pathname }) {
           ? <><Pill>Team note · shared with everyone on PID {team.pid}</Pill>{team.updated_at && <Pill>edited {ago(team.updated_at)}</Pill>}</>
           : <>{cur.context?.label && <Pill>started on {cur.context.label}</Pill>}<Pill>{ago(cur.created_at || cur.updated_at)}</Pill>{scopePid && names[scopePid] && <Pill>{names[scopePid]}</Pill>}</>}
       </div>
-      <div style={{ ...PAPER, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, #b4afa3 0%, #aca79b 100%)', boxShadow: 'inset 0 0 14px rgba(0,0,0,0.22), inset 0 1px 0 rgba(0,0,0,0.25)', color: 'var(--text)' }}>
+      <div style={SHEET}>
       {cur && (
         <input value={cur.title || ''} onChange={e => patch(cur.id, { title: e.target.value })} placeholder="Title (optional)" aria-label="Title"
-          style={{ border: 'none', background: 'none', outline: 'none', padding: '10px 14px 0', fontSize: 16, fontWeight: 600, color: C.text, fontFamily: F, width: '100%', boxSizing: 'border-box' }} />
+          style={{ border: 'none', borderBottom: `1px solid ${C.border}`, background: 'none', outline: 'none', padding: '11px 0 9px', margin: '0 14px', fontSize: 16, fontWeight: 600, color: C.text, fontFamily: F, width: 'calc(100% - 28px)', boxSizing: 'border-box' }} />
       )}
       {interim && <div style={{ padding: '6px 14px', fontSize: 12.5, color: C.muted, fontStyle: 'italic', fontFamily: MONO }}>{interim}…</div>}
       {noSpeech && !interim && <div style={{ padding: '6px 14px', fontSize: 11.5, color: C.muted }}>No speech heard — speak near the mic.</div>}
