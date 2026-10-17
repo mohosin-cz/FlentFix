@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { DraftMessageButton } from '../comms/DraftMessage'
+import MilestoneStrip from './MilestoneStrip'
 
 // Where this property is, and what happens next — without interpreting
 // anything. The 24 journey steps (pulse-journey-prompt.md §1) collapse into
@@ -14,13 +14,14 @@ import { DraftMessageButton } from '../comms/DraftMessage'
 const MONO = 'var(--font-mono, monospace)'
 
 const PHASES = [
-  { key: 'inspection', label: 'Inspection', from: 1,  to: 4,  route: p => `/properties/${p}/raw` },
-  { key: 'estimate',   label: 'Estimate',   from: 5,  to: 8,  route: p => `/properties/${p}/estimates`, ends: 'estimate_final' },
-  { key: 'planning',   label: 'Planning',   from: 9,  to: 12, route: p => `/properties/${p}/work-orders`, ends: 'setup_date' },
-  { key: 'setup',      label: 'Setup',      from: 13, to: 17, route: p => `/properties/${p}/work-orders`, ends: 'setup_closed' },
-  { key: 'closeout',   label: 'Close-out',  from: 18, to: 21, route: p => `/properties/${p}/payments`,    ends: 'handover_done' },
-  { key: 'finish',     label: 'Finish',     from: 22, to: 24, route: p => `/properties/${p}`,             ends: 'closed' },
+  { key: 'inspection', label: 'Inspection', from: 1,  to: 4,  route: p => `/properties/${p}/raw`,         marks: [] },
+  { key: 'estimate',   label: 'Estimate',   from: 5,  to: 8,  route: p => `/properties/${p}/estimates`,   marks: ['estimate_final'] },
+  { key: 'planning',   label: 'Planning',   from: 9,  to: 12, route: p => `/properties/${p}/work-orders`, marks: ['setup_date'] },
+  { key: 'setup',      label: 'Setup',      from: 13, to: 17, route: p => `/properties/${p}/work-orders`, marks: ['setup_closed'] },
+  { key: 'closeout',   label: 'Close-out',  from: 18, to: 21, route: p => `/properties/${p}/payments`,    marks: ['qc_done', 'handover_done'] },
+  { key: 'finish',     label: 'Finish',     from: 22, to: 24, route: p => `/properties/${p}`,             marks: ['wo_shared', 'closed'] },
 ]
+const MARK_LABEL = { estimate_final: 'final', setup_date: 'setup', setup_closed: 'closed', qc_done: 'QC', handover_done: 'handed over', wo_shared: 'Slack', closed: 'closed' }
 const WHO = { setup_ops: 'Flent', supply: 'supply', landlord: 'the landlord', vendor: 'vendors', none: 'nobody' }
 
 const who = (e) => (e || '').split('@')[0] || 'someone'
@@ -39,16 +40,10 @@ function ago(days) {
   return days < 60 ? `${days} days` : `${Math.round(days / 30)} months`
 }
 
-export default function JourneyPhases({ pid, row }) {
+export default function JourneyPhases({ pid, row, onChange }) {
   const navigate = useNavigate()
   const phone = useIsMobile(720)
   const [ms, setMs] = useState(null)
-
-  useEffect(() => {
-    let alive = true
-    supabase.rpc('property_milestones', { p_pid: pid }).then(({ data }) => { if (alive) setMs(data) })
-    return () => { alive = false }
-  }, [pid, row?.stage_code])
 
   if (!row) return null
   const threads = row.open_threads || []
@@ -64,10 +59,13 @@ export default function JourneyPhases({ pid, row }) {
       <div style={{ display: 'grid', gridTemplateColumns: phone ? 'repeat(3, minmax(0, 1fr))' : `repeat(${PHASES.length}, minmax(0, 1fr))`, gap: 6 }}>
         {PHASES.map((p, i) => {
           const done = i < curIdx, now = i === curIdx
-          const m = p.ends ? mark(p.ends) : null
-          const sub = now ? (row.stage_label || '')
-            : done ? (m?.done ? (p.ends === 'setup_date' && m.date ? `setup ${new Date(m.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : `${who(m.by)}, ${when(m.at)}`) : 'done')
-            : ''
+          // every milestone in the phase, with who marked it and when — nothing hidden by merging
+          const marked = p.marks.map(mark).filter(m => m?.done)
+          const markText = marked.map(m => m.key === 'setup_date' && m.date
+            ? `setup ${new Date(m.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+            : `${MARK_LABEL[m.key]} · ${who(m.by)}, ${when(m.at)}`).join(' · ')
+          const sub = now ? (row.stage_label || '') : done ? (markText || 'done') : ''
+          const sub2 = now ? markText : ''
           return (
             <button key={p.key} type="button" onClick={() => navigate(p.route(pid))} title={`Open ${p.label.toLowerCase()}`}
               style={{ textAlign: 'left', padding: '8px 10px', borderRadius: 8, cursor: 'pointer', minWidth: 0, fontFamily: 'inherit',
@@ -77,7 +75,8 @@ export default function JourneyPhases({ pid, row }) {
                 <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: done ? 'var(--green, #3dba7a)' : now ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)' }} />
                 <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: MONO, color: now ? 'var(--accent, #c8963e)' : done ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }}>{p.label}</span>
               </div>
-              <div style={{ fontSize: 11, color: now ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: now ? 'inherit' : MONO }}>{sub || ' '}</div>
+              <div title={sub} style={{ fontSize: 11, color: now ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: now ? 'inherit' : MONO }}>{sub || ' '}</div>
+              {sub2 && <div title={sub2} style={{ fontSize: 10.5, color: 'var(--green, #3dba7a)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: MONO }}>✓ {sub2}</div>}
             </button>
           )
         })}
@@ -105,6 +104,14 @@ export default function JourneyPhases({ pid, row }) {
             <DraftMessageButton pid={pid} code={row.stage_code} compact />
           </>
         )}
+      </div>
+
+      {/* the milestone that is due, its control, and undo for the latest — one line, here */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border, #2e3040)' }}>
+        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: MONO, color: 'var(--text-muted, #6b6d82)' }}>Mark</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <MilestoneStrip pid={pid} controlsOnly onData={setMs} onChange={onChange} />
+        </div>
       </div>
     </div>
   )

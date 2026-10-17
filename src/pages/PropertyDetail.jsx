@@ -12,7 +12,6 @@ import RecordStatus, { usePropertyJourneyRow } from '../components/property/Reco
 import RecordTimeline from '../components/property/RecordTimeline'
 import LandlordPanel from '../components/property/LandlordPanel'
 import UtilityRequest from '../components/property/UtilityRequest'
-import MilestoneStrip from '../components/property/MilestoneStrip'
 import JourneyPhases from '../components/property/JourneyPhases'
 import { useSetupPanel, SetupPanel, AttendanceHistory } from '../components/property/SetupDay'
 import AppHeader from '../components/AppHeader'
@@ -557,10 +556,8 @@ export default function PropertyDetail() {
       </header>
 
       {/* ── Journey: six phases, where it is now, and the one next thing ── */}
-      {!loading && <JourneyPhases pid={pid} row={engine.row} />}
+      {!loading && <JourneyPhases pid={pid} row={engine.row} onChange={engine.reload} />}
 
-      {/* The steps a person confirms: estimate final, setup date, setup closed, QC, handover, Slack, closed */}
-      {!loading && <MilestoneStrip pid={pid} />}
 
       <main style={s.main}>
         {loading ? (

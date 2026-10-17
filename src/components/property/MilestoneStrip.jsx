@@ -65,7 +65,10 @@ function SetupCloseChecklist({ pid, checks, busy, btn, onPayments, onClose }) {
   )
 }
 
-export default function MilestoneStrip({ pid }) {
+// controlsOnly: render just the row of controls (for the journey bar, which
+// shows who marked each milestone itself). onData hands every fresh milestone
+// state up; onChange fires after a mark, undo or tick lands.
+export default function MilestoneStrip({ pid, controlsOnly = false, onData, onChange }) {
   const phone = useIsMobile(720)
   const [state, setState] = useState({ loading: true, error: null, data: null })
   const [busy, setBusy] = useState(false)
@@ -80,6 +83,7 @@ export default function MilestoneStrip({ pid }) {
     setState({ loading: false, error: error ? error.message : null, data })
   }, [pid])
   useEffect(() => { load() }, [load])
+  useEffect(() => { if (state.data && onData) onData(state.data) }, [state.data, onData])
 
   async function act(kind, key, extra = {}) {
     setErr(null)
@@ -100,9 +104,10 @@ export default function MilestoneStrip({ pid }) {
     if (error) { setState(s => ({ ...s, data: before })); setErr(error.message); return }
     setState({ loading: false, error: null, data })
     setDate(''); setNote(''); setMoving(false)
+    onChange && onChange()
   }
 
-  const box = { background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', padding: phone ? '12px 16px' : '12px 24px' }
+  const box = controlsOnly ? {} : { background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', padding: phone ? '12px 16px' : '12px 24px' }
 
   if (state.loading) return <div style={box} aria-busy="true"><div style={{ height: 34, borderRadius: 8, background: 'var(--border, #2e3040)', opacity: 0.4 }} /></div>
   if (state.error) {
@@ -122,7 +127,7 @@ export default function MilestoneStrip({ pid }) {
   return (
     <div style={box}>
       {/* the steps */}
-      <div style={{ display: 'grid', gridTemplateColumns: phone ? 'repeat(2, minmax(0, 1fr))' : `repeat(${milestones.length}, minmax(0, 1fr))`, gap: 8 }}>
+      {!controlsOnly && <div style={{ display: 'grid', gridTemplateColumns: phone ? 'repeat(2, minmax(0, 1fr))' : `repeat(${milestones.length}, minmax(0, 1fr))`, gap: 8 }}>
         {milestones.map(m => {
           const s = STEPS[m.key]; const isDue = m.key === due
           return (
@@ -141,10 +146,10 @@ export default function MilestoneStrip({ pid }) {
             </div>
           )
         })}
-      </div>
+      </div>}
 
       {/* the control for what is due, and undo for the latest */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: controlsOnly ? 0 : 10 }}>
         {due === 'setup_date' || moving ? (
           <>
             <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>{moving ? 'Move setup date to' : 'Setup date'}</span>
@@ -168,6 +173,7 @@ export default function MilestoneStrip({ pid }) {
               setBusy(false)
               if (error) { setErr(error.message); return }
               setState({ loading: false, error: null, data })
+              onChange && onChange()
             }}
             onClose={() => act('mark', 'setup_closed')} />
         ) : due ? (
