@@ -288,7 +288,7 @@ function Exceptions({ list, navigate }) {
               {open[e.key] && (
                 <div style={{ padding: '0 14px 10px 28px', display: 'grid', gap: 4 }}>
                   {e.items.slice(0, 12).map((it, i) => (
-                    <button key={i} type="button" onClick={() => it.pid && navigate(`/properties/${encodeURIComponent(it.pid)}`)}
+                    <button key={i} type="button" onClick={() => it.request_id ? navigate(`/pipeline?r=${it.request_id}`) : it.pid && navigate(`/properties/${encodeURIComponent(it.pid)}`)}
                       style={{ display: 'flex', gap: 8, flexWrap: 'wrap', background: 'none', border: 'none', padding: '3px 0', textAlign: 'left', cursor: 'pointer', color: C.text, fontSize: 12.5 }}>
                       <span style={{ fontFamily: MONO, color: C.accent }}>{it.pid}</span>
                       <span>{clean(it.name, it.pid)}</span>

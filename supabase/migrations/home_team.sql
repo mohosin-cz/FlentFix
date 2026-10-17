@@ -146,6 +146,16 @@ begin
                              where l.no_invoice_reason is not null and l.closed_at > now() - interval '30 days')),
 
     'exceptions', jsonb_build_array(
+      jsonb_build_object('key', 'exploratory_unassigned', 'sev', 'red', 'title', 'Exploratory visits with nobody from the team',
+        'n', (select count(*) from stage_exploratory x where x.status in ('new_request', 'visit_scheduled') and x.archived_at is null
+               and x.property_name !~* '^\s*\[test\]' and (x.visit_date >= today or x.created_at > now() - interval '2 days')
+               and not exists (select 1 from exploratory_assignments a where a.request_id = x.id)),
+        'items', coalesce((select jsonb_agg(jsonb_build_object('pid', null, 'name', x.property_name, 'who', null, 'request_id', x.id,
+                   'line', coalesce(to_char(x.visit_date, 'Dy DD Mon') || coalesce(' ' || to_char(x.visit_time, 'HH12:MI am'), ''), 'no slot yet')
+                           || coalesce(' · ' || x.configuration, '')) order by x.visit_date nulls last)
+                 from stage_exploratory x where x.status in ('new_request', 'visit_scheduled') and x.archived_at is null
+                  and x.property_name !~* '^\s*\[test\]' and (x.visit_date >= today or x.created_at > now() - interval '2 days')
+                  and not exists (select 1 from exploratory_assignments a where a.request_id = x.id)), '[]')),
       jsonb_build_object('key', 'closed_no_invoice', 'sev', 'red', 'title', 'Closed without a landlord invoice',
         'n', (select count(*) from live where no_invoice_reason is not null and closed_at > now() - interval '30 days'),
         'items', coalesce((select jsonb_agg(jsonb_build_object('pid', pid, 'name', nm, 'who', who,

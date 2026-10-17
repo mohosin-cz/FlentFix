@@ -155,6 +155,7 @@ export default function MyDesk({ home, desk, viewing, onPickView, onChanged }) {
 
       <div className="dk-grid">
         <div className="dk-col">
+          <ExploratoryVisits list={d.exploratory || []} navigate={navigate} />
           <WeekAhead week={d.week} navigate={navigate} />
           <Today today={d.today} navigate={navigate} />
 
@@ -228,9 +229,34 @@ function QuickStart({ drafts, viewing, navigate }) {
   )
 }
 
+// Exploratory visits supply raised in Stage that I'm going on — the slot, the
+// map, the landlord's number; and any whose date passed with no findings yet.
+function ExploratoryVisits({ list, navigate }) {
+  if (!list.length) return null
+  const t = (s) => { if (!s) return ''; const [h, m] = s.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}` }
+  return (
+    <Panel title="Your exploratory visits" meta="raised by supply in Stage"
+      action={<button type="button" onClick={() => navigate('/pipeline')} style={{ background: 'none', border: 'none', padding: 0, color: C.accent, fontFamily: MONO, fontSize: 11.5, cursor: 'pointer' }}>Pipeline ›</button>}>
+      <div className="dk-rows">
+        {list.map(x => (
+          <div key={x.id} className="dk-row" style={x.overdue ? { background: SOFT.red } : x.days === 0 ? { background: SOFT.amber } : undefined}>
+            <button type="button" onClick={() => navigate(`/pipeline?r=${x.id}`)} style={{ flex: '1 1 220px', minWidth: 0, background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: C.text }}>
+              <T1>{x.name}{x.config ? <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }}> · {x.config}</span> : ''}</T1>
+              <T2>{x.overdue ? `visit was ${dayLbl(x.date)} — add the findings in Stage` : `${x.days === 0 ? 'today' : x.days === 1 ? 'tomorrow' : dayLbl(x.date)}${x.time ? `, ${t(x.time)}` : ''}`}{x.owner_name ? ` · ${x.owner_name}` : ''}</T2>
+            </button>
+            {x.overdue ? <Chip tone="red">findings due</Chip> : x.days <= 1 ? <Chip tone="amber">{x.days === 0 ? 'today' : 'tomorrow'}</Chip> : null}
+            {x.maps_link && <a href={x.maps_link} target="_blank" rel="noreferrer" className="dk-btn" style={{ ...btnStyle(), display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>Map</a>}
+            {x.owner_phone && <a href={`tel:${x.owner_phone}`} className="dk-btn" style={{ ...btnStyle('primary'), display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>Call landlord</a>}
+          </div>
+        ))}
+      </div>
+    </Panel>
+  )
+}
+
 function WeekAhead({ week, navigate }) {
   const days = Array.from({ length: 7 }, (_, i) => isoDay(i))
-  const tone = { setup: [C.accent, SOFT.amber, 'setup'], handover: [C.green, SOFT.green, 'handover'], close_by: [C.dim, C.input, 'close by'] }
+  const tone = { setup: [C.accent, SOFT.amber, 'setup'], handover: [C.green, SOFT.green, 'handover'], close_by: [C.dim, C.input, 'close by'], exploratory: ['#e07ba8', 'rgba(224,123,168,0.13)', 'exploratory'] }
   return (
     <Panel id="dk-week" title="Week ahead" meta="setups · handovers · work-order close-by dates"
       action={<button type="button" onClick={() => navigate('/calendar')} style={{ background: 'none', border: 'none', padding: 0, color: C.accent, fontFamily: MONO, fontSize: 11.5, cursor: 'pointer' }}>Full calendar ›</button>}>
@@ -242,9 +268,9 @@ function WeekAhead({ week, navigate }) {
               <div key={iso} style={{ border: `1px solid ${i === 0 ? 'rgba(200,150,62,0.45)' : C.border}`, borderRadius: 8, padding: 8, minHeight: 78, display: 'grid', alignContent: 'start', gap: 5, background: C.bg }}>
                 <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{i === 0 ? 'Today' : dayLbl(iso)}</span>
                 {evs.map(e => (
-                  <button key={e.kind + e.pid} type="button" onClick={() => navigate(`/properties/${e.pid}`)} title={`${e.name} · ${tone[e.kind][2]}`}
+                  <button key={e.kind + e.pid} type="button" onClick={() => e.kind === 'exploratory' ? navigate(`/pipeline?r=${e.request_id}`) : navigate(`/properties/${e.pid}`)} title={`${e.name} · ${tone[e.kind][2]}`}
                     style={{ textAlign: 'left', fontSize: 11.5, lineHeight: 1.25, padding: '3px 6px', borderRadius: 5, border: 'none', cursor: 'pointer', color: tone[e.kind][0], background: tone[e.kind][1] }}>
-                    {e.pid} {tone[e.kind][2]}
+                    {e.kind === 'exploratory' ? `${(e.name || '').split(',')[0]} · visit` : `${e.pid} ${tone[e.kind][2]}`}
                   </button>
                 ))}
               </div>

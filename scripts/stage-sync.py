@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Flent-Stage → Pulse: copy the setup-calendar dates.
+"""Flent-Stage → Pulse: copy the setup-calendar dates and the exploratory pipeline.
 
 Reads (only reads) the Flent-Stage project and loads a fresh snapshot into
 Pulse's stage_dates table through stage_dates_ingest():
@@ -9,6 +9,9 @@ Pulse's stage_dates table through stage_dates_ingest():
   inspections          properties.inspection_date_actual / _planned
   handovers            properties.actual_handover_date / scheduled_handover_date
   key handover, move-in, go-live
+  exploratory          every exploratory request with its visits (findings,
+                       outcome, capex) → stage_exploratory_ingest(), which also
+                       alerts the admins about new unassigned requests
 
     python3 scripts/stage-sync.py            # write the SQL and load it into Pulse
     python3 scripts/stage-sync.py --dry-run  # write the SQL only
@@ -63,6 +66,37 @@ select coalesce(jsonb_agg(x), '[]'::jsonb)::text as rows from (
 """
 
 
+EXPLORATORY = r"""
+select coalesce(jsonb_agg(jsonb_build_object(
+  'id', r.id, 'property_name', r.property_name, 'address', r.address, 'maps_link', r.maps_link,
+  'property_type', r.property_type, 'configuration', r.configuration, 'furnishing_status', r.furnishing_status,
+  'owner_name', r.owner_name, 'owner_phone', r.owner_phone, 'owner_email', r.owner_email,
+  'status', r.status, 'notes', r.notes,
+  'visit_date', r.inspection_scheduled_date, 'visit_time', r.inspection_scheduled_time, 'visit_time_end', r.inspection_scheduled_time_end,
+  'last_reschedule_reason', r.last_reschedule_reason, 'ppid_no', r.ppid_no, 'requester_name', r.requester_name, 'raised_by', r.raised_by,
+  'inspector_email', (select u.email from users u where u.id = r.assigned_inspector_id),
+  'created_at', r.created_at, 'archived_at', r.archived_at,
+  'visits', coalesce((select jsonb_agg(jsonb_build_object(
+      'date', v.visit_date, 'time', v.visit_time, 'outcome', v.visit_outcome, 'notes', v.visit_notes,
+      'observations', v.internal_observations, 'capex', v.tentative_capex, 'report_url', v.inspection_report_url,
+      'attachments', v.attachment_urls, 'non_retain', v.non_retain_items, 'follow_up', v.follow_up_required,
+      'by', (select u.email from users u where u.id = v.created_by), 'created_at', v.created_at) order by v.visit_date, v.created_at)
+    from exploratory_visits v where v.request_id = r.id), '[]'::jsonb)
+)), '[]'::jsonb)::text as rows
+from exploratory_requests r
+"""
+
+
+def load(project, sql_text, fn, tag):
+    """Wrap a JSON payload in a call to fn() and run it on Pulse."""
+    if tag in sql_text:
+        sys.exit('Payload contains the quoting tag; refusing to write.')
+    fd, path = tempfile.mkstemp(prefix='stage-sync-', suffix='.sql')
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        f.write(f'select public.{fn}({tag}{sql_text}{tag}::jsonb) as result;\n')
+    return path
+
+
 def cli(*args):
     r = subprocess.run(['supabase', *args], capture_output=True, text=True)
     if r.returncode != 0:
@@ -91,6 +125,15 @@ def main(dry):
     res = cli('db', 'query', '--linked', '--project-ref', PULSE, '-o', 'json', '-f', path)
     loaded = json.loads(res[res.index('{'):])['rows'][0]['result']
     print(f"Loaded into Pulse: {loaded['rows']} dates (the previous snapshot was replaced)")
+    os.remove(path)
+
+    # the exploratory pipeline
+    out = cli('db', 'query', '--linked', '--project-ref', STAGE, '-o', 'json', EXPLORATORY)
+    reqs = json.loads(json.loads(out[out.index('{'):])['rows'][0]['rows'])
+    path = load(PULSE, json.dumps(reqs, ensure_ascii=False, default=str), 'stage_exploratory_ingest', '$ex$')
+    res = cli('db', 'query', '--linked', '--project-ref', PULSE, '-o', 'json', '-f', path)
+    r = json.loads(res[res.index('{'):])['rows'][0]['result']
+    print(f"Exploratory: {r['requests']} requests mirrored · {r['alerts']} new alert(s) for admins")
     os.remove(path)
 
 

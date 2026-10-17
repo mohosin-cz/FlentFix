@@ -21,6 +21,7 @@ const C = {
   accent: 'var(--accent, #c8963e)', green: 'var(--green, #3dba7a)', red: 'var(--red, #e05c6a)',
 }
 const KINDS = {
+  exploratory:  { label: 'Exploratory',  fg: '#e07ba8', bg: 'rgba(224,123,168,0.13)' },
   setup:        { label: 'Setup',        fg: '#c8963e', bg: 'rgba(200,150,62,0.14)' },
   revamp:       { label: 'Revamp',       fg: '#b08ae0', bg: 'rgba(176,138,224,0.14)' },
   inspection:   { label: 'Inspection',   fg: '#9394a8', bg: 'rgba(147,148,168,0.14)' },
@@ -29,7 +30,7 @@ const KINDS = {
   move_in:      { label: 'Move-in',      fg: '#5fa8e8', bg: 'rgba(95,168,232,0.14)' },
   go_live:      { label: 'Go-live',      fg: '#4fc3c8', bg: 'rgba(79,195,200,0.12)' },
 }
-const ORDER = ['setup', 'revamp', 'handover', 'key_handover', 'move_in', 'go_live', 'inspection']
+const ORDER = ['exploratory', 'setup', 'revamp', 'handover', 'key_handover', 'move_in', 'go_live', 'inspection']
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -83,7 +84,7 @@ export default function SetupCalendar() {
     for (const e of state.data?.events || []) {
       if (!shown(e.kind) || (mine && e.owner !== me)) continue
       const list = m.get(e.date) || []
-      const twin = list.find(x => x.pid === e.pid && x.kind === e.kind)
+      const twin = e.kind === 'exploratory' ? null : list.find(x => x.pid === e.pid && x.kind === e.kind)
       if (twin) { twin.src = [...new Set([...twin.src, e.src])]; twin.actual ||= e.state === 'actual'; twin.detail = { ...twin.detail, ...e.detail } }
       else list.push({ ...e, src: [e.src], actual: e.state === 'actual' })
       m.set(e.date, list)
@@ -183,10 +184,10 @@ export default function SetupCalendar() {
                         {vs.length > 0 && <span title={`${vs.length} vendor${vs.length === 1 ? '' : 's'} booked${dbl ? `, ${dbl} double-booked` : ''}`} style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10.5, color: dbl ? C.red : C.muted }}>{vs.length} vendor{vs.length === 1 ? '' : 's'}{dbl ? ` · ${dbl}×2` : ''}</span>}
                       </span>
                       {evs.slice(0, 4).map(e => (
-                        <span key={e.kind + e.pid} title={`${KINDS[e.kind].label} · ${e.pid} ${cleanName(e.name, e.pid)} · ${e.actual ? 'done' : 'planned'} · ${e.src.join(' + ')}`}
+                        <span key={e.kind + e.pid + (e.detail?.request_id || '')} title={`${KINDS[e.kind].label} · ${e.pid} ${cleanName(e.name, e.pid)} · ${e.actual ? 'done' : 'planned'} · ${e.src.join(' + ')}`}
                           style={{ fontSize: 11, lineHeight: 1.3, padding: '2px 5px', borderRadius: 5, color: KINDS[e.kind].fg, background: KINDS[e.kind].bg,
                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: e.actual && d < t ? 0.75 : 1 }}>
-                          {e.actual && d <= t ? '✓ ' : ''}{e.pid} {KINDS[e.kind].label.toLowerCase()}
+                          {e.actual && d <= t ? '✓ ' : ''}{e.kind === 'exploratory' ? `${e.detail?.time ? e.detail.time.replace(':00', '') + ' ' : ''}${(e.name || '').split(',')[0]}` : `${e.pid} ${KINDS[e.kind].label.toLowerCase()}`}
                         </span>
                       ))}
                       {evs.length > 4 && <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted }}>+{evs.length - 4} more</span>}
@@ -210,19 +211,19 @@ export default function SetupCalendar() {
 function EventRow({ e, navigate }) {
   const k = KINDS[e.kind]
   return (
-    <button type="button" onClick={() => navigate(`/properties/${encodeURIComponent(e.pid)}`)} disabled={!e.in_pulse}
-      title={e.in_pulse ? 'Open the property' : 'This property is not in Pulse yet'}
-      style={{ display: 'flex', gap: 10, alignItems: 'flex-start', width: '100%', textAlign: 'left', padding: '9px 14px', background: 'none', border: 'none', cursor: e.in_pulse ? 'pointer' : 'default', color: C.text }}>
+    <button type="button" onClick={() => e.kind === 'exploratory' ? navigate(`/pipeline?r=${e.detail?.request_id}`) : navigate(`/properties/${encodeURIComponent(e.pid)}`)} disabled={!e.in_pulse && e.kind !== 'exploratory'}
+      title={e.kind === 'exploratory' ? 'Open in Pipeline' : e.in_pulse ? 'Open the property' : 'This property is not in Pulse yet'}
+      style={{ display: 'flex', gap: 10, alignItems: 'flex-start', width: '100%', textAlign: 'left', padding: '9px 14px', background: 'none', border: 'none', cursor: e.in_pulse || e.kind === 'exploratory' ? 'pointer' : 'default', color: C.text }}>
       <span style={{ width: 4, alignSelf: 'stretch', borderRadius: 2, background: k.fg, flex: 'none' }} />
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600 }}>
-          <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.accent, marginRight: 6 }}>{e.pid}</span>{cleanName(e.name, e.pid)}
+          {e.kind !== 'exploratory' && <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.accent, marginRight: 6 }}>{e.pid}</span>}{e.kind === 'exploratory' ? e.name : cleanName(e.name, e.pid)}
         </span>
         <span style={{ display: 'block', fontFamily: MONO, fontSize: 11.5, color: C.muted, marginTop: 2 }}>
-          <span style={{ color: k.fg }}>{k.label}</span> · {e.actual ? 'done' : 'planned'}
+          <span style={{ color: k.fg }}>{k.label}</span>{e.detail?.time ? ` · ${e.detail.time}` : ''}{e.detail?.config ? ` · ${e.detail.config}` : ''} · {e.actual ? 'done' : 'planned'}
           {e.detail?.type === 'revamp' && e.detail?.run ? ` · run ${e.detail.run}` : ''}
           {e.owner ? ` · ${first(e.owner)}` : ''} · {e.src.map(s => s === 'stage' ? 'Stage' : 'Pulse').join(' + ')}
-          {!e.in_pulse && ' · not in Pulse'}
+          {!e.in_pulse && e.kind !== 'exploratory' && ' · not in Pulse'}
         </span>
       </span>
     </button>
@@ -257,7 +258,7 @@ function DayDetail({ day, evs, vs, navigate, onClose }) {
       </div>
       {evs.length === 0 && vs.length === 0 ? <div style={{ padding: '12px 14px', fontSize: 12.5, color: C.muted }}>Nothing on this day.</div> : (
         <>
-          <div>{evs.map(e => <EventRow key={e.kind + e.pid} e={e} navigate={navigate} />)}</div>
+          <div>{evs.map(e => <EventRow key={e.kind + e.pid + (e.detail?.request_id || '')} e={e} navigate={navigate} />)}</div>
           <VendorRows vs={vs} />
         </>
       )}
@@ -276,7 +277,7 @@ function Agenda({ days, byDay, vendorsByDay, today, navigate, loading }) {
           <div style={{ padding: '9px 14px', borderBottom: `1px solid ${C.border}`, fontFamily: MONO, fontSize: 12, fontWeight: 700, color: d === today ? C.accent : C.dim }}>
             {d === today ? 'Today · ' : ''}{parse(d).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
           </div>
-          {(byDay.get(d) || []).map(e => <EventRow key={e.kind + e.pid} e={e} navigate={navigate} />)}
+          {(byDay.get(d) || []).map(e => <EventRow key={e.kind + e.pid + (e.detail?.request_id || '')} e={e} navigate={navigate} />)}
           <VendorRows vs={vendorsByDay.get(d) || []} />
         </section>
       ))}

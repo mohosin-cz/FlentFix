@@ -1,0 +1,33 @@
+# Flent-Stage → Pulse, every 30 minutes from 9 am to 10 pm IST.
+#
+# Runs scripts/stage-sync.py: reads (only reads) Flent-Stage and refreshes
+# Pulse's copy of the setup-calendar dates and the exploratory pipeline, and
+# alerts the admins about new exploratory requests nobody is assigned to.
+#
+# Needs one repository secret, SUPABASE_ACCESS_TOKEN: a Supabase personal
+# access token (supabase.com → Account → Access Tokens) from an account that
+# can open both projects. Run it by hand from the Actions tab any time.
+name: Stage sync
+
+on:
+  schedule:
+    - cron: '*/30 3-16 * * *'   # UTC; 03:30–16:30 UTC is 9:00–22:00 IST
+  workflow_dispatch: {}
+
+concurrency:
+  group: stage-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Sync Flent-Stage into Pulse
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: python3 scripts/stage-sync.py

@@ -90,6 +90,14 @@ begin
       from stage_dates s left join pulse_names pn on pn.pid = s.pid
      where s.date between p_from and p_to
     union all
+    -- exploratory visits (Stage requests; who goes is assigned in Pulse)
+    select 'stage', coalesce(l.pid, x.ppid_no, ''), x.property_name, 'exploratory', x.visit_date,
+           case when x.status in ('new_request', 'visit_scheduled') then 'planned' else 'actual' end,
+           jsonb_build_object('request_id', x.id, 'time', to_char(x.visit_time, 'HH12:MI am'), 'status', x.status, 'config', x.configuration),
+           lower(coalesce(a.assignee, x.stage_inspector)), l.pid is not null
+      from stage_exploratory x left join exploratory_assignments a on a.request_id = x.id left join exploratory_links l on l.request_id = x.id
+     where x.visit_date between p_from and p_to and x.archived_at is null and coalesce(x.property_name, '') !~* '^\s*\[test\]'
+    union all
     -- Pulse's own setup and handover dates
     select 'pulse', pn.pid, pn.name, 'setup', pn.setup_date, case when pn.setup_closed_at is not null then 'actual' else 'planned' end,
            '{}'::jsonb, pn.owner, true

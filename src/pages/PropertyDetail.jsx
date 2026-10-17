@@ -11,6 +11,7 @@ import MoneyTrail from '../components/property/MoneyTrail'
 import RecordStatus, { usePropertyJourneyRow } from '../components/property/RecordStatus'
 import RecordTimeline from '../components/property/RecordTimeline'
 import LandlordPanel from '../components/property/LandlordPanel'
+import ExploratoryPanel from '../components/property/ExploratoryPanel'
 import UtilityRequest from '../components/property/UtilityRequest'
 import JourneyPhases from '../components/property/JourneyPhases'
 import { useSetupPanel, SetupPanel, AttendanceHistory } from '../components/property/SetupDay'
@@ -580,6 +581,7 @@ export default function PropertyDetail() {
                 <RecordStatus journey={engine} />
                 <UtilityRequest pid={pid} onChange={() => { engine.reload(); setupPanel.reload() }} />
                 <LandlordPanel pid={pid} />
+                <ExploratoryPanel pid={pid} />
                 {/* Summary stats — always render */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
                   {[

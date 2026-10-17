@@ -248,6 +248,11 @@ begin
     select p.pid, 'handover', p.handover_date from properties p
      where p.pid = any(mine) and p.handover_done_at is null and p.handover_date between today and today + 6
     union all
+    select '·' || x.id::text, 'exploratory', x.visit_date from stage_exploratory x
+      left join exploratory_assignments a on a.request_id = x.id
+     where lower(coalesce(a.assignee, x.stage_inspector)) = me and x.status in ('new_request', 'visit_scheduled')
+       and x.archived_at is null and x.visit_date between today and today + 6
+    union all
     select w.pid, 'close_by', min(coalesce(w.scheduled_end, w.scheduled_start))::date from work_orders w
      where w.pid = any(mine) and w.status not in ('verified', 'cancelled')
      group by w.pid having min(coalesce(w.scheduled_end, w.scheduled_start))::date between today and today + 6
@@ -296,8 +301,19 @@ begin
                                   and i.created_at > now() - interval '30 days' order by i.created_at desc limit 3) i
                           left join (select p.pid, coalesce(nullif(btrim(p.name), ''), p.pid) name from properties p) nm on nm.pid = i.pid), '[]'),
 
-    'week', coalesce((select jsonb_agg(jsonb_build_object('pid', w.pid, 'name', n.name, 'kind', w.kind, 'date', w.d) order by w.d, w.kind)
-                        from wk w left join names n on n.pid = w.pid), '[]'),
+    'week', coalesce((select jsonb_agg(jsonb_build_object('pid', w.pid, 'name', coalesce(n.name, x.property_name), 'kind', w.kind, 'date', w.d,
+                                                          'request_id', x.id) order by w.d, w.kind)
+                        from wk w left join names n on n.pid = w.pid
+                        left join stage_exploratory x on w.kind = 'exploratory' and '·' || x.id::text = w.pid), '[]'),
+
+    -- my exploratory visits: today onwards, and any whose date passed with no findings yet
+    'exploratory', coalesce((select jsonb_agg(jsonb_build_object('id', x.id, 'name', x.property_name, 'config', x.configuration,
+                               'address', x.address, 'maps_link', x.maps_link, 'owner_name', x.owner_name, 'owner_phone', x.owner_phone,
+                               'date', x.visit_date, 'time', x.visit_time, 'status', x.status, 'days', x.visit_date - today,
+                               'overdue', x.visit_date < today) order by x.visit_date)
+                          from stage_exploratory x left join exploratory_assignments a on a.request_id = x.id
+                         where lower(coalesce(a.assignee, x.stage_inspector)) = me and x.archived_at is null
+                           and x.status in ('new_request', 'visit_scheduled') and x.visit_date >= today - 14), '[]'),
 
     -- coming up: setups and handovers in the next 7 days, with what each needs
     'today', coalesce((select jsonb_agg(jsonb_build_object('pid', p.pid, 'name', n.name, 'kind', k.kind, 'date', k.d, 'days', k.d - today,

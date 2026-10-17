@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom'
 // govern display; on phones FloatingNav carries these routes instead.
 const NAV_ITEMS = [
   { label: 'Inspect',           path: '/inspections/new' },
+  { label: 'Pipeline',          path: '/pipeline' },
   { label: 'Properties',        path: '/properties' },
   { label: 'Calendar',          path: '/calendar' },
   { label: 'Utilities',         path: '/utilities' },
