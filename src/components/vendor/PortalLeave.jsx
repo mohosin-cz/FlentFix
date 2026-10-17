@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
-import { KIND, STATUS, M, parseDay, addDays, todayIST, dayLabel, rangeLabel, fmtDays, num, payLine, monthGrid } from '../../utils/leave'
+import { KIND, STATUS, M, parseDay, addDays, todayIST, dayLabel, rangeLabel, fmtDays, num, payLine, monthGrid, unseenDecisions, markDecisionsSeen } from '../../utils/leave'
 
 // The vendor's leave, in the portal they already open every morning.
 //
@@ -107,11 +107,12 @@ function ApplyForm({ token, status, onDone, onClose }) {
   const [end, setEnd] = useState('')
   const [half, setHalf] = useState('')
   const [reason, setReason] = useState('')
-  const [quote, setQuote] = useState(null)
+  const [quoteRaw, setQuote] = useState(null)
   const [quoteErr, setQuoteErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
+  const quote = start ? quoteRaw : null
   const minDay = kind === 'paid' ? today : addDays(today, -7)
   const maxDay = addDays(today, 120)
   const holidays = useMemo(() => Object.fromEntries((status.holidays || []).map(h => [h.day, h.name])), [status.holidays])
@@ -127,7 +128,10 @@ function ApplyForm({ token, status, onDone, onClose }) {
 
   // A paid leave cannot start in the past; switching kind must not leave a
   // selection the server will refuse.
-  useEffect(() => { if (start && start < minDay) { setStart(''); setEnd('') } }, [minDay, start])
+  function chooseKind(k) {
+    setKind(k)
+    if (k === 'paid' && start && start < today) { setStart(''); setEnd('') }
+  }
 
   function pick(d) {
     setErr('')
@@ -137,7 +141,7 @@ function ApplyForm({ token, status, onDone, onClose }) {
   }
 
   useEffect(() => {
-    if (!start) { setQuote(null); return }
+    if (!start) return undefined
     let alive = true
     const t = setTimeout(async () => {
       const { data, error } = await supabase.rpc('attend_leave_quote', { p_token: token, p_kind: kind, p_start: start, p_end: end || start, p_half: half || null })
@@ -168,7 +172,7 @@ function ApplyForm({ token, status, onDone, onClose }) {
             {Object.entries(KIND).map(([k, v]) => {
               const on = kind === k
               return (
-                <button key={k} type="button" onClick={() => setKind(k)} aria-pressed={on}
+                <button key={k} type="button" onClick={() => chooseKind(k)} aria-pressed={on}
                   style={{ minHeight: 46, borderRadius: 10, border: `1px solid ${on ? v.ink : C.border}`, background: on ? v.soft : C.input, color: on ? v.ink : C.dim, fontWeight: on ? 700 : 500, fontSize: 13, cursor: 'pointer', fontFamily: MONO }}>
                   {v.short}
                 </button>
@@ -315,24 +319,6 @@ export function LeaveTodayBanner({ status, onOpen }) {
     )
   }
   return null
-}
-
-// Decisions the vendor has not seen yet (approved / declined in the last week).
-const SEEN_KEY = 'flent_leave_seen'
-export function unseenDecisions(status) {
-  if (!status) return []
-  let seen = []
-  try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') } catch { seen = [] }
-  const weekAgo = Date.now() - 7 * 86400000
-  return (status.leaves || []).filter(l => (l.status === 'approved' || l.status === 'declined') && l.source !== 'staff'
-    && l.decided_at && new Date(l.decided_at).getTime() > weekAgo && !seen.includes(`${l.id}:${l.status}`))
-}
-export function markDecisionsSeen(list) {
-  try {
-    const seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]')
-    const next = [...new Set([...seen, ...list.map(l => `${l.id}:${l.status}`)])].slice(-60)
-    localStorage.setItem(SEEN_KEY, JSON.stringify(next))
-  } catch { /* noop */ }
 }
 
 // ── the tab ────────────────────────────────────────────────────────────────

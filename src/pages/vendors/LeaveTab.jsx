@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { initials, avatarColor } from '../../utils/vendorHub'
 import SearchField from '../../components/vendor/SearchField'
-import { KIND, STATUS, M, PAY_MODE, parseDay, addDays, todayIST, dayLabel, rangeLabel, fmtDays, num, payLine } from '../../utils/leave'
+import { KIND, STATUS, M, PAY_MODE, parseDay, addDays, todayIST, diffDays, istDay, dayLabel, rangeLabel, fmtDays, num, payLine } from '../../utils/leave'
 
 // Vendor management → Leave.
 //
@@ -146,11 +146,11 @@ function Decide({ leave, quote, canDecide, onDone }) {
   )
 }
 
-function RequestCard({ r, vendor, canDecide, onDone, onOpenVendor }) {
+function RequestCard({ r, vendor, today, canDecide, onDone, onOpenVendor }) {
   const q = r.quote || {}
   const k = KIND[r.kind] || KIND.paid
   const bal = q.balance || {}
-  const age = Math.max(0, Math.floor((Date.now() - new Date(r.created_at).getTime()) / 86400000))
+  const age = Math.max(0, diffDays(istDay(r.created_at), today))
   return (
     <div style={{ padding: '13px 14px', display: 'flex', flexDirection: 'column', gap: 8, borderTop: `1px solid ${C.border}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -362,7 +362,6 @@ function Holidays({ board, canDecide, onChanged }) {
   const [removing, setRemoving] = useState('')
   const [perYear, setPerYear] = useState(String(board.policy?.paid_per_year ?? 15))
   const [showPast, setShowPast] = useState(false)
-  useEffect(() => { setPerYear(String(board.policy?.paid_per_year ?? 15)) }, [board.policy?.paid_per_year])
   const upcoming = (board.holidays || []).filter(h => h.day >= board.today)
   const past = (board.holidays || []).filter(h => h.day < board.today).reverse()
 
@@ -514,15 +513,15 @@ function RecordSheet({ vendors, initialVendor, onClose, onDone, phone }) {
   const [half, setHalf] = useState('')
   const [reason, setReason] = useState('')
   const [mode, setMode] = useState('auto')
-  const [quote, setQuote] = useState(null)
+  const [quoteRaw, setQuote] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const single = start && start === end
   const e2 = end < start ? start : end
+  const quote = vid && start ? quoteRaw : null
 
-  useEffect(() => { setMode(kind === 'emergency' ? 'free' : 'auto') }, [kind])
   useEffect(() => {
-    if (!vid || !start) { setQuote(null); return }
+    if (!vid || !start) return undefined
     let alive = true
     const t = setTimeout(() => {
       supabase.rpc('vendor_leave_quote', { p_vendor: vid, p_kind: kind, p_start: start, p_end: e2, p_half: single && half ? half : null })
@@ -550,7 +549,7 @@ function RecordSheet({ vendors, initialVendor, onClose, onDone, phone }) {
         </select>
       </div>
       <div><div style={lbl}>Kind</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{Object.entries(KIND).map(([k, v]) => <Btn key={k} tone={kind === k ? 'primary' : undefined} onClick={() => setKind(k)}>{v.label}</Btn>)}</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{Object.entries(KIND).map(([k, v]) => <Btn key={k} tone={kind === k ? 'primary' : undefined} onClick={() => { setKind(k); setMode(k === 'emergency' ? 'free' : 'auto') }}>{v.label}</Btn>)}</div>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 140px' }}><div style={lbl}>First day</div><input type="date" value={start} onChange={e => setStart(e.target.value)} style={{ ...inputStyle, width: '100%' }} /></div>
@@ -653,7 +652,7 @@ export default function LeaveTab() {
   const offWeek = new Set(approvedDays.filter(r => r.day >= today && r.day <= addDays(today, 6)).map(r => r.vendor_id))
   const workSet = new Set((board.work || []).map(w => `${w.vendor_id}|${w.day}`))
   const clashes = new Set((board.days || []).filter(r => workSet.has(`${r.vendor_id}|${r.day}`)).map(r => r.leave_id))
-  const oldest = pending.reduce((m, r) => Math.max(m, Math.floor((Date.now() - new Date(r.created_at).getTime()) / 86400000)), 0)
+  const oldest = pending.reduce((m, r) => Math.max(m, diffDays(istDay(r.created_at), today)), 0)
   const leaveRow = openLeave ? log.find(l => l.id === openLeave) : null
   const vendorRow = openVendor ? vendorsById[openVendor] : null
 
@@ -663,7 +662,7 @@ export default function LeaveTab() {
       {pending.length === 0
         ? <div style={{ padding: 16, fontSize: 13, color: C.muted }}>Nothing waiting. New requests from the vendor app appear here, and in your bell.</div>
         : [...pending].sort((a, b) => ((b.quote?.clashes || []).length > 0) - ((a.quote?.clashes || []).length > 0) || a.start.localeCompare(b.start))
-            .map(r => <RequestCard key={r.id} r={r} vendor={vendorsById[r.vendor_id]} canDecide={board.can_decide} onDone={done} onOpenVendor={() => setOpenVendor(r.vendor_id)} />)}
+            .map(r => <RequestCard key={r.id} r={r} today={today} vendor={vendorsById[r.vendor_id]} canDecide={board.can_decide} onDone={done} onOpenVendor={() => setOpenVendor(r.vendor_id)} />)}
     </Panel>
   )
 
@@ -688,7 +687,7 @@ export default function LeaveTab() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
           <Balances vendors={vendors} phone={phone} onOpenVendor={setOpenVendor} />
-          <Holidays board={board} canDecide={board.can_decide} onChanged={(m) => { setToast(m); load() }} />
+          <Holidays key={board.policy?.paid_per_year} board={board} canDecide={board.can_decide} onChanged={(m) => { setToast(m); load() }} />
         </div>
       </div>
 

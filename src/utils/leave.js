@@ -84,3 +84,26 @@ export function monthGrid(year, month) {
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
   return weeks
 }
+
+// Decisions the vendor has not seen yet (approved / declined in the last week).
+const SEEN_KEY = 'flent_leave_seen'
+export function unseenDecisions(status) {
+  if (!status) return []
+  let seen = []
+  try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') } catch { seen = [] }
+  const weekAgo = Date.now() - 7 * 86400000
+  return (status.leaves || []).filter(l => (l.status === 'approved' || l.status === 'declined') && l.source !== 'staff'
+    && l.decided_at && new Date(l.decided_at).getTime() > weekAgo && !seen.includes(`${l.id}:${l.status}`))
+}
+export function markDecisionsSeen(list) {
+  try {
+    const seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]')
+    const next = [...new Set([...seen, ...list.map(l => `${l.id}:${l.status}`)])].slice(-60)
+    localStorage.setItem(SEEN_KEY, JSON.stringify(next))
+  } catch { /* noop */ }
+}
+
+// The IST calendar day of a timestamp.
+export function istDay(ts) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ts))
+}
