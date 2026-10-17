@@ -53,7 +53,7 @@ export default function ExploratoryPanel({ pid }) {
     <section style={box}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <div style={title}>from exploratory</div>
-        <button type="button" onClick={() => navigate(`/pipeline?r=${r.id}`)} style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: 0, color: C.accent, fontFamily: MONO, fontSize: 11.5, cursor: 'pointer' }}>Pipeline ›</button>
+        <button type="button" onClick={() => navigate(`/explore/${r.id}`)} style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: 0, color: C.accent, fontFamily: MONO, fontSize: 11.5, cursor: 'pointer' }}>Exploratory ›</button>
       </div>
       <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.property_name}{r.configuration ? <span style={{ color: C.muted, fontFamily: MONO, fontSize: 11.5 }}> · {r.configuration}</span> : ''}</div>
       <div style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }}>

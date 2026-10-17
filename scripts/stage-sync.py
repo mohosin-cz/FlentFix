@@ -75,7 +75,7 @@ select coalesce(jsonb_agg(jsonb_build_object(
   'visit_date', r.inspection_scheduled_date, 'visit_time', r.inspection_scheduled_time, 'visit_time_end', r.inspection_scheduled_time_end,
   'last_reschedule_reason', r.last_reschedule_reason, 'ppid_no', r.ppid_no, 'requester_name', r.requester_name, 'raised_by', r.raised_by,
   'inspector_email', (select u.email from users u where u.id = r.assigned_inspector_id),
-  'created_at', r.created_at, 'archived_at', r.archived_at,
+  'created_at', r.created_at, 'archived_at', r.archived_at, 'updated_at', r.updated_at,
   'visits', coalesce((select jsonb_agg(jsonb_build_object(
       'date', v.visit_date, 'time', v.visit_time, 'outcome', v.visit_outcome, 'notes', v.visit_notes,
       'observations', v.internal_observations, 'capex', v.tentative_capex, 'report_url', v.inspection_report_url,
@@ -117,6 +117,7 @@ def cli(*args):
 
 
 def main(dry):
+    # (dry: read everything, write nothing to either side)
     out = cli('db', 'query', '--linked', '--project-ref', STAGE, '-o', 'json', QUERY)
     rows = rows_of(out)[0]['rows']
     rows = json.loads(rows) if isinstance(rows, str) else rows
@@ -148,8 +149,37 @@ def main(dry):
     res = cli('db', 'query', '--linked', '--project-ref', PULSE, '-o', 'json', '-f', path)
     r = rows_of(res)[0]['result']
     r = json.loads(r) if isinstance(r, str) else r
-    print(f"Exploratory: {r['requests']} requests mirrored · {r['alerts']} new alert(s) for admins")
+    print(f"Exploratory: {r['requests']} requests mirrored · {r['alerts']} new alert(s) for admins"
+          f" · {r.get('pasted', 0)} log(s) now in Stage · {r.get('conflicts', 0)} assignment conflict(s)")
     os.remove(path)
+
+    # The one thing Pulse writes to Stage: who is going on each visit.
+    res = cli('db', 'query', '--linked', '--project-ref', PULSE, '-o', 'json',
+              'select public.exploratory_assignments_pending()::text as p')
+    pending = rows_of(res)[0]['p']
+    pending = json.loads(pending) if isinstance(pending, str) else pending
+    if not pending:
+        print('Assignments: nothing to write to Stage')
+        return
+    if dry:
+        print(f'Assignments: {len(pending)} would be written to Stage (dry run)')
+        return
+    values = ', '.join(
+        "('%s'::uuid, %s)" % (p['id'], "'%s'" % p['email'].replace("'", "''") if p.get('email') else 'null')
+        for p in pending)
+    sql = (f"with x(id, email) as (values {values}) "
+           "update exploratory_requests r set assigned_inspector_id = (select u.id from users u where lower(u.email) = lower(x.email)) "
+           "from x where r.id = x.id and (x.email is null or exists (select 1 from users u where lower(u.email) = lower(x.email))) "
+           "returning r.id::text as id")
+    res = cli('db', 'query', '--linked', '--project-ref', STAGE, '-o', 'json', sql)
+    done = {row['id'] for row in rows_of(res)}
+    marks = [{'id': p['id'], 'email': p.get('email'),
+              'error': None if p['id'] in done else 'not written — no Stage user with that email, or the request is gone'}
+             for p in pending]
+    path = load(PULSE, json.dumps(marks), 'exploratory_assignments_mark_written', '$wb$')
+    cli('db', 'query', '--linked', '--project-ref', PULSE, '-o', 'json', '-f', path)
+    os.remove(path)
+    print(f'Assignments: {len(done)} written to Stage' + (f' · {len(pending) - len(done)} could not be' if len(done) < len(pending) else ''))
 
 
 if __name__ == '__main__':

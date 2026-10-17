@@ -99,7 +99,8 @@ export default function MyDesk({ home, desk, viewing, onPickView, onChanged }) {
   const navigate = useNavigate()
   const d = desk.data
   const mine = useMemo(() => new Set(d?.mine || []), [d])
-  const rows = useMemo(() => (home.rows || []).filter(r => mine.has(r.pid)), [home.rows, mine])
+  // my properties, plus prospects (exploratory requests) whose open step is mine
+  const rows = useMemo(() => (home.rows || []).filter(r => r.is_prospect ? (r.owner_email || '').toLowerCase() === d?.me && r.stage_code !== 'explore_not_taken' : mine.has(r.pid)), [home.rows, mine, d])
 
   if (desk.error) {
     const notYet = /home_desk|does not exist|schema cache/i.test(desk.error)
@@ -163,17 +164,17 @@ export default function MyDesk({ home, desk, viewing, onPickView, onChanged }) {
             {moves.length === 0 ? <Empty>Nothing is waiting on you right now.</Empty> : (
               <div className="dk-rows">
                 {moves.map(r => (
-                  <div key={r.pid} className="dk-row">
+                  <div key={r.pid + r.stage_code} className="dk-row">
                     <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-                      <T1><Pid pid={r.pid} />{r.next_action_label || r.stage_label}</T1>
-                      <T2>{clean(r.property_name, r.pid) || r.pid} · {r.stage_label}</T2>
+                      <T1>{r.is_prospect ? <span style={{ fontFamily: MONO, fontSize: 11, color: '#e07ba8', marginRight: 6 }}>EXPLORE</span> : <Pid pid={r.pid} />}{r.is_prospect ? r.stage_label.replace(/^Explore · /, '') : (r.next_action_label || r.stage_label)}</T1>
+                      <T2>{r.is_prospect ? r.property_name : `${clean(r.property_name, r.pid) || r.pid} · ${r.stage_label}`}</T2>
                     </div>
                     <Chip tone={r.urgency === 'overdue' ? 'red' : r.urgency === 'today' ? 'amber' : 'grey'}>
                       {r.urgency === 'overdue' && r.open_threads?.[0]?.overdue_by ? `overdue ${r.open_threads[0].overdue_by}d`
                         : r.days_to_setup != null && r.days_to_setup >= 0 ? (r.days_to_setup === 0 ? 'setup today' : `setup in ${r.days_to_setup}d`)
                         : r.age_days != null ? `${r.age_days}d` : r.urgency}
                     </Chip>
-                    <DraftMessageButton pid={r.pid} code={r.stage_code} compact />
+                    {!r.is_prospect && <DraftMessageButton pid={r.pid} code={r.stage_code} compact />}
                     {r.next_action_route && <Btn kind="primary" onClick={() => navigate(r.next_action_route)}>{(r.next_action_label || 'Open').split(' ').slice(0, 3).join(' ')} ›</Btn>}
                   </div>
                 ))}
@@ -236,11 +237,11 @@ function ExploratoryVisits({ list, navigate }) {
   const t = (s) => { if (!s) return ''; const [h, m] = s.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}` }
   return (
     <Panel title="Your exploratory visits" meta="raised by supply in Stage"
-      action={<button type="button" onClick={() => navigate('/pipeline')} style={{ background: 'none', border: 'none', padding: 0, color: C.accent, fontFamily: MONO, fontSize: 11.5, cursor: 'pointer' }}>Pipeline ›</button>}>
+      action={<button type="button" onClick={() => navigate('/calendar')} style={{ background: 'none', border: 'none', padding: 0, color: C.accent, fontFamily: MONO, fontSize: 11.5, cursor: 'pointer' }}>Calendar ›</button>}>
       <div className="dk-rows">
         {list.map(x => (
           <div key={x.id} className="dk-row" style={x.overdue ? { background: SOFT.red } : x.days === 0 ? { background: SOFT.amber } : undefined}>
-            <button type="button" onClick={() => navigate(`/pipeline?r=${x.id}`)} style={{ flex: '1 1 220px', minWidth: 0, background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: C.text }}>
+            <button type="button" onClick={() => navigate(`/explore/${x.id}`)} style={{ flex: '1 1 220px', minWidth: 0, background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: C.text }}>
               <T1>{x.name}{x.config ? <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }}> · {x.config}</span> : ''}</T1>
               <T2>{x.overdue ? `visit was ${dayLbl(x.date)} — add the findings in Stage` : `${x.days === 0 ? 'today' : x.days === 1 ? 'tomorrow' : dayLbl(x.date)}${x.time ? `, ${t(x.time)}` : ''}`}{x.owner_name ? ` · ${x.owner_name}` : ''}</T2>
             </button>
@@ -268,7 +269,7 @@ function WeekAhead({ week, navigate }) {
               <div key={iso} style={{ border: `1px solid ${i === 0 ? 'rgba(200,150,62,0.45)' : C.border}`, borderRadius: 8, padding: 8, minHeight: 78, display: 'grid', alignContent: 'start', gap: 5, background: C.bg }}>
                 <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{i === 0 ? 'Today' : dayLbl(iso)}</span>
                 {evs.map(e => (
-                  <button key={e.kind + e.pid} type="button" onClick={() => e.kind === 'exploratory' ? navigate(`/pipeline?r=${e.request_id}`) : navigate(`/properties/${e.pid}`)} title={`${e.name} · ${tone[e.kind][2]}`}
+                  <button key={e.kind + e.pid} type="button" onClick={() => e.kind === 'exploratory' ? navigate(`/explore/${e.request_id}`) : navigate(`/properties/${e.pid}`)} title={`${e.name} · ${tone[e.kind][2]}`}
                     style={{ textAlign: 'left', fontSize: 11.5, lineHeight: 1.25, padding: '3px 6px', borderRadius: 5, border: 'none', cursor: 'pointer', color: tone[e.kind][0], background: tone[e.kind][1] }}>
                     {e.kind === 'exploratory' ? `${(e.name || '').split(',')[0]} · visit` : `${e.pid} ${tone[e.kind][2]}`}
                   </button>

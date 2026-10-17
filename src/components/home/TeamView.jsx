@@ -19,7 +19,11 @@ const WAIT = [['setup_ops', 'Setup ops'], ['landlord', 'Landlord'], ['vendor', '
 // Steps whose engine label carries a count ("9 of 21 items approved") are
 // grouped under one name, so the grid has one row per step.
 const STEP_NAME = {
-  landlord_deciding: 'Landlord approving items', items_to_verify: 'Vendor work to verify', disputed: 'Items sent back to vendor',
+  landlord_deciding: 'Landlord approving items',
+  explore_assign: 'Explore · assign someone', explore_confirm: 'Explore · confirm the visit', explore_visit: 'Explore · visit booked',
+  explore_log: 'Explore · log the findings', explore_decision: 'Explore · supply to decide', explore_deal: 'Explore · supply closing the deal',
+  explore_link: 'Explore · link to its PID', explore_create_pid: 'Explore · create the PID', explore_slot: 'Explore · supply to set a slot',
+  explore_stale: 'Explore · stale in Stage', explore_paste: 'Explore · paste findings into Stage', items_to_verify: 'Vendor work to verify', disputed: 'Items sent back to vendor',
   setup_day: 'Setup day', setup_in_progress: 'Work under way', vendors_on_site: 'Vendors on site', wo_awaiting_day: 'Waiting for setup day',
   wo_overdue: 'Items open past closure date', wo_unassigned: 'Work orders with no vendor', wo_undated: 'Work orders with no closure date',
 }
@@ -91,7 +95,7 @@ export default function TeamView({ home, team, onViewDesk, onPickView }) {
   const people = useMemo(() => {
     if (!t) return []
     return t.people.map(p => {
-      const mine = rows.filter(r => owners[r.pid] === p.email)
+      const mine = rows.filter(r => (r.is_prospect ? (r.owner_email || '').toLowerCase() : owners[r.pid]) === p.email && r.stage_code !== 'explore_not_taken')
       const open = mine.filter(r => r.urgency !== 'done')
       return {
         ...p, owned: mine.length,
@@ -120,8 +124,8 @@ export default function TeamView({ home, team, onViewDesk, onPickView }) {
   if (team.error) return <div className="tv"><style>{CSS}</style><Empty>{/home_team|does not exist|schema cache/i.test(team.error) ? 'The team view appears once the home_team migration is applied.' : `Couldn't load the team view — ${team.error}`}</Empty></div>
   if (team.loading || !t || home.loading) return <div className="tv" aria-busy="true"><style>{CSS}</style><div style={{ height: 76, borderRadius: 10, background: C.border, opacity: 0.35 }} /></div>
 
-  const live = rows.filter(r => r.urgency !== 'done')
-  const unowned = rows.filter(r => !owners[r.pid])
+  const live = rows.filter(r => r.urgency !== 'done' && !r.is_prospect)
+  const unowned = rows.filter(r => !r.is_prospect && !owners[r.pid])
   const unownedMoving = unowned.filter(r => r.urgency !== 'done' && (r.age_days ?? 999) <= 30)
   const verifyAll = t.people.reduce((s, p) => s + (p.verify || 0), 0)
   const oldestVerify = t.people.map(p => p.verify_oldest).filter(Boolean).sort()[0]
@@ -288,7 +292,7 @@ function Exceptions({ list, navigate }) {
               {open[e.key] && (
                 <div style={{ padding: '0 14px 10px 28px', display: 'grid', gap: 4 }}>
                   {e.items.slice(0, 12).map((it, i) => (
-                    <button key={i} type="button" onClick={() => it.request_id ? navigate(`/pipeline?r=${it.request_id}`) : it.pid && navigate(`/properties/${encodeURIComponent(it.pid)}`)}
+                    <button key={i} type="button" onClick={() => it.request_id ? navigate(`/explore/${it.request_id}`) : it.pid && navigate(`/properties/${encodeURIComponent(it.pid)}`)}
                       style={{ display: 'flex', gap: 8, flexWrap: 'wrap', background: 'none', border: 'none', padding: '3px 0', textAlign: 'left', cursor: 'pointer', color: C.text, fontSize: 12.5 }}>
                       <span style={{ fontFamily: MONO, color: C.accent }}>{it.pid}</span>
                       <span>{clean(it.name, it.pid)}</span>

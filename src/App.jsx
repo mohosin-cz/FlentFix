@@ -10,7 +10,9 @@ import Dashboard from './pages/Dashboard'
 import AlertWindow from './pages/AlertWindow'
 import Digest from './pages/Digest'
 import SetupCalendar from './pages/SetupCalendar'
-import Pipeline from './pages/Pipeline'
+import ExploreRecord from './pages/ExploreRecord'
+import VisitLog from './pages/VisitLog'
+import { Navigate as Nav, useSearchParams } from 'react-router-dom'
 import CommandSurface from './components/command/CommandPalette'
 import { useAuth } from './contexts/AuthContext'
 import { useLocation } from 'react-router-dom'
@@ -201,7 +203,9 @@ export default function App() {
           />
           <Route path="/utilities" element={<ProtectedRoute><PropertyUtilitiesOverview /></ProtectedRoute>} />
           <Route path="/calendar" element={<ProtectedRoute><SetupCalendar /></ProtectedRoute>} />
-          <Route path="/pipeline" element={<ProtectedRoute><Pipeline /></ProtectedRoute>} />
+          <Route path="/explore/:id" element={<ProtectedRoute><ExploreRecord /></ProtectedRoute>} />
+          <Route path="/explore/:id/log" element={<ProtectedRoute><VisitLog /></ProtectedRoute>} />
+          <Route path="/pipeline" element={<PipelineRedirect />} />
           <Route path="/properties/:pid/utilities" element={<ProtectedRoute><PropertyUtilities /></ProtectedRoute>} />
           <Route path="/properties/:pid/design-brief" element={<ProtectedRoute><PropertyDesignBrief /></ProtectedRoute>} />
           <Route path="/properties/:pid/raw" element={<ProtectedRoute><RawInspectionData /></ProtectedRoute>} />
@@ -273,4 +277,12 @@ export default function App() {
       </AuthProvider>
     </BrowserRouter>
   )
+}
+
+// The Pipeline page became prospects in the journey: old links (and old
+// notifications) go to the prospect's record, or to the calendar.
+function PipelineRedirect() {
+  const [params] = useSearchParams()
+  const r = params.get('r')
+  return <Nav to={r ? `/explore/${r}` : '/calendar'} replace />
 }

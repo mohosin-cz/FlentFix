@@ -25,6 +25,9 @@ const LS = {
 
 const local = (email) => (email || '').split('@')[0] || '—'
 const isMine = (r, assigned, me) => !!me && ((r.owner_email || '').toLowerCase() === me || (assigned.get(r.pid) || '').toLowerCase() === me)
+// Prospects (exploratory requests from Stage) ride the same rows; they open their own record.
+const notTaken = (r) => r.stage_code === 'explore_not_taken'
+const pidText = (r) => r.is_prospect ? 'Explore' : r.pid
 const headline = (r) => (r.open_threads && r.open_threads[0]) || { code: r.stage_code, label: r.stage_label, blocked_on: r.blocked_on, since: r.since, age_days: r.age_days, next_action_label: r.next_action_label, next_action_route: r.next_action_route, urgency: r.urgency, stage_no: 0 }
 
 // The views. Each yields { r, t }: the property and the thread the row shows —
@@ -40,12 +43,14 @@ const VIEWS = [
   { key: 'vendor',    label: 'Waiting on vendor',   pick: (rows) => rows.flatMap(r => { const t = (r.open_threads || []).find(x => x.blocked_on === 'vendor' && x.urgency !== 'done'); return t ? [{ r, t }] : [] }) },
   { key: 'my_overdue', label: 'My overdue',        pick: (rows, ctx) => rows.filter(r => r.urgency === 'overdue' && isMine(r, ctx.assigned, ctx.me)).map(r => ({ r, t: headline(r) })) },
   { key: 'overdue',   label: 'Overdue',            pick: (rows) => rows.filter(r => r.urgency === 'overdue').map(r => ({ r, t: headline(r) })) },
-  { key: 'unowned',   label: 'Unowned',            pick: (rows, ctx) => rows.filter(r => !r.owner_email && !ctx.assigned.get(r.pid)).map(r => ({ r, t: headline(r) })) },
-  { key: 'all',       label: 'All',                pick: (rows) => rows.map(r => ({ r, t: headline(r) })) },
+  { key: 'prospects', label: 'Prospects',          pick: (rows) => rows.filter(r => r.is_prospect && !notTaken(r)).map(r => ({ r, t: headline(r) })) },
+  { key: 'unowned',   label: 'Unowned',            pick: (rows, ctx) => rows.filter(r => !r.is_prospect && !r.owner_email && !ctx.assigned.get(r.pid)).map(r => ({ r, t: headline(r) })) },
+  { key: 'all',       label: 'All',                pick: (rows) => rows.filter(r => !notTaken(r)).map(r => ({ r, t: headline(r) })) },
+  { key: 'not_taken', label: 'Not taken',          pick: (rows) => rows.filter(notTaken).map(r => ({ r, t: headline(r) })) },
 ]
 const EMPTY = {
   needs_me: 'Nothing needs you.', needs_team: 'Nothing needs the team.', landlord: 'No landlord is holding anything up.',
-  vendor: 'No vendor is holding anything up.', supply: 'Nothing is with supply.', setups: 'No setups in the next 7 days.', overdue: 'Nothing is past its threshold.', my_overdue: 'None of your properties is past its threshold.', unowned: 'Every property has an owner.', all: 'No live properties.',
+  vendor: 'No vendor is holding anything up.', supply: 'Nothing is with supply.', setups: 'No setups in the next 7 days.', overdue: 'Nothing is past its threshold.', my_overdue: 'None of your properties is past its threshold.', unowned: 'Every property has an owner.', prospects: 'No exploratory visits in progress.', not_taken: 'Nothing turned down yet.', all: 'No live properties.',
 }
 
 const URG = { overdue: 0, today: 1, soon: 2, waiting: 3, done: 4 }
@@ -146,8 +151,9 @@ export default function WorkQueue({ home, pickView }) {
 
   const toggleSort = (key) => setSort(s => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'age' ? 'desc' : 'asc' })
   const toggle = (pid) => setSel(s => { const n = new Set(s); n.has(pid) ? n.delete(pid) : n.add(pid); return n })
-  const allSelected = list && list.length > 0 && list.every(x => sel.has(x.r.pid))
-  const toggleAll = () => setSel(allSelected ? new Set() : new Set(list.map(x => x.r.pid)))
+  const selectable = (list || []).filter(x => !x.r.is_prospect)
+  const allSelected = selectable.length > 0 && selectable.every(x => sel.has(x.r.pid))
+  const toggleAll = () => setSel(allSelected ? new Set() : new Set(selectable.map(x => x.r.pid)))
 
   async function assign(email) {
     const pids = [...sel]; if (!pids.length) return
@@ -171,7 +177,7 @@ export default function WorkQueue({ home, pickView }) {
   const overdueBy = (x) => x.t.urgency === 'overdue' ? (x.t.overdue_by ?? null) : null
   const ageText = (x) => { const od = overdueBy(x); return od ? `${x.t.age_days}d · over by ${od}` : `${x.t.age_days ?? '—'}d · ${ago(x.t.since, x.t.age_days)}` }
 
-  const openRecord = (pid) => navigate(`/properties/${encodeURIComponent(pid)}`)
+  const openRecord = (r) => r.is_prospect ? navigate(`/explore/${r.request_id}`) : navigate(`/properties/${encodeURIComponent(r.pid)}`)
   const openAction = (e, x) => { e.stopPropagation(); if (x.t.next_action_route) navigate(x.t.next_action_route) }
 
   // ── chrome ────────────────────────────────────────────────────────────────
@@ -262,18 +268,18 @@ export default function WorkQueue({ home, pickView }) {
         phone ? (
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
             {list.map(x => (
-              <div key={x.r.pid + x.t.code} onClick={() => openRecord(x.r.pid)}
+              <div key={x.r.pid + x.t.code} onClick={() => openRecord(x.r)}
                 style={{ display: 'flex', gap: 10, padding: '11px 12px', borderRadius: 10, background: 'var(--bg-panel, #1e2028)', border: `1px solid ${sel.has(x.r.pid) ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, cursor: 'pointer' }}>
-                <input type="checkbox" checked={sel.has(x.r.pid)} onChange={() => toggle(x.r.pid)} onClick={e => e.stopPropagation()} aria-label={`Select ${x.r.pid}`} style={{ width: 18, height: 18, marginTop: 2, accentColor: 'var(--accent, #c8963e)' }} />
+                {x.r.is_prospect ? <span style={{ width: 18, flex: 'none' }} /> : <input type="checkbox" checked={sel.has(x.r.pid)} onChange={() => toggle(x.r.pid)} onClick={e => e.stopPropagation()} aria-label={`Select ${x.r.pid}`} style={{ width: 18, height: 18, marginTop: 2, accentColor: 'var(--accent, #c8963e)' }} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}><span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--accent, #c8963e)' }}>{x.r.pid}</span><span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.r.property_name}</span></div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}><span style={{ fontFamily: MONO, fontSize: 12, color: x.r.is_prospect ? '#e07ba8' : 'var(--accent, #c8963e)' }}>{pidText(x.r)}</span><span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.r.property_name}</span></div>
                   <div style={{ fontSize: 13.5, marginTop: 2 }}>{x.t.label}</div>
                   <div style={{ fontSize: 10.5, fontFamily: MONO, color: 'var(--text-muted, #6b6d82)', marginTop: 3, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span><SlaDot urgency={x.t.urgency} />{ageText(x)}</span><span>· {WHO[x.t.waiting_on || x.t.blocked_on]}</span><span>· {local(x.owner)}</span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <button onClick={e => openAction(e, x)} style={{ ...btn(true), minHeight: 36, flex: '1 1 auto', minWidth: 0, textAlign: 'left', whiteSpace: 'normal' }}>{x.t.next_action_label} ›</button>
-                    <span onClick={e => e.stopPropagation()}><DraftMessageButton pid={x.r.pid} code={x.t.code} compact /></span>
+                    <span onClick={e => e.stopPropagation()}>{!x.r.is_prospect && <DraftMessageButton pid={x.r.pid} code={x.t.code} compact />}</span>
                   </div>
                 </div>
               </div>
@@ -296,10 +302,10 @@ export default function WorkQueue({ home, pickView }) {
               </thead>
               <tbody>
                 {list.map(x => (
-                  <tr key={x.r.pid + x.t.code} onClick={() => openRecord(x.r.pid)} className="q-row"
+                  <tr key={x.r.pid + x.t.code} onClick={() => openRecord(x.r)} className="q-row"
                     style={{ borderTop: '1px solid var(--border, #2e3040)', cursor: 'pointer', background: sel.has(x.r.pid) ? 'rgba(200,150,62,0.07)' : 'transparent' }}>
-                    <td style={{ padding: '8px 10px' }} onClick={e => e.stopPropagation()}><input type="checkbox" checked={sel.has(x.r.pid)} onChange={() => toggle(x.r.pid)} aria-label={`Select ${x.r.pid}`} style={{ accentColor: 'var(--accent, #c8963e)' }} /></td>
-                    <td style={{ padding: '8px 10px', fontFamily: MONO, color: 'var(--accent, #c8963e)', whiteSpace: 'nowrap' }}>{x.r.pid}</td>
+                    <td style={{ padding: '8px 10px' }} onClick={e => e.stopPropagation()}>{!x.r.is_prospect && <input type="checkbox" checked={sel.has(x.r.pid)} onChange={() => toggle(x.r.pid)} aria-label={`Select ${x.r.pid}`} style={{ accentColor: 'var(--accent, #c8963e)' }} />}</td>
+                    <td style={{ padding: '8px 10px', fontFamily: MONO, color: x.r.is_prospect ? '#e07ba8' : 'var(--accent, #c8963e)', whiteSpace: 'nowrap' }}>{pidText(x.r)}</td>
                     <td style={{ padding: '8px 10px', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.r.property_name}</td>
                     <td style={{ padding: '8px 10px', color: 'var(--text-dim, #9394a8)' }}>{x.t.label}</td>
                     <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, color: (x.t.waiting_on || x.t.blocked_on) === 'setup_ops' ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)' }}>{WHO[x.t.waiting_on || x.t.blocked_on]}</td>
@@ -307,7 +313,7 @@ export default function WorkQueue({ home, pickView }) {
                     <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, whiteSpace: 'nowrap', color: x.r.days_to_setup != null && x.r.days_to_setup >= 0 && x.r.days_to_setup <= 2 ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)' }}>{setupText(x.r.days_to_setup)}</td>
                     <td style={{ padding: '6px 10px' }}><button onClick={e => openAction(e, x)} style={{ ...btn(true), minHeight: 30, padding: '0 10px' }}>{x.t.next_action_label} ›</button></td>
                     <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, color: x.owner === me ? 'var(--text, #e8e8f0)' : 'var(--text-dim, #9394a8)', whiteSpace: 'nowrap' }}>{local(x.owner)}</td>
-                    <td style={{ padding: '4px 6px' }} onClick={e => e.stopPropagation()}><DraftMessageButton pid={x.r.pid} code={x.t.code} compact /></td>
+                    <td style={{ padding: '4px 6px' }} onClick={e => e.stopPropagation()}>{!x.r.is_prospect && <DraftMessageButton pid={x.r.pid} code={x.t.code} compact />}</td>
                   </tr>
                 ))}
               </tbody>
@@ -328,11 +334,11 @@ export default function WorkQueue({ home, pickView }) {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, maxHeight: 'calc(100vh - 260px)', overflowY: 'auto' }}>
                 {col.items.map(x => (
-                  <div key={x.r.pid} onClick={() => openRecord(x.r.pid)} className="q-card"
+                  <div key={x.r.pid} onClick={() => openRecord(x.r)} className="q-card"
                     style={{ padding: '10px 11px', borderRadius: 9, background: 'var(--bg-input, #252731)', border: `1px solid ${sel.has(x.r.pid) ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, cursor: 'pointer' }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                      <input type="checkbox" checked={sel.has(x.r.pid)} onChange={() => toggle(x.r.pid)} onClick={e => e.stopPropagation()} aria-label={`Select ${x.r.pid}`} style={{ accentColor: 'var(--accent, #c8963e)' }} />
-                      <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--accent, #c8963e)' }}>{x.r.pid}</span>
+                      {!x.r.is_prospect && <input type="checkbox" checked={sel.has(x.r.pid)} onChange={() => toggle(x.r.pid)} onClick={e => e.stopPropagation()} aria-label={`Select ${x.r.pid}`} style={{ accentColor: 'var(--accent, #c8963e)' }} />}
+                      <span style={{ fontFamily: MONO, fontSize: 12, color: x.r.is_prospect ? '#e07ba8' : 'var(--accent, #c8963e)' }}>{pidText(x.r)}</span>
                       <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.r.property_name}</span>
                     </div>
                     <div style={{ fontSize: 10.5, fontFamily: MONO, color: x.t.urgency === 'overdue' ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', marginTop: 6 }}><SlaDot urgency={x.t.urgency} />{ageText(x)} · {local(x.owner)}</div>

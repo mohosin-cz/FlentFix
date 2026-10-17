@@ -4,15 +4,15 @@ import AppHeader from '../components/AppHeader'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { first, copyText } from '../utils/explore'
 
-// Setup calendar: what is happening on which day across all properties.
-// One read, setup_calendar(from, to), merges
-//   · Flent-Stage's dates (setups, revamps, inspections, handovers, key
-//     handover, move-ins, go-live) — a snapshot synced by scripts/stage-sync.py
-//   · Pulse's own setup and handover dates
-//   · vendors per day from Pulse work orders, with double-bookings
-//   · setup dates where Stage and Pulse disagree
-// Month grid on desktop, a day-by-day agenda on a phone; a day opens its detail.
+// Calendar — dates first, and everything on it can be acted on where it sits.
+//
+// One read, setup_calendar(from, to): Pulse's setup and handover dates,
+// Stage's setup plans and move-ins, exploratory visits, vendors booked per
+// day, and the tray of properties ready for a setup date (with Stage's plan
+// when it has one). Actions write to Pulse; assigning a visit is the one
+// thing that also goes to Stage (on the next sync).
 
 const MONO = 'var(--font-mono, monospace)'
 const C = {
@@ -20,267 +20,420 @@ const C = {
   text: 'var(--text, #e8e8f0)', dim: 'var(--text-dim, #9394a8)', muted: 'var(--text-muted, #6b6d82)',
   accent: 'var(--accent, #c8963e)', green: 'var(--green, #3dba7a)', red: 'var(--red, #e05c6a)',
 }
-const KINDS = {
-  exploratory:  { label: 'Exploratory',  fg: '#e07ba8', bg: 'rgba(224,123,168,0.13)' },
-  setup:        { label: 'Setup',        fg: '#c8963e', bg: 'rgba(200,150,62,0.14)' },
-  revamp:       { label: 'Revamp',       fg: '#b08ae0', bg: 'rgba(176,138,224,0.14)' },
-  inspection:   { label: 'Inspection',   fg: '#9394a8', bg: 'rgba(147,148,168,0.14)' },
-  handover:     { label: 'Handover',     fg: '#3dba7a', bg: 'rgba(61,186,122,0.14)' },
-  key_handover: { label: 'Key handover', fg: '#62c79a', bg: 'rgba(98,199,154,0.10)' },
-  move_in:      { label: 'Move-in',      fg: '#5fa8e8', bg: 'rgba(95,168,232,0.14)' },
-  go_live:      { label: 'Go-live',      fg: '#4fc3c8', bg: 'rgba(79,195,200,0.12)' },
+const KIND = {
+  visit:       { label: 'Exploratory visit',  short: 'visit',         fg: '#e07ba8', bg: 'rgba(224,123,168,0.14)', group: 'visits' },
+  setup:       { label: 'Setup',              short: 'setup',         fg: '#c8963e', bg: 'rgba(200,150,62,0.14)',  group: 'setups' },
+  stage_setup: { label: 'Setup · Stage plan', short: 'setup (Stage)', fg: '#c8963e', bg: 'transparent',            group: 'setups', dashed: true },
+  revamp:      { label: 'Revamp · Stage',     short: 'revamp',        fg: '#b08ae0', bg: 'rgba(176,138,224,0.12)', group: 'setups', dashed: true },
+  handover:    { label: 'Handover',           short: 'handover',      fg: '#3dba7a', bg: 'rgba(61,186,122,0.14)',  group: 'handovers' },
+  move_in:     { label: 'Move-in · Stage',    short: 'move-in',       fg: '#5fa8e8', bg: 'rgba(95,168,232,0.14)',  group: 'moveins' },
 }
-const ORDER = ['exploratory', 'setup', 'revamp', 'handover', 'key_handover', 'move_in', 'go_live', 'inspection']
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const GROUPS = [['visits', 'Visits', '#e07ba8'], ['setups', 'Setups', '#c8963e'], ['moveins', 'Move-ins', '#5fa8e8'], ['handovers', 'Handovers', '#3dba7a'], ['vendors', 'Vendors', '#9394a8']]
+const ORDER = ['visit', 'setup', 'stage_setup', 'revamp', 'handover', 'move_in']
+const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
 
-const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const toIso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const parse = (s) => new Date(s + 'T00:00:00')
-const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
+const add = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return toIso(d) }
+const monday = (s) => add(s, -((parse(s).getDay() + 6) % 7))
 const todayIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-const first = (email) => { const s = (email || '').split('@')[0]; return s ? s[0].toUpperCase() + s.slice(1) : '' }
-const cleanName = (name, pid) => (name || '').replace(new RegExp(`^(PID)?${String(pid).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[·:-]?\\s*`, 'i'), '') || name
+const nice = (s, o = { weekday: 'short', day: 'numeric', month: 'short' }) => parse(s).toLocaleDateString('en-IN', o)
+const clean = (name, pid) => (name || '').replace(new RegExp(`^(PID)?${String(pid).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[·:-]?\\s*`, 'i'), '') || name
 function ago(at) {
   if (!at) return 'never'
   const m = Math.round((Date.now() - new Date(at).getTime()) / 60000)
   if (m < 60) return `${Math.max(1, m)}m ago`
-  const h = Math.round(m / 60); if (h < 24) return `${h}h ago`
-  return `${Math.round(h / 24)}d ago`
+  const h = Math.round(m / 60); return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`
 }
-
-// The grid shows whole weeks, Monday first, around the month.
-function monthWindow(anchor) {
-  const firstDay = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
-  const lastDay = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0)
-  const start = addDays(firstDay, -((firstDay.getDay() + 6) % 7))
-  const end = addDays(lastDay, 6 - ((lastDay.getDay() + 6) % 7))
-  return { start, end }
+function range(view, anchor, sel) {
+  if (view === 'month') {
+    const f = parse(anchor), last = new Date(f.getFullYear(), f.getMonth() + 1, 0)
+    return { from: monday(anchor), to: add(toIso(last), 6 - ((last.getDay() + 6) % 7)) }
+  }
+  if (view === 'week') { const m = monday(sel); return { from: m, to: add(m, 6) } }
+  if (view === 'agenda') return { from: sel, to: add(sel, 20) }
+  return { from: sel, to: sel }
 }
+const btn = (kind) => ({ minHeight: 34, padding: '0 12px', borderRadius: 8, fontFamily: MONO, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'left',
+  border: `1px solid ${kind === 'primary' ? 'rgba(200,150,62,0.45)' : C.border}`, background: kind === 'primary' ? 'rgba(200,150,62,0.12)' : C.input, color: kind === 'primary' ? C.accent : C.dim })
+const trayHead = { fontFamily: MONO, fontSize: 11, letterSpacing: '0.09em', textTransform: 'uppercase', color: C.muted }
 
 export default function SetupCalendar() {
   const navigate = useNavigate()
   const phone = useIsMobile(760)
   const { session } = useAuth()
   const me = (session?.user?.email || '').toLowerCase()
-  const [anchor, setAnchor] = useState(() => { const t = parse(todayIso()); return new Date(t.getFullYear(), t.getMonth(), 1) })
+  const t = todayIso()
+  const [view, setView] = useState(() => phone ? 'agenda' : 'month')
+  const [anchor, setAnchor] = useState(() => t.slice(0, 8) + '01')
+  const [sel, setSel] = useState(t)
+  const [open, setOpen] = useState(null)
+  const [picked, setPicked] = useState(null)
+  const [who, setWho] = useState('all')
+  const [show, setShow] = useState(() => { try { return JSON.parse(localStorage.getItem('pulse.cal.groups')) || {} } catch { return {} } })
   const [state, setState] = useState({ loading: true, error: null, data: null })
-  const [on, setOn] = useState(() => { try { return JSON.parse(localStorage.getItem('pulse.cal.kinds')) || {} } catch { return {} } })
-  const [mine, setMine] = useState(false)
-  const [day, setDay] = useState(null)
-  useEffect(() => { try { localStorage.setItem('pulse.cal.kinds', JSON.stringify(on)) } catch { /* private window */ } }, [on])
-  const shown = (k) => on[k] !== false
+  const [team, setTeam] = useState([])
+  const [busy, setBusy] = useState(false)
+  const [toast, setToast] = useState(null)
+  useEffect(() => { try { localStorage.setItem('pulse.cal.groups', JSON.stringify(show)) } catch { /* private window */ } }, [show])
+  useEffect(() => { if (!toast) return; const x = setTimeout(() => setToast(null), 3400); return () => clearTimeout(x) }, [toast])
+  useEffect(() => { supabase.rpc('team_members').then(({ data }) => setTeam((data || []).filter(m => m.email.endsWith('@flent.in') && m.properties > 0))) }, [])
+  const on = useCallback((g) => show[g] !== false, [show])
 
-  const { start, end } = useMemo(() => monthWindow(anchor), [anchor])
+  const { from, to } = useMemo(() => range(view, anchor, sel), [view, anchor, sel])
   const load = useCallback(async () => {
     setState(s => ({ ...s, loading: true }))
-    const { data, error } = await supabase.rpc('setup_calendar', { p_from: iso(start), p_to: iso(end) })
+    const { data, error } = await supabase.rpc('setup_calendar', { p_from: from, p_to: to })
     setState({ loading: false, error: error ? error.message : null, data })
-  }, [start, end])
+  }, [from, to])
   useEffect(() => { load() }, [load])
 
-  // One entry per property/kind/day: when Stage and Pulse both carry the
-  // same date it shows once, marked with both sources.
+  const d = state.data
+  const isAdmin = !!d?.is_admin
+  const evKey = (e) => `${e.kind}:${e.pid}:${e.date}`
   const byDay = useMemo(() => {
     const m = new Map()
-    for (const e of state.data?.events || []) {
-      if (!shown(e.kind) || (mine && e.owner !== me)) continue
-      const list = m.get(e.date) || []
-      const twin = e.kind === 'exploratory' ? null : list.find(x => x.pid === e.pid && x.kind === e.kind)
-      if (twin) { twin.src = [...new Set([...twin.src, e.src])]; twin.actual ||= e.state === 'actual'; twin.detail = { ...twin.detail, ...e.detail } }
-      else list.push({ ...e, src: [e.src], actual: e.state === 'actual' })
-      m.set(e.date, list)
+    for (const e of d?.events || []) {
+      if (!KIND[e.kind] || !on(KIND[e.kind].group)) continue
+      if (who !== 'all' && (who === 'none' ? !!e.owner : e.owner !== who)) continue
+      const l = m.get(e.date) || []; l.push(e); m.set(e.date, l)
     }
-    for (const list of m.values()) list.sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind) || String(a.pid).localeCompare(String(b.pid), undefined, { numeric: true }))
+    for (const l of m.values()) l.sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind) || (a.x?.hour ?? 99) - (b.x?.hour ?? 99))
     return m
-  }, [state.data, on, mine, me])
-  const vendorsByDay = useMemo(() => {
-    const m = new Map()
-    if (!shown('vendors')) return m
-    for (const v of state.data?.vendors || []) { const l = m.get(v.day) || []; l.push(v); m.set(v.day, l) }
+  }, [d, on, who])
+  const vendors = useMemo(() => {
+    const m = new Map(); if (!on('vendors')) return m
+    for (const v of d?.vendors || []) { const l = m.get(v.day) || []; l.push(v); m.set(v.day, l) }
     return m
-  }, [state.data, on])
-  const clashes = state.data?.clashes || []
+  }, [d, on])
+  const openEv = (d?.events || []).find(e => evKey(e) === open)
+  const unassigned = (d?.events || []).filter(e => e.kind === 'visit' && !e.owner && ['new_request', 'visit_scheduled'].includes(e.x?.status) && e.date >= t)
+  const tray = d?.tray || []
 
-  const days = []
-  for (let d = new Date(start); d <= end; d = addDays(d, 1)) days.push(iso(d))
-  const t = todayIso()
-  const monthLabel = anchor.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
-  const move = (n) => { setAnchor(a => new Date(a.getFullYear(), a.getMonth() + n, 1)); setDay(null) }
+  async function act(fn, args, msg, after) {
+    setBusy(true)
+    const { error } = await supabase.rpc(fn, args)
+    setBusy(false)
+    if (error) { setToast({ tone: 'red', text: error.message }); return false }
+    setToast({ text: msg }); if (after) after(); await load(); return true
+  }
+  const setSetup = (pid, date, how) => act('property_mark_milestone', { p_pid: pid, p_key: 'setup_date', p_date: date, p_note: null },
+    `${pid} setup set for ${nice(date)} — ${how}. The owner sees it on their desk.`, () => { setPicked(null); setSel(date); setOpen(null) })
 
-  const chip = (k, label, fg, bg) => {
-    const active = shown(k)
+  function clickDay(day) {
+    if (picked) { setSetup(picked.pid, day, picked.moving ? 'moved on the calendar' : 'placed on the calendar'); return }
+    setSel(day); setOpen(null)
+  }
+  function move(n) {
+    setOpen(null)
+    if (view === 'month') { const a = parse(anchor); a.setMonth(a.getMonth() + n); setAnchor(toIso(a)); return }
+    const s = add(sel, view === 'week' ? 7 * n : view === 'agenda' ? 21 * n : n); setSel(s); setAnchor(s.slice(0, 8) + '01')
+  }
+  const goToday = () => { setSel(t); setAnchor(t.slice(0, 8) + '01'); setOpen(null) }
+  const openItem = (e) => { setOpen(evKey(e)); setSel(e.date) }
+
+  const pillText = (e) => e.kind === 'visit' ? `${e.time ? e.time.replace(':00', '') + ' ' : ''}${(e.name || '').split(',')[0]}${e.owner ? '' : ' · assign'}` : `${e.pid} ${KIND[e.kind].short}`
+  const warnOf = (e) => e.x?.warn || (e.kind === 'setup' && e.x?.stage_date ? `Stage says ${nice(e.x.stage_date)}` : null)
+  const doneOf = (e) => !!(e.x?.closed || e.x?.done || (e.kind === 'visit' && e.x?.logged) || (e.kind === 'stage_setup' && e.x?.state === 'actual'))
+  const pill = (e, full) => {
+    const k = KIND[e.kind], warn = warnOf(e), unass = e.kind === 'visit' && !e.owner
     return (
-      <button key={k} type="button" aria-pressed={active} onClick={() => setOn(o => ({ ...o, [k]: !active }))}
-        style={{ minHeight: 32, padding: '0 10px', borderRadius: 8, border: `1px solid ${active ? fg : C.border}`, background: active ? bg : 'transparent',
-                 color: active ? fg : C.muted, fontFamily: MONO, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{label}</button>
+      <span key={evKey(e)} role="button" tabIndex={0} onClick={ev => { ev.stopPropagation(); openItem(e) }}
+        onKeyDown={ev => { if (ev.key === 'Enter') { ev.stopPropagation(); openItem(e) } }}
+        title={`${k.label} · ${e.kind === 'visit' ? e.name : `${e.pid} ${clean(e.name, e.pid)}`}${e.owner ? ` · ${first(e.owner)}` : ''}${warn ? ` · ⚠ ${warn}` : ''}`}
+        style={{ display: 'block', width: '100%', textAlign: 'left', fontSize: 11, lineHeight: 1.3, padding: '2px 5px', borderRadius: 5, cursor: 'pointer', boxSizing: 'border-box',
+                 whiteSpace: full ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: k.fg, background: unass ? 'transparent' : k.bg,
+                 border: k.dashed || unass ? `1px dashed ${k.fg}` : '1px solid transparent', boxShadow: warn ? `inset 3px 0 0 ${C.red}` : 'none',
+                 opacity: doneOf(e) ? 0.6 : 1, outline: open === evKey(e) ? `2px solid ${k.fg}` : 'none' }}>
+        {doneOf(e) ? '✓ ' : ''}{pillText(e)}
+      </span>
     )
   }
-  const btn = { minHeight: 34, padding: '0 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.input, color: C.dim, fontFamily: MONO, fontSize: 12, fontWeight: 700, cursor: 'pointer' }
+
+  const title = view === 'month' ? parse(anchor).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+    : view === 'week' ? `Week of ${nice(monday(sel))}` : view === 'agenda' ? `From ${nice(sel)}` : nice(sel, { weekday: 'long', day: 'numeric', month: 'long' })
+  const seg = (items, value, set) => (
+    <span style={{ display: 'inline-flex', border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
+      {items.map(([k, l]) => <button key={k} type="button" aria-pressed={value === k} onClick={() => set(k)}
+        style={{ border: 0, background: value === k ? 'rgba(200,150,62,0.12)' : 'transparent', color: value === k ? C.accent : C.dim, padding: '7px 11px', fontFamily: MONO, fontSize: 11.5, fontWeight: value === k ? 700 : 500, cursor: 'pointer' }}>{l}</button>)}
+    </span>
+  )
+  const dropProps = (x) => ({ onDragOver: e => { if (picked) e.preventDefault() }, onDrop: e => { e.preventDefault(); if (picked) clickDay(x) } })
+
+  const days = []; for (let x = from; x <= to; x = add(x, 1)) days.push(x)
+  const monthGrid = (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0,1fr))' }}>
+      {WD.map(w => <div key={w} style={{ padding: '7px 8px', fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.07em', textTransform: 'uppercase', color: C.muted, borderBottom: `1px solid ${C.border}` }}>{w}</div>)}
+      {days.map((x, i) => {
+        const ev = byDay.get(x) || [], vs = vendors.get(x) || [], dbl = vs.filter(v => v.double).length
+        const out = x.slice(0, 7) !== anchor.slice(0, 7)
+        return (
+          <div key={x} role="button" tabIndex={0} onClick={() => clickDay(x)} onKeyDown={e => { if (e.key === 'Enter') clickDay(x) }} {...dropProps(x)}
+            style={{ minHeight: phone ? 64 : 116, padding: 5, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0, cursor: 'pointer',
+                     borderRight: (i % 7) < 6 ? `1px solid ${C.border}` : 'none', borderBottom: `1px solid ${C.border}`, opacity: out ? 0.45 : 1,
+                     background: picked ? 'rgba(61,186,122,0.06)' : x === sel ? 'rgba(200,150,62,0.10)' : x === t ? 'rgba(200,150,62,0.05)' : 'transparent' }}>
+            <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: x === t ? C.accent : C.dim, ...(x === t ? { background: 'rgba(200,150,62,0.18)', borderRadius: 6, padding: '0 5px' } : {}) }}>{parse(x).getDate()}</span>
+              {vs.length > 0 && !phone && <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: dbl ? C.red : C.muted }}>{vs.length} vendor{vs.length === 1 ? '' : 's'}{dbl ? ` · ${dbl}×2` : ''}</span>}
+            </span>
+            {phone ? <span style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>{ev.slice(0, 6).map(e => <i key={evKey(e)} style={{ width: 7, height: 7, borderRadius: '50%', background: KIND[e.kind].fg }} />)}</span>
+              : <>{ev.slice(0, 4).map(e => pill(e))}{ev.length > 4 && <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted }}>+{ev.length - 4} more</span>}</>}
+          </div>
+        )
+      })}
+    </div>
+  )
+  const weekGrid = (
+    <div style={{ overflowX: 'auto' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `54px repeat(${days.length}, minmax(112px,1fr))`, minWidth: 54 + days.length * 112 }}>
+        <div />
+        {days.map(x => <div key={x} style={{ padding: '7px 6px', fontFamily: MONO, fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em', color: x === t ? C.accent : C.muted, borderBottom: `1px solid ${C.border}` }}>{nice(x)}</div>)}
+        <div style={{ fontFamily: MONO, fontSize: 10, color: C.muted, padding: '6px 6px 0 0', textAlign: 'right', background: 'var(--bg-sunken, #14151c)' }}>all day</div>
+        {days.map(x => (
+          <div key={x} onClick={() => clickDay(x)} {...dropProps(x)}
+            style={{ padding: 4, display: 'grid', gap: 3, alignContent: 'start', minHeight: 54, borderLeft: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, background: 'var(--bg-sunken, #14151c)', cursor: 'pointer' }}>
+            {(byDay.get(x) || []).filter(e => e.kind !== 'visit' || e.x?.hour == null).map(e => pill(e))}
+            {(vendors.get(x) || []).length > 0 && <span style={{ fontFamily: MONO, fontSize: 10, color: C.muted }}>{vendors.get(x).length} vendors booked</span>}
+          </div>
+        ))}
+        {HOURS.map(h => (
+          <div key={h} style={{ display: 'contents' }}>
+            <div style={{ fontFamily: MONO, fontSize: 10, color: C.muted, padding: '4px 6px 0 0', textAlign: 'right' }}>{((h + 11) % 12) + 1} {h < 12 ? 'am' : 'pm'}</div>
+            {days.map(x => (
+              <div key={x + h} style={{ minHeight: 38, padding: 3, borderLeft: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, display: 'grid', gap: 3, alignContent: 'start' }}>
+                {(byDay.get(x) || []).filter(e => e.kind === 'visit' && e.x?.hour != null && (h === 9 ? e.x.hour <= 9 : h === 18 ? e.x.hour >= 18 : e.x.hour === h)).map(e => pill(e, true))}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+  const dayList = (list) => (
+    <div style={{ display: 'grid' }}>
+      {list.map(x => {
+        const ev = byDay.get(x) || [], vs = vendors.get(x) || []
+        if (view === 'agenda' && !ev.length && !vs.length) return null
+        return (
+          <div key={x} style={{ borderBottom: `1px solid ${C.border}` }}>
+            {view === 'agenda' && <div onClick={() => clickDay(x)} style={{ padding: '8px 14px', fontFamily: MONO, fontSize: 12, fontWeight: 700, color: x === t ? C.accent : C.dim, background: picked ? 'rgba(61,186,122,0.06)' : 'transparent', cursor: 'pointer' }}>{x === t ? 'Today · ' : ''}{nice(x)}{picked ? ' — tap to place here' : ''}</div>}
+            {!ev.length && !vs.length && <div style={{ padding: '12px 14px', fontSize: 13, color: C.muted }}>Nothing on this day.</div>}
+            {ev.map(e => <EventRow key={evKey(e)} e={e} onOpen={() => openItem(e)} warn={warnOf(e)} done={doneOf(e)} />)}
+            {vs.length > 0 && <div style={{ padding: '8px 14px', fontFamily: MONO, fontSize: 11.5, color: C.muted }}>Vendors: {vs.map(v => `${v.vendor}${v.double ? ' (×2)' : ''} at ${v.pids.join(', ')}`).join(' · ')}</div>}
+          </div>
+        )
+      })}
+      {view === 'agenda' && !days.some(x => (byDay.get(x) || []).length || (vendors.get(x) || []).length) && <div style={{ padding: 16, fontSize: 13, color: C.muted }}>Nothing in the next three weeks with these filters.</div>}
+    </div>
+  )
+
+  const side = openEv
+    ? <Sheet e={openEv} isAdmin={isAdmin} team={team} busy={busy} vendors={vendors.get(openEv.date) || []} warn={warnOf(openEv)}
+        onClose={() => setOpen(null)} navigate={navigate} act={act} setSetup={setSetup}
+        onMove={(e) => { setPicked({ pid: e.pid, name: e.name, moving: true }); setOpen(null); setToast({ text: `Now tap the new day for ${e.pid}` }) }}
+        onCopied={() => setToast({ text: 'Copied — paste it to supply' })} />
+    : <DayPanel day={sel} ev={byDay.get(sel) || []} vs={vendors.get(sel) || []} onOpen={openItem} warnOf={warnOf} doneOf={doneOf} />
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, color: C.text, fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}>
       <AppHeader />
-      <main style={{ padding: phone ? '12px 12px 96px' : '16px 20px 40px', display: 'grid', gap: 12 }}>
-        {/* title + month */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px 12px', flexWrap: 'wrap' }}>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600 }}>Setup calendar</h1>
-          <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-            <button type="button" style={btn} onClick={() => move(-1)} aria-label="Previous month">‹</button>
-            <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, minWidth: 128, textAlign: 'center' }}>{monthLabel}</span>
-            <button type="button" style={btn} onClick={() => move(1)} aria-label="Next month">›</button>
-            <button type="button" style={btn} onClick={() => { const x = parse(t); setAnchor(new Date(x.getFullYear(), x.getMonth(), 1)); setDay(t) }}>Today</button>
-          </span>
-          <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 11.5, color: C.muted }} title="Flent-Stage dates are a snapshot; run scripts/stage-sync.py to refresh">
-            Flent-Stage synced {ago(state.data?.synced_at)}
-          </span>
+      <main style={{ padding: phone ? '12px 12px calc(96px + env(safe-area-inset-bottom, 0px))' : '16px 20px 40px', display: 'grid', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px 14px', flexWrap: 'wrap' }}>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600 }}>Calendar</h1>
+          <span style={{ fontSize: 13, color: C.dim }}>visits, setups, move-ins and handovers — act on anything where it sits</span>
+          <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 11.5, color: C.muted }} title="Stage dates and visits refresh every 30 minutes">Flent-Stage synced {ago(d?.synced_at)}</span>
         </div>
 
-        {/* filters */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          {ORDER.map(k => chip(k, KINDS[k].label, KINDS[k].fg, KINDS[k].bg))}
-          {chip('vendors', 'Vendors', '#e8e8f0', 'rgba(232,232,240,0.08)')}
-          <span style={{ width: 1, height: 20, background: C.border, margin: '0 4px' }} />
-          <button type="button" aria-pressed={mine} onClick={() => setMine(m => !m)}
-            style={{ ...btn, minHeight: 32, borderColor: mine ? 'rgba(200,150,62,0.45)' : C.border, color: mine ? C.accent : C.dim, background: mine ? 'rgba(200,150,62,0.12)' : C.input }}>Only my properties</button>
-        </div>
-
-        {clashes.length > 0 && (
-          <div role="status" style={{ border: `1px solid ${C.red}`, background: 'rgba(224,92,106,0.10)', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}>
-            <b style={{ color: C.red }}>Stage and Pulse disagree on {clashes.length} setup date{clashes.length === 1 ? '' : 's'}:</b>{' '}
-            {clashes.map((c, i) => (
-              <span key={c.pid}>{i ? ' · ' : ''}
-                <button type="button" onClick={() => navigate(`/properties/${encodeURIComponent(c.pid)}`)} style={{ background: 'none', border: 'none', padding: 0, color: C.accent, fontFamily: MONO, cursor: 'pointer' }}>{c.pid}</button>
-                {' '}Stage {parse(c.stage_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, Pulse {parse(c.pulse_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-              </span>
-            ))}
-            <span style={{ color: C.dim }}> — fix whichever is wrong.</span>
-          </div>
-        )}
-
-        {state.error ? (
-          <div style={{ padding: 16, fontFamily: MONO, fontSize: 12.5, color: /setup_calendar|does not exist|schema cache/i.test(state.error) ? C.muted : C.red }}>
-            {/setup_calendar|does not exist|schema cache/i.test(state.error) ? 'The calendar appears once the setup_calendar migration is applied.' : `Couldn't load the calendar — ${state.error}`}
-          </div>
-        ) : phone ? (
-          <Agenda days={days.filter(d => d.slice(0, 7) === iso(anchor).slice(0, 7))} byDay={byDay} vendorsByDay={vendorsByDay} today={t} navigate={navigate} loading={state.loading} />
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: day ? 'minmax(0,1fr) 360px' : 'minmax(0,1fr)', gap: 12, alignItems: 'start' }}>
-            <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', background: C.panel, opacity: state.loading ? 0.6 : 1 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0,1fr))', borderBottom: `1px solid ${C.border}` }}>
-                {WEEKDAYS.map(w => <div key={w} style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted }}>{w}</div>)}
+        <div style={{ display: 'grid', gridTemplateColumns: phone ? 'minmax(0,1fr)' : '270px minmax(0,1fr)', gap: 12, alignItems: 'start' }}>
+          <div style={{ display: 'grid', gap: 12, order: phone ? 2 : 0 }}>
+            <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+              <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                <b style={trayHead}>Needs a date</b>
+                <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>{tray.length} · estimate final, no setup date</span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0,1fr))' }}>
-                {days.map((d, i) => {
-                  const inMonth = d.slice(0, 7) === iso(anchor).slice(0, 7)
-                  const evs = byDay.get(d) || [], vs = vendorsByDay.get(d) || []
-                  const dbl = vs.filter(v => v.double).length
-                  const sel = d === day
-                  return (
-                    <button key={d} type="button" onClick={() => setDay(sel ? null : d)}
-                      style={{ minHeight: 118, textAlign: 'left', padding: 6, display: 'flex', flexDirection: 'column', gap: 3, cursor: 'pointer', minWidth: 0,
-                               border: 'none', borderRight: (i % 7) < 6 ? `1px solid ${C.border}` : 'none', borderBottom: `1px solid ${C.border}`,
-                               background: sel ? 'rgba(200,150,62,0.10)' : d === t ? 'rgba(200,150,62,0.05)' : 'transparent', color: C.text, opacity: inMonth ? 1 : 0.45 }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: d === t ? C.accent : C.dim, ...(d === t ? { background: 'rgba(200,150,62,0.18)', borderRadius: 6, padding: '0 5px' } : {}) }}>{parse(d).getDate()}</span>
-                        {vs.length > 0 && <span title={`${vs.length} vendor${vs.length === 1 ? '' : 's'} booked${dbl ? `, ${dbl} double-booked` : ''}`} style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10.5, color: dbl ? C.red : C.muted }}>{vs.length} vendor{vs.length === 1 ? '' : 's'}{dbl ? ` · ${dbl}×2` : ''}</span>}
-                      </span>
-                      {evs.slice(0, 4).map(e => (
-                        <span key={e.kind + e.pid + (e.detail?.request_id || '')} title={`${KINDS[e.kind].label} · ${e.pid} ${cleanName(e.name, e.pid)} · ${e.actual ? 'done' : 'planned'} · ${e.src.join(' + ')}`}
-                          style={{ fontSize: 11, lineHeight: 1.3, padding: '2px 5px', borderRadius: 5, color: KINDS[e.kind].fg, background: KINDS[e.kind].bg,
-                                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: e.actual && d < t ? 0.75 : 1 }}>
-                          {e.actual && d <= t ? '✓ ' : ''}{e.kind === 'exploratory' ? `${e.detail?.time ? e.detail.time.replace(':00', '') + ' ' : ''}${(e.name || '').split(',')[0]}` : `${e.pid} ${KINDS[e.kind].label.toLowerCase()}`}
-                        </span>
-                      ))}
-                      {evs.length > 4 && <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted }}>+{evs.length - 4} more</span>}
+              {tray.length === 0 ? <div style={{ padding: 12, fontSize: 12.5, color: C.muted }}>Every property ready for setup has a date.</div> : tray.map(p => {
+                const isPicked = picked?.pid === p.pid
+                return (
+                  <div key={p.pid} draggable onDragStart={() => setPicked({ pid: p.pid, name: p.name })}
+                    style={{ padding: '9px 12px', borderTop: `1px solid ${C.border}`, display: 'grid', gap: 4, background: isPicked ? 'rgba(200,150,62,0.10)' : 'transparent', outline: isPicked ? '2px solid rgba(200,150,62,0.45)' : 'none', outlineOffset: -2, cursor: 'grab' }}>
+                    <button type="button" onClick={() => setPicked(isPicked ? null : { pid: p.pid, name: p.name })} style={{ background: 'none', border: 0, padding: 0, textAlign: 'left', color: C.text, cursor: 'pointer' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}><span style={{ fontFamily: MONO, fontSize: 11.5, color: C.accent, marginRight: 6 }}>{p.pid}</span>{clean(p.name, p.pid)}</div>
+                      <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>{first(p.owner) || 'no owner'}{p.since ? ` · waiting ${Math.max(0, Math.round((Date.now() - new Date(p.since)) / 86400000))}d` : ''}</div>
                     </button>
-                  )
-                })}
+                    {p.stage_date && (
+                      <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: MONO, fontSize: 11, color: C.accent }}>Stage {p.stage_state === 'actual' ? 'says set up' : 'plans'} {nice(p.stage_date)}</span>
+                        <button type="button" disabled={busy} onClick={() => setSetup(p.pid, p.stage_date, 'Stage’s date')} style={{ ...btn('primary'), minHeight: 26, padding: '0 8px', fontSize: 11 }}>Use it</button>
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+              <div style={{ padding: '8px 12px', borderTop: `1px dashed ${C.border}`, fontFamily: MONO, fontSize: 11, color: picked ? C.green : C.muted }}>
+                {picked ? <>Now tap a day for <b>{picked.pid}</b> · <button type="button" onClick={() => setPicked(null)} style={{ background: 'none', border: 0, color: C.accent, fontFamily: MONO, fontSize: 11, cursor: 'pointer', padding: 0 }}>cancel</button></> : 'Drag one onto a day — or tap it, then tap the day.'}
               </div>
-            </div>
-            {day && <DayDetail day={day} evs={byDay.get(day) || []} vs={vendorsByDay.get(day) || []} navigate={navigate} onClose={() => setDay(null)} />}
+            </section>
+            <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+              <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C.border}` }}><b style={trayHead}>Needs someone</b></div>
+              {unassigned.length === 0 ? <div style={{ padding: 12, fontSize: 12.5, color: C.muted }}>Every upcoming visit has someone.</div> : unassigned.map(e => (
+                <button key={evKey(e)} type="button" onClick={() => { openItem(e); setAnchor(e.date.slice(0, 8) + '01') }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', borderTop: `1px solid ${C.border}`, borderLeft: 0, borderRight: 0, borderBottom: 0, background: 'none', color: C.text, cursor: 'pointer' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{e.name}</div>
+                  <div style={{ fontFamily: MONO, fontSize: 11, color: '#e07ba8' }}>{nice(e.date)}{e.time ? ` · ${e.time}` : ''} · assign ›</div>
+                </button>
+              ))}
+            </section>
           </div>
-        )}
 
-        <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-          <span>✓ = done (an actual date)</span><span>Stage = Flent-Stage pipeline</span><span>Pulse = journey dates set in Pulse</span><span>vendors = booked from Pulse work orders · ×2 = double-booked</span>
+          <div style={{ display: 'grid', gridTemplateColumns: phone ? 'minmax(0,1fr)' : 'minmax(0,1fr) minmax(280px, 330px)', gap: 12, alignItems: 'start', minWidth: 0 }}>
+            <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', minWidth: 0, opacity: state.loading ? 0.7 : 1 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '10px 12px', borderBottom: `1px solid ${C.border}` }}>
+                {seg(phone ? [['agenda', 'List'], ['month', 'Month'], ['day', 'Day']] : [['month', 'Month'], ['week', 'Week'], ['day', 'Day'], ['agenda', 'List']], view, (v) => { setView(v); setOpen(null) })}
+                <span style={{ display: 'inline-flex', gap: 4 }}>
+                  <button type="button" onClick={() => move(-1)} aria-label="Previous" style={btn()}>‹</button>
+                  <button type="button" onClick={goToday} style={btn()}>Today</button>
+                  <button type="button" onClick={() => move(1)} aria-label="Next" style={btn()}>›</button>
+                </span>
+                <b style={{ fontSize: 14 }}>{title}</b>
+                <select value={who} onChange={e => setWho(e.target.value)} aria-label="Whose" style={{ marginLeft: phone ? 0 : 'auto', minHeight: 34, padding: '0 8px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.input, color: C.text, fontFamily: MONO, fontSize: 12 }}>
+                  <option value="all">Everyone</option>
+                  {team.map(m => <option key={m.email} value={m.email}>{m.email === me ? 'Me' : first(m.email)}</option>)}
+                  <option value="none">Unassigned</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', padding: '7px 12px', borderBottom: `1px solid ${C.border}` }}>
+                {GROUPS.map(([g, l, col]) => (
+                  <button key={g} type="button" aria-pressed={on(g)} onClick={() => setShow(s => ({ ...s, [g]: !on(g) }))}
+                    style={{ minHeight: 28, padding: '0 9px', borderRadius: 7, border: `1px solid ${on(g) ? col : C.border}`, background: 'transparent', color: on(g) ? col : C.muted, fontFamily: MONO, fontSize: 11, fontWeight: 700, cursor: 'pointer', opacity: on(g) ? 1 : 0.6 }}>{l}</button>
+                ))}
+                {!phone && <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10.5, color: C.muted }}>dashed = Stage plan or nobody yet · red edge = needs attention · ✓ = done</span>}
+              </div>
+              {state.error ? <div style={{ padding: 16, fontFamily: MONO, fontSize: 12.5, color: C.red }}>{/setup_calendar|does not exist|schema cache/i.test(state.error) ? 'The calendar appears once its migration is applied.' : state.error}</div>
+                : view === 'month' ? monthGrid : view === 'week' ? weekGrid : dayList(view === 'day' ? [sel] : days)}
+            </section>
+            <div style={{ position: phone ? 'static' : 'sticky', top: 'calc(env(safe-area-inset-top, 0px) + 70px)' }}>{side}</div>
+          </div>
         </div>
       </main>
+      {toast && <div role="status" style={{ position: 'fixed', left: '50%', bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))', transform: 'translateX(-50%)', background: toast.tone === 'red' ? C.red : C.text, color: C.bg, padding: '10px 14px', borderRadius: 10, fontFamily: MONO, fontSize: 12, zIndex: 50, maxWidth: '92vw' }}>{toast.text}</div>}
     </div>
   )
 }
 
-function EventRow({ e, navigate }) {
-  const k = KINDS[e.kind]
+function EventRow({ e, onOpen, warn, done }) {
+  const k = KIND[e.kind]
   return (
-    <button type="button" onClick={() => e.kind === 'exploratory' ? navigate(`/pipeline?r=${e.detail?.request_id}`) : navigate(`/properties/${encodeURIComponent(e.pid)}`)} disabled={!e.in_pulse && e.kind !== 'exploratory'}
-      title={e.kind === 'exploratory' ? 'Open in Pipeline' : e.in_pulse ? 'Open the property' : 'This property is not in Pulse yet'}
-      style={{ display: 'flex', gap: 10, alignItems: 'flex-start', width: '100%', textAlign: 'left', padding: '9px 14px', background: 'none', border: 'none', cursor: e.in_pulse || e.kind === 'exploratory' ? 'pointer' : 'default', color: C.text }}>
+    <button type="button" onClick={onOpen} style={{ display: 'flex', gap: 10, width: '100%', textAlign: 'left', padding: '9px 14px', background: 'none', border: 0, color: C.text, cursor: 'pointer', alignItems: 'flex-start' }}>
       <span style={{ width: 4, alignSelf: 'stretch', borderRadius: 2, background: k.fg, flex: 'none' }} />
       <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600 }}>
-          {e.kind !== 'exploratory' && <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.accent, marginRight: 6 }}>{e.pid}</span>}{e.kind === 'exploratory' ? e.name : cleanName(e.name, e.pid)}
-        </span>
+        <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600 }}>{done ? '✓ ' : ''}{e.kind === 'visit' ? e.name : <><span style={{ fontFamily: MONO, fontSize: 11.5, color: C.accent, marginRight: 6 }}>{e.pid}</span>{clean(e.name, e.pid)}</>}</span>
         <span style={{ display: 'block', fontFamily: MONO, fontSize: 11.5, color: C.muted, marginTop: 2 }}>
-          <span style={{ color: k.fg }}>{k.label}</span>{e.detail?.time ? ` · ${e.detail.time}` : ''}{e.detail?.config ? ` · ${e.detail.config}` : ''} · {e.actual ? 'done' : 'planned'}
-          {e.detail?.type === 'revamp' && e.detail?.run ? ` · run ${e.detail.run}` : ''}
-          {e.owner ? ` · ${first(e.owner)}` : ''} · {e.src.map(s => s === 'stage' ? 'Stage' : 'Pulse').join(' + ')}
-          {!e.in_pulse && e.kind !== 'exploratory' && ' · not in Pulse'}
+          <span style={{ color: k.fg }}>{k.label}</span>{e.time ? ` · ${e.time}` : ''} · {e.owner ? first(e.owner) : 'nobody yet'}{warn ? <span style={{ color: C.red }}> · ⚠ {warn}</span> : ''}
         </span>
       </span>
     </button>
   )
 }
 
-function VendorRows({ vs }) {
-  if (!vs.length) return null
+function DayPanel({ day, ev, vs, onOpen, warnOf, doneOf }) {
   return (
-    <div style={{ borderTop: `1px solid ${C.border}`, padding: '8px 14px 10px' }}>
-      <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, marginBottom: 6 }}>Vendors booked</div>
-      <div style={{ display: 'grid', gap: 5 }}>
-        {vs.map(v => (
-          <div key={v.vendor_id} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'baseline', fontSize: 13 }}>
-            <b style={{ color: v.double ? C.red : C.text }}>{v.vendor}</b>
-            {v.trade && <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>{v.trade}</span>}
-            <span style={{ fontFamily: MONO, fontSize: 11.5, color: v.double ? C.red : C.dim }}>at {v.pids.join(', ')}{v.double ? ' — double-booked' : ''}</span>
-            {v.phone && <a href={`tel:${v.phone}`} style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 11.5, color: C.accent, textDecoration: 'none' }}>{v.phone}</a>}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function DayDetail({ day, evs, vs, navigate, onClose }) {
-  return (
-    <aside style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.panel, position: 'sticky', top: 'calc(env(safe-area-inset-top, 0px) + 70px)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '11px 14px', borderBottom: `1px solid ${C.border}` }}>
-        <b>{parse(day).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</b>
-        <button type="button" onClick={onClose} aria-label="Close" style={{ marginLeft: 'auto', background: 'none', border: 'none', color: C.muted, fontSize: 18, cursor: 'pointer' }}>×</button>
-      </div>
-      {evs.length === 0 && vs.length === 0 ? <div style={{ padding: '12px 14px', fontSize: 12.5, color: C.muted }}>Nothing on this day.</div> : (
-        <>
-          <div>{evs.map(e => <EventRow key={e.kind + e.pid + (e.detail?.request_id || '')} e={e} navigate={navigate} />)}</div>
-          <VendorRows vs={vs} />
-        </>
+    <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+      <div style={{ padding: '11px 14px', borderBottom: `1px solid ${C.border}` }}><b>{nice(day, { weekday: 'long', day: 'numeric', month: 'long' })}</b></div>
+      {!ev.length && !vs.length && <div style={{ padding: '12px 14px', fontSize: 13, color: C.muted }}>Nothing on this day. Tap an item on the calendar to act on it.</div>}
+      {ev.map(e => <EventRow key={`${e.kind}${e.pid}`} e={e} onOpen={() => onOpen(e)} warn={warnOf(e)} done={doneOf(e)} />)}
+      {vs.length > 0 && (
+        <div style={{ padding: '8px 14px 12px', borderTop: `1px solid ${C.border}` }}>
+          <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, marginBottom: 6 }}>Vendors booked</div>
+          {vs.map(v => (
+            <div key={v.vendor_id} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12.5, padding: '2px 0' }}>
+              <b style={{ color: v.double ? C.red : C.text }}>{v.vendor}</b><span style={{ fontFamily: MONO, fontSize: 11, color: v.double ? C.red : C.muted }}>{v.trade ? `${v.trade} · ` : ''}at {v.pids.join(', ')}{v.double ? ' — double-booked' : ''}</span>
+              {v.phone && <a href={`tel:${v.phone}`} style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 11.5, color: C.accent, textDecoration: 'none' }}>{v.phone}</a>}
+            </div>
+          ))}
+        </div>
       )}
-    </aside>
+    </section>
   )
 }
 
-function Agenda({ days, byDay, vendorsByDay, today, navigate, loading }) {
-  const withStuff = days.filter(d => (byDay.get(d) || []).length || (vendorsByDay.get(d) || []).length)
-  if (loading && !withStuff.length) return <div style={{ height: 120, borderRadius: 10, background: C.border, opacity: 0.35 }} />
-  if (!withStuff.length) return <div style={{ padding: 16, fontSize: 13, color: C.muted }}>Nothing scheduled this month with these filters.</div>
+// What can be done with one item, right here.
+function Sheet({ e, isAdmin, team, busy, vendors, warn, onClose, navigate, act, setSetup, onMove, onCopied }) {
+  const k = KIND[e.kind]
+  const rid = e.x?.request_id
+  const facts = []
+  let actions = null
+  const openProp = () => navigate(`/properties/${encodeURIComponent(e.pid)}`)
+  if (e.kind === 'visit') {
+    facts.push(['When', `${nice(e.date)}${e.time ? ` · ${e.time}` : ''}`],
+      ['Who goes', e.owner ? `${first(e.owner)}${e.x?.pulse_assigned ? (e.x?.confirmed ? ' · confirmed' : ' · not confirmed yet') : ' · from Stage'}` : 'nobody yet'],
+      ['Status', e.x?.logged ? 'visited · logged' : (e.x?.status || '').replace('_', ' ')])
+    const live = ['new_request', 'visit_scheduled'].includes(e.x?.status) && !e.x?.logged
+    actions = (
+      <>
+        {isAdmin && live && team.map(m => (
+          <button key={m.email} type="button" disabled={busy || e.owner === m.email} onClick={() => act('exploratory_assign', { p_id: rid, p_email: m.email }, `Assigned ${first(m.email)} — on their desk now; written to Stage on the next sync`)}
+            style={{ ...btn(e.owner === m.email ? '' : 'primary'), opacity: e.owner === m.email ? 0.6 : 1 }}>{e.owner === m.email ? `✓ ${first(m.email)} is going` : `Assign ${first(m.email)}`}</button>
+        ))}
+        {isAdmin && live && <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>Assigning is the one thing Pulse writes to Stage.</div>}
+        <button type="button" onClick={() => navigate(`/explore/${rid}`)} style={btn()}>Open the record ›</button>
+        {live && <button type="button" onClick={async () => { if (await copyText(`Hi — could we move the exploratory visit to ${e.name} (${nice(e.date)}${e.time ? `, ${e.time}` : ''})? Please update the slot in Stage.`)) onCopied() }} style={btn()}>✎ Copy a note to supply to move the slot</button>}
+        {live && <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>The slot belongs to Stage — Pulse drafts the ask instead of changing it.</div>}
+      </>)
+  } else if (e.kind === 'setup') {
+    facts.push(['Setup', `${nice(e.date)}${e.x?.closed ? ' · closed ✓' : ''}`], ['Owner', first(e.owner) || '—'])
+    if (e.x?.stage_date) facts.push(['Stage', `says ${nice(e.x.stage_date)}`])
+    if (vendors.length) facts.push(['Vendors', `${vendors.length} booked`])
+    actions = e.x?.closed ? <button type="button" onClick={openProp} style={btn()}>Open the record ›</button> : (
+      <>
+        {e.x?.stage_date && <>
+          <button type="button" disabled={busy} onClick={() => setSetup(e.pid, e.x.stage_date, 'Stage’s date')} style={btn('primary')}>Use Stage’s date · {nice(e.x.stage_date)}</button>
+          <button type="button" disabled={busy} onClick={() => act('setup_clash_keep', { p_pid: e.pid, p_stage_date: e.x.stage_date }, `Kept ${nice(e.date)} for ${e.pid} — Pulse stops flagging the difference`)} style={btn()}>Keep {nice(e.date)} · Pulse is right</button>
+        </>}
+        <button type="button" onClick={() => onMove(e)} style={btn()}>Move to another day…</button>
+        <button type="button" onClick={openProp} style={btn()}>Open the record ›</button>
+      </>)
+  } else if (e.kind === 'stage_setup' || e.kind === 'revamp') {
+    facts.push(['Stage', `${e.kind === 'revamp' ? 'revamp' : 'setup'} ${e.x?.state === 'actual' ? 'done' : 'planned'} ${nice(e.date)}`], ['In Pulse', e.x?.in_pulse ? 'no setup date yet' : 'no property yet'])
+    actions = e.x?.in_pulse ? (
+      <>
+        <button type="button" disabled={busy} onClick={() => setSetup(e.pid, e.date, 'Stage’s date')} style={btn('primary')}>Use as the setup date</button>
+        <button type="button" onClick={openProp} style={btn()}>Open the record ›</button>
+      </>) : (
+      <>
+        <button type="button" onClick={() => navigate(`/inspections/new?pid=${encodeURIComponent(e.pid)}`)} style={btn('primary')}>Create PID {e.pid} in Pulse ›</button>
+        <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>Supply has it in Stage; Pulse doesn’t yet.</div>
+      </>)
+  } else if (e.kind === 'move_in') {
+    facts.push(['Move-in', `${nice(e.date)} · from Stage`], ['Owner', first(e.owner) || '—'])
+    actions = (
+      <>
+        {e.x?.in_pulse && <button type="button" onClick={openProp} style={btn('primary')}>Open the record ›</button>}
+        <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>A move-in is a deadline from Stage — Pulse flags it when setup isn’t ready.</div>
+      </>)
+  } else if (e.kind === 'handover') {
+    facts.push(['Handover', `${nice(e.date)}${e.x?.done ? ' · done ✓' : ''}`], ['Owner', first(e.owner) || '—'])
+    actions = (
+      <>
+        {!e.x?.done && <button type="button" disabled={busy} onClick={() => act('property_mark_milestone', { p_pid: e.pid, p_key: 'handover_done', p_date: null, p_note: null }, `${e.pid} marked handed over`)} style={btn('primary')}>Mark handed over</button>}
+        <button type="button" onClick={openProp} style={btn()}>Open the record ›</button>
+      </>)
+  }
   return (
-    <div style={{ display: 'grid', gap: 10 }}>
-      {withStuff.map(d => (
-        <section key={d} style={{ border: `1px solid ${d === today ? 'rgba(200,150,62,0.45)' : C.border}`, borderRadius: 10, background: C.panel, overflow: 'hidden' }}>
-          <div style={{ padding: '9px 14px', borderBottom: `1px solid ${C.border}`, fontFamily: MONO, fontSize: 12, fontWeight: 700, color: d === today ? C.accent : C.dim }}>
-            {d === today ? 'Today · ' : ''}{parse(d).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
-          </div>
-          {(byDay.get(d) || []).map(e => <EventRow key={e.kind + e.pid + (e.detail?.request_id || '')} e={e} navigate={navigate} />)}
-          <VendorRows vs={vendorsByDay.get(d) || []} />
-        </section>
-      ))}
-    </div>
+    <section style={{ background: C.panel, border: `1px solid ${k.fg}`, borderRadius: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: `1px solid ${C.border}` }}>
+        <b style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.09em', textTransform: 'uppercase', color: k.fg }}>{k.label}</b>
+        <button type="button" onClick={onClose} aria-label="Close" style={{ marginLeft: 'auto', background: 'none', border: 0, color: C.muted, fontSize: 18, cursor: 'pointer' }}>×</button>
+      </div>
+      <div style={{ padding: '10px 14px 4px', fontSize: 15, fontWeight: 600 }}>
+        {e.kind !== 'visit' && <span style={{ fontFamily: MONO, fontSize: 12, color: C.accent, marginRight: 6 }}>{e.pid}</span>}
+        {e.kind === 'visit' ? e.name : clean(e.name, e.pid)}{e.x?.config ? <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }}> · {e.x.config}</span> : ''}
+      </div>
+      <dl style={{ display: 'grid', gridTemplateColumns: '84px 1fr', gap: '4px 10px', padding: '6px 14px', margin: 0, fontSize: 12.5 }}>
+        {facts.map(([a, b]) => <div key={a} style={{ display: 'contents' }}><dt style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{a}</dt><dd style={{ margin: 0 }}>{b}</dd></div>)}
+        {warn && <div style={{ display: 'contents' }}><dt style={{ fontFamily: MONO, fontSize: 10.5, color: C.red, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Watch</dt><dd style={{ margin: 0, color: C.red }}>{warn}</dd></div>}
+      </dl>
+      <div style={{ display: 'grid', gap: 6, padding: '8px 14px 14px' }}>{actions}</div>
+    </section>
   )
 }

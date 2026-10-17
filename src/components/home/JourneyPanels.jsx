@@ -80,17 +80,19 @@ export function useJourneyHome(scope) {
   const [state, setState] = useState({ loading: true, error: null, rows: null, counts: null, seen: null, thresholds: null })
   const load = useCallback(async () => {
     setState(s => ({ ...s, loading: true, error: null }))
-    const [rows, counts, seen, thr] = await Promise.all([
+    const [rows, counts, seen, thr, prospects] = await Promise.all([
       supabase.rpc('property_journey_state', { p_scope: scope }),
       supabase.rpc('property_journey_counts', { p_scope: scope }),
       supabase.rpc('home_touch'),
       supabase.rpc('journey_thresholds'),
+      // exploratory requests from Stage, as rows of the same shape (Explore phase)
+      supabase.rpc('explore_journey_state'),
     ])
     const err = rows.error || counts.error || thr.error
     if (err) { setState(s => ({ ...s, loading: false, error: err.message })); return }
     setState({
       loading: false, error: null,
-      rows: rows.data || [], counts: counts.data || {},
+      rows: [...(rows.data || []), ...(prospects.error ? [] : (prospects.data || []))], counts: counts.data || {},
       seen: seen.error ? null : seen.data,   // falls back to 24h; not worth a red strip
       thresholds: thr.data || {},
     })

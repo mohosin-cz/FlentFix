@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { supabase } from '../lib/supabase'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { NavBar, StepBar, Field, Input, CardToggle, PillGroup, StickyFooter, BtnPrimary } from '../components/ui'
 import { pidStatus, pidStatusMessage, purgeBinnedPid } from '../utils/pidStatus'
@@ -33,7 +34,10 @@ export default function NewInspection() {
   const [searchParams, setSearchParams] = useSearchParams()
   const step     = parseInt(searchParams.get('step') || '1')
   const goToStep = (n) => setSearchParams({ step: n })
-  const [pid,            setPid]            = useState('')
+  // From a prospect's "Create the PID": the PID supply gave it in Stage, and
+  // the exploratory request to link once the inspection starts.
+  const [pid,            setPid]            = useState(() => searchParams.get('pid') || '')
+  const exploreId = searchParams.get('explore')
   const [inspectionType, setInspectionType] = useState('')
   const [propertyType,   setPropertyType]   = useState('')
   const [layout,         setLayout]         = useState('')
@@ -95,6 +99,11 @@ export default function NewInspection() {
     }
 
     const state = { pid: trimmed, inspectionType, propertyType, layout, rooms }
+    if (exploreId) {
+      // the prospect's record carries on as this property
+      const { error: le } = await supabase.rpc('exploratory_link', { p_id: exploreId, p_pid: trimmed, p_pending: true })
+      if (le) console.warn('[NewInspection] exploratory link failed:', le.message)
+    }
     navigate('/inspections/mode', { state })
   }
 
