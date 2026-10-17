@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import DashNav from './DashNav'
+import { usePulseHome, PULSE_POP_CSS } from './HomeMark'
 import ProfileDropdown from './ProfileDropdown'
 import { CommandTrigger } from './command/CommandTrigger'
 import { NotificationBell } from './alerts/NotificationBell'
@@ -14,6 +15,7 @@ import { NotificationBell } from './alerts/NotificationBell'
 // the search box hides too, the bottom bar's Search tab is the door.
 export default function AppHeader({ below, accent }) {
   const navigate = useNavigate()
+  const pulseHome = usePulseHome()
   const { session } = useAuth()
   const email = session?.user?.email ?? ''
   const name = session?.user?.user_metadata?.full_name ?? email.split('@')[0].replace(/[._]/g, ' ')
@@ -37,10 +39,11 @@ export default function AppHeader({ below, accent }) {
         position: 'sticky', top: 0, zIndex: 100,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
-          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }} aria-label="Home">
+          <button onClick={pulseHome.go} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }} aria-label="Home">
             {/* The wordmark is the nav's own type, a step up — it reads as part
                 of the bar rather than a badge sitting on it. */}
-            <span className="pulse-title" style={{ fontSize: 17, lineHeight: 1 }}>pulse</span>
+            <style>{PULSE_POP_CSS}</style>
+            <span key={pulseHome.pop} className={`pulse-title${pulseHome.pop ? ' pulse-pop' : ''}`} style={{ fontSize: 17, lineHeight: 1 }}>pulse</span>
           </button>
           <DashNav />
         </div>
