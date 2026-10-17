@@ -514,19 +514,38 @@ function EstimateWorkbenchInner() {
     const byTrade = {}
     priced.forEach(i => { const t = i.trade || 'misc'; byTrade[t] = (byTrade[t] || 0) + lineTotal(i) })
     const inr = n => '₹' + Math.round(n).toLocaleString('en-IN')
-    const trades = Object.entries(byTrade).sort((a, b) => b[1] - a[1])
-      .map(([t, v]) => `${t[0].toUpperCase() + t.slice(1)} ${inr(v)}`).join(' · ')
+    const cap = t => t[0].toUpperCase() + t.slice(1)
+    const url = landlordUrl()
     const where = [prop?.flat_no && `Flat ${prop.flat_no}`, prop?.floor && `Floor ${prop.floor}`, prop?.address].filter(Boolean).join(', ')
-    const text = [
-      `:page_facing_up: *Estimate ${version > 1 ? `v${version} ` : ''}ready — PID ${pid}${prop?.name ? ` · ${prop.name}` : ''}*`,
-      where && `:round_pushpin: ${where}${prop?.maps_url ? ` (<${prop.maps_url}|map>)` : ''}`,
-      prop?.landlord_name && `:bust_in_silhouette: Landlord: ${prop.landlord_name}`,
-      `*Total ${inr(total)}* · ${priced.length} priced line${priced.length === 1 ? '' : 's'}${actuals.length ? ` · ${actuals.length} at actuals` : ''}`,
-      trades && trades,
-      `:link: ${landlordUrl()}`,
-      `:key: Access code: *${code}*  _(landlord enters their email + this code; Flent logins open it directly)_`,
-    ].filter(Boolean).join('\n')
-    const { data, error } = await supabase.functions.invoke('wo-report-notify', { body: { text, pid } })
+    const trades = Object.entries(byTrade).sort((a, b) => b[1] - a[1])
+
+    // Block Kit card. Plain `text` is still sent: it is the push notification
+    // and the fallback for clients that cannot render blocks.
+    const text = `Estimate ${version > 1 ? `v${version} ` : ''}ready — PID ${pid}${prop?.name ? ` · ${prop.name}` : ''} · ${inr(total)} · code ${code}`
+    const blocks = [
+      { type: 'header', text: { type: 'plain_text', text: `Estimate ready · PID ${pid}${version > 1 ? ` · v${version}` : ''}`.slice(0, 150), emoji: true } },
+      { type: 'section', text: { type: 'mrkdwn', text: [
+          `*${prop?.name || `PID ${pid}`}*`,
+          where && `${where}${prop?.maps_url ? `  ·  <${prop.maps_url}|Map>` : ''}`,
+          !where && prop?.maps_url && `<${prop.maps_url}|Map>`,
+        ].filter(Boolean).join('\n').slice(0, 3000) } },
+      { type: 'section', fields: [
+          { type: 'mrkdwn', text: `*Landlord*\n${prop?.landlord_name || '—'}` },
+          { type: 'mrkdwn', text: `*Total*\n${inr(total)}` },
+          { type: 'mrkdwn', text: `*Lines*\n${priced.length} priced${actuals.length ? ` · ${actuals.length} at actuals` : ''}` },
+          { type: 'mrkdwn', text: `*Version*\nv${version}` },
+        ] },
+      ...(trades.length ? [
+        { type: 'divider' },
+        { type: 'section', text: { type: 'mrkdwn', text: '*By trade*' },
+          fields: trades.slice(0, 10).map(([t, v]) => ({ type: 'mrkdwn', text: `${cap(t)}  \`${inr(v)}\`` })) },
+      ] : []),
+      { type: 'divider' },
+      { type: 'section', text: { type: 'mrkdwn', text: `*Access code*   \`${code}\`\n<${url}|${url.replace(/^https?:\/\//, '')}>` },
+        accessory: { type: 'button', text: { type: 'plain_text', text: 'Open estimate' }, url, style: 'primary' } },
+      { type: 'context', elements: [{ type: 'mrkdwn', text: 'Share the link and code with the landlord — they enter their email + the code to open it. Flent logins open it directly. Every approval records the approver’s email.' }] },
+    ]
+    const { data, error } = await supabase.functions.invoke('wo-report-notify', { body: { text, pid, blocks } })
     const ok = !error && data?.ok !== false
     setAccess(a => ({ ...a, slack: ok ? 'posted' : (data?.error || error?.message || 'Slack post failed') }))
     if (ok) logActivity(supabase, id, { action: 'slack_posted', new_value: `v${version}`, changed_by: userEmail })
@@ -1205,9 +1224,8 @@ function EstimateWorkbenchInner() {
                                 <span className="ar-area">{item.area || '—'}</span>
                                 {item.status === 'approved' && (
                                   <button className="spill spill-approved"
-                                    title={item.approved_by_email ? `Approved by ${item.approved_by_email}${item.approved_at ? ' · ' + new Date(item.approved_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : ''}` : undefined}
                                     onClick={e => { e.stopPropagation(); setDrawerInitTab(hasDispute ? 'thread' : 'details'); setPinnedId(item.id) }}>
-                                    ✓ Approved{item.approved_by_email ? ` · ${item.approved_by_email}` : ''}
+                                    ✓ Approved
                                   </button>
                                 )}
                               </div>
@@ -1239,10 +1257,12 @@ function EstimateWorkbenchInner() {
                                   )
                                 })()}
                               </div>
+                              {isApproved && item.approved_by_email && <ApprovedBy className="apby-phone" email={item.approved_by_email} at={item.approved_at} />}
                             </div>
                             <div className="fnd">
                               <div className="fnd-txt">{item.issue_description}</div>
                               {item.action && <span className="wd">→ {item.action}</span>}
+                              {isApproved && item.approved_by_email && <ApprovedBy className="apby-wide" email={item.approved_by_email} at={item.approved_at} />}
                             </div>
                             <div>{mcell(item)}</div>
                             <div>{lcell(item)}</div>
@@ -1359,6 +1379,32 @@ function EstimateWorkbenchInner() {
       </div>
     </div>
   )
+}
+
+// Who approved a line — the landlord (email + code) or someone at Flent
+// (their Pulse login). One quiet line under the finding: the decision itself
+// is already the green pill and the row's edge.
+function ApprovedBy({ email, at, className = '' }) {
+  const flent = /@flent\.in$/i.test(email)
+  const when = at ? agoShort(at) : ''
+  const exact = at ? new Date(at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''
+  return (
+    <span className={`apby ${className}`} title={`Approved by ${email}${exact ? ` · ${exact}` : ''}`}>
+      <span className={`apby-av${flent ? ' flent' : ''}`}>{email[0]?.toUpperCase()}</span>
+      <span className="apby-who">{flent ? 'Flent' : 'Landlord'}</span>
+      <span className="apby-em">{flent ? email.replace(/@flent\.in$/i, '') : email}</span>
+      {when && <span className="apby-at">{when}</span>}
+    </span>
+  )
+}
+function agoShort(ts) {
+  const m = Math.round((Date.now() - new Date(ts).getTime()) / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.round(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.round(h / 24)
+  return d < 30 ? `${d}d ago` : new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
 }
 
 export default function EstimateWorkbench() {

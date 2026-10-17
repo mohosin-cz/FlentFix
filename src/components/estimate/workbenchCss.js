@@ -142,6 +142,14 @@ export const CSS = `
 .fnd{color:var(--ink2);font-size:12px;line-height:1.4;overflow:hidden}
 .fnd-txt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .fnd .wd{display:block;color:var(--muted);font-size:11px;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.apby{display:flex;align-items:center;gap:6px;margin-top:4px;min-width:0;font-size:11px;line-height:16px;color:var(--muted)}
+.apby-av{flex-shrink:0;width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;font-weight:700;background:rgba(90,143,102,.18);color:#6fc47f}
+.apby-av.flent{background:rgba(200,150,62,.18);color:var(--gold)}
+.apby-who{flex-shrink:0;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
+.apby-em{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.apby-at{flex-shrink:0;color:var(--faint)}
+.apby-at::before{content:'·';margin-right:6px}
+.apby-phone{display:none}
 /* Components recede so the total reads as the number on the row; the split is
    still there when you look for it, but it no longer competes. */
 .num{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
@@ -372,6 +380,11 @@ export const CSS = `
   .fclear{height:44px;flex:1 1 100%;text-align:left}
   /* The count would otherwise be pushed onto a line of its own by margin-left:auto. */
   .fcount{margin-left:0;width:100%}
+  /* The table scrolls sideways here, so who approved rides under the item
+     name, where it is on screen, instead of under the finding. */
+  .apby-phone{display:flex}
+  .apby-wide{display:none}
+  .apby-phone .apby-who,.apby-phone .apby-at{display:none}
 }
 @media(max-width:380px){
   .dash{grid-template-columns:1fr}
