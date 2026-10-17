@@ -48,12 +48,12 @@ const ago = (ts) => {
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
-// The pad is paper: a matte warm white in every theme, so a note reads like a
-// note and not like another panel of the app. Set as variables on the pad
-// itself, so everything inside it (which reads var(--text) etc.) follows.
+// Only the writing surface is paper: a matte, softened warm white set into
+// the panel, so the page you write on reads as a page and the controls around
+// it stay the app's own. Set as variables on the sheet, so everything inside it
+// (title, dictation preview, the text) takes the ink colours.
 const PAPER = {
-  '--bg-panel': '#f3f1ec', '--bg-input': '#e8e5de', '--bg': '#ebe8e1', '--border': 'rgba(35,33,28,0.12)',
-  '--text': '#23211c', '--text-dim': '#57534a', '--text-muted': '#8a857a', '--accent': '#946400',
+  '--bg-panel': '#d9d5cc', '--text': '#26241f', '--text-dim': '#57534a', '--text-muted': '#7d786d', '--accent': '#8a5d00',
   colorScheme: 'light',
 }
 
@@ -65,7 +65,7 @@ const CSS = `
 .np-out { animation: np-fall 320ms cubic-bezier(.55,0,1,.45) both }
 @media (prefers-reduced-motion: reduce) { .np-in, .np-out { animation: none } }
 .np-ib:hover { background: var(--bg-input, #252731) !important; color: var(--text, #e8e8f0) !important }
-.np-item:hover { background: rgba(35,33,28,0.04) }
+.np-item:hover { background: rgba(255,255,255,0.025) }
 `
 
 export default function Notepad() {
@@ -517,15 +517,17 @@ function Pad({ userId, email, pathname }) {
           ? <><Pill>Team note · shared with everyone on PID {team.pid}</Pill>{team.updated_at && <Pill>edited {ago(team.updated_at)}</Pill>}</>
           : <>{cur.context?.label && <Pill>started on {cur.context.label}</Pill>}<Pill>{ago(cur.created_at || cur.updated_at)}</Pill>{scopePid && names[scopePid] && <Pill>{names[scopePid]}</Pill>}</>}
       </div>
+      <div style={{ ...PAPER, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', margin: '10px 12px 12px', background: 'var(--bg-panel)', borderRadius: 10, boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.12)', color: 'var(--text)' }}>
       {cur && (
         <input value={cur.title || ''} onChange={e => patch(cur.id, { title: e.target.value })} placeholder="Title (optional)" aria-label="Title"
-          style={{ border: 'none', background: 'none', outline: 'none', padding: '8px 14px 0', fontSize: 16, fontWeight: 600, color: C.text, fontFamily: F, width: '100%', boxSizing: 'border-box' }} />
+          style={{ border: 'none', background: 'none', outline: 'none', padding: '10px 14px 0', fontSize: 16, fontWeight: 600, color: C.text, fontFamily: F, width: '100%', boxSizing: 'border-box' }} />
       )}
       {interim && <div style={{ padding: '6px 14px', fontSize: 12.5, color: C.muted, fontStyle: 'italic', fontFamily: MONO }}>{interim}…</div>}
       {noSpeech && !interim && <div style={{ padding: '6px 14px', fontSize: 11.5, color: C.muted }}>No speech heard — speak near the mic.</div>}
       <textarea ref={taRef} value={body} onChange={e => setBody(e.target.value)} onKeyDown={onKeyDown}
         placeholder={'Write here — or hold the pen to dictate.\n\n• starts a bullet, ☐ a checkbox; Enter carries it on.'}
         style={{ flex: 1, minHeight: phone ? 180 : 220, padding: '8px 14px 12px', background: 'transparent', border: 'none', outline: 'none', resize: 'none', fontSize: 13.5, lineHeight: 1.7, color: C.text, fontFamily: MONO, caretColor: C.accent }} />
+      </div>
       {confirmDel ? (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 14px', borderTop: `1px solid ${C.border}`, fontSize: 12.5 }}>
           <span style={{ flex: 1, color: C.dim }}>Delete this note?</span>
@@ -547,7 +549,7 @@ function Pad({ userId, email, pathname }) {
       {pen}
       {open && (
         <div ref={panelRef} role="dialog" aria-label="Notepad" className={phase === 'in' ? 'np-in' : phase === 'out' ? 'np-out' : ''}
-          style={{ ...PAPER, position: 'fixed', ...panelStyle(), zIndex: Z, display: 'flex', flexDirection: 'column', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: '0 18px 50px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.18)', overflow: 'hidden', fontFamily: F, color: C.text, transformOrigin: 'bottom right' }}>
+          style={{ position: 'fixed', ...panelStyle(), zIndex: Z, display: 'flex', flexDirection: 'column', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: '0 18px 50px rgba(0,0,0,0.55)', overflow: 'hidden', fontFamily: F, color: C.text, transformOrigin: 'bottom right' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 10px 10px 14px', borderBottom: `1px solid ${C.border}` }}>
             <span style={{ fontWeight: 600, fontSize: 14 }}>{view === 'list' || !(editingTeam || cur) ? 'My notes' : editingTeam ? 'Team note' : 'Note'}</span>
             {herePid && <span style={{ fontSize: 12, color: C.muted }}>· on PID {herePid}{names[herePid] ? ` · ${names[herePid]}` : ''}</span>}
