@@ -198,16 +198,21 @@ begin
     -- exploratory: raised → visited → decided → approved → set up, last 90 days,
     -- and whose calls (Go / No-go, in Pulse or Stage) matched supply's decision
     'funnel', (
-      with x as (
+      with sdone as materialized (select distinct pid, exploratory_building_key(name) k from stage_dates where kind in ('setup', 'revamp') and state = 'actual'),
+      x as (
         select e.*, (select min(nullif(v->>'date', '')::date) from jsonb_array_elements(e.visits) v) stage_visit,
                (select min(l.visited_at)::date from exploratory_logs l where l.request_id = e.id and l.submitted_at is not null) pulse_visit,
-               lk.pid linked
+               lk.pid linked, exploratory_building_key(e.property_name) bk
           from stage_exploratory e left join exploratory_links lk on lk.request_id = e.id
          where e.created_at > now() - interval '90 days' and e.archived_at is null and coalesce(e.property_name, '') !~* '^\s*\[test\]'
       ), y as (
         select x.*, coalesce(least(x.stage_visit, x.pulse_visit), x.stage_visit, x.pulse_visit) visited,
                x.status in ('approved', 'rejected', 'converted') decided, x.status in ('approved', 'converted') approved,
-               exists (select 1 from properties p where p.pid = x.linked and p.setup_closed_at is not null) set_up
+               -- set up: Pulse marked setup closed, or Stage recorded the setup as done
+               -- (by the linked PID, or by the building when nothing is linked)
+               (exists (select 1 from properties p where p.pid = x.linked and p.setup_closed_at is not null)
+                or exists (select 1 from sdone where sdone.pid = x.linked
+                            or (x.bk is not null and sdone.k is not null and (sdone.k like x.bk || '%' or x.bk like sdone.k || '%')))) set_up
           from x
       )
       select jsonb_build_object(
