@@ -10,6 +10,9 @@ import { realName } from '../utils/propertyName'
 import LogoSpinner from '../components/LogoSpinner'
 import StageRail from '../components/property/StageRail'
 import MoneyTrail from '../components/property/MoneyTrail'
+import RecordStatus from '../components/property/RecordStatus'
+import RecordTimeline from '../components/property/RecordTimeline'
+import AppHeader from '../components/AppHeader'
 import ShareSheet from '../components/vendor/ShareSheet'
 
 function fmtDate(str) {
@@ -535,7 +538,9 @@ export default function PropertyDetail() {
       <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
       <div style={s.page}>
 
-      {/* Header */}
+      <AppHeader />
+
+      {/* Record bar — back, which property, record menu */}
       <header style={s.header}>
         <button style={s.backBtn} onClick={() => navigate('/properties')}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -593,240 +598,237 @@ export default function PropertyDetail() {
           <LogoSpinner />
         ) : (
           <>
-            {/* Summary stats — always render */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
-              {[
-                { label: 'Line Items', value: stats.totalItems },
-                { label: 'Issues', value: stats.issues, color: stats.issues > 0 ? 'var(--red, #e05c6a)' : undefined },
-                { label: 'Est. Cost', value: `₹${(stats.totalCost || 0).toLocaleString('en-IN')}`, color: stats.totalCost > 0 ? 'var(--accent, #c8963e)' : undefined },
-              ].map(stat => (
-                <div key={stat.label} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: '12px 10px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: stat.color || 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{stat.value}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>{stat.label}</div>
+            {/* The record, CRM-style: where it stands on the left, everything that
+                happened down the middle, the related objects and the way into
+                each module on the right. Columns change count, never stretch. */}
+            <style>{`
+              .rec-grid { display: grid; gap: 20px; align-items: start; grid-template-columns: minmax(0, 1fr); grid-template-areas: "l" "r" "c"; }
+              .rec-l { grid-area: l; } .rec-c { grid-area: c; } .rec-r { grid-area: r; }
+              .rec-l, .rec-c, .rec-r { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+              @media (min-width: 900px)  { .rec-grid { grid-template-columns: minmax(0, 1fr) 400px; grid-template-areas: "l r" "c r"; } .rec-r { position: sticky; top: 72px; } }
+              @media (min-width: 1280px) { .rec-grid { grid-template-columns: 330px minmax(0, 1fr) 420px; grid-template-areas: "l c r"; } .rec-l { position: sticky; top: 72px; } }
+            `}</style>
+            <div className="rec-grid">
+              <div className="rec-l">
+                <RecordStatus pid={pid} />
+                {/* Summary stats — always render */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
+                  {[
+                    { label: 'Line Items', value: stats.totalItems },
+                    { label: 'Issues', value: stats.issues, color: stats.issues > 0 ? 'var(--red, #e05c6a)' : undefined },
+                    { label: 'Est. Cost', value: `₹${(stats.totalCost || 0).toLocaleString('en-IN')}`, color: stats.totalCost > 0 ? 'var(--accent, #c8963e)' : undefined },
+                  ].map(stat => (
+                    <div key={stat.label} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: '12px 10px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: stat.color || 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{stat.value}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>{stat.label}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {/* Appliance feasibility compact card */}
-            {feasibility.length > 0 && (() => {
-              const SINGLETON_SHORT = { 'Washing Machine': 'WM', 'Refrigerator': 'Fridge', 'Dryer': 'Dryer', 'Air Conditioner': 'AC', 'Geyser': 'Geyser' }
-              const feasIcon  = d => d === 'feasible' ? '✓' : d === 'not_feasible' ? '✗' : d === 'na' ? '—' : '?'
-              const feasColor = d => d === 'feasible' ? '#4dd9c0' : d === 'not_feasible' ? '#f87171' : '#6b6d82'
+                {/* Appliance feasibility compact card */}
+                {feasibility.length > 0 && (() => {
+                  const SINGLETON_SHORT = { 'Washing Machine': 'WM', 'Refrigerator': 'Fridge', 'Dryer': 'Dryer', 'Air Conditioner': 'AC', 'Geyser': 'Geyser' }
+                  const feasIcon  = d => d === 'feasible' ? '✓' : d === 'not_feasible' ? '✗' : d === 'na' ? '—' : '?'
+                  const feasColor = d => d === 'feasible' ? '#4dd9c0' : d === 'not_feasible' ? '#f87171' : '#6b6d82'
 
-              function locShort(name, prefix) {
-                const loc = name.replace(prefix + ' · ', '')
-                if (loc === 'Common Bathroom') return 'Common'
-                if (loc === 'Living Room') return 'Living'
-                const bath = loc.match(/Bedroom (\d+) Bathroom/); if (bath) return `B${bath[1]}`
-                const br   = loc.match(/Bedroom (\d+)/);          if (br)   return `BR${br[1]}`
-                return loc
-              }
+                  function locShort(name, prefix) {
+                    const loc = name.replace(prefix + ' · ', '')
+                    if (loc === 'Common Bathroom') return 'Common'
+                    if (loc === 'Living Room') return 'Living'
+                    const bath = loc.match(/Bedroom (\d+) Bathroom/); if (bath) return `B${bath[1]}`
+                    const br   = loc.match(/Bedroom (\d+)/);          if (br)   return `BR${br[1]}`
+                    return loc
+                  }
 
-              function GroupedRow({ prefix, label, rows }) {
-                if (!rows.length) return null
-                return (
-                  <span style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: 'var(--text-dim, #9394a8)' }}>
-                    {label}:{' '}
-                    {rows.map((f, i) => {
-                      const name = f.item_name.replace('Feasibility: ', '')
-                      return (
-                        <span key={name} style={{ color: feasColor(f.issue_description) }}>
-                          {i > 0 && <span style={{ color: 'var(--text-muted, #6b6d82)' }}> · </span>}
-                          {locShort(name, prefix)} <span style={{ fontWeight: 700 }}>{feasIcon(f.issue_description)}</span>
-                        </span>
-                      )
-                    })}
-                  </span>
-                )
-              }
+                  function GroupedRow({ prefix, label, rows }) {
+                    if (!rows.length) return null
+                    return (
+                      <span style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: 'var(--text-dim, #9394a8)' }}>
+                        {label}:{' '}
+                        {rows.map((f, i) => {
+                          const name = f.item_name.replace('Feasibility: ', '')
+                          return (
+                            <span key={name} style={{ color: feasColor(f.issue_description) }}>
+                              {i > 0 && <span style={{ color: 'var(--text-muted, #6b6d82)' }}> · </span>}
+                              {locShort(name, prefix)} <span style={{ fontWeight: 700 }}>{feasIcon(f.issue_description)}</span>
+                            </span>
+                          )
+                        })}
+                      </span>
+                    )
+                  }
 
-              const singletons  = feasibility.filter(f => !f.item_name.includes(' · '))
-              const exhaustRows = feasibility.filter(f => f.item_name.startsWith('Feasibility: Exhaust Fan · '))
-              const geyserRows  = feasibility.filter(f => f.item_name.startsWith('Feasibility: Geyser · '))
-              const acRows      = feasibility.filter(f => f.item_name.startsWith('Feasibility: Air Conditioner · '))
+                  const singletons  = feasibility.filter(f => !f.item_name.includes(' · '))
+                  const exhaustRows = feasibility.filter(f => f.item_name.startsWith('Feasibility: Exhaust Fan · '))
+                  const geyserRows  = feasibility.filter(f => f.item_name.startsWith('Feasibility: Geyser · '))
+                  const acRows      = feasibility.filter(f => f.item_name.startsWith('Feasibility: Air Conditioner · '))
 
-              return (
-                <div style={{ marginBottom: 20, padding: '10px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8 }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 7, letterSpacing: '0.08em' }}>APPLIANCES</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                    {singletons.map(f => {
-                      const name = f.item_name.replace('Feasibility: ', '')
-                      return (
-                        <span key={name} style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: feasColor(f.issue_description) }}>
-                          {SINGLETON_SHORT[name] || name} <span style={{ fontWeight: 700 }}>{feasIcon(f.issue_description)}</span>
-                        </span>
-                      )
-                    })}
-                    <GroupedRow prefix="Exhaust Fan"     label="Exhaust" rows={exhaustRows} />
-                    <GroupedRow prefix="Geyser"          label="Geyser"  rows={geyserRows}  />
-                    <GroupedRow prefix="Air Conditioner" label="AC"      rows={acRows}      />
+                  return (
+                    <div style={{ marginBottom: 20, padding: '10px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8 }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 7, letterSpacing: '0.08em' }}>APPLIANCES</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                        {singletons.map(f => {
+                          const name = f.item_name.replace('Feasibility: ', '')
+                          return (
+                            <span key={name} style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: feasColor(f.issue_description) }}>
+                              {SINGLETON_SHORT[name] || name} <span style={{ fontWeight: 700 }}>{feasIcon(f.issue_description)}</span>
+                            </span>
+                          )
+                        })}
+                        <GroupedRow prefix="Exhaust Fan"     label="Exhaust" rows={exhaustRows} />
+                        <GroupedRow prefix="Geyser"          label="Geyser"  rows={geyserRows}  />
+                        <GroupedRow prefix="Air Conditioner" label="AC"      rows={acRows}      />
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Quick Note */}
+                <div style={{ margin: '16px 0' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 8 }}>
+                    Notes
                   </div>
-                </div>
-              )
-            })()}
-
-            {/* Action tiles — 2x3 grid */}
-            <SectionLabel>Actions</SectionLabel>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              {TILES.map(tile => (
-                <button
-                  key={tile.key}
-                  onClick={() => handleTile(tile.key)}
-                  disabled={tile.disabled}
-                  style={{
-                    display: 'flex', flexDirection: 'column', gap: 12,
-                    padding: '16px',
-                    background: tile.bg,
-                    border: `1px solid ${tile.border}`,
-                    borderRadius: 10,
-                    cursor: tile.disabled ? 'default' : 'pointer',
-                    textAlign: 'left',
-                    opacity: tile.disabled ? 0.6 : 1,
-                    transition: 'border-color 0.15s, box-shadow 0.15s',
-                    WebkitTapHighlightColor: 'transparent',
-                    color: 'var(--text, #e8e8f0)',
-                    minHeight: 100,
-                  }}
-                  onMouseEnter={e => { if (!tile.disabled) { e.currentTarget.style.borderColor = tile.color; e.currentTarget.style.boxShadow = `0 0 0 1px ${tile.color}` } }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = tile.border; e.currentTarget.style.boxShadow = 'none' }}
-                >
-                  <div style={{ color: tile.color, lineHeight: 0, opacity: 0.85 }}>{tile.icon}</div>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: tile.color, fontFamily: 'var(--font-mono, monospace)', marginBottom: 3 }}>{tile.title}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{tile.sub}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            {/* Utilities & Access summary strip */}
-            {(access?.lockbox_code || utilities.length > 0) && (() => {
-              const activeCount = utilities.filter(u => u.status === 'active').length
-              return (
-                <button
-                  onClick={() => navigate(`/properties/${pid}/utilities`)}
-                  style={{ width: '100%', marginTop: 12, display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.22)', borderRadius: 10, cursor: 'pointer', textAlign: 'left', WebkitTapHighlightColor: 'transparent' }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#a78bfa' }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(167,139,250,0.22)' }}
-                >
-                  {access?.lockbox_code && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono, monospace)' }}>
-                      <span style={{ fontSize: 13 }}>🔒</span>
-                      <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--text, #e8e8f0)' }}>{access.lockbox_code}</span>
-                    </span>
-                  )}
-                  {access?.lockbox_code && utilities.length > 0 && (
-                    <span style={{ width: 1, height: 18, background: 'rgba(167,139,250,0.25)' }} />
-                  )}
-                  {utilities.length > 0 && (
-                    <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>
-                      {utilities.length} {utilities.length === 1 ? 'utility' : 'utilities'}
-                      {activeCount > 0 && <span style={{ color: 'var(--text-muted, #6b6d82)' }}> · {activeCount} active</span>}
-                    </span>
-                  )}
-                  <span style={{ marginLeft: 'auto', fontSize: 13, color: '#a78bfa' }}>→</span>
-                </button>
-              )
-            })()}
-
-            {/* Quick Note */}
-            <div style={{ margin: '16px 0' }}>
-              <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 8 }}>
-                Notes
-              </div>
-              {quickNote?.note ? (
-                <div style={{ padding: 16, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderLeft: '3px solid var(--accent, #c8963e)', borderRadius: 10 }}>
-                  <div style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                    {quickNote.note}
-                  </div>
-                  {quickNote.updated_at && (
-                    <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 8 }}>
-                      {new Date(quickNote.updated_at).toLocaleDateString('en-IN')}
+                  {quickNote?.note ? (
+                    <div style={{ padding: 16, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderLeft: '3px solid var(--accent, #c8963e)', borderRadius: 10 }}>
+                      <div style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                        {quickNote.note}
+                      </div>
+                      {quickNote.updated_at && (
+                        <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 8 }}>
+                          {new Date(quickNote.updated_at).toLocaleDateString('en-IN')}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '12px 16px', border: '1px dashed rgba(200,150,62,0.2)', borderRadius: 8, fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                      No notes yet — add one during inspection using the ✏ button
                     </div>
                   )}
                 </div>
-              ) : (
-                <div style={{ padding: '12px 16px', border: '1px dashed rgba(200,150,62,0.2)', borderRadius: 8, fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
-                  No notes yet — add one during inspection using the ✏ button
-                </div>
-              )}
-            </div>
 
-            {/* Setup log */}
-            {journey.length > 0 && (
-              <div style={{ marginTop: 24 }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', marginBottom: 10 }}>Setup Log</div>
-                <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
-                  {[...journey].reverse().map(entry => {
-                    const stageLabel = STAGES.find(s => s.key === entry.stage)?.label || entry.stage
-                    const isApproved = entry.stage === 'estimate_approved'
-                    const isReject   = entry.stage === 'estimate_rejected'
-                    return (
-                      <div key={entry.id} style={{ display: 'flex', gap: 12, padding: '8px 14px', borderBottom: '1px solid var(--border, #2e3040)', fontSize: 12, alignItems: 'center' }}>
-                        <span style={{ color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 11, minWidth: 72, flexShrink: 0 }}>
-                          {new Date(entry.changed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                        </span>
-                        <span style={{ color: isReject ? '#f87171' : isApproved ? '#4dd9c0' : 'var(--text, #e8e8f0)', flex: 1 }}>
-                          {stageLabel}
-                        </span>
-                        <span style={{ color: 'var(--text-muted, #6b6d82)', fontSize: 11 }}>
-                          {entry.changed_by?.split('@')[0] || 'system'}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
               </div>
-            )}
 
-            {/* Inspection History — production has one record per inspection date per PID; multiple records here are test data for PID 123 */}
-            {inspections.length > 0 && (() => {
-              const visible = showAllInspections ? inspections : inspections.slice(0, 1)
-              return (
-                <>
-                  <div style={{ marginTop: 28 }}><SectionLabel>Inspection History</SectionLabel></div>
-                  <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
-                    {visible.map((ins, i) => (
-                      <div key={ins.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: i < visible.length - 1 ? '1px solid var(--border, #2e3040)' : 'none' }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDate(ins.inspection_date)}</div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                            {ins.house_type && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{ins.house_type}</span>}
-                            <span style={{
-                              fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3,
-                              fontFamily: 'var(--font-mono, monospace)',
-                              background: ins.status === 'completed' ? 'rgba(61,186,122,0.1)' : ins.status === 'estimate_generated' ? 'rgba(61,186,122,0.1)' : 'var(--bg-input, #252731)',
-                              border: `1px solid ${ins.status === 'completed' || ins.status === 'estimate_generated' ? 'rgba(61,186,122,0.3)' : 'var(--border, #2e3040)'}`,
-                              color: ins.status === 'completed' || ins.status === 'estimate_generated' ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)',
-                            }}>
-                              {ins.status || 'draft'}
-                            </span>
+              <div className="rec-c">
+                <RecordTimeline pid={pid} />
+              </div>
+
+              <div className="rec-r">
+                <div>
+                    {/* Action tiles — 2x3 grid */}
+                    <SectionLabel>Actions</SectionLabel>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      {TILES.map(tile => (
+                        <button
+                          key={tile.key}
+                          onClick={() => handleTile(tile.key)}
+                          disabled={tile.disabled}
+                          style={{
+                            display: 'flex', flexDirection: 'column', gap: 12,
+                            padding: '16px',
+                            background: tile.bg,
+                            border: `1px solid ${tile.border}`,
+                            borderRadius: 10,
+                            cursor: tile.disabled ? 'default' : 'pointer',
+                            textAlign: 'left',
+                            opacity: tile.disabled ? 0.6 : 1,
+                            transition: 'border-color 0.15s, box-shadow 0.15s',
+                            WebkitTapHighlightColor: 'transparent',
+                            color: 'var(--text, #e8e8f0)',
+                            minHeight: 100,
+                          }}
+                          onMouseEnter={e => { if (!tile.disabled) { e.currentTarget.style.borderColor = tile.color; e.currentTarget.style.boxShadow = `0 0 0 1px ${tile.color}` } }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = tile.border; e.currentTarget.style.boxShadow = 'none' }}
+                        >
+                          <div style={{ color: tile.color, lineHeight: 0, opacity: 0.85 }}>{tile.icon}</div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: tile.color, fontFamily: 'var(--font-mono, monospace)', marginBottom: 3 }}>{tile.title}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{tile.sub}</div>
                           </div>
-                        </div>
-                        {ins.status === 'estimate_generated' && (
-                          <button
-                            onClick={() => navigate(`/estimate/${ins.id}`)}
-                            style={{ fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', background: 'rgba(61,186,122,0.08)', border: '1px solid rgba(61,186,122,0.25)', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}
-                          >
-                            view estimate →
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  {inspections.length > 1 && (
-                    <button
-                      onClick={() => setShowAllInspections(v => !v)}
-                      style={{ marginTop: 8, background: 'none', border: 'none', padding: 0, fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
-                    >
-                      {showAllInspections ? 'Show less ↑' : `View all ${inspections.length} inspections for this PID →`}
-                    </button>
-                  )}
-                </>
-              )
-            })()}
+                        </button>
+                      ))}
+                    </div>
 
-            <MoneyTrail pid={pid} />
+                    {/* Utilities & Access summary strip */}
+                    {(access?.lockbox_code || utilities.length > 0) && (() => {
+                      const activeCount = utilities.filter(u => u.status === 'active').length
+                      return (
+                        <button
+                          onClick={() => navigate(`/properties/${pid}/utilities`)}
+                          style={{ width: '100%', marginTop: 12, display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.22)', borderRadius: 10, cursor: 'pointer', textAlign: 'left', WebkitTapHighlightColor: 'transparent' }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = '#a78bfa' }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(167,139,250,0.22)' }}
+                        >
+                          {access?.lockbox_code && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono, monospace)' }}>
+                              <span style={{ fontSize: 13 }}>🔒</span>
+                              <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--text, #e8e8f0)' }}>{access.lockbox_code}</span>
+                            </span>
+                          )}
+                          {access?.lockbox_code && utilities.length > 0 && (
+                            <span style={{ width: 1, height: 18, background: 'rgba(167,139,250,0.25)' }} />
+                          )}
+                          {utilities.length > 0 && (
+                            <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>
+                              {utilities.length} {utilities.length === 1 ? 'utility' : 'utilities'}
+                              {activeCount > 0 && <span style={{ color: 'var(--text-muted, #6b6d82)' }}> · {activeCount} active</span>}
+                            </span>
+                          )}
+                          <span style={{ marginLeft: 'auto', fontSize: 13, color: '#a78bfa' }}>→</span>
+                        </button>
+                      )
+                    })()}
+
+                </div>
+                <div style={{ marginTop: -28 }}><MoneyTrail pid={pid} /></div>
+                {/* Inspection History — production has one record per inspection date per PID; multiple records here are test data for PID 123 */}
+                {inspections.length > 0 && (() => {
+                  const visible = showAllInspections ? inspections : inspections.slice(0, 1)
+                  return (
+                    <>
+                      <div style={{ marginTop: 28 }}><SectionLabel>Inspection History</SectionLabel></div>
+                      <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, overflow: 'hidden' }}>
+                        {visible.map((ins, i) => (
+                          <div key={ins.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: i < visible.length - 1 ? '1px solid var(--border, #2e3040)' : 'none' }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDate(ins.inspection_date)}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                                {ins.house_type && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{ins.house_type}</span>}
+                                <span style={{
+                                  fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3,
+                                  fontFamily: 'var(--font-mono, monospace)',
+                                  background: ins.status === 'completed' ? 'rgba(61,186,122,0.1)' : ins.status === 'estimate_generated' ? 'rgba(61,186,122,0.1)' : 'var(--bg-input, #252731)',
+                                  border: `1px solid ${ins.status === 'completed' || ins.status === 'estimate_generated' ? 'rgba(61,186,122,0.3)' : 'var(--border, #2e3040)'}`,
+                                  color: ins.status === 'completed' || ins.status === 'estimate_generated' ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)',
+                                }}>
+                                  {ins.status || 'draft'}
+                                </span>
+                              </div>
+                            </div>
+                            {ins.status === 'estimate_generated' && (
+                              <button
+                                onClick={() => navigate(`/estimate/${ins.id}`)}
+                                style={{ fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', background: 'rgba(61,186,122,0.08)', border: '1px solid rgba(61,186,122,0.25)', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}
+                              >
+                                view estimate →
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {inspections.length > 1 && (
+                        <button
+                          onClick={() => setShowAllInspections(v => !v)}
+                          style={{ marginTop: 8, background: 'none', border: 'none', padding: 0, fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
+                        >
+                          {showAllInspections ? 'Show less ↑' : `View all ${inspections.length} inspections for this PID →`}
+                        </button>
+                      )}
+                    </>
+                  )
+                })()}
+
+              </div>
+            </div>
           </>
         )}
       </main>
@@ -861,10 +863,9 @@ const s = {
   },
   header: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '0 20px', height: 56,
-    background: 'var(--bg-panel, #1e2028)',
+    padding: '0 24px', height: 52, gap: 14,
+    background: 'var(--bg, #16171f)',
     borderBottom: '1px solid var(--border, #2e3040)',
-    position: 'sticky', top: 0, zIndex: 10,
   },
   backBtn: {
     width: 36, height: 36,
@@ -874,11 +875,11 @@ const s = {
     borderRadius: 8,
     color: 'var(--text-dim, #9394a8)', cursor: 'pointer',
   },
-  headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 },
+  headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, flex: 1, minWidth: 0 },
   headerTitle: { fontSize: 14, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' },
   headerSub: {
     fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)',
-    maxWidth: 'min(62vw, 420px)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
   heroStrip: {
     background: 'var(--bg-panel, #1e2028)',
@@ -915,7 +916,7 @@ const s = {
     opacity: 0.25,
     pointerEvents: 'none',
   },
-  main: { flex: 1, padding: '24px 20px 48px', maxWidth: 600, width: '100%', margin: '0 auto' },
+  main: { flex: 1, padding: '20px 24px 48px', width: '100%', boxSizing: 'border-box' },
   empty: {
     textAlign: 'center', padding: '40px 0',
     fontSize: 12, color: 'var(--text-muted, #6b6d82)',
