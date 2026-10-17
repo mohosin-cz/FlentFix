@@ -546,7 +546,7 @@ function EstimateWorkbenchInner() {
       // Link and code in one code block: one tap selects both, and Slack
       // leaves the text exactly as written when it is copied.
       { type: 'section', text: { type: 'mrkdwn', text: '```Your Flent estimate: ' + url + '\nAccess code: ' + code + '```' } },
-      { type: 'context', elements: [{ type: 'mrkdwn', text: 'The landlord enters their email + the code to open it. Flent logins open it directly. Every approval records the approver’s email.' }] },
+      { type: 'context', elements: [{ type: 'mrkdwn', text: 'Anyone opening it enters their email + the code (logged-in Pulse users go straight in). Every approval records the approver’s email.' }] },
     ]
     const { data, error } = await supabase.functions.invoke('wo-report-notify', { body: { text, pid, blocks } })
     const ok = !error && data?.ok !== false
@@ -1008,7 +1008,7 @@ function EstimateWorkbenchInner() {
           )}
           {access?.code && !access?.slack && <button className="btn ghost tct tct-bare" onClick={() => postToSlack(access.code, estimate?.current_version || 1, pricedTotal())}>Post to Slack</button>}
           {access?.error && <span style={{ color:'#f87171' }}>⚠ {access.error}</span>}
-          <span style={{ color:'var(--muted)',flexBasis:'100%' }}>Flent logins open the link directly. Anyone else enters their email + this code; every approval records the email.</span>
+          <span style={{ color:'var(--muted)',flexBasis:'100%' }}>Anyone opening the link enters their email + this code (logged-in Pulse users go straight in); every approval records the email.</span>
           <button className="btn ghost tct tct-bare" style={{ marginLeft:'auto' }} onClick={() => setAccessOpen(false)}>Close</button>
         </div>
       )}

@@ -879,9 +879,6 @@ export default function LandlordEstimate() {
           <button className="le-btn-name-confirm" type="submit" disabled={gateBusy || !gateEmail.trim() || gateCode.replace(/\s/g, '').length < 6}>
             {gateBusy ? 'Checking…' : 'Open estimate'}
           </button>
-          <div className="le-name-modal-sub" style={{ marginTop: 14, marginBottom: 0, fontSize: 12 }}>
-            Flent team? <a href={`/login?next=${encodeURIComponent(`/e/${token}`)}`} style={{ color: 'var(--le-ink)' }}>Sign in to Pulse</a> instead.
-          </div>
         </form>
       </div>
     </div>
