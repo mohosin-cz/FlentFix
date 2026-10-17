@@ -13,6 +13,7 @@ import MoneyTrail from '../components/property/MoneyTrail'
 import RecordStatus, { usePropertyJourneyRow } from '../components/property/RecordStatus'
 import RecordTimeline from '../components/property/RecordTimeline'
 import LandlordPanel from '../components/property/LandlordPanel'
+import MilestoneStrip from '../components/property/MilestoneStrip'
 import AppHeader from '../components/AppHeader'
 import ShareSheet from '../components/vendor/ShareSheet'
 
@@ -596,6 +597,9 @@ export default function PropertyDetail() {
           actions={getStageActions()}
         />
       )}
+
+      {/* The steps a person confirms: estimate final, setup date, setup closed, QC, handover, Slack, closed */}
+      {!loading && <MilestoneStrip pid={pid} />}
 
       <main style={s.main}>
         {loading ? (
