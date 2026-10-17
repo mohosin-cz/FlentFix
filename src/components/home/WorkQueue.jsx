@@ -33,7 +33,9 @@ const VIEWS = [
   { key: 'needs_me',  label: 'Needs me',           pick: (rows, ctx) => rows.filter(r => r.blocked_on === 'setup_ops' && r.urgency !== 'done' && isMine(r, ctx.assigned, ctx.me)).map(r => ({ r, t: headline(r) })) },
   { key: 'needs_team', label: 'Needs the team',    pick: (rows) => rows.filter(r => r.blocked_on === 'setup_ops' && r.urgency !== 'done').map(r => ({ r, t: headline(r) })) },
   { key: 'supply',    label: 'Waiting on supply',   pick: (rows) => rows.flatMap(r => { const t = (r.open_threads || []).find(x => (x.waiting_on || x.blocked_on) === 'supply' && x.urgency !== 'done'); return t ? [{ r, t }] : [] }) },
-  { key: 'setups',    label: 'Setups this week',    pick: (rows) => rows.filter(r => r.days_to_setup != null && r.days_to_setup >= 0 && r.days_to_setup <= 6).sort((a, b) => a.days_to_setup - b.days_to_setup).map(r => ({ r, t: headline(r) })) },
+  { key: 'setups',    label: 'Setups this week',    pick: (rows) => rows.filter(r => r.days_to_setup != null && r.days_to_setup >= 0 && r.days_to_setup <= 6).sort((a, b) => a.days_to_setup - b.days_to_setup)
+      // on the day the row is the arrival state ("Setup day · 2 of 4 vendors punched in"); before it, the countdown
+      .map(r => ({ r, t: (r.open_threads || []).find(x => x.code === 'setup_day') || (r.open_threads || []).find(x => x.code === 'wo_awaiting_day') || headline(r) })) },
   { key: 'landlord',  label: 'Waiting on landlord', pick: (rows) => rows.flatMap(r => { const t = (r.open_threads || []).find(x => x.blocked_on === 'landlord' && x.urgency !== 'done'); return t ? [{ r, t }] : [] }) },
   { key: 'vendor',    label: 'Waiting on vendor',   pick: (rows) => rows.flatMap(r => { const t = (r.open_threads || []).find(x => x.blocked_on === 'vendor' && x.urgency !== 'done'); return t ? [{ r, t }] : [] }) },
   { key: 'overdue',   label: 'Overdue',            pick: (rows) => rows.filter(r => r.urgency === 'overdue').map(r => ({ r, t: headline(r) })) },
@@ -45,6 +47,12 @@ const EMPTY = {
   vendor: 'No vendor is holding anything up.', supply: 'Nothing is with supply.', setups: 'No setups in the next 7 days.', overdue: 'Nothing is past its threshold.', unowned: 'Every property has an owner.', all: 'No live properties.',
 }
 
+const URG = { overdue: 0, today: 1, soon: 2, waiting: 3, done: 4 }
+// Default order (pulse-journey-prompt.md, Branch 5): urgency, then the nearest
+// setup date, then whatever has waited longest.
+const byPriority = (a, b) => ((URG[a.t.urgency] ?? 9) - (URG[b.t.urgency] ?? 9))
+  || ((a.r.days_to_setup ?? 9999) - (b.r.days_to_setup ?? 9999))
+  || ((b.t.age_days ?? 0) - (a.t.age_days ?? 0))
 const COLS = [
   { key: 'pid',     label: 'PID',         sort: (x) => String(x.r.pid) },
   { key: 'name',    label: 'Property',    sort: (x) => (x.r.property_name || '').toLowerCase() },
@@ -90,14 +98,14 @@ export default function WorkQueue() {
 
   const [view, setView] = useState(() => LS.get('pulse.queue.view', 'needs_me'))
   const [mode, setMode] = useState(() => LS.get('pulse.queue.mode', 'table'))
-  const [sort, setSort] = useState(() => LS.get('pulse.queue.sort', { key: 'age', dir: 'desc' }))
+  const [sort, setSort] = useState(() => LS.get('pulse.queue.sort2', { key: 'priority', dir: 'asc' }))
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(() => new Set())
   const [busy, setBusy] = useState(null)
   const [toast, setToast] = useState(null)
   useEffect(() => LS.set('pulse.queue.view', view), [view])
   useEffect(() => LS.set('pulse.queue.mode', mode), [mode])
-  useEffect(() => LS.set('pulse.queue.sort', sort), [sort])
+  useEffect(() => LS.set('pulse.queue.sort2', sort), [sort])
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3500); return () => clearTimeout(t) }, [toast])
 
   const ctx = useMemo(() => ({ assigned, me }), [assigned, me])
@@ -111,8 +119,9 @@ export default function WorkQueue() {
       const needle = q.trim().toLowerCase()
       items = items.filter(x => [x.r.pid, x.r.property_name, x.t.label, x.t.next_action_label, x.owner].some(s => String(s || '').toLowerCase().includes(needle)))
     }
-    const col = COLS.find(c => c.key === sort.key) || COLS[4]
-    items.sort((a, b) => { const A = col.sort(a), B = col.sort(b); return (A < B ? -1 : A > B ? 1 : 0) * (sort.dir === 'asc' ? 1 : -1) })
+    const col = COLS.find(c => c.key === sort.key)
+    if (!col) items.sort(byPriority)
+    else items.sort((a, b) => { const A = col.sort(a), B = col.sort(b); return (A < B ? -1 : A > B ? 1 : 0) * (sort.dir === 'asc' ? 1 : -1) || byPriority(a, b) })
     return items
   }, [rows, view, ctx, assigned, q, sort])
 
@@ -187,6 +196,9 @@ export default function WorkQueue() {
         )}
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Filter this view…" aria-label="Filter this view"
           style={{ minHeight: 34, padding: '0 12px', borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontFamily: MONO, fontSize: 12, outline: 'none', width: phone ? undefined : 220, flex: phone ? '1 1 160px' : undefined, minWidth: 0 }} />
+        {sort.key !== 'priority' && (
+          <button onClick={() => setSort({ key: 'priority', dir: 'asc' })} title="Urgency, then nearest setup date, then longest waiting" style={btn(false)}>Default order</button>
+        )}
         <button onClick={() => { reload(); loadMeta() }} title="Refresh" style={btn(false)}>↻</button>
       </div>
 
