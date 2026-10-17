@@ -9,6 +9,14 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import { COMPANY } from '../utils/company'
 import FlentWordmark from '../components/FlentWordmark'
 
+// The property's landlord name, synced from the Holy Grail sheet. '' when the
+// property has none yet, or the column does not exist yet.
+async function propertyLandlord(pid) {
+  if (!pid) return ''
+  const { data, error } = await supabase.from('properties').select('landlord_name').eq('pid', pid).maybeSingle()
+  return error ? '' : (data?.landlord_name || '')
+}
+
 // ─── Column sanitizers ────────────────────────────────────────────────────────
 const INVOICE_COLUMNS = [
   'invoice_number', 'pid', 'inspection_id', 'status',
@@ -406,6 +414,9 @@ export default function LandlordInvoice() {
     const issueDate = new Date().toISOString().split('T')[0]
     const dueDate   = new Date(Date.now() + 15 * 864e5).toISOString().split('T')[0]
 
+    // The landlord's name comes from the property (synced from the Holy Grail sheet).
+    const sheetLandlord = await propertyLandlord(insp?.pid)
+
     const { data: newInv, error: createErr } = await supabase
       .from('landlord_invoices')
       .insert(sanitizeInvoice({
@@ -418,7 +429,7 @@ export default function LandlordInvoice() {
         status:           'draft',
         tax_rate:         18,
         notes:            '',
-        landlord_name:    '',
+        landlord_name:    sheetLandlord,
         landlord_email:   '',
         landlord_phone:   '',
       }))
@@ -463,6 +474,11 @@ export default function LandlordInvoice() {
   function applyInvoice(inv) {
     setInvoice(inv)
     setLandlordName(inv.landlord_name || '')
+    // An invoice drafted before the sheet sync has no landlord; offer the
+    // property's. It is only a pre-fill — saved when the invoice is saved.
+    if (!inv.landlord_name && inv.status === 'draft' && inv.pid) {
+      propertyLandlord(inv.pid).then(n => { if (n) setLandlordName(prev => prev || n) })
+    }
     setPropertyAddress(inv.property_address || '')
     setNotes(inv.notes || '')
     setTaxRate(inv.tax_rate ?? 18)

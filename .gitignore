@@ -29,3 +29,7 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Holy Grail exports carry landlord PANs and financials — never commit them
+Flent Holy Grail*.csv
+Flent Holy Grail*.xlsx

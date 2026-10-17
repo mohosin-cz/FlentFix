@@ -12,6 +12,7 @@ import StageRail, { derivedRailKey } from '../components/property/StageRail'
 import MoneyTrail from '../components/property/MoneyTrail'
 import RecordStatus, { usePropertyJourneyRow } from '../components/property/RecordStatus'
 import RecordTimeline from '../components/property/RecordTimeline'
+import LandlordPanel from '../components/property/LandlordPanel'
 import AppHeader from '../components/AppHeader'
 import ShareSheet from '../components/vendor/ShareSheet'
 
@@ -614,6 +615,7 @@ export default function PropertyDetail() {
             <div className="rec-grid">
               <div className="rec-l">
                 <RecordStatus journey={engine} />
+                <LandlordPanel pid={pid} />
                 {/* Summary stats — always render */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
                   {[
