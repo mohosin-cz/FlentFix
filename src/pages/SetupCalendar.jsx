@@ -21,14 +21,14 @@ const C = {
   accent: 'var(--accent, #c8963e)', green: 'var(--green, #3dba7a)', red: 'var(--red, #e05c6a)',
 }
 const KIND = {
-  visit:       { label: 'Exploratory visit',  short: 'visit',         fg: '#e07ba8', bg: 'rgba(224,123,168,0.14)', group: 'visits' },
+  visit:       { label: 'Exploratory visit',  short: 'visit',         fg: '#b0645b', bg: 'rgba(176,100,91,0.16)', group: 'visits' },
   setup:       { label: 'Setup',              short: 'setup',         fg: '#c8963e', bg: 'rgba(200,150,62,0.14)',  group: 'setups' },
   stage_setup: { label: 'Setup · Stage plan', short: 'setup (Stage)', fg: '#c8963e', bg: 'transparent',            group: 'setups', dashed: true },
   revamp:      { label: 'Revamp · Stage',     short: 'revamp',        fg: '#b08ae0', bg: 'rgba(176,138,224,0.12)', group: 'setups', dashed: true },
   handover:    { label: 'Handover',           short: 'handover',      fg: '#3dba7a', bg: 'rgba(61,186,122,0.14)',  group: 'handovers' },
   move_in:     { label: 'Move-in · Stage',    short: 'move-in',       fg: '#5fa8e8', bg: 'rgba(95,168,232,0.14)',  group: 'moveins' },
 }
-const GROUPS = [['visits', 'Visits', '#e07ba8'], ['setups', 'Setups', '#c8963e'], ['moveins', 'Move-ins', '#5fa8e8'], ['handovers', 'Handovers', '#3dba7a'], ['vendors', 'Vendors', '#9394a8']]
+const GROUPS = [['visits', 'Visits', '#b0645b'], ['setups', 'Setups', '#c8963e'], ['moveins', 'Move-ins', '#5fa8e8'], ['handovers', 'Handovers', '#3dba7a'], ['vendors', 'Vendors', '#9394a8']]
 const ORDER = ['visit', 'setup', 'stage_setup', 'revamp', 'handover', 'move_in']
 const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
@@ -280,7 +280,7 @@ export default function SetupCalendar() {
                 <button key={evKey(e)} type="button" onClick={() => { openItem(e); setAnchor(e.date.slice(0, 8) + '01') }}
                   style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', borderTop: `1px solid ${C.border}`, borderLeft: 0, borderRight: 0, borderBottom: 0, background: 'none', color: C.text, cursor: 'pointer' }}>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{e.name}</div>
-                  <div style={{ fontFamily: MONO, fontSize: 11, color: '#e07ba8' }}>{nice(e.date)}{e.time ? ` · ${e.time}` : ''} · assign ›</div>
+                  <div style={{ fontFamily: MONO, fontSize: 11, color: '#b0645b' }}>{nice(e.date)}{e.time ? ` · ${e.time}` : ''} · assign ›</div>
                 </button>
               ))}
             </section>
