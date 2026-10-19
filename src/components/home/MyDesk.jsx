@@ -182,7 +182,7 @@ export default function MyDesk({ home, desk, viewing, onPickView, onChanged }) {
               </div>
             )}
           </Panel>
-          <Renewals list={d.renewals} navigate={navigate} onChanged={onChanged} readOnly={!!viewing} />
+          {/* WiFi / RO renewals live on the Utilities page only — not on anyone's desk (told 2026-10-20) */}
         </div>
 
         <div className="dk-col">
@@ -510,37 +510,6 @@ function Estimates({ list, navigate }) {
           })}
         </div>
       )}
-    </Panel>
-  )
-}
-
-function Renewals({ list, navigate, onChanged, readOnly }) {
-  const [paid, setPaid] = useState({})
-  const [err, setErr] = useState('')
-  async function markPaid(r) {
-    setErr('')
-    const { error } = await supabase.rpc('utility_mark_recharged', { p_id: r.id, p_on: r.due })
-    if (error) { setErr(error.message); return }
-    setPaid(p => ({ ...p, [r.id]: true }))
-    onChanged && onChanged()
-  }
-  return (
-    <Panel title="Recharges & renewals" meta="WiFi and RO due in the next 14 days, from each plan’s start date and cycle">
-      {list.length === 0 ? <Empty>Nothing due in the next 14 days.</Empty> : (
-        <div className="dk-rows">
-          {list.map(r => (
-            <div key={r.id} className="dk-row">
-              <button type="button" onClick={() => navigate(`/properties/${r.pid}/utilities`)} style={{ flex: '1 1 200px', minWidth: 0, background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: C.text }}>
-                <T1><Pid pid={r.pid} />{r.type === 'wifi' ? 'WiFi' : 'RO'}{r.provider ? ` · ${r.provider}` : ''}</T1>
-                <T2>{[clean(r.name, r.pid), inr(r.amount), r.cycle && r.cycle.toLowerCase()].filter(Boolean).join(' · ')}{r.last_recharged_on ? ` · last paid ${new Date(r.last_recharged_on + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}</T2>
-              </button>
-              <Chip tone={r.days <= 0 ? 'red' : r.days <= 3 ? 'amber' : 'grey'}>{r.days <= 0 ? 'due today' : `due ${dayLbl(r.due)} · ${r.days}d`}</Chip>
-              {!readOnly && (paid[r.id] ? <Btn kind="done" disabled>✓ Paid</Btn> : <Btn onClick={() => markPaid(r)} title="Records this cycle as paid; the next due date moves on">Mark paid</Btn>)}
-            </div>
-          ))}
-        </div>
-      )}
-      {err && <Empty><span style={{ color: C.red }}>Not saved — {err}</span></Empty>}
     </Panel>
   )
 }
