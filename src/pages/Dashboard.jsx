@@ -74,7 +74,7 @@ export default function Dashboard() {
           ? <TeamView home={home} team={teamData} onViewDesk={(email) => setViewing(email === me ? '' : email)} onPickView={(key) => setPick({ key, at: Date.now() })}
               queue={<WorkQueue key="team" home={home} pickView={pick} scope="team" title="Team’s open work" embedded />} />
           : <MyDesk key={who} home={home} desk={desk} viewing={viewing} onPickView={(key) => setPick({ key, at: Date.now() })} onChanged={reloadAll} />}
-        {!showTeam && <WorkQueue key="mine" home={home} pickView={pick} scope="mine" title={viewing ? `${firstName(viewing)}’s queue` : 'Your queue'} />}
+        {!showTeam && <WorkQueue key={`mine:${viewing || ''}`} home={home} pickView={pick} scope="mine" viewAs={viewing || ''} title={viewing ? `${firstName(viewing)}’s queue` : 'Your queue'} />}
       </main>
     </div>
   )

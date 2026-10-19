@@ -89,11 +89,13 @@ const btn = (on) => ({ minHeight: 34, padding: '0 12px', borderRadius: 7, border
 const TEAM_VIEWS = ['needs_team', 'supply', 'landlord', 'vendor', 'setups', 'overdue', 'prospects', 'unowned', 'all', 'not_taken']
 // embedded: sits as a panel inside the Team view — tabs and rows only (no
 // table/board switch, no filter box), and the columns a team tab already implies are left out.
-export default function WorkQueue({ home, pickView, scope = 'mine', title, embedded = false }) {
+export default function WorkQueue({ home, pickView, scope = 'mine', title, embedded = false, viewAs = '' }) {
   const navigate = useNavigate()
   const phone = useIsMobile(640)
   const { session } = useAuth()
-  const me = (session?.user?.email || '').toLowerCase()
+  // Whose queue this is: an admin viewing someone's desk sees exactly their
+  // queue — their rows, their "needs me", and none of the admin-only items.
+  const me = (viewAs || session?.user?.email || '').toLowerCase()
 
   const { loading, error, rows: allRows, thresholds, reload } = home
   // Exploratory requests are assigned by the admin alone (told 2026-10-19).
