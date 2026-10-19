@@ -150,7 +150,8 @@ begin
    where deleted_at is null and (lower(owner_email) = me or lower(assigned_to) = me)
      and pid !~* '^\s*no\s*pid\s*$';
   -- properties paused at the clean slate raise nothing here (renewals still show: tenants' WiFi/RO)
-  select coalesce(array_agg(pid), '{}') into active from properties where pid = any(mine) and journey_paused_at is null;
+  -- only properties still being worked raise tasks: not paused, closed or archived
+  select coalesce(array_agg(pid), '{}') into active from properties where pid = any(mine) and journey_paused_at is null and closed_at is null and archived_at is null;
 
   with names as (
     select p.pid, coalesce(nullif(btrim(p.name), ''), flent_site_name(p.pid), p.pid) as name
@@ -260,6 +261,7 @@ begin
            utility_next_due(coalesce(u.last_recharged_on, u.start_date), u.billing_cycle) due
       from property_utilities u
      where u.pid = any(mine) and u.status = 'active' and u.utility_type in ('wifi', 'water_purifier')
+       and not exists (select 1 from properties ap where ap.pid = u.pid and ap.archived_at is not null)   -- tenants' renewals continue after close, not after archive
   ),
 
   -- this week ----------------------------------------------------------------

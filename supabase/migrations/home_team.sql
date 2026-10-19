@@ -40,7 +40,7 @@ begin
        and p.pid !~* '^\s*no\s*pid\s*$'
        and p.pid !~* '^test'                       -- test properties stay out of team numbers
   ),
-  act as (select * from live where journey_paused_at is null),   -- not paused at the clean slate
+  act as (select * from live where journey_paused_at is null and closed_at is null and archived_at is null),   -- still being worked: not paused, closed or archived
   sent as (   -- when each estimate first went to the landlord (sent_at is missing on older rows)
     select es.id, es.pid, es.total, es.status, es.approved_at,
            coalesce(es.sent_at, (select min(x.created_at) from estimate_events x where x.estimate_id = es.id and x.event_type = 'sent'),

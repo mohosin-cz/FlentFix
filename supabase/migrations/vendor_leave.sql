@@ -215,14 +215,16 @@ begin
                                            'what', 'work order ' || to_char(w.scheduled_start, 'DD Mon')
                                                    || case when coalesce(w.scheduled_end, w.scheduled_start) > w.scheduled_start
                                                            then '–' || to_char(w.scheduled_end, 'DD Mon') else '' end) c
-          from work_orders w
+          from work_orders w join properties pw on pw.pid = w.pid
          where w.vendor_id = p_vendor and w.status not in ('verified', 'cancelled')
+           and pw.deleted_at is null and pw.closed_at is null and pw.archived_at is null and pw.journey_paused_at is null
            and w.scheduled_start is not null
            and w.scheduled_start <= p_end and coalesce(w.scheduled_end, w.scheduled_start) >= p_start
         union
         select distinct jsonb_build_object('pid', p.pid, 'day', p.setup_date, 'trade', w.trade, 'what', 'setup day')
           from properties p join work_orders w on w.pid = p.pid and w.vendor_id = p_vendor
          where p.setup_date between p_start and p_end and p.setup_closed_at is null
+           and p.deleted_at is null and p.closed_at is null and p.archived_at is null and p.journey_paused_at is null
            and exists (select 1 from work_order_items i where i.work_order_id = w.id and i.status in ('pending', 'disputed'))
       ) s), '[]'),
     -- who could cover: same trade, not off on any of those days
@@ -508,12 +510,13 @@ begin
                         from vendor_leave_day_rows(f, t) r), '[]'),
     -- booked work in the window, for the grid's underline
     'work', coalesce((select jsonb_agg(distinct jsonb_build_object('vendor_id', w.vendor_id, 'day', d::date, 'pid', w.pid))
-                        from work_orders w cross join lateral generate_series(greatest(w.scheduled_start, f), least(coalesce(w.scheduled_end, w.scheduled_start), t), interval '1 day') d
+                        from work_orders w join properties pw on pw.pid = w.pid and pw.deleted_at is null and pw.closed_at is null and pw.archived_at is null and pw.journey_paused_at is null
+                        cross join lateral generate_series(greatest(w.scheduled_start, f), least(coalesce(w.scheduled_end, w.scheduled_start), t), interval '1 day') d
                        where w.vendor_id is not null and w.status not in ('verified', 'cancelled') and w.scheduled_start is not null
                          and w.scheduled_start <= t and coalesce(w.scheduled_end, w.scheduled_start) >= f), '[]')
              || coalesce((select jsonb_agg(distinct jsonb_build_object('vendor_id', w.vendor_id, 'day', p.setup_date, 'pid', p.pid))
                         from properties p join work_orders w on w.pid = p.pid and w.vendor_id is not null
-                       where p.setup_date between f and t and p.setup_closed_at is null and p.journey_paused_at is null
+                       where p.setup_date between f and t and p.setup_closed_at is null and p.journey_paused_at is null and p.closed_at is null and p.archived_at is null and p.deleted_at is null
                          and exists (select 1 from work_order_items i where i.work_order_id = w.id and i.status in ('pending', 'disputed'))), '[]'),
     'pending', coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'vendor_id', l.vendor_id, 'kind', l.kind,
                                            'start', l.start_date, 'end', l.end_date, 'half', l.half, 'reason', l.reason,
