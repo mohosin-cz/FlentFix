@@ -545,7 +545,6 @@ function EstimateWorkbenchInner() {
           !where && prop?.maps_url && `<${prop.maps_url}|Map>`,
         ].filter(Boolean).join('\n').slice(0, 3000) } },
       { type: 'section', fields: [
-          { type: 'mrkdwn', text: `*Landlord*\n${prop?.landlord_name || '—'}` },
           { type: 'mrkdwn', text: `*Total*\n${inr(total)}` },
           { type: 'mrkdwn', text: `*Lines*\n${priced.length} priced${actuals.length ? ` · ${actuals.length} at actuals` : ''}` },
           { type: 'mrkdwn', text: `*Version*\nv${version}` },
