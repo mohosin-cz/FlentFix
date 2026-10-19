@@ -51,8 +51,8 @@ function Ol({ items }) {
 function Callout({ children, type = 'amber' }) {
   const cfg = {
     amber: { bg: 'rgba(200,150,62,0.08)',  border: 'var(--accent, #c8963e)' },
-    green: { bg: 'rgba(61,186,122,0.08)',  border: 'var(--green, #3dba7a)' },
-    red:   { bg: 'rgba(224,92,106,0.08)',  border: 'var(--red, #e05c6a)' },
+    green: { bg: 'rgba(111,154,126,0.08)',  border: 'var(--green, #6f9a7e)' },
+    red:   { bg: 'rgba(176,100,91,0.08)',  border: 'var(--red, #b0645b)' },
   }
   const c = cfg[type] || cfg.amber
   return (

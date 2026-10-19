@@ -13,7 +13,7 @@ const TRADE_META = {
   electrical: { color: '#f5c842', bg: 'rgba(245,200,66,0.08)', border: 'rgba(245,200,66,0.28)' },
   plumbing:   { color: '#5ba8e5', bg: 'rgba(91,168,229,0.08)',  border: 'rgba(91,168,229,0.28)'  },
   woodwork:   { color: '#c8963e', bg: 'rgba(200,150,62,0.08)',  border: 'rgba(200,150,62,0.28)'  },
-  cleaning:   { color: '#3dba7a', bg: 'rgba(61,186,122,0.08)',  border: 'rgba(61,186,122,0.28)'  },
+  cleaning:   { color: '#6f9a7e', bg: 'rgba(111,154,126,0.08)',  border: 'rgba(111,154,126,0.28)'  },
   misc:       { color: '#9394a8', bg: 'rgba(147,148,168,0.08)', border: 'rgba(147,148,168,0.28)' },
   appliances: { color: '#4a9eff', bg: 'rgba(74,158,255,0.08)',  border: 'rgba(74,158,255,0.28)'  },
   lights:     { color: '#f0c040', bg: 'rgba(240,192,64,0.08)',  border: 'rgba(240,192,64,0.28)'  },
@@ -40,7 +40,7 @@ function Toasts({ toasts }) {
   return (
     <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column-reverse', gap: 8, zIndex: 300, pointerEvents: 'none' }}>
       {toasts.map(t => (
-        <div key={t.id} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', background: t.type === 'error' ? 'rgba(224,92,106,0.95)' : 'rgba(61,186,122,0.95)', color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+        <div key={t.id} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', background: t.type === 'error' ? 'rgba(176,100,91,0.95)' : 'rgba(111,154,126,0.95)', color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
           {t.msg}
         </div>
       ))}
@@ -51,11 +51,11 @@ function Toasts({ toasts }) {
 function ConfirmDialog({ message, onConfirm, onCancel }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 12, padding: '24px 22px', maxWidth: 340, width: '100%' }}>
+      <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(176,100,91,0.3)', borderRadius: 12, padding: '24px 22px', maxWidth: 340, width: '100%' }}>
         <p style={{ fontSize: 13, color: 'var(--text, #e8e8f0)', lineHeight: 1.6, margin: '0 0 20px', textAlign: 'center' }}>{message}</p>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onCancel} style={{ flex: 1, padding: '9px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Cancel</button>
-          <button onClick={onConfirm} style={{ flex: 1, padding: '9px', background: 'rgba(224,92,106,0.15)', border: '1px solid rgba(224,92,106,0.4)', borderRadius: 7, color: '#e05c6a', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Delete</button>
+          <button onClick={onConfirm} style={{ flex: 1, padding: '9px', background: 'rgba(176,100,91,0.15)', border: '1px solid rgba(176,100,91,0.4)', borderRadius: 7, color: '#b0645b', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Delete</button>
         </div>
       </div>
     </div>
@@ -63,8 +63,8 @@ function ConfirmDialog({ message, onConfirm, onCancel }) {
 }
 
 function QtyBadge({ qty }) {
-  const color = qty > 5 ? '#3dba7a' : qty >= 2 ? '#f5c842' : '#e05c6a'
-  const bg    = qty > 5 ? 'rgba(61,186,122,0.12)' : qty >= 2 ? 'rgba(245,200,66,0.12)' : 'rgba(224,92,106,0.12)'
+  const color = qty > 5 ? '#6f9a7e' : qty >= 2 ? '#f5c842' : '#b0645b'
+  const bg    = qty > 5 ? 'rgba(111,154,126,0.12)' : qty >= 2 ? 'rgba(245,200,66,0.12)' : 'rgba(176,100,91,0.12)'
   return <span style={{ fontSize: 11, fontWeight: 700, color, background: bg, border: `1px solid ${color}33`, borderRadius: 4, padding: '2px 7px', fontFamily: 'var(--font-mono, monospace)' }}>{qty}</span>
 }
 
@@ -260,7 +260,7 @@ export default function InventoryDashboard() {
             { label: 'Available Units',  value: availableUnits.toLocaleString('en-IN'),                    color: 'var(--text, #e8e8f0)' },
             { label: 'Inventory value (at cost, ex-GST)',  value: `₹${Math.round(totalValue).toLocaleString('en-IN')}`,      color: 'var(--accent, #c8963e)' },
             { label: 'Units Used',       value: unitsUsed.toLocaleString('en-IN'),                         color: '#5ba8e5' },
-            { label: 'Value Used',       value: `₹${Math.round(valueUsed).toLocaleString('en-IN')}`,       color: '#e05c6a' },
+            { label: 'Value Used',       value: `₹${Math.round(valueUsed).toLocaleString('en-IN')}`,       color: '#b0645b' },
           ].map(stat => (
             <div key={stat.label} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, padding: isMobile ? '12px 14px' : '16px 18px' }}>
               <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: stat.color, fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.2 }}>{stat.value}</div>
@@ -325,7 +325,7 @@ export default function InventoryDashboard() {
                         <div><span style={s.lbl}>Warranty (mo)</span><input type="number" value={ef.warranty_months} onChange={e => setEditForm(p => ({ ...p, warranty_months: e.target.value }))} style={inpS} /></div>
                       </div>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={() => saveEdit(row)} disabled={saving} style={{ flex: 1, padding: '8px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{saving ? '…' : '✓ Save'}</button>
+                        <button onClick={() => saveEdit(row)} disabled={saving} style={{ flex: 1, padding: '8px', background: 'var(--green, #6f9a7e)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{saving ? '…' : '✓ Save'}</button>
                         <button onClick={cancelEdit} style={{ flex: 1, padding: '8px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>✕ Cancel</button>
                       </div>
                     </>
@@ -344,7 +344,7 @@ export default function InventoryDashboard() {
                             </button>
                           )}
                           {isAdmin && (
-                            <button onClick={() => setConfirmDelete({ id: row.id, name: row.item_name })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }} title="Delete">
+                            <button onClick={() => setConfirmDelete({ id: row.id, name: row.item_name })} style={{ ...s.iconBtn, color: '#b0645b', borderColor: 'rgba(176,100,91,0.3)', background: 'rgba(176,100,91,0.08)' }} title="Delete">
                               <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
                             </button>
                           )}
@@ -357,7 +357,7 @@ export default function InventoryDashboard() {
                           ? <span style={{ fontWeight: 700, color: 'var(--accent, #c8963e)' }}>₹{(parseFloat(row.flent_price)||0).toLocaleString('en-IN')}</span>
                           : <span>₹{(parseFloat(row.price_inc) || 0).toLocaleString('en-IN')}</span>
                         }
-                        {(() => { const pi = parseFloat(row.price_inc)||0; const fp = parseFloat(row.flent_price)||0; const m = pi > 0 ? Math.round((fp/pi-1)*100) : 0; return m > 0 ? <span style={{ color: '#3dba7a' }}>Margin: {m}%</span> : null })()}
+                        {(() => { const pi = parseFloat(row.price_inc)||0; const fp = parseFloat(row.flent_price)||0; const m = pi > 0 ? Math.round((fp/pi-1)*100) : 0; return m > 0 ? <span style={{ color: '#6f9a7e' }}>Margin: {m}%</span> : null })()}
                         {row.quantity_used > 0 && <span>Used: {row.quantity_used}</span>}
                         {row.warranty_months > 0 && <span>{row.warranty_months}mo warranty</span>}
                         {vendor && <span>{vendor}</span>}
@@ -403,7 +403,7 @@ export default function InventoryDashboard() {
                         <div><span style={s.lbl}>Warranty (mo)</span><input type="number" value={ef.warranty_months} onChange={e => setEditForm(p => ({ ...p, warranty_months: e.target.value }))} style={inpS} /></div>
                       </div>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={() => saveEdit(row)} disabled={saving} style={{ padding: '7px 20px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{saving ? '…' : '✓ Save'}</button>
+                        <button onClick={() => saveEdit(row)} disabled={saving} style={{ padding: '7px 20px', background: 'var(--green, #6f9a7e)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{saving ? '…' : '✓ Save'}</button>
                         <button onClick={cancelEdit} style={{ padding: '7px 16px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>✕ Cancel</button>
                       </div>
                     </div>
@@ -419,14 +419,14 @@ export default function InventoryDashboard() {
                         <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.item_name}</span>
                         <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.spec || '—'}</span>
                         <span style={{ textAlign: 'center' }}><QtyBadge qty={row.quantity_remaining ?? row.qty ?? 0} /></span>
-                        <span style={{ fontSize: 12, color: row.warranty_months > 0 ? '#3dba7a' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textAlign: 'center' }}>{row.warranty_months > 0 ? `${row.warranty_months}mo` : '—'}</span>
+                        <span style={{ fontSize: 12, color: row.warranty_months > 0 ? '#6f9a7e' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textAlign: 'center' }}>{row.warranty_months > 0 ? `${row.warranty_months}mo` : '—'}</span>
                         <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', textAlign: 'right', fontFamily: 'var(--font-mono,monospace)' }}>
                           {priceInc > 0 ? `₹${priceInc.toLocaleString('en-IN')}` : '—'}
                         </span>
                         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent, #c8963e)', textAlign: 'right', fontFamily: 'var(--font-mono,monospace)' }}>
                           {flentP > 0 ? `₹${flentP.toLocaleString('en-IN')}` : '—'}
                         </span>
-                        <span style={{ fontSize: 11, color: margin > 0 ? '#3dba7a' : 'var(--text-muted, #6b6d82)', textAlign: 'right', fontFamily: 'var(--font-mono,monospace)' }}>
+                        <span style={{ fontSize: 11, color: margin > 0 ? '#6f9a7e' : 'var(--text-muted, #6b6d82)', textAlign: 'right', fontFamily: 'var(--font-mono,monospace)' }}>
                           {margin > 0 ? `${margin}%` : '—'}
                         </span>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
@@ -437,7 +437,7 @@ export default function InventoryDashboard() {
                             </button>
                           )}
                           {isAdmin && (
-                            <button onClick={e => { e.stopPropagation(); setConfirmDelete({ id: row.id, name: row.item_name }) }} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }} title="Delete">
+                            <button onClick={e => { e.stopPropagation(); setConfirmDelete({ id: row.id, name: row.item_name }) }} style={{ ...s.iconBtn, color: '#b0645b', borderColor: 'rgba(176,100,91,0.3)', background: 'rgba(176,100,91,0.08)' }} title="Delete">
                               <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
                             </button>
                           )}
@@ -451,7 +451,7 @@ export default function InventoryDashboard() {
                             { label: 'SPEC',         val: <span style={{ color: 'var(--text-muted, #6b6d82)', fontSize: 12 }}>{row.spec || '—'}</span> },
                             { label: 'Landing ₹',    val: <span style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--text-muted, #6b6d82)' }}>{priceInc > 0 ? `₹${priceInc.toLocaleString('en-IN')}` : '—'}</span> },
                             { label: 'Selling ₹',    val: <span style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--accent, #c8963e)' }}>{flentP > 0 ? `₹${flentP.toLocaleString('en-IN')}` : '—'}</span> },
-                            { label: 'Margin %',     val: <span style={{ fontFamily: 'var(--font-mono, monospace)', color: margin > 0 ? '#3dba7a' : 'var(--text-muted, #6b6d82)' }}>{margin > 0 ? `${margin}%` : '—'}</span> },
+                            { label: 'Margin %',     val: <span style={{ fontFamily: 'var(--font-mono, monospace)', color: margin > 0 ? '#6f9a7e' : 'var(--text-muted, #6b6d82)' }}>{margin > 0 ? `${margin}%` : '—'}</span> },
                             { label: 'AVAILABLE',    val: <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>{row.quantity_remaining} units</span> },
                             { label: 'TOTAL QTY',    val: <span style={{ fontFamily: 'var(--font-mono, monospace)' }}>{row.qty || '—'}</span> },
                             { label: 'WARRANTY',     val: row.warranty_months ? `${row.warranty_months} months` : '—' },

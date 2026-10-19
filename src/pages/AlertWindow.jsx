@@ -15,7 +15,7 @@ import { ScopeToggle } from '../components/home/JourneyPanels'
 
 const MONO = 'var(--font-mono, monospace)'
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
-const RED = 'var(--red, #e05c6a)'
+const RED = 'var(--red, #b0645b)'
 
 // Worst category first. A missed handover is a landlord standing outside a flat.
 const CATEGORIES = [
@@ -99,14 +99,14 @@ export default function AlertWindow() {
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: SANS }}>
-      <AppHeader accent={nothing ? 'var(--green, #3dba7a)' : RED} below={
+      <AppHeader accent={nothing ? 'var(--green, #6f9a7e)' : RED} below={
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 24px', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
           <style>{`
             .aw-grid { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
             @media (min-width: 1100px) { .aw-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
             @media (min-width: 1700px) { .aw-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
           `}</style>
-          <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: nothing ? 'var(--green, #3dba7a)' : RED, fontFamily: MONO }}>Alert window</span>
+          <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: nothing ? 'var(--green, #6f9a7e)' : RED, fontFamily: MONO }}>Alert window</span>
           <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>what is going wrong, not what is merely happening</span>
           <div style={{ marginLeft: 'auto' }}><ScopeToggle team={team} setTeam={setTeam} /></div>
         </div>
@@ -116,7 +116,7 @@ export default function AlertWindow() {
 
         {/* the number, big and red, before anything else */}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: phone ? 34 : 44, fontWeight: 700, lineHeight: 1, fontFamily: MONO, color: nothing ? 'var(--green, #3dba7a)' : RED, minWidth: 40 }}>
+          <span style={{ fontSize: phone ? 34 : 44, fontWeight: 700, lineHeight: 1, fontFamily: MONO, color: nothing ? 'var(--green, #6f9a7e)' : RED, minWidth: 40 }}>
             {loading && !rows ? '…' : error ? '—' : total}
           </span>
           <span style={{ fontSize: 13.5, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, lineHeight: 1.4 }}>
@@ -132,7 +132,7 @@ export default function AlertWindow() {
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
             {CATEGORIES.filter(c => groups.by.get(c.key).length > 0).map(c => (
               <button key={c.key} type="button" onClick={() => document.getElementById(`aw-${c.key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                style={{ minHeight: 32, padding: '0 10px', borderRadius: 16, border: `1px solid ${RED}`, background: 'rgba(224,92,106,0.10)', color: RED, fontFamily: MONO, fontSize: 11, fontWeight: 700, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+                style={{ minHeight: 32, padding: '0 10px', borderRadius: 16, border: `1px solid ${RED}`, background: 'rgba(176,100,91,0.10)', color: RED, fontFamily: MONO, fontSize: 11, fontWeight: 700, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
                 {c.label} · {groups.by.get(c.key).length}
               </button>
             ))}
@@ -140,7 +140,7 @@ export default function AlertWindow() {
         )}
 
         {error && (
-          <div style={{ marginTop: 18, padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(224,92,106,0.32)', background: 'rgba(224,92,106,0.10)', fontFamily: MONO, fontSize: 12, color: RED, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ marginTop: 18, padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(176,100,91,0.32)', background: 'rgba(176,100,91,0.10)', fontFamily: MONO, fontSize: 12, color: RED, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ flex: 1, minWidth: 200 }}>Couldn't read the alert window — {error}</span>
             <button type="button" onClick={reload} style={{ minHeight: 34, padding: '0 12px', borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--accent, #c8963e)', fontFamily: MONO, fontSize: 11.5, cursor: 'pointer' }}>Retry</button>
           </div>
@@ -158,8 +158,8 @@ export default function AlertWindow() {
         )}
 
         {nothing && !error && (
-          <div style={{ marginTop: 26, padding: '28px 18px', borderRadius: 12, border: '1px solid var(--green, #3dba7a)', background: 'rgba(61,186,122,0.08)', textAlign: 'center' }}>
-            <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--green, #3dba7a)' }}>Nothing is going wrong.</div>
+          <div style={{ marginTop: 26, padding: '28px 18px', borderRadius: 12, border: '1px solid var(--green, #6f9a7e)', background: 'rgba(111,154,126,0.08)', textAlign: 'center' }}>
+            <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--green, #6f9a7e)' }}>Nothing is going wrong.</div>
             <div style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', marginTop: 6 }}>
               No SLA breached, no double disputes, no silent landlord, nothing scheduled without a vendor, no missed handover.
             </div>
@@ -177,7 +177,7 @@ export default function AlertWindow() {
                 <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: RED }}>{list.length}</span>
                 {!phone && <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginLeft: 'auto', textAlign: 'right' }}>{c.hint}</span>}
               </div>
-              <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(224,92,106,0.35)', borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(176,100,91,0.35)', borderRadius: 12, overflow: 'hidden' }}>
                 {list.map((r, i) => <Row key={`${r.category}:${r.pid}:${r.headline}:${i}`} r={r} onGo={() => r.route && navigate(r.route)} last={i === list.length - 1} />)}
               </div>
             </section>

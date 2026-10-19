@@ -92,8 +92,8 @@ export default function VendorWorkHistory({ vendorId }) {
       </div>
 
       {err && (
-        <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>⚠ Could not load history</div>
+        <div style={{ padding: '10px 12px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #b0645b)', fontFamily: MONO }}>⚠ Could not load history</div>
           <div style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, wordBreak: 'break-word', marginTop: 3 }}>{err}</div>
         </div>
       )}
@@ -108,8 +108,8 @@ export default function VendorWorkHistory({ vendorId }) {
         <>
           <div style={{ display: 'flex', gap: 8 }}>
             <Tile label="Days worked" value={totals.days} />
-            <Tile label="Regular" value={fmtHrs(totals.reg)} color="var(--green, #3dba7a)" />
-            <Tile label="Overtime" value={fmtHrs(totals.ot)} color={totals.ot > 0 ? '#5b8def' : undefined} />
+            <Tile label="Regular" value={fmtHrs(totals.reg)} color="var(--green, #6f9a7e)" />
+            <Tile label="Overtime" value={fmtHrs(totals.ot)} color={totals.ot > 0 ? '#7f93b8' : undefined} />
           </div>
           {totals.incomplete > 0 && (
             <div style={{ fontSize: 11, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.5 }}>
@@ -154,8 +154,8 @@ export default function VendorWorkHistory({ vendorId }) {
                       <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: MONO }}>no check-out</span>
                     ) : (
                       <>
-                        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: MONO, fontVariantNumeric: 'tabular-nums' }}>{fmtHrs(s.regMs)}</span>
-                        {s.otMs > 0 && <span style={{ fontSize: 11.5, fontWeight: 700, color: '#5b8def', fontFamily: MONO, fontVariantNumeric: 'tabular-nums' }}>+{fmtHrs(s.otMs)}</span>}
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--green, #6f9a7e)', fontFamily: MONO, fontVariantNumeric: 'tabular-nums' }}>{fmtHrs(s.regMs)}</span>
+                        {s.otMs > 0 && <span style={{ fontSize: 11.5, fontWeight: 700, color: '#7f93b8', fontFamily: MONO, fontVariantNumeric: 'tabular-nums' }}>+{fmtHrs(s.otMs)}</span>}
                       </>
                     )}
                     <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
@@ -165,10 +165,10 @@ export default function VendorWorkHistory({ vendorId }) {
                     <div style={{ padding: '2px 2px 12px 8px', display: 'flex', flexDirection: 'column', gap: 5 }}>
                       {d.punches.map(p => (
                         <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, fontFamily: MONO }}>
-                          <span style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, background: p.punch_type === 'in' ? ((p.kind || 'regular') === 'overtime' ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)' }} />
-                          <span style={{ width: 30, color: p.punch_type === 'in' ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', fontWeight: 700 }}>{p.punch_type === 'in' ? 'IN' : 'OUT'}</span>
+                          <span style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, background: p.punch_type === 'in' ? ((p.kind || 'regular') === 'overtime' ? '#7f93b8' : 'var(--green, #6f9a7e)') : 'var(--text-muted, #6b6d82)' }} />
+                          <span style={{ width: 30, color: p.punch_type === 'in' ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)', fontWeight: 700 }}>{p.punch_type === 'in' ? 'IN' : 'OUT'}</span>
                           <span style={{ color: 'var(--text-dim, #9394a8)', minWidth: 70 }}>{fmtTime(p.punched_at)}</span>
-                          {(p.kind || 'regular') === 'overtime' && <span style={{ color: '#5b8def', fontSize: 10 }}>overtime</span>}
+                          {(p.kind || 'regular') === 'overtime' && <span style={{ color: '#7f93b8', fontSize: 10 }}>overtime</span>}
                           {p.pid && (
                             <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 3, padding: '1px 6px', borderRadius: 5, background: 'rgba(200,150,62,0.10)' }}>
                               <span style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', color: 'var(--accent, #c8963e)' }}>PID</span>

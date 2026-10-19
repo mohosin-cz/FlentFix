@@ -71,7 +71,7 @@ export default function UtilitiesByMonth({ rows, navigate, typeKey = 'all', type
                     <div style={{ textAlign: 'center', fontSize: 15, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: MONO }}>{m.deploys}</div>
                   ) : (
                     <>
-                      <div style={{ textAlign: 'center', fontSize: 15, fontWeight: 700, color: m.wifi ? '#5b8def' : 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{m.wifi}</div>
+                      <div style={{ textAlign: 'center', fontSize: 15, fontWeight: 700, color: m.wifi ? '#7f93b8' : 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{m.wifi}</div>
                       <div style={{ textAlign: 'center', fontSize: 15, fontWeight: 700, color: m.water ? '#38bdf8' : 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{m.water}</div>
                     </>
                   )}
@@ -109,7 +109,7 @@ export default function UtilitiesByMonth({ rows, navigate, typeKey = 'all', type
             <span style={{ textAlign: 'center', fontSize: 14, fontWeight: 800, color: 'var(--accent, #c8963e)', fontFamily: MONO }}>{tot.deploys}</span>
           ) : (
             <>
-              <span style={{ textAlign: 'center', fontSize: 14, fontWeight: 800, color: '#5b8def', fontFamily: MONO }}>{tot.wifi}</span>
+              <span style={{ textAlign: 'center', fontSize: 14, fontWeight: 800, color: '#7f93b8', fontFamily: MONO }}>{tot.wifi}</span>
               <span style={{ textAlign: 'center', fontSize: 14, fontWeight: 800, color: '#38bdf8', fontFamily: MONO }}>{tot.water}</span>
             </>
           )}

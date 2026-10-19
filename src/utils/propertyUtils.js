@@ -1,7 +1,7 @@
 // Shared config + "next recharge due" logic for property utilities.
 // DTH/Cable intentionally removed.
 export const UTILITY_TYPES = [
-  { key: 'wifi',           label: 'WiFi / Broadband',    color: '#5b8def' },
+  { key: 'wifi',           label: 'WiFi / Broadband',    color: '#7f93b8' },
   { key: 'water_purifier', label: 'Water Purifier (RO)', color: '#38bdf8' },
   { key: 'other',          label: 'Other',               color: '#8b8d98' },
 ]
@@ -12,7 +12,7 @@ export const BILLING_CYCLES = ['Monthly', 'Bi-monthly', 'Quarterly', 'Half-yearl
 export const CYCLE_MONTHS = { Monthly: 1, 'Bi-monthly': 2, Quarterly: 3, 'Half-yearly': 6, Yearly: 12 }
 
 export const STATUSES = [
-  { key: 'active',     label: 'Active',     color: 'var(--green, #3dba7a)' },
+  { key: 'active',     label: 'Active',     color: 'var(--green, #6f9a7e)' },
   { key: 'paused',     label: 'Paused',     color: 'var(--accent, #c8963e)' },
   { key: 'cancelled',  label: 'Cancelled',  color: 'var(--text-muted, #6b6d82)' },
   { key: 'unknown',    label: 'Unknown',    color: 'var(--accent, #c8963e)' },
@@ -176,14 +176,14 @@ export function dueInfo(u) {
 
   let color, label, tone
   if (days < 0) {
-    color = 'var(--red, #e05c6a)'; tone = 'overdue'
+    color = 'var(--red, #b0645b)'; tone = 'overdue'
     label = lapsed > 1
       ? `${lapsed} periods with no recharge logged`
       : `Recharge overdue by ${-days} ${-days === 1 ? 'day' : 'days'}`
-  } else if (days === 0) { color = 'var(--red, #e05c6a)'; label = 'Recharge due today'; tone = 'due' }
-  else if (days === 1) { color = 'var(--red, #e05c6a)'; label = 'Recharge tomorrow'; tone = 'due' }
+  } else if (days === 0) { color = 'var(--red, #b0645b)'; label = 'Recharge due today'; tone = 'due' }
+  else if (days === 1) { color = 'var(--red, #b0645b)'; label = 'Recharge tomorrow'; tone = 'due' }
   else if (days <= 5) { color = 'var(--accent, #c8963e)'; label = `Recharge in ${days} days`; tone = 'soon' }
-  else { color = 'var(--green, #3dba7a)'; label = `Recharge in ${days} days`; tone = 'ok' }
+  else { color = 'var(--green, #6f9a7e)'; label = `Recharge in ${days} days`; tone = 'ok' }
 
   const note = basis === 'install'
     ? 'Counted from the install date — no recharge has ever been logged against this connection.'

@@ -43,7 +43,7 @@ function StatusBadge({ status }) {
   const map = {
     draft:              { color: 'var(--text-muted, #6b6d82)',  border: 'var(--border, #2e3040)',      label: 'draft' },
     submitted:          { color: '#60a5fa',                     border: 'rgba(96,165,250,0.3)',         label: 'submitted' },
-    estimate_generated: { color: 'var(--green, #3dba7a)',       border: 'rgba(61,186,122,0.3)',         label: 'estimate ready' },
+    estimate_generated: { color: 'var(--green, #6f9a7e)',       border: 'rgba(111,154,126,0.3)',         label: 'estimate ready' },
   }
   const c = map[status] || { color: 'var(--text-muted, #6b6d82)', border: 'var(--border, #2e3040)', label: status || '—' }
   return (
@@ -63,10 +63,10 @@ function DeleteModal({ pid, onConfirm, onCancel, deleting }) {
       <div style={m.sheet} onClick={e => e.stopPropagation()}>
         <div style={m.iconWrap}>
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-            <polyline points="3 6 5 6 21 6" stroke="#e05c6a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="#e05c6a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M10 11v6M14 11v6" stroke="#e05c6a" strokeWidth="1.8" strokeLinecap="round"/>
-            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" stroke="#e05c6a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            <polyline points="3 6 5 6 21 6" stroke="#b0645b" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="#b0645b" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M10 11v6M14 11v6" stroke="#b0645b" strokeWidth="1.8" strokeLinecap="round"/>
+            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" stroke="#b0645b" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
         <div style={m.title}>Move PID{pid} to bin?</div>
@@ -142,7 +142,7 @@ function PropFilter({ label, value, onChange, options, allLabel, mobile }) {
 // every column sortable, the live stage beside the inspection facts, and the
 // archive / bin actions at the end of the row where the cards had them.
 const MONO_T = 'var(--font-mono, monospace)'
-const URG_DOT = (u) => u === 'overdue' ? 'var(--red, #e05c6a)' : (u === 'today' || u === 'soon') ? 'var(--amber, #c8963e)' : u === 'done' ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)'
+const URG_DOT = (u) => u === 'overdue' ? 'var(--red, #b0645b)' : (u === 'today' || u === 'soon') ? 'var(--amber, #c8963e)' : u === 'done' ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)'
 const PCOLS = [
   { key: 'pid',       label: 'PID',        val: r => String(r.pid) },
   { key: 'name',      label: 'Property',   val: r => (realName(r) || '').toLowerCase() },
@@ -165,7 +165,7 @@ function PropTable({ rows, stageByPid, sort, setSort, onOpen, onArchive, onBin }
   const iconBtn = { width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-muted, #6b6d82)', cursor: 'pointer' }
   return (
     <div style={{ border: '1px solid var(--border, #2e3040)', borderRadius: 10, overflowX: 'auto', background: 'var(--bg-panel, #1e2028)' }}>
-      <style>{`.p-row:hover { background: var(--bg-input, #252731); } .p-act:hover { border-color: var(--accent, #c8963e) !important; color: var(--accent, #c8963e) !important; } .p-bin:hover { border-color: rgba(224,92,106,0.5) !important; color: #e05c6a !important; }`}</style>
+      <style>{`.p-row:hover { background: var(--bg-input, #252731); } .p-act:hover { border-color: var(--accent, #c8963e) !important; color: var(--accent, #c8963e) !important; } .p-bin:hover { border-color: rgba(176,100,91,0.5) !important; color: #b0645b !important; }`}</style>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr style={{ background: 'var(--bg-input, #252731)' }}>
@@ -194,7 +194,7 @@ function PropTable({ rows, stageByPid, sort, setSort, onOpen, onArchive, onBin }
                       style={{ marginLeft: 8, padding: '1px 7px', borderRadius: 6, border: '1px solid rgba(200,150,62,0.45)', color: 'var(--accent, #c8963e)', fontFamily: MONO_T, fontSize: 10.5, whiteSpace: 'nowrap' }}>no invoice</span>
                   )}
                 </td>
-                <td style={{ ...td, fontFamily: MONO_T, fontSize: 11.5, color: st?.urgency === 'overdue' ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}>{st ? `${ago(st.since, st.age_days)}${st.blocked_on && st.blocked_on !== 'setup_ops' ? ` · ${st.blocked_on}` : ''}` : '—'}</td>
+                <td style={{ ...td, fontFamily: MONO_T, fontSize: 11.5, color: st?.urgency === 'overdue' ? 'var(--red, #b0645b)' : 'var(--text-dim, #9394a8)' }}>{st ? `${ago(st.since, st.age_days)}${st.blocked_on && st.blocked_on !== 'setup_ops' ? ` · ${st.blocked_on}` : ''}` : '—'}</td>
                 <td style={{ ...td, fontFamily: MONO_T, fontSize: 11.5 }}>{fmtDate(r.inspection_date)}</td>
                 <td style={{ ...td, color: 'var(--text-dim, #9394a8)' }}>{r.inspector || '—'}</td>
                 <td style={td}><StatusBadge status={r.status} /></td>
@@ -534,7 +534,7 @@ export default function Properties() {
             onClick={() => navigate('/properties/bin')}
             title="View bin"
             aria-label="View bin"
-            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(224,92,106,0.5)'}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(176,100,91,0.5)'}
             onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border, #2e3040)'}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
@@ -630,9 +630,9 @@ export default function Properties() {
                   onClick={() => setConfirmPid(row.pid)}
                   title="Move to bin"
                   onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(224,92,106,0.18)'
-                    e.currentTarget.style.borderColor = 'rgba(224,92,106,0.5)'
-                    e.currentTarget.style.color = '#e05c6a'
+                    e.currentTarget.style.background = 'rgba(176,100,91,0.18)'
+                    e.currentTarget.style.borderColor = 'rgba(176,100,91,0.5)'
+                    e.currentTarget.style.color = '#b0645b'
                   }}
                   onMouseLeave={e => {
                     e.currentTarget.style.background = 'var(--bg-input, #252731)'
@@ -735,7 +735,7 @@ const s = {
   binBadge: {
     position: 'absolute', top: -5, right: -5,
     minWidth: 16, height: 16, borderRadius: 8,
-    background: '#e05c6a', color: '#fff',
+    background: '#b0645b', color: '#fff',
     fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     padding: '0 4px',
@@ -813,9 +813,9 @@ const s = {
     border: '2px solid var(--bg-panel, #1e2028)',
   },
   errorStrip: {
-    padding: '11px 20px', background: 'rgba(224,92,106,0.10)',
-    borderBottom: '1px solid rgba(224,92,106,0.35)',
-    fontSize: 11.5, lineHeight: 1.6, color: '#e8697a',
+    padding: '11px 20px', background: 'rgba(176,100,91,0.10)',
+    borderBottom: '1px solid rgba(176,100,91,0.35)',
+    fontSize: 11.5, lineHeight: 1.6, color: '#b0645b',
     fontFamily: 'var(--font-mono, monospace)', textAlign: 'center',
   },
   cardWrap: { position: 'relative' },
@@ -896,7 +896,7 @@ const m = {
   },
   iconWrap: {
     width: 52, height: 52, borderRadius: 12,
-    background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.25)',
+    background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.25)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
   title: {
@@ -922,8 +922,8 @@ const m = {
   },
   deleteBtn: {
     flex: 1, padding: '11px 0',
-    background: 'rgba(224,92,106,0.15)', border: '1px solid rgba(224,92,106,0.4)',
-    borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#e05c6a',
+    background: 'rgba(176,100,91,0.15)', border: '1px solid rgba(176,100,91,0.4)',
+    borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#b0645b',
     cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', transition: 'opacity 0.15s',
   },
 }

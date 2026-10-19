@@ -31,9 +31,9 @@ export default function UtilitiesQuality({ checks, rows, properties, narrow, onO
         background: c.id === sel ? 'var(--bg-input, #252731)' : 'transparent',
         boxShadow: c.id === sel ? 'inset 0 0 0 1px var(--border, #2e3040)' : 'none',
         color: c.id === sel ? 'var(--text, #e8e8f0)' : 'var(--text-dim, #9394a8)', fontWeight: c.id === sel ? 700 : 400 }}>
-      <span style={{ width: 12, flexShrink: 0, color: c.sev === 'bad' ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)' }}>{c.sev === 'bad' ? '◆' : '◇'}</span>
+      <span style={{ width: 12, flexShrink: 0, color: c.sev === 'bad' ? 'var(--red, #b0645b)' : 'var(--accent, #c8963e)' }}>{c.sev === 'bad' ? '◆' : '◇'}</span>
       <span style={{ minWidth: 0 }}>{c.label}</span>
-      <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10.5, color: c.sev === 'bad' ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)' }}>{c.rows.length}</span>
+      <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10.5, color: c.sev === 'bad' ? 'var(--red, #b0645b)' : 'var(--text-muted, #6b6d82)' }}>{c.rows.length}</span>
     </button>
   ))
 
@@ -125,11 +125,11 @@ export default function UtilitiesQuality({ checks, rows, properties, narrow, onO
                   <tr key={r.id} onClick={() => onOpen(r)} style={{ cursor: 'pointer' }}>
                     <td style={td}>
                       <b style={{ fontFamily: MONO, color: 'var(--accent, #c8963e)' }}>{r.pid}</b>
-                      {r.prop?.name ? <span style={{ color: 'var(--text-dim, #9394a8)' }}> · {r.prop.name}</span> : <span style={{ color: 'var(--red, #e05c6a)' }}> · no property</span>}
+                      {r.prop?.name ? <span style={{ color: 'var(--text-dim, #9394a8)' }}> · {r.prop.name}</span> : <span style={{ color: 'var(--red, #b0645b)' }}> · no property</span>}
                     </td>
                     <td style={td}><Pill><i style={{ display: 'inline-flex', color: typeColor(r) }}><UtilityIcon type={r.utility_type} size={11} /></i>{typeLabel(r)}</Pill></td>
                     {!narrow && <td style={td}>{r.provider || '—'}</td>}
-                    {!narrow && <td style={td}>{r.plan_type || <i style={{ color: 'var(--red, #e05c6a)' }}>not recorded</i>}</td>}
+                    {!narrow && <td style={td}>{r.plan_type || <i style={{ color: 'var(--red, #b0645b)' }}>not recorded</i>}</td>}
                     <td style={{ ...td, textAlign: 'right', fontFamily: MONO }}>{Number(r.billing_amount) > 0 ? money(r.billing_amount) : '—'}</td>
                     <td style={td}><Pill tone={r.status === 'active' ? 'ok' : r.status === 'unknown' ? 'warn' : undefined}>{r.status}</Pill></td>
                     <td style={{ ...td, textAlign: 'right' }}><Meter row={r} /></td>

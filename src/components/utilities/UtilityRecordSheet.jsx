@@ -19,7 +19,7 @@ function Field({ label, children, missing }) {
     <>
       <dt style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', padding: '6px 0' }}>{label}</dt>
       <dd style={{ margin: 0, padding: '6px 0', fontSize: 12.5, borderBottom: '1px solid var(--border, #2e3040)', minWidth: 0, wordBreak: 'break-word',
-        color: missing ? 'var(--red, #e05c6a)' : 'var(--text, #e8e8f0)', fontStyle: missing ? 'italic' : 'normal' }}>
+        color: missing ? 'var(--red, #b0645b)' : 'var(--text, #e8e8f0)', fontStyle: missing ? 'italic' : 'normal' }}>
         {missing ? 'not recorded' : children}
       </dd>
     </>

@@ -87,19 +87,19 @@ export default function CaptureUpload({
           <button type="button" onClick={() => setViewing(true)} title="View"
             style={{ padding: 0, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0, lineHeight: 0, borderRadius: 6 }}>
             {pdf
-              ? <span style={{ width: 40, height: 40, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(224,92,106,0.12)', color: 'var(--red, #e05c6a)', fontSize: 9, fontWeight: 700, fontFamily: MONO }}>PDF</span>
+              ? <span style={{ width: 40, height: 40, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(176,100,91,0.12)', color: 'var(--red, #b0645b)', fontSize: 9, fontWeight: 700, fontFamily: MONO }}>PDF</span>
               : preview
                 ? <img src={preview} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border, #2e3040)' }} />
                 : <span style={{ width: 40, height: 40, borderRadius: 6, display: 'block', background: 'var(--bg-panel, #1e2028)' }} />}
           </button>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ {doneLabel}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--green, #6f9a7e)', fontFamily: MONO }}>✓ {doneLabel}</div>
             <button type="button" onClick={() => setViewing(true)}
               style={{ background: 'none', border: 'none', padding: '6px 6px 6px 0', margin: '-6px 0', minHeight: 40, display: 'inline-flex', alignItems: 'center', fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: MONO, cursor: 'pointer' }}>View</button>
           </div>
           {!disabled && (
             <button type="button" onClick={() => { onChange(null); setPreview(null) }}
-              style={{ background: 'none', border: 'none', color: 'var(--red, #e05c6a)', cursor: 'pointer', fontSize: 12, fontFamily: MONO, padding: '10px 6px', minHeight: 44 }}>Remove</button>
+              style={{ background: 'none', border: 'none', color: 'var(--red, #b0645b)', cursor: 'pointer', fontSize: 12, fontFamily: MONO, padding: '10px 6px', minHeight: 44 }}>Remove</button>
           )}
         </div>
         {viewing && preview && <DocViewer url={preview} name={value} onClose={() => setViewing(false)} />}
@@ -125,7 +125,7 @@ export default function CaptureUpload({
         </div>
       </div>
       {err && (
-        <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: MONO, lineHeight: 1.5, wordBreak: 'break-word' }}>⚠ {err}</div>
+        <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--red, #b0645b)', fontFamily: MONO, lineHeight: 1.5, wordBreak: 'break-word' }}>⚠ {err}</div>
       )}
 
       <input ref={fileRef} type="file" accept={accept} style={{ display: 'none' }}

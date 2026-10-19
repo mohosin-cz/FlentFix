@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { DraftMessageButton } from '../comms/DraftMessage'
 import { ago } from './JourneyPanels'
+import { isAdmin } from '../../utils/vendorHub'
 
 // Home as a work queue, the way a CRM does it: the property is the unit of
 // work, VIEWS are saved filters with live counts, the list is a dense sortable
@@ -73,7 +74,7 @@ const COLS = [
 
 const WHO = { setup_ops: 'you', supply: 'supply', landlord: 'landlord', vendor: 'vendor', none: '—' }
 const setupText = (d) => d == null ? '—' : d === 0 ? 'today' : d > 0 ? `in ${d}d` : `${-d}d ago`
-const dotFor = (u) => u === 'overdue' ? 'var(--red, #e05c6a)' : (u === 'today' || u === 'soon') ? 'var(--amber, #c8963e)' : u === 'done' ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)'
+const dotFor = (u) => u === 'overdue' ? 'var(--red, #b0645b)' : (u === 'today' || u === 'soon') ? 'var(--amber, #c8963e)' : u === 'done' ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)'
 
 function SlaDot({ urgency, title }) {
   return <span title={title} aria-label={urgency} style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: dotFor(urgency), marginRight: 7, verticalAlign: 'middle', flexShrink: 0 }} />
@@ -94,7 +95,11 @@ export default function WorkQueue({ home, pickView, scope = 'mine', title, embed
   const { session } = useAuth()
   const me = (session?.user?.email || '').toLowerCase()
 
-  const { loading, error, rows, thresholds, reload } = home
+  const { loading, error, rows: allRows, thresholds, reload } = home
+  // Exploratory requests are assigned by the admin alone (told 2026-10-19).
+  // Everyone else sees a prospect only once it's theirs — never as an
+  // "assign someone" task, and never someone else's visit.
+  const rows = useMemo(() => (isAdmin(me) ? allRows : (allRows || []).filter(r => !r.is_prospect || (r.owner_email || '').toLowerCase() === me)), [allRows, me])
 
   // assigned_to is not on the engine's rows (and is empty today); one cheap read.
   const [assigned, setAssigned] = useState(() => new Map())
@@ -265,13 +270,13 @@ export default function WorkQueue({ home, pickView, scope = 'mine', title, embed
         </div>
       )}
       {toast && (
-        <div role="status" style={{ marginTop: 10, padding: '8px 12px', borderRadius: 8, fontFamily: MONO, fontSize: 12, color: toast.tone === 'red' ? 'var(--red, #e05c6a)' : 'var(--green, #3dba7a)', background: toast.tone === 'red' ? 'rgba(224,92,106,0.10)' : 'rgba(61,186,122,0.10)', border: `1px solid ${toast.tone === 'red' ? 'rgba(224,92,106,0.35)' : 'rgba(61,186,122,0.35)'}` }}>{toast.text}</div>
+        <div role="status" style={{ marginTop: 10, padding: '8px 12px', borderRadius: 8, fontFamily: MONO, fontSize: 12, color: toast.tone === 'red' ? 'var(--red, #b0645b)' : 'var(--green, #6f9a7e)', background: toast.tone === 'red' ? 'rgba(176,100,91,0.10)' : 'rgba(111,154,126,0.10)', border: `1px solid ${toast.tone === 'red' ? 'rgba(176,100,91,0.35)' : 'rgba(111,154,126,0.35)'}` }}>{toast.text}</div>
       )}
 
       {/* states */}
       {error && (
-        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.07)' }}>
-          <span style={{ fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>Couldn't read the portfolio — {error}</span>
+        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(176,100,91,0.3)', background: 'rgba(176,100,91,0.07)' }}>
+          <span style={{ fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: MONO }}>Couldn't read the portfolio — {error}</span>
           <button onClick={reload} style={btn(false)}>Retry</button>
         </div>
       )}
@@ -295,7 +300,7 @@ export default function WorkQueue({ home, pickView, scope = 'mine', title, embed
                 style={{ display: 'flex', gap: 10, padding: '11px 12px', borderRadius: 10, background: 'var(--bg-panel, #1e2028)', border: `1px solid ${sel.has(x.r.pid) ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, cursor: 'pointer' }}>
                 {x.r.is_prospect ? <span style={{ width: 18, flex: 'none' }} /> : <input type="checkbox" checked={sel.has(x.r.pid)} onChange={() => toggle(x.r.pid)} onClick={e => e.stopPropagation()} aria-label={`Select ${x.r.pid}`} style={{ width: 18, height: 18, marginTop: 2, accentColor: 'var(--accent, #c8963e)' }} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}><span style={{ fontFamily: MONO, fontSize: 12, color: x.r.is_prospect ? '#e07ba8' : 'var(--accent, #c8963e)' }}>{pidText(x.r)}</span><span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.r.property_name}</span></div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}><span style={{ fontFamily: MONO, fontSize: 12, color: x.r.is_prospect ? '#b0645b' : 'var(--accent, #c8963e)' }}>{pidText(x.r)}</span><span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.r.property_name}</span></div>
                   <div style={{ fontSize: 13.5, marginTop: 2 }}>{x.t.label}</div>
                   <div style={{ fontSize: 12, fontFamily: MONO, color: 'var(--text-muted, #6b6d82)', marginTop: 3, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span><SlaDot urgency={x.t.urgency} />{ageText(x)}</span><span>· {WHO[x.t.waiting_on || x.t.blocked_on]}</span><span>· {local(x.owner)}</span>
@@ -328,11 +333,11 @@ export default function WorkQueue({ home, pickView, scope = 'mine', title, embed
                   <tr key={x.r.pid + x.t.code} onClick={() => openRecord(x.r)} className="q-row"
                     style={{ borderTop: '1px solid var(--border, #2e3040)', cursor: 'pointer', background: sel.has(x.r.pid) ? 'rgba(200,150,62,0.07)' : 'transparent' }}>
                     <td style={{ padding: '8px 10px' }} onClick={e => e.stopPropagation()}>{!x.r.is_prospect && <input type="checkbox" checked={sel.has(x.r.pid)} onChange={() => toggle(x.r.pid)} aria-label={`Select ${x.r.pid}`} style={{ accentColor: 'var(--accent, #c8963e)' }} />}</td>
-                    <td style={{ padding: '8px 10px', fontFamily: MONO, color: x.r.is_prospect ? '#e07ba8' : 'var(--accent, #c8963e)', whiteSpace: 'nowrap' }}>{pidText(x.r)}</td>
+                    <td style={{ padding: '8px 10px', fontFamily: MONO, color: x.r.is_prospect ? '#b0645b' : 'var(--accent, #c8963e)', whiteSpace: 'nowrap' }}>{pidText(x.r)}</td>
                     <td style={{ padding: '8px 10px', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.r.property_name}</td>
                     <td style={{ padding: '8px 10px', color: 'var(--text-dim, #9394a8)' }}>{x.t.label}</td>
 {!embedded && (<td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, color: (x.t.waiting_on || x.t.blocked_on) === 'setup_ops' ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)' }}>{WHO[x.t.waiting_on || x.t.blocked_on]}</td>)}
-                    <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, whiteSpace: 'nowrap', color: x.t.urgency === 'overdue' ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}><SlaDot urgency={x.t.urgency} />{ageText(x)}</td>
+                    <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, whiteSpace: 'nowrap', color: x.t.urgency === 'overdue' ? 'var(--red, #b0645b)' : 'var(--text-dim, #9394a8)' }}><SlaDot urgency={x.t.urgency} />{ageText(x)}</td>
                     {!embedded && (<td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, whiteSpace: 'nowrap', color: x.r.days_to_setup != null && x.r.days_to_setup >= 0 && x.r.days_to_setup <= 2 ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)' }}>{setupText(x.r.days_to_setup)}</td>)}
                     <td style={{ padding: '6px 10px' }}><button onClick={e => openAction(e, x)} style={{ ...btn(true), minHeight: 30, padding: '0 10px' }}>{x.t.next_action_label} ›</button></td>
                     <td style={{ padding: '8px 10px', fontFamily: MONO, fontSize: 11.5, color: x.owner === me ? 'var(--text, #e8e8f0)' : 'var(--text-dim, #9394a8)', whiteSpace: 'nowrap' }}>{local(x.owner)}</td>
@@ -361,10 +366,10 @@ export default function WorkQueue({ home, pickView, scope = 'mine', title, embed
                     style={{ padding: '10px 11px', borderRadius: 9, background: 'var(--bg-input, #252731)', border: `1px solid ${sel.has(x.r.pid) ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, cursor: 'pointer' }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
                       {!x.r.is_prospect && <input type="checkbox" checked={sel.has(x.r.pid)} onChange={() => toggle(x.r.pid)} onClick={e => e.stopPropagation()} aria-label={`Select ${x.r.pid}`} style={{ accentColor: 'var(--accent, #c8963e)' }} />}
-                      <span style={{ fontFamily: MONO, fontSize: 12, color: x.r.is_prospect ? '#e07ba8' : 'var(--accent, #c8963e)' }}>{pidText(x.r)}</span>
+                      <span style={{ fontFamily: MONO, fontSize: 12, color: x.r.is_prospect ? '#b0645b' : 'var(--accent, #c8963e)' }}>{pidText(x.r)}</span>
                       <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.r.property_name}</span>
                     </div>
-                    <div style={{ fontSize: 12, fontFamily: MONO, color: x.t.urgency === 'overdue' ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', marginTop: 6 }}><SlaDot urgency={x.t.urgency} />{ageText(x)} · {local(x.owner)}</div>
+                    <div style={{ fontSize: 12, fontFamily: MONO, color: x.t.urgency === 'overdue' ? 'var(--red, #b0645b)' : 'var(--text-muted, #6b6d82)', marginTop: 6 }}><SlaDot urgency={x.t.urgency} />{ageText(x)} · {local(x.owner)}</div>
                     <button onClick={e => openAction(e, x)} style={{ ...btn(true), minHeight: 30, padding: '0 10px', marginTop: 8, width: '100%', textAlign: 'left' }}>{x.t.next_action_label} ›</button>
                   </div>
                 ))}

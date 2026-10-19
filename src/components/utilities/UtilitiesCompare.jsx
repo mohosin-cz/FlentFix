@@ -20,7 +20,7 @@ const TABS = [
 ]
 
 const swatch = (i) => (i < VIZ.length ? VIZ[i] : 'var(--text-muted, #6b6d82)')
-const pctColor = (v) => (v > 0.8 ? 'var(--green, #3dba7a)' : v > 0.4 ? 'var(--text-dim, #9394a8)' : 'var(--red, #e05c6a)')
+const pctColor = (v) => (v > 0.8 ? 'var(--green, #6f9a7e)' : v > 0.4 ? 'var(--text-dim, #9394a8)' : 'var(--red, #b0645b)')
 
 export default function UtilitiesCompare({ rows, properties, narrow, onDrill }) {
   const [tab, setTab] = useState('bench')

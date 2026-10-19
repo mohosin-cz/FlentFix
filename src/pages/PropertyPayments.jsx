@@ -19,8 +19,8 @@ const monthLabel = (k) => (k ? new Date(`${k}-01T00:00:00`).toLocaleDateString('
 
 function ErrStrip({ children, onRetry }) {
   return (
-    <div style={{ padding: '11px 13px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', borderRadius: 9, fontFamily: MONO }}>
-      <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>⚠ {children}</div>
+    <div style={{ padding: '11px 13px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.32)', borderRadius: 9, fontFamily: MONO }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--red, #b0645b)' }}>⚠ {children}</div>
       {onRetry && (
         <button type="button" onClick={onRetry} style={{ marginTop: 8, fontSize: 11, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontFamily: MONO }}>Retry</button>
       )}
@@ -342,7 +342,7 @@ export default function PropertyPayments() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
               <Kpi label="Total spent" value={inr(totals.total)} sub={`${totals.count} payment${totals.count === 1 ? '' : 's'}`} />
               <Kpi label="vs estimate" value={estimate ? `${totals.total > estimate ? '+' : ''}${inr(totals.total - estimate)}` : '—'}
-                tone={estimate ? (totals.total > estimate ? 'var(--red, #e05c6a)' : 'var(--green, #3dba7a)') : undefined}
+                tone={estimate ? (totals.total > estimate ? 'var(--red, #b0645b)' : 'var(--green, #6f9a7e)') : undefined}
                 sub={estimate ? `estimate ${inr(estimate)}` : 'no estimate on file'} />
               <Kpi label="Material / labour"
                 value={totals.material || totals.labour ? `${pct(totals.material, totals.material + totals.labour)}/${pct(totals.labour, totals.material + totals.labour)}` : '—'}
@@ -435,11 +435,11 @@ export default function PropertyPayments() {
                       same as not having built them. */}
                   {confirming === r.id ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', marginTop: 11, paddingTop: 11, borderTop: '1px solid var(--border, #2e3040)' }}>
-                      <span style={{ flex: 1, minWidth: 160, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>
+                      <span style={{ flex: 1, minWidth: 160, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: MONO }}>
                         Delete this payment?
                       </span>
                       <button onClick={() => remove(r)}
-                        style={{ minHeight: 34, padding: '0 14px', borderRadius: 8, border: 'none', background: 'var(--red, #e05c6a)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>
+                        style={{ minHeight: 34, padding: '0 14px', borderRadius: 8, border: 'none', background: 'var(--red, #b0645b)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>
                         Delete
                       </button>
                       <button onClick={() => setConfirming(null)}
@@ -454,7 +454,7 @@ export default function PropertyPayments() {
                         Edit
                       </button>
                       <button onClick={() => setConfirming(r.id)}
-                        style={{ minHeight: 34, padding: '0 14px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--red, #e05c6a)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>
+                        style={{ minHeight: 34, padding: '0 14px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--red, #b0645b)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>
                         Delete
                       </button>
                     </div>
@@ -499,7 +499,7 @@ export default function PropertyPayments() {
       )}
 
       {toast && (
-        <div role="status" aria-live="polite" style={{ position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 500, maxWidth: 'calc(100vw - 32px)', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 15px', borderRadius: 10, fontSize: 12.5, fontFamily: SANS, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', background: toast.tone === 'error' ? 'rgba(224,92,106,0.14)' : 'var(--bg-panel, #1e2028)', border: `1px solid ${toast.tone === 'error' ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}`, color: toast.tone === 'error' ? 'var(--red, #e05c6a)' : 'var(--text, #e8e8f0)' }}>
+        <div role="status" aria-live="polite" style={{ position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 500, maxWidth: 'calc(100vw - 32px)', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 15px', borderRadius: 10, fontSize: 12.5, fontFamily: SANS, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', background: toast.tone === 'error' ? 'rgba(176,100,91,0.14)' : 'var(--bg-panel, #1e2028)', border: `1px solid ${toast.tone === 'error' ? 'var(--red, #b0645b)' : 'var(--border, #2e3040)'}`, color: toast.tone === 'error' ? 'var(--red, #b0645b)' : 'var(--text, #e8e8f0)' }}>
           <span style={{ minWidth: 0 }}>{toast.text}</span>
           {toast.undo && (
             <button type="button"

@@ -7,7 +7,7 @@ import UtilityIcon from '../UtilityIcon'
 import { Card, Pill, Meter, Empty } from './ui'
 import { table, th, td, scrollX, hint, MONO, SANS } from './uiStyles'
 
-const missing = (text = '—') => <i style={{ color: 'var(--red, #e05c6a)', fontStyle: 'italic' }}>{text}</i>
+const missing = (text = '—') => <i style={{ color: 'var(--red, #b0645b)', fontStyle: 'italic' }}>{text}</i>
 const dim = (v) => <span style={{ color: 'var(--text-dim, #9394a8)', fontFamily: MONO }}>{v}</span>
 
 const COLUMNS = {
@@ -16,7 +16,7 @@ const COLUMNS = {
     cell: (r) => (
       <div style={{ minWidth: 148 }}>
         <b style={{ fontFamily: MONO, color: 'var(--accent, #c8963e)' }}>{r.pid}</b>
-        {r.prop?.name ? <span style={{ color: 'var(--text-dim, #9394a8)' }}> · {r.prop.name}</span> : <span style={{ color: 'var(--red, #e05c6a)' }}> · no property record</span>}
+        {r.prop?.name ? <span style={{ color: 'var(--text-dim, #9394a8)' }}> · {r.prop.name}</span> : <span style={{ color: 'var(--red, #b0645b)' }}> · no property record</span>}
       </div>
     ),
   },

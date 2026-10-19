@@ -70,7 +70,7 @@ export default function ShareLinks({ row, sharedEmail }) {
         )}
 
         <button type="button" onClick={copy}
-          style={{ ...pill, color: copied ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)' }}>
+          style={{ ...pill, color: copied ? 'var(--green, #6f9a7e)' : 'var(--text-dim, #9394a8)' }}>
           {copied ? '✓ Copied' : 'Copy link'}
         </button>
       </div>

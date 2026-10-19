@@ -23,11 +23,11 @@ function RedStrip({ title, children }) {
     <div style={{
       display: 'flex', flexDirection: 'column', gap: 4,
       padding: '10px 14px',
-      background: 'rgba(224,92,106,0.10)',
-      border: '1px solid rgba(224,92,106,0.30)',
+      background: 'rgba(176,100,91,0.10)',
+      border: '1px solid rgba(176,100,91,0.30)',
       borderRadius: 6,
     }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em' }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em' }}>
         ⚠ {title}
       </span>
       {children && (
@@ -69,7 +69,7 @@ function StepperChip({ visible, label, value, onOpen }) {
       style={{
         display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
         background: 'var(--bg-input, #252731)',
-        border: '1px solid var(--green, #3dba7a)',
+        border: '1px solid var(--green, #6f9a7e)',
         borderRadius: 6, cursor: 'pointer', width: '100%', textAlign: 'left',
         WebkitTapHighlightColor: 'transparent', minHeight: 40,
       }}
@@ -259,7 +259,7 @@ function DocCapture({ anchorId, title, hint, photo, onCapture, onRetake }) {
     <div id={anchorId} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono, monospace)' }}>{title}</span>
-        {photo && <span style={{ fontSize: 11, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>captured ✓</span>}
+        {photo && <span style={{ fontSize: 11, color: 'var(--green, #6f9a7e)', fontFamily: 'var(--font-mono, monospace)' }}>captured ✓</span>}
       </div>
       {hint && <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{hint}</span>}
       <CameraCapture
@@ -495,8 +495,8 @@ export default function Onboard() {
     return (
       <Shell>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: '40px 24px', textAlign: 'center' }}>
-          <div style={{ width: 64, height: 64, borderRadius: 16, background: 'rgba(61,186,122,0.12)', border: '1px solid var(--green, #3dba7a)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="var(--green, #3dba7a)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <div style={{ width: 64, height: 64, borderRadius: 16, background: 'rgba(111,154,126,0.12)', border: '1px solid var(--green, #6f9a7e)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="var(--green, #6f9a7e)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
           <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>Thanks, {form.full_name.trim().split(' ')[0] || form.full_name.trim()}!</div>
           <div style={{ fontSize: 14, color: 'var(--text-dim, #9394a8)', lineHeight: 1.6, maxWidth: 340 }}>
@@ -579,8 +579,8 @@ export default function Onboard() {
 
           <Divider label="location" />
           {geo ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'rgba(61,186,122,0.08)', border: '1px solid rgba(61,186,122,0.25)', borderRadius: 6 }}>
-              <span style={{ color: 'var(--green, #3dba7a)' }}>✓</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'rgba(111,154,126,0.08)', border: '1px solid rgba(111,154,126,0.25)', borderRadius: 6 }}>
+              <span style={{ color: 'var(--green, #6f9a7e)' }}>✓</span>
               <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', flex: 1 }}>
                 {geo.lat.toFixed(5)}, {geo.lng.toFixed(5)} · ±{Math.round(geo.accuracy)}m
               </span>

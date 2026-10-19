@@ -75,10 +75,10 @@ export default function JourneyPhases({ pid, row, onChange }) {
           return (
             <button type="button" onClick={() => r ? navigate(`/explore/${r.id}`) : null} title={r ? 'Open the exploratory visit' : sub}
               style={{ textAlign: 'left', padding: '8px 10px', borderRadius: 8, cursor: r ? 'pointer' : 'default', minWidth: 0, fontFamily: 'inherit',
-                       border: `1px solid ${r ? 'rgba(61,186,122,0.30)' : 'var(--border, #2e3040)'}`, background: 'transparent', color: 'var(--text, #e8e8f0)', opacity: r ? 1 : 0.7 }}>
+                       border: `1px solid ${r ? 'rgba(111,154,126,0.30)' : 'var(--border, #2e3040)'}`, background: 'transparent', color: 'var(--text, #e8e8f0)', opacity: r ? 1 : 0.7 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: r ? 'var(--green, #3dba7a)' : 'var(--border, #2e3040)' }} />
-                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: MONO, color: r ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }}>Explore</span>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: r ? 'var(--green, #6f9a7e)' : 'var(--border, #2e3040)' }} />
+                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: MONO, color: r ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)' }}>Explore</span>
               </div>
               <div title={sub} style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: MONO }}>{ex === undefined ? ' ' : sub}</div>
             </button>
@@ -100,14 +100,14 @@ export default function JourneyPhases({ pid, row, onChange }) {
           return (
             <button key={p.key} type="button" onClick={() => navigate(p.route(pid))} title={`Open ${p.label.toLowerCase()}`}
               style={{ textAlign: 'left', padding: '8px 10px', borderRadius: 8, cursor: 'pointer', minWidth: 0, fontFamily: 'inherit',
-                       border: `1px solid ${now ? 'var(--accent, #c8963e)' : done ? 'rgba(61,186,122,0.30)' : 'var(--border, #2e3040)'}`,
+                       border: `1px solid ${now ? 'var(--accent, #c8963e)' : done ? 'rgba(111,154,126,0.30)' : 'var(--border, #2e3040)'}`,
                        background: now ? 'rgba(200,150,62,0.10)' : 'transparent', color: 'var(--text, #e8e8f0)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: done ? 'var(--green, #3dba7a)' : now ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)' }} />
-                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: MONO, color: now ? 'var(--accent, #c8963e)' : done ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }}>{p.label}</span>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: done ? 'var(--green, #6f9a7e)' : now ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)' }} />
+                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: MONO, color: now ? 'var(--accent, #c8963e)' : done ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)' }}>{p.label}</span>
               </div>
               <div title={sub} style={{ fontSize: 11, color: now ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: now ? 'inherit' : MONO }}>{sub || ' '}</div>
-              {sub2 && <div title={sub2} style={{ fontSize: 10.5, color: 'var(--green, #3dba7a)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: MONO }}>✓ {sub2}</div>}
+              {sub2 && <div title={sub2} style={{ fontSize: 10.5, color: 'var(--green, #6f9a7e)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: MONO }}>✓ {sub2}</div>}
             </button>
           )
         })}
@@ -118,7 +118,7 @@ export default function JourneyPhases({ pid, row, onChange }) {
         <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: MONO, color: 'var(--text-muted, #6b6d82)' }}>Next</span>
         {closed ? (
           <>
-            <span style={{ fontSize: 13.5, color: 'var(--green, #3dba7a)' }}>Nothing — the property is closed.</span>
+            <span style={{ fontSize: 13.5, color: 'var(--green, #6f9a7e)' }}>Nothing — the property is closed.</span>
             {ms?.no_invoice && <NoInvoiceFlag ni={ms.no_invoice} />}
           </>
         ) : (
@@ -126,7 +126,7 @@ export default function JourneyPhases({ pid, row, onChange }) {
             <span style={{ fontSize: 13.5, flex: '1 1 260px', minWidth: 0 }}>
               {row.waiting_on && row.waiting_on !== 'setup_ops'
                 ? <>Waiting on <b>{WHO[row.waiting_on]}</b> · {row.stage_label} · {ago(row.age_days)}</>
-                : <><b>{row.next_action_label}</b> · {row.stage_label}{row.urgency === 'overdue' && row.open_threads?.[0]?.overdue_by ? <span style={{ color: 'var(--red, #e05c6a)' }}> · overdue by {row.open_threads[0].overdue_by}d</span> : ''}</>}
+                : <><b>{row.next_action_label}</b> · {row.stage_label}{row.urgency === 'overdue' && row.open_threads?.[0]?.overdue_by ? <span style={{ color: 'var(--red, #b0645b)' }}> · overdue by {row.open_threads[0].overdue_by}d</span> : ''}</>}
               {row.days_to_setup != null && <span style={{ color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, fontSize: 12 }}> · setup {row.days_to_setup === 0 ? 'today' : row.days_to_setup > 0 ? `in ${row.days_to_setup}d` : `started ${-row.days_to_setup}d ago`}</span>}
             </span>
             {row.next_action_route && (

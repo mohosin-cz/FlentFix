@@ -29,7 +29,7 @@ export function Stat({ label, value, delta, tone, sub, deltaGood }) {
       <div style={{ fontSize: 21, fontWeight: 800, color: tone || 'var(--text, #e8e8f0)', fontFamily: MONO, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
       <div style={{ fontSize: 9.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4 }}>{label}</div>
       {d != null && (
-        <div style={{ fontSize: 10.5, fontFamily: MONO, marginTop: 5, color: d === 0 ? 'var(--text-muted, #6b6d82)' : good ? 'var(--green, #3dba7a)' : 'var(--red, #e05c6a)' }}>
+        <div style={{ fontSize: 10.5, fontFamily: MONO, marginTop: 5, color: d === 0 ? 'var(--text-muted, #6b6d82)' : good ? 'var(--green, #6f9a7e)' : 'var(--red, #b0645b)' }}>
           {d === 0 ? 'flat' : `${up ? '▲' : '▼'} ${Math.abs(d)}%`} <span style={{ color: 'var(--text-muted, #6b6d82)' }}>vs prev</span>
         </div>
       )}
@@ -184,7 +184,7 @@ export function SplitBar({ parts, height = 12, fmt = money }) {
 }
 
 export function Flag({ n, label, detail, tone = 'amber' }) {
-  const c = tone === 'red' ? 'var(--red, #e05c6a)' : tone === 'green' ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)'
+  const c = tone === 'red' ? 'var(--red, #b0645b)' : tone === 'green' ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)'
   return (
     <div style={{ display: 'flex', gap: 11, padding: '11px 12px', background: 'var(--bg-input, #252731)', border: `1px solid ${GRID}`, borderRadius: 10 }}>
       <span style={{ fontSize: 17, fontWeight: 800, color: c, fontFamily: MONO, minWidth: 30, flexShrink: 0 }}>{n}</span>

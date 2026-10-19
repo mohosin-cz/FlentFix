@@ -231,9 +231,9 @@ function ProgressBadge({ done, total, started }) {
   return (
     <span style={{
       fontSize: 10, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)',
-      background: allDone ? 'rgba(61,186,122,0.1)' : 'rgba(200,150,62,0.08)',
-      border: `1px solid ${allDone ? 'rgba(61,186,122,0.3)' : 'rgba(200,150,62,0.25)'}`,
-      color: allDone ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)',
+      background: allDone ? 'rgba(111,154,126,0.1)' : 'rgba(200,150,62,0.08)',
+      border: `1px solid ${allDone ? 'rgba(111,154,126,0.3)' : 'rgba(200,150,62,0.25)'}`,
+      color: allDone ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)',
       borderRadius: 3, padding: '2px 7px',
     }}>
       {done}/{total} done

@@ -161,8 +161,8 @@ export default function MilestoneCard({ vendor }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', background: m.thisMonth ? 'rgba(61,186,122,0.10)' : 'var(--bg-input, #252731)', border: `1px solid ${m.thisMonth ? 'rgba(61,186,122,0.35)' : 'var(--border, #2e3040)'}`, borderRadius: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 21, fontWeight: 800, fontFamily: MONO, color: m.thisMonth ? 'var(--green, #3dba7a)' : 'var(--text, #e8e8f0)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', background: m.thisMonth ? 'rgba(111,154,126,0.10)' : 'var(--bg-input, #252731)', border: `1px solid ${m.thisMonth ? 'rgba(111,154,126,0.35)' : 'var(--border, #2e3040)'}`, borderRadius: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 21, fontWeight: 800, fontFamily: MONO, color: m.thisMonth ? 'var(--green, #6f9a7e)' : 'var(--text, #e8e8f0)', flexShrink: 0 }}>
           {m.mark.n}
         </span>
         <div style={{ flex: 1, minWidth: 120 }}>
@@ -181,14 +181,14 @@ export default function MilestoneCard({ vendor }) {
         style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, padding: '11px 12px', fontSize: 12.5, lineHeight: 1.6, color: 'var(--text, #e8e8f0)', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }} />
 
       {failed && (
-        <div style={{ fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>
+        <div style={{ fontSize: 11.5, color: 'var(--red, #b0645b)', fontFamily: MONO }}>
           ⚠ Could not reach the clipboard. Select the text above and copy it manually.
         </div>
       )}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button type="button" onClick={copy} disabled={!draft.trim()}
-          style={{ ...btn, background: 'rgba(200,150,62,0.12)', borderColor: 'var(--accent, #c8963e)', color: copied ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)', opacity: draft.trim() ? 1 : 0.5 }}>
+          style={{ ...btn, background: 'rgba(200,150,62,0.12)', borderColor: 'var(--accent, #c8963e)', color: copied ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)', opacity: draft.trim() ? 1 : 0.5 }}>
           {copied ? '✓ Copied' : 'Copy message'}
         </button>
         {wa.length === 10 && (

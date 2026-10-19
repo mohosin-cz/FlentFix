@@ -975,7 +975,7 @@ function EstimateWorkbenchInner() {
             {exGuess && (
               <button type="button" onClick={() => navigate(`/explore/${exGuess.id}`)} title="Open the exploratory visit"
                 style={{ background:'none',border:'none',padding:0,marginTop:3,cursor:'pointer',fontFamily:'var(--mono)',fontSize:11,color:'var(--muted)',textAlign:'left' }}>
-                exploratory guessed <span style={{ color:'#e07ba8' }}>{exGuess.band}</span>{exGuess.by ? ` (${exGuess.by})` : ''} · this estimate <span style={{ color:'var(--ink)' }}>₹{Math.round(pricedTotal()).toLocaleString('en-IN')}</span>
+                exploratory guessed <span style={{ color:'#b0645b' }}>{exGuess.band}</span>{exGuess.by ? ` (${exGuess.by})` : ''} · this estimate <span style={{ color:'var(--ink)' }}>₹{Math.round(pricedTotal()).toLocaleString('en-IN')}</span>
               </button>
             )}
           </div>

@@ -43,7 +43,7 @@ function CopyBtn({ value, label = 'Copy' }) {
     setDone(true)
   }
   return (
-    <button onClick={copy} title={label} aria-label={label} style={{ flexShrink: 0, alignSelf: 'center', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: done ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)', cursor: 'pointer' }}>
+    <button onClick={copy} title={label} aria-label={label} style={{ flexShrink: 0, alignSelf: 'center', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: done ? 'var(--green, #6f9a7e)' : 'var(--text-dim, #9394a8)', cursor: 'pointer' }}>
       {done ? <CheckIcon /> : <CopyIcon />}
     </button>
   )
@@ -403,7 +403,7 @@ function RechargeSheet({ utility, userEmail, onClose, onSaved }) {
         <Labeled label="Note" span><input style={inputStyle} value={note} onChange={e => setNote(e.target.value)} placeholder="Optional — reference, next-due tweak…" /></Labeled>
       </div>
       {error && <div style={{ fontSize: 12, color: '#f87171', fontFamily: MONO, padding: '9px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: 8 }}>{error}</div>}
-      <button onClick={save} disabled={saving} style={{ padding: '12px 0', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, color: '#062012', cursor: 'pointer', fontFamily: SANS, opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving…' : 'Log recharge'}</button>
+      <button onClick={save} disabled={saving} style={{ padding: '12px 0', background: 'var(--green, #6f9a7e)', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, color: '#062012', cursor: 'pointer', fontFamily: SANS, opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving…' : 'Log recharge'}</button>
 
       <div>
         <label style={labelStyle}>History</label>
@@ -413,7 +413,7 @@ function RechargeSheet({ utility, userEmail, onClose, onSaved }) {
               {history.map(h => (
                 <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg-input, #252731)' }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: MONO }}>{fmtDate(h.recharged_on)}</span>
-                  {h.amount != null && <span style={{ fontSize: 12, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>{money(h.amount)}</span>}
+                  {h.amount != null && <span style={{ fontSize: 12, color: 'var(--green, #6f9a7e)', fontFamily: MONO }}>{money(h.amount)}</span>}
                   {h.note && <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: SANS, marginLeft: 'auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.note}</span>}
                 </div>
               ))}
@@ -513,7 +513,7 @@ function UtilityCard({ u, onRecharge, onEdit, onDelete }) {
       )}
       {u.notes && <div style={{ fontSize: 12.5, color: 'var(--text-muted, #6b6d82)', lineHeight: 1.5, whiteSpace: 'pre-wrap', fontFamily: SANS }}>{u.notes}</div>}
 
-      <button onClick={() => onRecharge(u)} style={{ padding: '10px 0', background: 'rgba(61,186,122,0.1)', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 9, fontSize: 13, fontWeight: 700, color: 'var(--green, #3dba7a)', cursor: 'pointer', fontFamily: SANS }}>Log recharge</button>
+      <button onClick={() => onRecharge(u)} style={{ padding: '10px 0', background: 'rgba(111,154,126,0.1)', border: '1px solid rgba(111,154,126,0.35)', borderRadius: 9, fontSize: 13, fontWeight: 700, color: 'var(--green, #6f9a7e)', cursor: 'pointer', fontFamily: SANS }}>Log recharge</button>
     </div>
   )
 }

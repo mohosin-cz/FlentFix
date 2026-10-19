@@ -102,9 +102,9 @@ function opTitle(op) {
 const btn = (variant) => ({
   flex: 1, minHeight: 46, padding: '0 14px', borderRadius: 10, fontSize: 13.5, fontWeight: 700, fontFamily: SANS, cursor: 'pointer',
   WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
-  border: variant === 'mine' ? '1px solid var(--accent, #c8963e)' : variant === 'danger' ? '1px solid rgba(224,92,106,0.5)' : '1px solid var(--border, #2e3040)',
-  background: variant === 'mine' ? 'rgba(200,150,62,0.16)' : variant === 'danger' ? 'rgba(224,92,106,0.10)' : 'var(--bg-input, #252731)',
-  color: variant === 'mine' ? 'var(--accent, #c8963e)' : variant === 'danger' ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)',
+  border: variant === 'mine' ? '1px solid var(--accent, #c8963e)' : variant === 'danger' ? '1px solid rgba(176,100,91,0.5)' : '1px solid var(--border, #2e3040)',
+  background: variant === 'mine' ? 'rgba(200,150,62,0.16)' : variant === 'danger' ? 'rgba(176,100,91,0.10)' : 'var(--bg-input, #252731)',
+  color: variant === 'mine' ? 'var(--accent, #c8963e)' : variant === 'danger' ? 'var(--red, #b0645b)' : 'var(--text-dim, #9394a8)',
 })
 
 export default function ConflictSheet({ open, onClose, conflicts = [], failed = [], queued = [], onResolve, onRetry, onDiscard, onSyncNow, online }) {
@@ -137,8 +137,8 @@ export default function ConflictSheet({ open, onClose, conflicts = [], failed = 
         )}
 
         {conflicts.map(op => (
-          <section key={op.id} style={{ marginBottom: 16, padding: 13, borderRadius: 12, border: '1px solid rgba(224,92,106,0.42)', background: 'rgba(224,92,106,0.05)' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', fontFamily: MONO, color: 'var(--red, #e05c6a)' }}>Conflict</div>
+          <section key={op.id} style={{ marginBottom: 16, padding: 13, borderRadius: 12, border: '1px solid rgba(176,100,91,0.42)', background: 'rgba(176,100,91,0.05)' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', fontFamily: MONO, color: 'var(--red, #b0645b)' }}>Conflict</div>
             <div style={{ fontSize: 14.5, fontWeight: 600, margin: '4px 0 10px', lineHeight: 1.4 }}>{opTitle(op)}</div>
             <p style={{ margin: '0 0 10px', fontSize: 12.5, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>
               {op.kind === 'inspection_save'
@@ -154,8 +154,8 @@ export default function ConflictSheet({ open, onClose, conflicts = [], failed = 
         ))}
 
         {failed.map(op => (
-          <section key={op.id} style={{ marginBottom: 12, padding: 13, borderRadius: 12, border: '1px solid rgba(224,92,106,0.32)', background: 'var(--bg-input, #252731)' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', fontFamily: MONO, color: 'var(--red, #e05c6a)' }}>Failed · {op.attempts} attempt{op.attempts === 1 ? '' : 's'}</div>
+          <section key={op.id} style={{ marginBottom: 12, padding: 13, borderRadius: 12, border: '1px solid rgba(176,100,91,0.32)', background: 'var(--bg-input, #252731)' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', fontFamily: MONO, color: 'var(--red, #b0645b)' }}>Failed · {op.attempts} attempt{op.attempts === 1 ? '' : 's'}</div>
             <div style={{ fontSize: 14, fontWeight: 600, margin: '4px 0 6px' }}>{opTitle(op)}</div>
             <div style={{ fontSize: 12, fontFamily: MONO, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5, wordBreak: 'break-word' }}>{op.lastError || 'The server refused this.'}</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 4 }}>captured {fmt(op.createdAt)}{op.fileCount ? ` · ${op.fileCount} file${op.fileCount === 1 ? '' : 's'}` : ''}</div>

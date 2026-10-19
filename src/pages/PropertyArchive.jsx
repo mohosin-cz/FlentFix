@@ -119,7 +119,7 @@ export default function PropertyArchive() {
           <span style={s.headerSub}>{loading ? '…' : `${rows.length} propert${rows.length !== 1 ? 'ies' : 'y'}`}</span>
         </div>
         <button style={s.binHeaderBtn} onClick={() => navigate('/properties/bin')} title="View bin" aria-label="View bin"
-          onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(224,92,106,0.5)'}
+          onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(176,100,91,0.5)'}
           onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border, #2e3040)'}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
             <polyline points="3 6 5 6 21 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -185,12 +185,12 @@ export default function PropertyArchive() {
                 </div>
                 <div style={s.cardActions}>
                   <button style={s.restoreBtn} onClick={() => setModal({ type: 'restore', pid: row.pid })}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(61,186,122,0.5)'; e.currentTarget.style.color = 'var(--green, #3dba7a)' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(111,154,126,0.5)'; e.currentTarget.style.color = 'var(--green, #6f9a7e)' }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border, #2e3040)'; e.currentTarget.style.color = 'var(--text-muted, #6b6d82)' }}>
                     ↩ Restore
                   </button>
                   <button style={s.binBtn} onClick={() => setModal({ type: 'bin', pid: row.pid })}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(224,92,106,0.5)'; e.currentTarget.style.color = '#e05c6a' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(176,100,91,0.5)'; e.currentTarget.style.color = '#b0645b' }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border, #2e3040)'; e.currentTarget.style.color = 'var(--text-muted, #6b6d82)' }}>
                     To bin
                   </button>
@@ -206,7 +206,7 @@ export default function PropertyArchive() {
           title={`Restore PID${modal.pid}?`}
           body={<>PID{modal.pid} will be moved back to your properties list.</>}
           confirmLabel="Restore"
-          confirmStyle={{ background: 'rgba(61,186,122,0.12)', border: '1px solid rgba(61,186,122,0.4)', color: 'var(--green, #3dba7a)' }}
+          confirmStyle={{ background: 'rgba(111,154,126,0.12)', border: '1px solid rgba(111,154,126,0.4)', color: 'var(--green, #6f9a7e)' }}
           onConfirm={handleRestore}
           onCancel={() => !working && setModal(null)}
           loading={working}
@@ -218,7 +218,7 @@ export default function PropertyArchive() {
           title={`Move PID${modal.pid} to the bin?`}
           body={<>PID{modal.pid} leaves the archive and goes to the bin, where it can be restored or permanently deleted. Nothing is erased by this step.</>}
           confirmLabel="Move to bin"
-          confirmStyle={{ background: 'rgba(224,92,106,0.15)', border: '1px solid rgba(224,92,106,0.4)', color: '#e05c6a' }}
+          confirmStyle={{ background: 'rgba(176,100,91,0.15)', border: '1px solid rgba(176,100,91,0.4)', color: '#b0645b' }}
           onConfirm={handleMoveToBin}
           onCancel={() => !working && setModal(null)}
           loading={working}
@@ -258,9 +258,9 @@ const s = {
   headerTitle: { fontSize: 14, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' },
   headerSub: { fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' },
   errorStrip: {
-    padding: '11px 20px', background: 'rgba(224,92,106,0.10)',
-    borderBottom: '1px solid rgba(224,92,106,0.35)',
-    fontSize: 11.5, lineHeight: 1.6, color: '#e8697a',
+    padding: '11px 20px', background: 'rgba(176,100,91,0.10)',
+    borderBottom: '1px solid rgba(176,100,91,0.35)',
+    fontSize: 11.5, lineHeight: 1.6, color: '#b0645b',
     fontFamily: 'var(--font-mono, monospace)', textAlign: 'center',
   },
   code: { color: 'var(--text-dim, #9394a8)' },

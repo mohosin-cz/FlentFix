@@ -163,8 +163,8 @@ export default function StageRail({ stages, currentKey, loggedKey, derivedLabel,
         )}
 
         {isRejected && (
-          <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', background: 'rgba(224,92,106,0.09)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 9 }}>
-            <span style={{ flex: 1, minWidth: 160, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>Estimate rejected</span>
+          <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', background: 'rgba(176,100,91,0.09)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 9 }}>
+            <span style={{ flex: 1, minWidth: 160, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: MONO }}>Estimate rejected</span>
             <button type="button" onClick={() => onAdvance('estimate_created')}
               style={{ minHeight: 36, padding: '0 13px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 12, cursor: 'pointer', fontFamily: MONO }}>
               Re-create estimate
@@ -180,7 +180,7 @@ export default function StageRail({ stages, currentKey, loggedKey, derivedLabel,
                   minHeight: 38, padding: '0 14px', borderRadius: 8, fontSize: 12.5, cursor: 'pointer', fontFamily: MONO,
                   fontWeight: a.primary ? 700 : 500,
                   border: `1px solid ${a.tone || 'var(--border, #2e3040)'}`,
-                  background: a.primary ? `${a.tone ? 'rgba(61,186,122,0.12)' : 'rgba(200,150,62,0.12)'}` : 'var(--bg-input, #252731)',
+                  background: a.primary ? `${a.tone ? 'rgba(111,154,126,0.12)' : 'rgba(200,150,62,0.12)'}` : 'var(--bg-input, #252731)',
                   color: a.tone || 'var(--text-dim, #9394a8)',
                 }}>
                 {a.label}

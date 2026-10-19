@@ -95,8 +95,8 @@ export default function UtilitiesAnalytics({ rows, onType, onDue }) {
       {/* Recharges */}
       <Card title="Recharges">
         <div style={{ display: 'flex', gap: 6 }}>
-          <MiniStat label="Overdue" value={a.overdue} color={a.overdue ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)'} />
-          <MiniStat label="≤ 7 days" value={a.dueWeek} color={a.dueWeek ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)'} />
+          <MiniStat label="Overdue" value={a.overdue} color={a.overdue ? 'var(--red, #b0645b)' : 'var(--text-dim, #9394a8)'} />
+          <MiniStat label="≤ 7 days" value={a.dueWeek} color={a.dueWeek ? 'var(--red, #b0645b)' : 'var(--text-dim, #9394a8)'} />
           <MiniStat label="≤ 30 days" value={a.dueMonth} color={a.dueMonth ? 'var(--accent, #c8963e)' : 'var(--text-dim, #9394a8)'} />
         </div>
         {a.upcoming.length > 0 && (

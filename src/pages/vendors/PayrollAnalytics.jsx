@@ -152,7 +152,7 @@ export default function PayrollAnalytics() {
 
       <main style={{ flex: 1, width: '100%', maxWidth: 1180, margin: '0 auto', padding: phone ? '14px 16px 90px' : '20px 20px 60px', display: 'flex', flexDirection: 'column', gap: 14, boxSizing: 'border-box' }}>
         {loading ? <LogoSpinner /> : error ? (
-          <div style={{ padding: 14, background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 10, fontSize: 12.5, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>Couldn’t load: {error}</div>
+          <div style={{ padding: 14, background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 10, fontSize: 12.5, color: 'var(--red, #b0645b)', fontFamily: MONO }}>Couldn’t load: {error}</div>
         ) : !a ? (
           <div style={{ padding: '48px 20px', textAlign: 'center', border: `1px dashed var(--border-dash, #3a3d52)`, borderRadius: 12 }}>
             <div style={{ fontSize: 14, fontWeight: 600 }}>No payroll yet</div>
@@ -252,7 +252,7 @@ export default function PayrollAnalytics() {
                     )}
                     <div style={{ textAlign: 'right', flexShrink: 0, width: phone ? 92 : 100 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: p.latest ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{money(p.latest)}</div>
-                      <div style={{ fontSize: 9.5, fontFamily: MONO, color: p.change == null ? 'var(--text-muted, #6b6d82)' : p.change > 0 ? 'var(--red, #e05c6a)' : p.change < 0 ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }}>
+                      <div style={{ fontSize: 9.5, fontFamily: MONO, color: p.change == null ? 'var(--text-muted, #6b6d82)' : p.change > 0 ? 'var(--red, #b0645b)' : p.change < 0 ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)' }}>
                         {p.change == null ? a.latest.label : `${p.change > 0 ? '▲' : p.change < 0 ? '▼' : ''} ${Math.abs(Math.round(p.change))}%`}
                       </div>
                     </div>

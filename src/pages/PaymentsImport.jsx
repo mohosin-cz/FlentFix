@@ -221,8 +221,8 @@ export default function PaymentsImport() {
       <main style={{ width: '100%', padding: phone ? '14px 16px 60px' : '18px 20px 60px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         {result ? (
-          <div style={{ padding: '20px 18px', background: 'rgba(61,186,122,0.09)', border: '1px solid rgba(61,186,122,0.32)', borderRadius: 12 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--green, #3dba7a)' }}>
+          <div style={{ padding: '20px 18px', background: 'rgba(111,154,126,0.09)', border: '1px solid rgba(111,154,126,0.32)', borderRadius: 12 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--green, #6f9a7e)' }}>
               {result.imported} payment{result.imported === 1 ? '' : 's'} imported
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--text-dim, #9394a8)', marginTop: 7, lineHeight: 1.65, fontFamily: MONO }}>
@@ -332,9 +332,9 @@ export default function PaymentsImport() {
                     <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{good.length}</div>
                     <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{inr(goodTotal)}</div>
                   </div>
-                  <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${bad.length ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}`, borderRadius: 11, padding: '12px 14px' }}>
+                  <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${bad.length ? 'var(--red, #b0645b)' : 'var(--border, #2e3040)'}`, borderRadius: 11, padding: '12px 14px' }}>
                     <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Can’t read</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4, color: bad.length ? 'var(--red, #e05c6a)' : 'var(--text, #e8e8f0)' }}>{bad.length}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4, color: bad.length ? 'var(--red, #b0645b)' : 'var(--text, #e8e8f0)' }}>{bad.length}</div>
                     <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{bad.length ? 'will be skipped' : 'none'}</div>
                   </div>
                   <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 11, padding: '12px 14px' }}>
@@ -345,8 +345,8 @@ export default function PaymentsImport() {
                 </div>
 
                 {bad.length > 0 && (
-                  <div style={{ background: 'rgba(224,92,106,0.07)', border: '1px solid rgba(224,92,106,0.28)', borderRadius: 11, padding: 13 }}>
-                    <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: MONO, marginBottom: 8 }}>
+                  <div style={{ background: 'rgba(176,100,91,0.07)', border: '1px solid rgba(176,100,91,0.28)', borderRadius: 11, padding: 13 }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--red, #b0645b)', fontFamily: MONO, marginBottom: 8 }}>
                       These rows will be skipped
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 180, overflowY: 'auto' }}>
@@ -379,14 +379,14 @@ export default function PaymentsImport() {
                         {parsed.slice(0, 100).map(r => (
                           <tr key={r.line} style={{ borderTop: '1px solid var(--border, #2e3040)', opacity: r.problems.length ? 0.45 : 1 }}>
                             <td style={{ ...cell, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{r.line}</td>
-                            <td style={{ ...cell, fontFamily: MONO, color: r.paid_on ? 'var(--text, #e8e8f0)' : 'var(--red, #e05c6a)' }}>{r.paid_on ? fmtDate(r.paid_on) : '—'}</td>
+                            <td style={{ ...cell, fontFamily: MONO, color: r.paid_on ? 'var(--text, #e8e8f0)' : 'var(--red, #b0645b)' }}>{r.paid_on ? fmtDate(r.paid_on) : '—'}</td>
                             <td style={{ ...cell, whiteSpace: 'normal', maxWidth: 200 }}>{r.description || <span style={{ color: 'var(--text-muted, #6b6d82)' }}>—</span>}</td>
                             <td style={{ ...cell, textAlign: 'right', fontFamily: MONO, fontSize: 10.5, color: 'var(--text-dim, #9394a8)' }}>
                               {r.quantity != null
                                 ? <>{fmtQty(r.quantity)}{r.unit ? ` ${r.unit}` : ''}{r.unit_rate != null ? ` × ${inr(r.unit_rate)}` : ''}</>
                                 : <span style={{ color: 'var(--text-muted, #6b6d82)' }}>—</span>}
                             </td>
-                            <td style={{ ...cell, textAlign: 'right', fontFamily: MONO, color: r.amount ? 'var(--text, #e8e8f0)' : 'var(--red, #e05c6a)' }}>{r.amount ? inr(r.amount) : '—'}</td>
+                            <td style={{ ...cell, textAlign: 'right', fontFamily: MONO, color: r.amount ? 'var(--text, #e8e8f0)' : 'var(--red, #b0645b)' }}>{r.amount ? inr(r.amount) : '—'}</td>
                             <td style={{ ...cell, fontFamily: MONO, fontSize: 10.5 }}>{r.kind}</td>
                             <td style={cell}>{r.trade}</td>
                             <td style={cell}>{r.payee_name || <span style={{ color: 'var(--text-muted, #6b6d82)' }}>—</span>}</td>
@@ -403,7 +403,7 @@ export default function PaymentsImport() {
                 </div>
 
                 {err && (
-                  <div style={{ padding: '11px 13px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: MONO, lineHeight: 1.5 }}>
+                  <div style={{ padding: '11px 13px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: MONO, lineHeight: 1.5 }}>
                     Import failed: {err}
                   </div>
                 )}

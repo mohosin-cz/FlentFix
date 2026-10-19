@@ -30,7 +30,7 @@ const STATUS_TONE = {
   assigned: { label: 'Assigned', color: 'var(--accent, #c8963e)' },
   in_progress: { label: 'In progress', color: '#6b8de6' },
   vendor_completed: { label: 'Vendor done', color: '#4dd9c0' },
-  verified: { label: 'Verified', color: 'var(--green, #3dba7a)' },
+  verified: { label: 'Verified', color: 'var(--green, #6f9a7e)' },
 }
 const isClosed = (it) => it.status !== 'pending' && it.status !== 'disputed'
 // Only untouched or sent-back items move between vendors. Handing a finished
@@ -43,8 +43,8 @@ const fmtDate = (d) => (d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN'
 // ── presentational pieces, hoisted ───────────────────────────────────────────
 function ErrStrip({ children, onRetry }) {
   return (
-    <div style={{ padding: '11px 13px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', borderRadius: 9, fontFamily: MONO }}>
-      <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>⚠ {children}</div>
+    <div style={{ padding: '11px 13px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.32)', borderRadius: 9, fontFamily: MONO }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--red, #b0645b)' }}>⚠ {children}</div>
       {onRetry && (
         <button type="button" onClick={onRetry} style={{ marginTop: 8, fontSize: 11, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontFamily: MONO }}>Retry</button>
       )}
@@ -63,8 +63,8 @@ function ItemRow({ item, actionable, reversible, busy, err, onVerify, onDispute,
   const [disputing, setDisputing] = useState(false)
   const awaiting = item.status === 'vendor_closed'
   const movable = isMovable(item)
-  const tone = item.status === 'verified' ? 'var(--green, #3dba7a)'
-    : item.status === 'disputed' ? 'var(--red, #e05c6a)'
+  const tone = item.status === 'verified' ? 'var(--green, #6f9a7e)'
+    : item.status === 'disputed' ? 'var(--red, #b0645b)'
     : awaiting ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)'
 
   return (
@@ -88,7 +88,7 @@ function ItemRow({ item, actionable, reversible, busy, err, onVerify, onDispute,
             <div style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, marginTop: 4 }}>Vendor: {item.vendor_note}</div>
           )}
           {item.status === 'disputed' && item.dispute_reason && (
-            <div style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: MONO, marginTop: 4, lineHeight: 1.5 }}>Sent back: {item.dispute_reason}</div>
+            <div style={{ fontSize: 11, color: 'var(--red, #b0645b)', fontFamily: MONO, marginTop: 4, lineHeight: 1.5 }}>Sent back: {item.dispute_reason}</div>
           )}
           {crew?.length > 1 && (
             <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
@@ -111,7 +111,7 @@ function ItemRow({ item, actionable, reversible, busy, err, onVerify, onDispute,
               not just the task — so it is called out, not buried. */}
           {item.dispute_count > 1 && (
             <span title={`Disputed ${item.dispute_count} times`}
-              style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--red, #e05c6a)', border: '1px solid var(--red, #e05c6a)', borderRadius: 9, padding: '1px 7px', fontFamily: MONO, whiteSpace: 'nowrap' }}>
+              style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--red, #b0645b)', border: '1px solid var(--red, #b0645b)', borderRadius: 9, padding: '1px 7px', fontFamily: MONO, whiteSpace: 'nowrap' }}>
               ×{item.dispute_count} disputed
             </span>
           )}
@@ -126,11 +126,11 @@ function ItemRow({ item, actionable, reversible, busy, err, onVerify, onDispute,
       {actionable && awaiting && !disputing && (
         <div style={{ display: 'flex', gap: 8, paddingLeft: selectable ? 120 : 94 }}>
           <button type="button" disabled={busy} onClick={onVerify}
-            style={{ minHeight: 38, padding: '0 15px', borderRadius: 8, border: '1px solid var(--green, #3dba7a)', background: 'rgba(61,186,122,0.12)', color: 'var(--green, #3dba7a)', fontSize: 12.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO }}>
+            style={{ minHeight: 38, padding: '0 15px', borderRadius: 8, border: '1px solid var(--green, #6f9a7e)', background: 'rgba(111,154,126,0.12)', color: 'var(--green, #6f9a7e)', fontSize: 12.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO }}>
             {busy ? '…' : 'Verify'}
           </button>
           <button type="button" disabled={busy} onClick={() => setDisputing(true)}
-            style={{ minHeight: 38, padding: '0 15px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--red, #e05c6a)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>
+            style={{ minHeight: 38, padding: '0 15px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--red, #b0645b)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>
             Dispute
           </button>
         </div>
@@ -211,26 +211,26 @@ function DisputeBox({ onCancel, onSubmit, busy }) {
   const [touched, setTouched] = useState(false)
   const bad = touched && !reason.trim()
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 11, background: 'rgba(224,92,106,0.07)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 9 }}>
-      <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>Why is this being sent back?</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 11, background: 'rgba(176,100,91,0.07)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 9 }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--red, #b0645b)', fontFamily: MONO }}>Why is this being sent back?</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {DISPUTE_REASONS.map(r => (
           <button key={r} type="button" onClick={() => { setReason(r); setTouched(true) }}
             style={{ padding: '6px 10px', borderRadius: 14, fontSize: 11.5, cursor: 'pointer', fontFamily: MONO,
-              border: `1px solid ${reason === r ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}`,
-              background: reason === r ? 'rgba(224,92,106,0.14)' : 'var(--bg-input, #252731)',
-              color: reason === r ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}>{r}</button>
+              border: `1px solid ${reason === r ? 'var(--red, #b0645b)' : 'var(--border, #2e3040)'}`,
+              background: reason === r ? 'rgba(176,100,91,0.14)' : 'var(--bg-input, #252731)',
+              color: reason === r ? 'var(--red, #b0645b)' : 'var(--text-dim, #9394a8)' }}>{r}</button>
         ))}
       </div>
       <textarea value={reason} onChange={e => { setReason(e.target.value); setTouched(true) }} rows={2}
         placeholder="Or write the reason — the vendor sees this"
         style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', borderRadius: 8, outline: 'none', fontFamily: 'inherit', resize: 'vertical',
-          border: `1px solid ${bad ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}` }} />
-      {bad && <span style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>A dispute needs a reason.</span>}
+          border: `1px solid ${bad ? 'var(--red, #b0645b)' : 'var(--border, #2e3040)'}` }} />
+      {bad && <span style={{ fontSize: 11, color: 'var(--red, #b0645b)', fontFamily: MONO }}>A dispute needs a reason.</span>}
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" disabled={busy || !reason.trim()} onClick={() => onSubmit(reason.trim())}
           style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 700, fontFamily: MONO,
-            background: reason.trim() ? 'var(--red, #e05c6a)' : 'var(--bg-input, #252731)',
+            background: reason.trim() ? 'var(--red, #b0645b)' : 'var(--bg-input, #252731)',
             color: reason.trim() ? '#fff' : 'var(--text-muted, #6b6d82)',
             cursor: busy ? 'wait' : reason.trim() ? 'pointer' : 'not-allowed' }}>
           {busy ? 'Sending…' : 'Send back to vendor'}
@@ -323,15 +323,15 @@ function CrewRow({ wo, vendors, sole, busy, err, copied, taken, onAssign, onDate
       {err && <ErrStrip>{err}</ErrStrip>}
 
       {swapTo !== null && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: 11, background: 'rgba(224,92,106,0.07)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 9 }}>
-          <div style={{ fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: MONO, lineHeight: 1.6 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: 11, background: 'rgba(176,100,91,0.07)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 9 }}>
+          <div style={{ fontSize: 11.5, color: 'var(--red, #b0645b)', fontFamily: MONO, lineHeight: 1.6 }}>
             {swapName ? `Replace ${wo.vendor_name} with ${swapName}?` : `Take ${wo.vendor_name} off this work order?`}
             {' '}Their link stops working the moment you confirm.
             {closed > 0 && ` The ${closed} item${closed === 1 ? '' : 's'} they already closed stay closed and stay on this work order.`}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button type="button" disabled={busy} onClick={() => { onAssign(swapTo, true); setSwapTo(null) }}
-              style={{ minHeight: 40, padding: '0 15px', borderRadius: 8, border: 'none', background: 'var(--red, #e05c6a)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO }}>
+              style={{ minHeight: 40, padding: '0 15px', borderRadius: 8, border: 'none', background: 'var(--red, #b0645b)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO }}>
               {busy ? 'Replacing…' : swapName ? 'Replace vendor' : 'Remove vendor'}
             </button>
             <button type="button" onClick={() => setSwapTo(null)}
@@ -370,7 +370,7 @@ function CrewRow({ wo, vendors, sole, busy, err, copied, taken, onAssign, onDate
           </span>
         ) : (
           <button type="button" onClick={onCopy}
-            style={{ padding: '8px 13px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: copied ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>
+            style={{ padding: '8px 13px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: copied ? 'var(--green, #6f9a7e)' : 'var(--text-dim, #9394a8)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>
             {copied ? '✓ Link copied' : 'Copy link'}
           </button>
         )}
@@ -391,14 +391,14 @@ function CrewRow({ wo, vendors, sole, busy, err, copied, taken, onAssign, onDate
             {!sole && wo.vendor_name ? ` from ${wo.vendor_name}` : ''}
           </span>
           <button type="button" onClick={onVerifyAll} disabled={busy}
-            style={{ minHeight: 40, padding: '0 15px', borderRadius: 8, border: 'none', background: 'var(--green, #3dba7a)', color: '#062012', fontSize: 12.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO }}>
+            style={{ minHeight: 40, padding: '0 15px', borderRadius: 8, border: 'none', background: 'var(--green, #6f9a7e)', color: '#062012', fontSize: 12.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO }}>
             {busy ? 'Verifying…' : `Verify all ${awaitingVerify}`}
           </button>
         </div>
       )}
 
       {locked && (
-        <div style={{ padding: '10px 12px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--green, #3dba7a)', fontFamily: MONO, lineHeight: 1.5 }}>
+        <div style={{ padding: '10px 12px', background: 'rgba(111,154,126,0.10)', border: '1px solid rgba(111,154,126,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--green, #6f9a7e)', fontFamily: MONO, lineHeight: 1.5 }}>
           Verified{wo.verified_by ? ` by ${wo.verified_by}` : ''} — closed on both sides.
         </div>
       )}
@@ -464,7 +464,7 @@ function TradeCard({ group, wos, vendors, busyId, errs, onCreate, onAddVendor, o
     <div style={{
       background: 'var(--bg-panel, #1e2028)', borderRadius: 12, padding: 14,
       display: 'flex', flexDirection: 'column', gap: 11,
-      border: `1px solid ${isQueue ? 'var(--accent, #c8963e)' : locked ? 'rgba(61,186,122,0.35)' : 'var(--border, #2e3040)'}`,
+      border: `1px solid ${isQueue ? 'var(--accent, #c8963e)' : locked ? 'rgba(111,154,126,0.35)' : 'var(--border, #2e3040)'}`,
       boxShadow: isQueue ? '0 0 0 1px rgba(200,150,62,0.25)' : 'none',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -1195,7 +1195,7 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
         )}
         {loaded && (
           <span title={live ? 'Vendor updates appear here as they happen' : 'Not connected — use refresh on a card'}
-            style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontFamily: MONO, color: live ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }}>
+            style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontFamily: MONO, color: live ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)' }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
             {live ? 'LIVE' : 'OFFLINE'}
           </span>
@@ -1260,10 +1260,10 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
       {toast && (
         <div role="status" aria-live="polite"
           style={{ position: 'fixed', bottom: 84, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 12, maxWidth: 'calc(100vw - 32px)',
-            background: toast.tone === 'error' ? 'rgba(224,92,106,0.14)' : 'var(--bg-panel, #1e2028)',
-            border: `1px solid ${toast.tone === 'error' ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}`,
+            background: toast.tone === 'error' ? 'rgba(176,100,91,0.14)' : 'var(--bg-panel, #1e2028)',
+            border: `1px solid ${toast.tone === 'error' ? 'var(--red, #b0645b)' : 'var(--border, #2e3040)'}`,
             borderRadius: 10, padding: '10px 14px', fontSize: 12.5,
-            color: toast.tone === 'error' ? 'var(--red, #e05c6a)' : 'var(--text, #e8e8f0)',
+            color: toast.tone === 'error' ? 'var(--red, #b0645b)' : 'var(--text, #e8e8f0)',
             fontFamily: SANS, zIndex: 300, boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
           <span style={{ minWidth: 0 }}>{toast.text}</span>
           {toast.undo && (

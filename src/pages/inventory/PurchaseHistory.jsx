@@ -14,7 +14,7 @@ const TRADE_COLORS = {
   electrical: { color: '#f5c842', bg: 'rgba(245,200,66,0.1)', border: 'rgba(245,200,66,0.3)' },
   plumbing:   { color: '#5ba8e5', bg: 'rgba(91,168,229,0.1)',  border: 'rgba(91,168,229,0.3)' },
   woodwork:   { color: '#c8963e', bg: 'rgba(200,150,62,0.1)',  border: 'rgba(200,150,62,0.3)' },
-  cleaning:   { color: '#3dba7a', bg: 'rgba(61,186,122,0.1)',  border: 'rgba(61,186,122,0.3)' },
+  cleaning:   { color: '#6f9a7e', bg: 'rgba(111,154,126,0.1)',  border: 'rgba(111,154,126,0.3)' },
   misc:       { color: '#9394a8', bg: 'rgba(147,148,168,0.1)', border: 'rgba(147,148,168,0.3)' },
   appliances: { color: '#4a9eff', bg: 'rgba(74,158,255,0.1)',  border: 'rgba(74,158,255,0.3)'  },
   lights:     { color: '#f0c040', bg: 'rgba(240,192,64,0.1)',  border: 'rgba(240,192,64,0.3)'  },
@@ -46,7 +46,7 @@ function Toasts({ toasts }) {
   return (
     <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column-reverse', gap: 8, zIndex: 300, pointerEvents: 'none' }}>
       {toasts.map(t => (
-        <div key={t.id} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', background: t.type === 'error' ? 'rgba(224,92,106,0.95)' : 'rgba(61,186,122,0.95)', color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+        <div key={t.id} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', background: t.type === 'error' ? 'rgba(176,100,91,0.95)' : 'rgba(111,154,126,0.95)', color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
           {t.msg}
         </div>
       ))}
@@ -57,11 +57,11 @@ function Toasts({ toasts }) {
 function ConfirmDialog({ message, onConfirm, onCancel }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 12, padding: '24px 22px', maxWidth: 340, width: '100%' }}>
+      <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(176,100,91,0.3)', borderRadius: 12, padding: '24px 22px', maxWidth: 340, width: '100%' }}>
         <p style={{ fontSize: 13, color: 'var(--text, #e8e8f0)', lineHeight: 1.6, margin: '0 0 20px', textAlign: 'center' }}>{message}</p>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onCancel} style={{ flex: 1, padding: '9px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Cancel</button>
-          <button onClick={onConfirm} style={{ flex: 1, padding: '9px', background: 'rgba(224,92,106,0.15)', border: '1px solid rgba(224,92,106,0.4)', borderRadius: 7, color: '#e05c6a', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Delete</button>
+          <button onClick={onConfirm} style={{ flex: 1, padding: '9px', background: 'rgba(176,100,91,0.15)', border: '1px solid rgba(176,100,91,0.4)', borderRadius: 7, color: '#b0645b', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Delete</button>
         </div>
       </div>
     </div>
@@ -398,7 +398,7 @@ export default function PurchaseHistory() {
                     <div><span style={lbl}>Vendor GSTIN</span><input value={rf.vendor_gstin} onChange={e => setRecForm(p => ({ ...p, vendor_gstin: e.target.value }))} placeholder="—" style={inpS} /></div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => saveRec(rec)} disabled={recSaving} style={{ padding: '7px 20px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{recSaving ? '…' : '✓ Save'}</button>
+                    <button onClick={() => saveRec(rec)} disabled={recSaving} style={{ padding: '7px 20px', background: 'var(--green, #6f9a7e)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{recSaving ? '…' : '✓ Save'}</button>
                     <button onClick={cancelEditRec} style={{ padding: '7px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>✕ Cancel</button>
                   </div>
                 </div>
@@ -444,7 +444,7 @@ export default function PurchaseHistory() {
                     </button>
                   )}
                   {isAdmin && (
-                    <button onClick={() => setConfirmDelRec({ id: rec.id, date: formatDate(rec.purchase_date) })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }} title="Delete purchase">
+                    <button onClick={() => setConfirmDelRec({ id: rec.id, date: formatDate(rec.purchase_date) })} style={{ ...s.iconBtn, color: '#b0645b', borderColor: 'rgba(176,100,91,0.3)', background: 'rgba(176,100,91,0.08)' }} title="Delete purchase">
                       <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
                     </button>
                   )}
@@ -482,7 +482,7 @@ export default function PurchaseHistory() {
                                   <div><span style={lbl}>Margin %</span><input type="number" value={itf.margin_percent} onChange={e => setItemForm(p => ({ ...p, margin_percent: e.target.value }))} style={inpS} /></div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 8 }}>
-                                  <button onClick={() => saveItem(item)} disabled={itemSaving} style={{ padding: '6px 16px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{itemSaving ? '…' : '✓ Save'}</button>
+                                  <button onClick={() => saveItem(item)} disabled={itemSaving} style={{ padding: '6px 16px', background: 'var(--green, #6f9a7e)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{itemSaving ? '…' : '✓ Save'}</button>
                                   <button onClick={cancelEditItem} style={{ padding: '6px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>✕ Cancel</button>
                                 </div>
                               </div>
@@ -497,7 +497,7 @@ export default function PurchaseHistory() {
                                 {isAdmin && (
                                   <div style={{ display: 'flex', gap: 4 }}>
                                     <button onClick={() => startEditItem(item)} style={s.iconBtn}><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
-                                    <button onClick={() => setConfirmDelItem({ id: item.id, name: item.item_name, registry_id: rec.id })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }}><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                                    <button onClick={() => setConfirmDelItem({ id: item.id, name: item.item_name, registry_id: rec.id })} style={{ ...s.iconBtn, color: '#b0645b', borderColor: 'rgba(176,100,91,0.3)', background: 'rgba(176,100,91,0.08)' }}><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
                                   </div>
                                 )}
                               </div>
@@ -514,7 +514,7 @@ export default function PurchaseHistory() {
                                 {isAdmin && (
                                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
                                     <button onClick={() => startEditItem(item)} style={s.iconBtn}><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
-                                    <button onClick={() => setConfirmDelItem({ id: item.id, name: item.item_name, registry_id: rec.id })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }}><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                                    <button onClick={() => setConfirmDelItem({ id: item.id, name: item.item_name, registry_id: rec.id })} style={{ ...s.iconBtn, color: '#b0645b', borderColor: 'rgba(176,100,91,0.3)', background: 'rgba(176,100,91,0.08)' }}><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
                                   </div>
                                 )}
                               </div>

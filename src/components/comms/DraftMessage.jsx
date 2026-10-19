@@ -122,7 +122,7 @@ function Sheet({ pid, code, onClose }) {
   const body = (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
       {error && (
-        <div role="alert" style={{ padding: '10px 12px', borderRadius: 9, border: '1px solid rgba(224,92,106,0.32)', background: 'rgba(224,92,106,0.10)', fontFamily: MONO, fontSize: 11.5, color: 'var(--red, #e05c6a)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div role="alert" style={{ padding: '10px 12px', borderRadius: 9, border: '1px solid rgba(176,100,91,0.32)', background: 'rgba(176,100,91,0.10)', fontFamily: MONO, fontSize: 11.5, color: 'var(--red, #b0645b)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ flex: 1, minWidth: 160 }}>Couldn't read the property — {error}</span>
           <button type="button" onClick={reload} style={{ minHeight: 36, padding: '0 12px', borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--accent, #c8963e)', fontFamily: MONO, fontSize: 11.5, cursor: 'pointer' }}>Retry</button>
         </div>
@@ -190,8 +190,8 @@ function Sheet({ pid, code, onClose }) {
     <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: 12, borderTop: '1px solid var(--border, #2e3040)', background: 'var(--bg-panel, #1e2028)', paddingBottom: phone ? 'calc(12px + env(safe-area-inset-bottom, 0px))' : 12 }}>
       <button type="button" onClick={copy} disabled={!text.trim()} aria-live="polite"
         style={{ ...btn(true), flex: phone ? 1 : 'none', minWidth: 140, opacity: text.trim() ? 1 : 0.5,
-                 background: copyState === 'copied' ? 'var(--green, #3dba7a)' : btn(true).background,
-                 borderColor: copyState === 'copied' ? 'var(--green, #3dba7a)' : btn(true).borderColor }}>
+                 background: copyState === 'copied' ? 'var(--green, #6f9a7e)' : btn(true).background,
+                 borderColor: copyState === 'copied' ? 'var(--green, #6f9a7e)' : btn(true).borderColor }}>
         {copyState === 'copied' ? 'Copied ✓' : 'Copy'}
       </button>
       {copyState === 'select' && (

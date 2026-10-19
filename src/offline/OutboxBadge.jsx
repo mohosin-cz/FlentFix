@@ -37,7 +37,7 @@ export default function OutboxBadge({ bottom = 'calc(86px + env(safe-area-inset-
   if (!text && !flash && !open) return null
 
   const colors = tone === 'red'
-    ? { fg: 'var(--red, #e05c6a)', bg: 'rgba(224,92,106,0.14)', bd: 'rgba(224,92,106,0.55)' }
+    ? { fg: 'var(--red, #b0645b)', bg: 'rgba(176,100,91,0.14)', bd: 'rgba(176,100,91,0.55)' }
     : { fg: 'var(--accent, #c8963e)', bg: 'rgba(200,150,62,0.14)', bd: 'rgba(200,150,62,0.55)' }
 
   return (
@@ -46,8 +46,8 @@ export default function OutboxBadge({ bottom = 'calc(86px + env(safe-area-inset-
         {flash && (
           <div role="status" style={{
             pointerEvents: 'auto', padding: '10px 13px', borderRadius: 10, fontSize: 12.5, lineHeight: 1.45, fontFamily: MONO,
-            background: 'var(--bg-panel, #1e2028)', color: flash.tone === 'red' ? 'var(--red, #e05c6a)' : 'var(--text, #e8e8f0)',
-            border: `1px solid ${flash.tone === 'red' ? 'rgba(224,92,106,0.55)' : 'var(--border, #2e3040)'}`,
+            background: 'var(--bg-panel, #1e2028)', color: flash.tone === 'red' ? 'var(--red, #b0645b)' : 'var(--text, #e8e8f0)',
+            border: `1px solid ${flash.tone === 'red' ? 'rgba(176,100,91,0.55)' : 'var(--border, #2e3040)'}`,
             boxShadow: '0 6px 22px rgba(0,0,0,0.38)', maxWidth: 340,
           }}>
             {flash.text}

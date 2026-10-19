@@ -20,7 +20,7 @@ function Toasts({ toasts }) {
   return (
     <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column-reverse', gap: 8, zIndex: 300, pointerEvents: 'none' }}>
       {toasts.map(t => (
-        <div key={t.id} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', background: t.type === 'error' ? 'rgba(224,92,106,0.95)' : 'rgba(61,186,122,0.95)', color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+        <div key={t.id} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', background: t.type === 'error' ? 'rgba(176,100,91,0.95)' : 'rgba(111,154,126,0.95)', color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
           {t.msg}
         </div>
       ))}
@@ -31,11 +31,11 @@ function Toasts({ toasts }) {
 function ConfirmDialog({ message, onConfirm, onCancel }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 12, padding: '24px 22px', maxWidth: 340, width: '100%' }}>
+      <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid rgba(176,100,91,0.3)', borderRadius: 12, padding: '24px 22px', maxWidth: 340, width: '100%' }}>
         <p style={{ fontSize: 13, color: 'var(--text, #e8e8f0)', lineHeight: 1.6, margin: '0 0 20px', textAlign: 'center' }}>{message}</p>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onCancel} style={{ flex: 1, padding: '9px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Cancel</button>
-          <button onClick={onConfirm} style={{ flex: 1, padding: '9px', background: 'rgba(224,92,106,0.15)', border: '1px solid rgba(224,92,106,0.4)', borderRadius: 7, color: '#e05c6a', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Delete</button>
+          <button onClick={onConfirm} style={{ flex: 1, padding: '9px', background: 'rgba(176,100,91,0.15)', border: '1px solid rgba(176,100,91,0.4)', borderRadius: 7, color: '#b0645b', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Delete</button>
         </div>
       </div>
     </div>
@@ -43,8 +43,8 @@ function ConfirmDialog({ message, onConfirm, onCancel }) {
 }
 
 function QtyBadge({ qty }) {
-  const color = qty > 5 ? '#3dba7a' : qty >= 2 ? '#f5c842' : '#e05c6a'
-  const bg    = qty > 5 ? 'rgba(61,186,122,0.12)' : qty >= 2 ? 'rgba(245,200,66,0.12)' : 'rgba(224,92,106,0.12)'
+  const color = qty > 5 ? '#6f9a7e' : qty >= 2 ? '#f5c842' : '#b0645b'
+  const bg    = qty > 5 ? 'rgba(111,154,126,0.12)' : qty >= 2 ? 'rgba(245,200,66,0.12)' : 'rgba(176,100,91,0.12)'
   return <span style={{ fontSize: 11, fontWeight: 700, color, background: bg, border: `1px solid ${color}33`, borderRadius: 4, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>{qty} in stock</span>
 }
 
@@ -322,7 +322,7 @@ export default function LogUsage() {
             <button onClick={handleLogAll} disabled={!canLog || loading} style={{ marginTop: 14, width: '100%', padding: '13px 20px', background: canLog ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)', color: canLog ? '#fff' : 'var(--text-muted, #6b6d82)', border: canLog ? 'none' : '1px solid var(--border, #2e3040)', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: canLog && !loading ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-mono, monospace)', opacity: loading ? 0.7 : 1, transition: 'background 0.15s' }}>
               {loading ? 'Saving…' : `Log ${cart.length} Item${cart.length > 1 ? 's' : ''} →`}
             </button>
-            {!pid.trim() && <p style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', marginTop: 8, textAlign: 'center' }}>Enter a PID in Job Details to enable logging</p>}
+            {!pid.trim() && <p style={{ fontSize: 11, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)', marginTop: 8, textAlign: 'center' }}>Enter a PID in Job Details to enable logging</p>}
           </div>
         )}
 
@@ -352,7 +352,7 @@ export default function LogUsage() {
                           <div><span style={s.lbl}>Notes</span><input value={ef.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} placeholder="—" style={edInp} /></div>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={() => saveEditUsage(entry)} disabled={editSaving} style={{ padding: '6px 16px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{editSaving ? '…' : '✓ Save'}</button>
+                          <button onClick={() => saveEditUsage(entry)} disabled={editSaving} style={{ padding: '6px 16px', background: 'var(--green, #6f9a7e)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{editSaving ? '…' : '✓ Save'}</button>
                           <button onClick={() => setEditingId(null)} style={{ padding: '6px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>✕ Cancel</button>
                         </div>
                       </>
@@ -362,7 +362,7 @@ export default function LogUsage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
                             {entry.fxin && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.1)', border: '1px solid rgba(200,150,62,0.25)', borderRadius: 3, padding: '1px 6px', fontFamily: 'var(--font-mono, monospace)' }}>{entry.fxin}</span>}
                             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{entry.item_name}</span>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#e05c6a', background: 'rgba(224,92,106,0.1)', border: '1px solid rgba(224,92,106,0.25)', borderRadius: 3, padding: '1px 6px', fontFamily: 'var(--font-mono, monospace)' }}>−{entry.qty_used}</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#b0645b', background: 'rgba(176,100,91,0.1)', border: '1px solid rgba(176,100,91,0.25)', borderRadius: 3, padding: '1px 6px', fontFamily: 'var(--font-mono, monospace)' }}>−{entry.qty_used}</span>
                           </div>
                           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
                             <span>{entry.pid}</span>
@@ -375,7 +375,7 @@ export default function LogUsage() {
                           <button onClick={() => startEditUsage(entry)} style={s.iconBtn}>
                             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.5 1.5 0 012.1 2.1L4 10.1l-2.5.5.5-2.5L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
                           </button>
-                          <button onClick={() => setConfirmDel({ id: entry.id, item_id: entry.item_id, qty_used: entry.qty_used, item_name: entry.item_name })} style={{ ...s.iconBtn, color: '#e05c6a', borderColor: 'rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)' }}>
+                          <button onClick={() => setConfirmDel({ id: entry.id, item_id: entry.item_id, qty_used: entry.qty_used, item_name: entry.item_name })} style={{ ...s.iconBtn, color: '#b0645b', borderColor: 'rgba(176,100,91,0.3)', background: 'rgba(176,100,91,0.08)' }}>
                             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M5 3V2h2v1M4 3v6h4V3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
                           </button>
                         </div>
@@ -428,7 +428,7 @@ export default function LogUsage() {
                         {item.quantity_remaining} in stock{(item.spec || item.size) ? ` · ${[item.spec, item.size].filter(Boolean).join(' ')}` : ''}
                       </div>
                     </div>
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: inCart ? 'rgba(61,186,122,0.15)' : 'rgba(200,150,62,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: inCart ? '#3dba7a' : 'var(--accent, #c8963e)', fontSize: 20, flexShrink: 0, marginLeft: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: inCart ? 'rgba(111,154,126,0.15)' : 'rgba(200,150,62,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: inCart ? '#6f9a7e' : 'var(--accent, #c8963e)', fontSize: 20, flexShrink: 0, marginLeft: 12 }}>
                       {inCart ? '✓' : '+'}
                     </div>
                   </div>
@@ -473,7 +473,7 @@ export default function LogUsage() {
               style={{ width: '100%', padding: '14px', background: pid.trim() ? 'var(--accent, #c8963e)' : 'rgba(200,150,62,0.3)', color: pid.trim() ? '#fff' : 'rgba(255,255,255,0.5)', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: pid.trim() ? 'pointer' : 'not-allowed', marginTop: 4, fontFamily: 'var(--font-mono, monospace)', opacity: loading ? 0.7 : 1 }}>
               {loading ? 'Logging…' : `Log ${cart.length} Item${cart.length > 1 ? 's' : ''} →`}
             </button>
-            {!pid.trim() && <p style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', marginTop: 6, textAlign: 'center' }}>Enter a PID above to enable logging</p>}
+            {!pid.trim() && <p style={{ fontSize: 11, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)', marginTop: 6, textAlign: 'center' }}>Enter a PID above to enable logging</p>}
           </div>
         )}
 
@@ -503,7 +503,7 @@ export default function LogUsage() {
                           <div><span style={s.lbl}>Notes</span><input value={ef.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} placeholder="—" style={edInp} /></div>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={() => saveEditUsage(entry)} disabled={editSaving} style={{ padding: '8px 16px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{editSaving ? '…' : '✓ Save'}</button>
+                          <button onClick={() => saveEditUsage(entry)} disabled={editSaving} style={{ padding: '8px 16px', background: 'var(--green, #6f9a7e)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{editSaving ? '…' : '✓ Save'}</button>
                           <button onClick={() => setEditingId(null)} style={{ padding: '8px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>✕ Cancel</button>
                         </div>
                       </>

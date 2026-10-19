@@ -10,8 +10,8 @@ export const INVOICE_STATUS = {
   draft:  { label: 'Draft',      color: 'var(--text-dim, #9394a8)',   hint: 'Raised, not sent' },
   sent:   { label: 'Sent',       color: 'var(--accent, #c8963e)',     hint: 'Emailed, not opened' },
   viewed: { label: 'Opened',     color: 'var(--accent, #c8963e)',     hint: 'Opened but not signed' },
-  signed: { label: 'Signed',     color: 'var(--green, #3dba7a)',      hint: 'Signed by the vendor' },
-  void:   { label: 'Void',       color: 'var(--red, #e05c6a)',        hint: 'Cancelled' },
+  signed: { label: 'Signed',     color: 'var(--green, #6f9a7e)',      hint: 'Signed by the vendor' },
+  void:   { label: 'Void',       color: 'var(--red, #b0645b)',        hint: 'Cancelled' },
 }
 // Order the stage list reads in, worst-first: what still needs chasing is what
 // you want at the top of the pile.

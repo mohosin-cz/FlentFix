@@ -165,7 +165,7 @@ export default function TaskCatalogue() {
         </div>
 
         {error && (
-          <div style={{ padding: '11px 13px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', borderRadius: 9, fontSize: 12.5, color: 'var(--red, #e05c6a)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {error}</div>
+          <div style={{ padding: '11px 13px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.32)', borderRadius: 9, fontSize: 12.5, color: 'var(--red, #b0645b)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {error}</div>
         )}
 
         {draft && (
@@ -251,7 +251,7 @@ export default function TaskCatalogue() {
                 </div>
                 {confirming === r.id ? (
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    <button onClick={() => remove(r)} style={{ minHeight: 34, padding: '0 11px', borderRadius: 8, border: 'none', background: 'var(--red, #e05c6a)', color: '#16171f', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>Delete</button>
+                    <button onClick={() => remove(r)} style={{ minHeight: 34, padding: '0 11px', borderRadius: 8, border: 'none', background: 'var(--red, #b0645b)', color: '#16171f', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>Delete</button>
                     <button onClick={() => setConfirming(null)} style={{ minHeight: 34, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'transparent', color: 'var(--text-dim, #9394a8)', fontSize: 12, cursor: 'pointer', fontFamily: MONO }}>No</button>
                   </div>
                 ) : (
@@ -259,7 +259,7 @@ export default function TaskCatalogue() {
                     <button onClick={() => setDraft({ ...r, aliases: (r.aliases || []).join(', ') })} aria-label={`Edit ${r.name}`}
                       style={{ minHeight: 34, padding: '0 11px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'transparent', color: 'var(--text-dim, #9394a8)', fontSize: 12, cursor: 'pointer', fontFamily: MONO }}>Edit</button>
                     <button onClick={() => setConfirming(r.id)} aria-label={`Delete ${r.name}`}
-                      style={{ minHeight: 34, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'transparent', color: 'var(--red, #e05c6a)', fontSize: 12, cursor: 'pointer', fontFamily: MONO }}>✕</button>
+                      style={{ minHeight: 34, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'transparent', color: 'var(--red, #b0645b)', fontSize: 12, cursor: 'pointer', fontFamily: MONO }}>✕</button>
                   </div>
                 )}
               </div>

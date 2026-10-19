@@ -74,7 +74,7 @@ function KindCard({ kind, prop, check, locked, sender, onDone }) {
     <div style={{ padding: '12px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 14, fontWeight: 600 }}>{kind.label}</span>
-        {requested && !notNeeded && <span style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--green, #3dba7a)' }}>✓ requested · {check.plan_months}-month plan · {who(check.requested_by)}, {when(requested)}</span>}
+        {requested && !notNeeded && <span style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--green, #6f9a7e)' }}>✓ requested · {check.plan_months}-month plan · {who(check.requested_by)}, {when(requested)}</span>}
         {notNeeded && <span style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--text-muted, #6b6d82)' }}>not needed · {who(check.requested_by)}</span>}
         {!requested && <span style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--amber, #c8963e)' }}>not requested yet</span>}
         {requested && !locked && (
@@ -102,7 +102,7 @@ function KindCard({ kind, prop, check, locked, sender, onDone }) {
           )}
         </>
       )}
-      {err && <div role="alert" style={{ marginTop: 6, fontFamily: MONO, fontSize: 12, color: 'var(--red, #e05c6a)' }}>Not saved — {err}</div>}
+      {err && <div role="alert" style={{ marginTop: 6, fontFamily: MONO, fontSize: 12, color: 'var(--red, #b0645b)' }}>Not saved — {err}</div>}
     </div>
   )
 }

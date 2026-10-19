@@ -77,7 +77,7 @@ export default function PortalPasswordCard({ vendor }) {
       </div>
 
       {err && (
-        <div style={{ padding: '9px 11px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {err}</div>
+        <div style={{ padding: '9px 11px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8, fontSize: 11.5, color: 'var(--red, #b0645b)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {err}</div>
       )}
 
       {pw ? (
@@ -85,7 +85,7 @@ export default function PortalPasswordCard({ vendor }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 120 }}>
               <div style={{ fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Password</div>
-              <div style={{ fontSize: 19, fontWeight: 700, fontFamily: MONO, letterSpacing: '0.14em', marginTop: 2, color: shown ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)' }}>
+              <div style={{ fontSize: 19, fontWeight: 700, fontFamily: MONO, letterSpacing: '0.14em', marginTop: 2, color: shown ? 'var(--green, #6f9a7e)' : 'var(--text-dim, #9394a8)' }}>
                 {shown ? pw : '••••••••'}
               </div>
             </div>
@@ -94,7 +94,7 @@ export default function PortalPasswordCard({ vendor }) {
 
           {shown && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button type="button" onClick={copy} style={{ ...btn, color: copied ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)' }}>
+              <button type="button" onClick={copy} style={{ ...btn, color: copied ? 'var(--green, #6f9a7e)' : 'var(--text-dim, #9394a8)' }}>
                 {copied ? '✓ Copied' : 'Copy message'}
               </button>
               {wa.length === 10 && (

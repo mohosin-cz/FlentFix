@@ -34,9 +34,9 @@
   --accent:       #c8963e;
   --accent-dim:   #8a6428;
   --on-accent:    #1a1408;
-  --green:        #3dba7a;
-  --amber:        #c8963e;
-  --red:          #e05c6a;
+  --green:        #6f9a7e;
+  --amber:        #a8895a;   /* matte, as on Home — the gold stays the accent */
+  --red:          #b0645b;
   --white:        #ffffff;
 
   /* Depth, as tokens rather than literals. A dark surface is lit from above by
@@ -58,10 +58,10 @@
 
   /* Chart series. Not picked by eye — these pass the lightness band, chroma
      floor, CVD separation, normal-vision floor and surface contrast against
-     this theme's panel. The pair the utilities page used before (#5b8def with
+     this theme's panel. The pair the utilities page used before (#7f93b8 with
      #38bdf8) failed at ΔE 12.6 for normal vision: two blues a person with no
      colour deficiency at all still has to squint at. */
-  --viz-1:        #5b8def;   /* wifi  */
+  --viz-1:        #7f93b8;   /* wifi  */
   --viz-2:        #1fa894;   /* water */
   /* Three more, so a categorical chart can carry five series without cycling a
      hue. Extended in this order and re-validated as a five-slot palette: worst

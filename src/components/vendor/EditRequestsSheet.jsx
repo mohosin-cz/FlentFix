@@ -40,7 +40,7 @@ export default function EditRequestsSheet({ onClose, onChange }) {
   const deny = (id) => { if (window.confirm('Decline this request?')) act(id, 'vendor_deny_edit', { p_request_id: id, p_note: null }) }
 
   const btn = (bg) => ({ flex: 1, padding: '9px 10px', fontSize: 12, fontWeight: 700, borderRadius: 8, cursor: 'pointer', fontFamily: mono, border: 'none', background: bg, color: '#fff' })
-  const denyBtn = { padding: '9px 12px', fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: mono, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--red, #e05c6a)' }
+  const denyBtn = { padding: '9px 12px', fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: mono, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--red, #b0645b)' }
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(8,9,13,0.6)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', overflowY: 'auto', padding: '20px 16px' }}>
@@ -49,7 +49,7 @@ export default function EditRequestsSheet({ onClose, onChange }) {
           <div style={{ flex: 1, fontSize: 15, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: mono }}>Profile edit requests</div>
           <button type="button" onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', cursor: 'pointer' }}>✕</button>
         </div>
-        {err && <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: mono }}>⚠ {err}</div>}
+        {err && <div style={{ padding: '10px 12px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: mono }}>⚠ {err}</div>}
 
         {rows === null ? <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: mono }}>Loading…</div>
           : rows.length === 0 ? <div style={{ padding: '32px 16px', textAlign: 'center' }}><div style={{ fontSize: 26, marginBottom: 8 }}>✓</div><div style={{ fontSize: 13, color: 'var(--text, #e8e8f0)', fontWeight: 600 }}>No pending requests</div><div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', marginTop: 4 }}>Vendors’ edit requests will appear here.</div></div>
@@ -61,15 +61,15 @@ export default function EditRequestsSheet({ onClose, onChange }) {
               <div key={r.id} style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '13px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{v.full_name || '—'}</span>
-                  {v.vendor_code && <span style={{ fontSize: 11, color: 'var(--green, #3dba7a)', fontFamily: mono }}>{v.vendor_code}</span>}
-                  <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: r.status === 'submitted' ? '#5b8def' : 'var(--accent, #c8963e)', border: `1px solid ${r.status === 'submitted' ? '#5b8def' : 'var(--accent, #c8963e)'}`, borderRadius: 8, padding: '2px 7px', fontFamily: mono }}>{r.status === 'submitted' ? 'changes in' : 'wants access'}</span>
+                  {v.vendor_code && <span style={{ fontSize: 11, color: 'var(--green, #6f9a7e)', fontFamily: mono }}>{v.vendor_code}</span>}
+                  <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: r.status === 'submitted' ? '#7f93b8' : 'var(--accent, #c8963e)', border: `1px solid ${r.status === 'submitted' ? '#7f93b8' : 'var(--accent, #c8963e)'}`, borderRadius: 8, padding: '2px 7px', fontFamily: mono }}>{r.status === 'submitted' ? 'changes in' : 'wants access'}</span>
                 </div>
 
                 {r.status === 'requested' ? <>
                   {r.reason && <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>“{r.reason}”</div>}
                   <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: mono }}>Requested {fmtWhen(r.requested_at)}</div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="button" disabled={busyId === r.id} onClick={() => grant(r.id)} style={btn('var(--green, #3dba7a)')}>{busyId === r.id ? '…' : 'Grant 1-hour access'}</button>
+                    <button type="button" disabled={busyId === r.id} onClick={() => grant(r.id)} style={btn('var(--green, #6f9a7e)')}>{busyId === r.id ? '…' : 'Grant 1-hour access'}</button>
                     <button type="button" disabled={busyId === r.id} onClick={() => deny(r.id)} style={denyBtn}>Decline</button>
                   </div>
                 </> : <>
@@ -83,7 +83,7 @@ export default function EditRequestsSheet({ onClose, onChange }) {
                             <span style={{ color: 'var(--text-muted, #6b6d82)', minWidth: 96, flexShrink: 0 }}>{FIELD_LABELS[k] || k}</span>
                             <span style={{ color: 'var(--text-muted, #6b6d82)', textDecoration: 'line-through', wordBreak: 'break-word' }}>{oldV}</span>
                             <span style={{ color: 'var(--text-muted, #6b6d82)' }}>→</span>
-                            <span style={{ color: 'var(--green, #3dba7a)', fontWeight: 700, flex: 1, wordBreak: 'break-word' }}>{newV}</span>
+                            <span style={{ color: 'var(--green, #6f9a7e)', fontWeight: 700, flex: 1, wordBreak: 'break-word' }}>{newV}</span>
                           </div>
                         )
                       })}

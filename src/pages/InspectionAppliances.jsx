@@ -127,7 +127,7 @@ function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photo
       <input ref={cameraRef}  type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFiles} />
       <input ref={videoRef}   type="file" accept="video/*" capture="environment" style={{ display: 'none' }} onChange={handleFiles} />
       <input ref={galleryRef} type="file" accept="image/*,video/*" multiple            style={{ display: 'none' }} onChange={handleFiles} />
-      <button type="button" onClick={() => !uploading && setSheet(true)} disabled={uploading} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', border: `1px dashed ${uploading ? 'var(--accent, #c8963e)' : files.length ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)'}`, borderRadius: 6, background: uploading ? 'rgba(200,150,62,0.08)' : files.length ? 'rgba(61,186,122,0.08)' : 'var(--bg-input, #252731)', fontSize: 13, fontWeight: 500, color: uploading ? 'var(--accent, #c8963e)' : files.length ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', cursor: uploading ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
+      <button type="button" onClick={() => !uploading && setSheet(true)} disabled={uploading} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', border: `1px dashed ${uploading ? 'var(--accent, #c8963e)' : files.length ? 'var(--green, #6f9a7e)' : 'var(--border-dash, #3a3d52)'}`, borderRadius: 6, background: uploading ? 'rgba(200,150,62,0.08)' : files.length ? 'rgba(111,154,126,0.08)' : 'var(--bg-input, #252731)', fontSize: 13, fontWeight: 500, color: uploading ? 'var(--accent, #c8963e)' : files.length ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)', cursor: uploading ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 11v2a1 1 0 001 1h12a1 1 0 001-1v-2M8 1v9M5 4l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         {uploading ? 'Uploading…' : label}
         {!uploading && files.length > 0 && <span style={{ marginLeft: 'auto', background: 'var(--accent, #c8963e)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono, monospace)' }}>{files.length}</span>}
@@ -137,7 +137,7 @@ function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photo
           {files.map((file, i) => (
             <div key={i} style={{ position: 'relative' }}>
               <Thumb file={file} />
-              <button type="button" onClick={() => remove(i)} style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: 'var(--red, #e05c6a)', border: '2px solid var(--bg-panel, #1e2028)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>×</button>
+              <button type="button" onClick={() => remove(i)} style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: 'var(--red, #b0645b)', border: '2px solid var(--bg-panel, #1e2028)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>×</button>
             </div>
           ))}
         </div>
@@ -219,8 +219,8 @@ function LabourRateDropdown({ rates, value, labourCost, onSelect }) {
 
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_CFG = {
-  Working: { color: 'var(--green, #3dba7a)',      bg: 'rgba(61,186,122,0.1)',  border: 'rgba(61,186,122,0.35)' },
-  Faulty:  { color: 'var(--red, #e05c6a)',        bg: 'rgba(224,92,106,0.1)', border: 'rgba(224,92,106,0.35)' },
+  Working: { color: 'var(--green, #6f9a7e)',      bg: 'rgba(111,154,126,0.1)',  border: 'rgba(111,154,126,0.35)' },
+  Faulty:  { color: 'var(--red, #b0645b)',        bg: 'rgba(176,100,91,0.1)', border: 'rgba(176,100,91,0.35)' },
   'N/A':   { color: 'var(--text-muted, #6b6d82)', bg: 'var(--bg-input, #252731)', border: 'var(--border, #2e3040)' },
 }
 
@@ -237,7 +237,7 @@ function ComponentRow({ name, isCustom, data, tradeRates, onUpdate, onUpdateName
           <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: 'var(--text-dim, #9394a8)' }}>{name}</span>
         )}
         {isCustom && onRemove && (
-          <button type="button" onClick={onRemove} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 4, border: '1px solid rgba(224,92,106,0.35)', background: 'rgba(224,92,106,0.08)', color: 'var(--red, #e05c6a)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, flexShrink: 0 }}>×</button>
+          <button type="button" onClick={onRemove} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 4, border: '1px solid rgba(176,100,91,0.35)', background: 'rgba(176,100,91,0.08)', color: 'var(--red, #b0645b)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, flexShrink: 0 }}>×</button>
         )}
         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
           {['Working', 'Faulty', 'N/A'].map(s => {
@@ -306,12 +306,12 @@ function ApplianceCard({ appliance, appData, isOpen, onToggle, onUpdate, labourR
 
   const headerAction = (
     <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-      <label onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '3px 8px', borderRadius: 4, background: appData.notPresent ? 'rgba(224,92,106,0.1)' : 'var(--bg-input, #252731)', border: `1px solid ${appData.notPresent ? 'rgba(224,92,106,0.3)' : 'var(--border, #2e3040)'}` }}>
-        <input type="checkbox" checked={appData.notPresent || false} onChange={e => onUpdate('notPresent', e.target.checked)} style={{ width: 12, height: 12, accentColor: 'var(--red, #e05c6a)', cursor: 'pointer', flexShrink: 0 }} />
-        <span style={{ fontSize: 10, fontWeight: 600, color: appData.notPresent ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}>{appData.notPresent ? 'not present' : 'present'}</span>
+      <label onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '3px 8px', borderRadius: 4, background: appData.notPresent ? 'rgba(176,100,91,0.1)' : 'var(--bg-input, #252731)', border: `1px solid ${appData.notPresent ? 'rgba(176,100,91,0.3)' : 'var(--border, #2e3040)'}` }}>
+        <input type="checkbox" checked={appData.notPresent || false} onChange={e => onUpdate('notPresent', e.target.checked)} style={{ width: 12, height: 12, accentColor: 'var(--red, #b0645b)', cursor: 'pointer', flexShrink: 0 }} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: appData.notPresent ? 'var(--red, #b0645b)' : 'var(--text-muted, #6b6d82)', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono, monospace)' }}>{appData.notPresent ? 'not present' : 'present'}</span>
       </label>
       {isCustom && onRemove && (
-        <button type="button" onClick={e => { e.stopPropagation(); onRemove() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(224,92,106,0.35)', background: 'rgba(224,92,106,0.08)', color: 'var(--red, #e05c6a)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>×</button>
+        <button type="button" onClick={e => { e.stopPropagation(); onRemove() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(176,100,91,0.35)', background: 'rgba(176,100,91,0.08)', color: 'var(--red, #b0645b)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>×</button>
       )}
     </div>
   )
@@ -320,8 +320,8 @@ function ApplianceCard({ appliance, appData, isOpen, onToggle, onUpdate, labourR
     <AccordionCard title={displayTitle} badge={badge} status={done ? 'done' : isOpen ? 'partial' : null} isOpen={isOpen} onToggle={onToggle} headerAction={headerAction}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {appData.notPresent ? (
-          <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(224,92,106,0.3)' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', marginBottom: 10, fontFamily: 'var(--font-mono, monospace)' }}>Not present in this property</div>
+          <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(176,100,91,0.3)' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--red, #b0645b)', marginBottom: 10, fontFamily: 'var(--font-mono, monospace)' }}>Not present in this property</div>
             <Field label="Note" optional>
               <Textarea value={appData.notPresentNote || ''} onChange={v => onUpdate('notPresentNote', v)} rows={2} placeholder="e.g. No washing machine installed" />
             </Field>
@@ -551,7 +551,7 @@ export default function InspectionAppliances() {
         onBack={() => navigate('/inspections/mode', { state })}
         right={
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: progress === 100 ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>{progress}%</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: progress === 100 ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>{progress}%</div>
             <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', opacity: savedFlash ? 1 : 0, transition: 'opacity 0.4s ease' }}>draft saved</div>
           </div>
         }
@@ -563,7 +563,7 @@ export default function InspectionAppliances() {
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '6px 16px 0', maxWidth: 600, margin: '0 auto', width: '100%' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green, #3dba7a)', display: 'inline-block', opacity: 0.7 }} />
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green, #6f9a7e)', display: 'inline-block', opacity: 0.7 }} />
           auto-saving draft
         </span>
       </div>
@@ -610,7 +610,7 @@ export default function InspectionAppliances() {
       <StickyFooter left={
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>appliances</div>
-          <div style={{ fontSize: 11, color: saveError ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{saveError || `${doneCount} of ${totalCount} inspected`}</div>
+          <div style={{ fontSize: 11, color: saveError ? 'var(--red, #b0645b)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{saveError || `${doneCount} of ${totalCount} inspected`}</div>
         </div>
       }>
         <div style={{ display: 'flex', gap: 8 }}>

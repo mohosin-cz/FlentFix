@@ -201,7 +201,7 @@ const S = {
     alignItems: 'center', justifyContent: 'center', gap: 16, padding: '24px 26px', textAlign: 'center',
     background: 'rgba(0,0,0,0.75)',
   },
-  errText: { color: '#e8697a', fontSize: 13, lineHeight: 1.65, fontFamily: MONO, maxWidth: 420 },
+  errText: { color: '#b0645b', fontSize: 13, lineHeight: 1.65, fontFamily: MONO, maxWidth: 420 },
   errActions: { display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' },
   errBtn: {
     minHeight: 44, padding: '0 16px', borderRadius: 9,
@@ -213,7 +213,7 @@ const S = {
   thumb: { width: 58, height: 58, objectFit: 'cover', borderRadius: 8, display: 'block', border: '1px solid rgba(255,255,255,0.25)' },
   thumbX: {
     position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: '50%',
-    background: '#e05c6a', border: '2px solid #000', color: '#fff', fontSize: 12, lineHeight: 1,
+    background: '#b0645b', border: '2px solid #000', color: '#fff', fontSize: 12, lineHeight: 1,
     cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   controls: {

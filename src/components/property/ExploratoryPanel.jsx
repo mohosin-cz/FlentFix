@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase'
 // approved requests that look like this property are offered for one-tap linking.
 
 const MONO = 'var(--font-mono, monospace)'
-const C = { text: 'var(--text, #e8e8f0)', dim: 'var(--text-dim, #9394a8)', muted: 'var(--text-muted, #6b6d82)', accent: 'var(--accent, #c8963e)', red: 'var(--red, #e05c6a)', border: 'var(--border, #2e3040)' }
+const C = { text: 'var(--text, #e8e8f0)', dim: 'var(--text-dim, #9394a8)', muted: 'var(--text-muted, #6b6d82)', accent: 'var(--accent, #c8963e)', red: 'var(--red, #b0645b)', border: 'var(--border, #2e3040)' }
 const first = (email) => { const s = (email || '').split('@')[0]; return s ? s[0].toUpperCase() + s.slice(1) : '' }
 const dayTxt = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
 

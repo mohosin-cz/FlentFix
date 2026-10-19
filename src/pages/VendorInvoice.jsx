@@ -128,7 +128,7 @@ export default function VendorInvoice() {
             <div ref={padHost}><SignaturePad onChange={setHasInk} disabled={busy} /></div>
 
             {signErr && (
-              <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {signErr}</div>
+              <div style={{ padding: '10px 12px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {signErr}</div>
             )}
 
             <button type="button" onClick={sign} disabled={busy || !name.trim() || !hasInk}

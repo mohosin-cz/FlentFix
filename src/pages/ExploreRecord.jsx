@@ -16,9 +16,9 @@ const MONO = 'var(--font-mono, monospace)'
 const C = {
   panel: 'var(--bg-panel, #1e2028)', input: 'var(--bg-input, #252731)', bg: 'var(--bg, #16171f)', border: 'var(--border, #2e3040)',
   text: 'var(--text, #e8e8f0)', dim: 'var(--text-dim, #9394a8)', muted: 'var(--text-muted, #6b6d82)',
-  accent: 'var(--accent, #c8963e)', green: 'var(--green, #3dba7a)', red: 'var(--red, #e05c6a)', pink: '#e07ba8',
+  accent: 'var(--accent, #c8963e)', green: 'var(--green, #6f9a7e)', red: 'var(--red, #b0645b)', pink: '#b0645b',
 }
-const SOFT = { red: 'rgba(224,92,106,0.12)', amber: 'rgba(200,150,62,0.12)', green: 'rgba(61,186,122,0.12)', pink: 'rgba(224,123,168,0.13)', grey: 'rgba(147,148,168,0.12)' }
+const SOFT = { red: 'rgba(176,100,91,0.12)', amber: 'rgba(200,150,62,0.12)', green: 'rgba(111,154,126,0.12)', pink: 'rgba(176,100,91,0.13)', grey: 'rgba(147,148,168,0.12)' }
 const PHASES = ['Explore', 'Inspect', 'Estimate', 'Plan', 'Setup', 'Close-out', 'Finish']
 
 const box = { background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, minWidth: 0 }
@@ -198,7 +198,7 @@ export default function ExploreRecord() {
           {PHASES.map((p, i) => {
             const now = i === 0 && !d.linked_pid, done = i === 0 && !!d.linked_pid
             return (
-              <div key={p} style={{ padding: '8px 10px', borderRadius: 8, minWidth: 0, border: `1px solid ${now ? C.pink : done ? 'rgba(61,186,122,0.30)' : C.border}`, background: now ? SOFT.pink : 'transparent', opacity: i > 0 && !d.linked_pid ? 0.55 : 1 }}>
+              <div key={p} style={{ padding: '8px 10px', borderRadius: 8, minWidth: 0, border: `1px solid ${now ? C.pink : done ? 'rgba(111,154,126,0.30)' : C.border}`, background: now ? SOFT.pink : 'transparent', opacity: i > 0 && !d.linked_pid ? 0.55 : 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: now ? C.pink : done ? C.green : C.border }} />
                   <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: MONO, color: now ? C.pink : done ? C.green : C.muted }}>{p}</span>

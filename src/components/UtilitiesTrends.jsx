@@ -21,7 +21,7 @@ import {
 //   Colour is validated, not chosen. --viz-1 and --viz-2 come from theme.css
 //   and pass the lightness band, chroma floor, CVD separation, normal-vision
 //   floor and surface contrast in BOTH themes. The pair this page used before
-//   (#5b8def with #38bdf8) scored ΔE 12.6 for normal vision — two blues that a
+//   (#7f93b8 with #38bdf8) scored ΔE 12.6 for normal vision — two blues that a
 //   reader with no colour deficiency at all still has to squint at.
 
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
@@ -65,7 +65,7 @@ function Stat({ label, value, delta, sub, partial }) {
           <span style={{ fontSize: 10.5, fontWeight: 700, fontFamily: MONO, color: 'var(--text-muted, #6b6d82)' }}>so far</span>
         ) : delta != null && (
           <span style={{ fontSize: 11, fontWeight: 700, fontFamily: MONO,
-            color: flat ? 'var(--text-muted, #6b6d82)' : good ? 'var(--green, #3dba7a)' : 'var(--red, #e05c6a)' }}>
+            color: flat ? 'var(--text-muted, #6b6d82)' : good ? 'var(--green, #6f9a7e)' : 'var(--red, #b0645b)' }}>
             {flat ? 'flat' : `${good ? '▲' : '▼'} ${pct(delta).replace('-', '')}`}
           </span>
         )}

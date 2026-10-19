@@ -27,7 +27,7 @@ const mediaUrl = (p) => {
 // How sure it was. Shown because a low-confidence proposal is not a worse
 // proposal, it is one to read her quote for before ticking.
 const CONF = {
-  high:   { label: 'stated',   color: 'var(--green, #3dba7a)' },
+  high:   { label: 'stated',   color: 'var(--green, #6f9a7e)' },
   medium: { label: 'read',     color: 'var(--accent, #c8963e)' },
   low:    { label: 'inferred', color: 'var(--text-muted, #6b6d82)' },
 }
@@ -250,7 +250,7 @@ export default function DesignScopeSection({ pid, showBrief = true }) {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 14, fontWeight: 700 }}>Design scope</span>
         {brief && (
-          <span style={{ fontSize: 11, color: brief.status === 'submitted' ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)', fontFamily: MONO }}>
+          <span style={{ fontSize: 11, color: brief.status === 'submitted' ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)', fontFamily: MONO }}>
             brief {brief.status}
           </span>
         )}
@@ -262,7 +262,7 @@ export default function DesignScopeSection({ pid, showBrief = true }) {
       {showBrief && brief && <BriefAnswers brief={brief} />}
 
       {err && (
-        <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {err}</div>
+        <div style={{ padding: '10px 12px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {err}</div>
       )}
 
       {grouped.map(g => (
@@ -289,7 +289,7 @@ export default function DesignScopeSection({ pid, showBrief = true }) {
                 <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderTop: '1px solid var(--border, #2e3040)' }}>
                   <input type="checkbox" checked={!!l.included} disabled={busy === l.id} onChange={() => toggle(l)}
                     aria-label={`Include ${l.description}`}
-                    style={{ width: 18, height: 18, flexShrink: 0, accentColor: 'var(--green, #3dba7a)', cursor: 'pointer' }} />
+                    style={{ width: 18, height: 18, flexShrink: 0, accentColor: 'var(--green, #6f9a7e)', cursor: 'pointer' }} />
                   <div style={{ flex: 1, minWidth: 0, opacity: l.included ? 1 : 0.55 }}>
                     <div style={{ fontSize: 13, wordBreak: 'break-word' }}>{l.description}</div>
                     <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 2 }}>
@@ -298,7 +298,7 @@ export default function DesignScopeSection({ pid, showBrief = true }) {
                   </div>
                   <span style={{ fontSize: 12, fontWeight: 700, fontFamily: MONO, flexShrink: 0, color: l.included ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)' }}>{hhmm(l.minutes)}</span>
                   <button type="button" onClick={() => remove(l)} disabled={busy === l.id} aria-label="Remove line"
-                    style={{ background: 'none', border: 'none', color: 'var(--red, #e05c6a)', cursor: 'pointer', fontSize: 13, padding: '4px 2px', flexShrink: 0 }}>✕</button>
+                    style={{ background: 'none', border: 'none', color: 'var(--red, #b0645b)', cursor: 'pointer', fontSize: 13, padding: '4px 2px', flexShrink: 0 }}>✕</button>
                 </div>
               ))}
             </div>
@@ -357,7 +357,7 @@ export default function DesignScopeSection({ pid, showBrief = true }) {
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                 {p.catalogue_id && (
                   <button type="button" onClick={() => accept(p, i)} disabled={busy === `p${i}`}
-                    style={{ minHeight: 32, padding: '0 12px', borderRadius: 8, border: 'none', background: 'var(--green, #3dba7a)', color: '#16171f', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>
+                    style={{ minHeight: 32, padding: '0 12px', borderRadius: 8, border: 'none', background: 'var(--green, #6f9a7e)', color: '#16171f', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>
                     {busy === `p${i}` ? '…' : 'Add'}
                   </button>
                 )}

@@ -17,14 +17,14 @@ const MONO = 'var(--font-mono, monospace)'
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
 
 const KIND_TONE = {
-  landlord_approved:  'var(--green, #3dba7a)',
-  estimate_decided:   'var(--green, #3dba7a)',
+  landlord_approved:  'var(--green, #6f9a7e)',
+  estimate_decided:   'var(--green, #6f9a7e)',
   landlord_queried:   'var(--amber, #c8963e)',
   estimate_unopened:  'var(--amber, #c8963e)',
   vendor_completed:   'var(--accent, #c8963e)',
   execution_tomorrow: 'var(--accent, #c8963e)',
   handover_tomorrow:  'var(--accent, #c8963e)',
-  disputed_twice:     'var(--red, #e05c6a)',
+  disputed_twice:     'var(--red, #b0645b)',
 }
 
 function BellIcon({ size = 20 }) {
@@ -48,7 +48,7 @@ function Item({ n, fresh, onGo, onDismiss }) {
       onTouchEnd={() => { if (dx < -72) onDismiss(); setDx(0); touch.current = null }}>
       {/* the red reveal behind a swiping row */}
       {dx < 0 && (
-        <div aria-hidden="true" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 16px', background: 'rgba(224,92,106,0.18)', color: 'var(--red, #e05c6a)', fontFamily: MONO, fontSize: 11, fontWeight: 700 }}>
+        <div aria-hidden="true" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 16px', background: 'rgba(176,100,91,0.18)', color: 'var(--red, #b0645b)', fontFamily: MONO, fontSize: 11, fontWeight: 700 }}>
           dismiss
         </div>
       )}
@@ -93,7 +93,7 @@ function Panel({ phone, onClose, inbox, fresh }) {
   const body = (
     <>
       {error && (
-        <div style={{ margin: 12, padding: '10px 12px', borderRadius: 9, border: '1px solid rgba(224,92,106,0.32)', background: 'rgba(224,92,106,0.10)', fontFamily: MONO, fontSize: 11.5, color: 'var(--red, #e05c6a)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ margin: 12, padding: '10px 12px', borderRadius: 9, border: '1px solid rgba(176,100,91,0.32)', background: 'rgba(176,100,91,0.10)', fontFamily: MONO, fontSize: 11.5, color: 'var(--red, #b0645b)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ flex: 1, minWidth: 160 }}>Couldn't read notifications — {error}</span>
           <button type="button" onClick={reload} style={{ minHeight: 32, padding: '0 10px', borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--accent, #c8963e)', fontFamily: MONO, fontSize: 11, cursor: 'pointer' }}>Retry</button>
         </div>
@@ -129,7 +129,7 @@ function Panel({ phone, onClose, inbox, fresh }) {
   const head = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: phone ? '8px 8px 8px 16px' : '10px 10px 10px 14px', borderBottom: '1px solid var(--border, #2e3040)', minHeight: 52 }}>
       <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)' }}>Notifications</span>
-      {unreadCount > 0 && <span style={{ fontFamily: MONO, fontSize: 10.5, color: 'var(--red, #e05c6a)' }}>{unreadCount} unread</span>}
+      {unreadCount > 0 && <span style={{ fontFamily: MONO, fontSize: 10.5, color: 'var(--red, #b0645b)' }}>{unreadCount} unread</span>}
       <span style={{ flex: 1 }} />
       {list && list.length > 0 && (
         <button type="button" onClick={markAllRead}
@@ -228,7 +228,7 @@ export function NotificationBell({ style }) {
                  WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
         <BellIcon />
         {badge && (
-          <span style={{ position: 'absolute', top: 4, right: 4, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: 'var(--red, #e05c6a)', color: '#fff', fontFamily: MONO, fontSize: 10.5, fontWeight: 700, lineHeight: '18px', textAlign: 'center', boxShadow: '0 0 0 2px var(--bg-panel, #1e2028)' }}>
+          <span style={{ position: 'absolute', top: 4, right: 4, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: 'var(--red, #b0645b)', color: '#fff', fontFamily: MONO, fontSize: 10.5, fontWeight: 700, lineHeight: '18px', textAlign: 'center', boxShadow: '0 0 0 2px var(--bg-panel, #1e2028)' }}>
             {badge}
           </span>
         )}

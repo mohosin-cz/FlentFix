@@ -361,7 +361,7 @@ export default function PaymentsAnalytics() {
 
       <main style={{ flex: 1, width: '100%', padding: phone ? '14px 16px 96px' : '20px 20px 72px', display: 'flex', flexDirection: 'column', gap: 14, boxSizing: 'border-box' }}>
         {loading ? <LogoSpinner /> : error ? (
-          <div style={{ padding: 14, background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 10, fontSize: 12.5, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>
+          <div style={{ padding: 14, background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 10, fontSize: 12.5, color: 'var(--red, #b0645b)', fontFamily: MONO }}>
             Couldn’t load payments: {error}
             <button onClick={load} style={{ marginLeft: 10, fontSize: 11, color: 'var(--accent, #c8963e)', background: 'none', border: `1px solid ${GRID}`, borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontFamily: MONO }}>Retry</button>
           </div>

@@ -54,8 +54,8 @@ export default function RequestStepper({ status, row, compact = false }) {
   if (status === 'denied') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-        <span style={{ width: 16, height: 16, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(224,92,106,0.16)', color: 'var(--red, #e05c6a)', fontSize: 10, fontWeight: 700 }}>✕</span>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>Not approved</span>
+        <span style={{ width: 16, height: 16, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(176,100,91,0.16)', color: 'var(--red, #b0645b)', fontSize: 10, fontWeight: 700 }}>✕</span>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red, #b0645b)', fontFamily: MONO }}>Not approved</span>
       </div>
     )
   }
@@ -65,8 +65,8 @@ export default function RequestStepper({ status, row, compact = false }) {
   const d = dwell(enteredAt(row))
   const stalled = !done && d && d.days >= STALL_DAYS
 
-  const live = stalled ? 'var(--accent, #c8963e)' : done ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)'
-  const past = done ? 'rgba(61,186,122,0.42)' : 'rgba(200,150,62,0.38)'
+  const live = stalled ? 'var(--accent, #c8963e)' : done ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)'
+  const past = done ? 'rgba(111,154,126,0.42)' : 'rgba(200,150,62,0.38)'
   const h = compact ? 5 : 6
 
   return (
@@ -91,7 +91,7 @@ export default function RequestStepper({ status, row, compact = false }) {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: compact ? 11.5 : 12.5, fontWeight: 700, color: done ? 'var(--green, #3dba7a)' : live, fontFamily: MONO }}>
+        <span style={{ fontSize: compact ? 11.5 : 12.5, fontWeight: 700, color: done ? 'var(--green, #6f9a7e)' : live, fontFamily: MONO }}>
           {STAGE_LABEL[status] || status}
         </span>
         {d && (

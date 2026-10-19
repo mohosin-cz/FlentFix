@@ -47,11 +47,11 @@ function Loc({ p }) {
 function PunchTag({ p, big }) {
   const inn = p.punch_type === 'in'
   const ot = (p.kind || 'regular') === 'overtime'
-  const c = inn ? (ot ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)'
+  const c = inn ? (ot ? '#7f93b8' : 'var(--green, #6f9a7e)') : 'var(--text-muted, #6b6d82)'
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
       <span style={{ fontSize: big ? 12 : 11, fontWeight: 700, color: c, fontFamily: 'var(--font-mono, monospace)' }}>{inn ? 'IN' : 'OUT'}</span>
-      {ot && <span style={{ fontSize: 9, color: '#5b8def', border: '1px solid #5b8def55', borderRadius: 4, padding: '0 4px', fontFamily: 'var(--font-mono, monospace)' }}>OT</span>}
+      {ot && <span style={{ fontSize: 9, color: '#7f93b8', border: '1px solid #7f93b855', borderRadius: 4, padding: '0 4px', fontFamily: 'var(--font-mono, monospace)' }}>OT</span>}
     </span>
   )
 }
@@ -77,7 +77,7 @@ function buildSessions(punches) {
 
 function PunchLine({ label, p, ot }) {
   const inn = label === 'IN'
-  const c = inn ? (ot ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)'
+  const c = inn ? (ot ? '#7f93b8' : 'var(--green, #6f9a7e)') : 'var(--text-muted, #6b6d82)'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
       <span style={{ fontSize: 11, fontWeight: 700, color: c, fontFamily: 'var(--font-mono, monospace)', minWidth: 28 }}>{label}</span>
@@ -99,8 +99,8 @@ const SHIFT_MS = 9 * 60 * 60 * 1000
 // name. They are different money; they get different colour, a chip you can
 // read across a room, and a border down the side of the card.
 const KIND_TONE = {
-  overtime: { ink: '#5b8def', bg: 'rgba(91,141,239,0.12)', line: 'rgba(91,141,239,0.45)', label: 'OVERTIME' },
-  regular:  { ink: 'var(--green, #3dba7a)', bg: 'rgba(61,186,122,0.10)', line: 'rgba(61,186,122,0.40)', label: 'REGULAR' },
+  overtime: { ink: '#7f93b8', bg: 'rgba(127,147,184,0.12)', line: 'rgba(127,147,184,0.45)', label: 'OVERTIME' },
+  regular:  { ink: 'var(--green, #6f9a7e)', bg: 'rgba(111,154,126,0.10)', line: 'rgba(111,154,126,0.40)', label: 'REGULAR' },
 }
 function KindChip({ ot, small }) {
   const t = KIND_TONE[ot ? 'overtime' : 'regular']
@@ -118,7 +118,7 @@ function PidBadge({ pid, siteMap, flag }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 11px', background: 'rgba(200,150,62,0.12)', border: '1px solid rgba(200,150,62,0.32)', borderRadius: 8, width: 'fit-content' }}>
       <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>PID</span>
       <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.02em' }}>{(siteMap && siteMap[pid]) || pid}</span>
-      {flag === 'unknown_pid' && <span title="This PID is not a known Flent property — check where they were" style={{ fontSize: 10, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>check PID</span>}
+      {flag === 'unknown_pid' && <span title="This PID is not a known Flent property — check where they were" style={{ fontSize: 10, fontWeight: 700, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)' }}>check PID</span>}
     </div>
   )
 }
@@ -210,10 +210,10 @@ function CloseShiftForm({ ses, now, onDone, onCancel }) {
         />
       </label>
 
-      <div style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', color: bad ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)' }}>
+      <div style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', color: bad ? 'var(--red, #b0645b)' : 'var(--text-muted, #6b6d82)' }}>
         {bad || `Records as ${fmtDuration(span)} of ${(ses.kind === 'overtime' ? 'overtime' : 'regular')} time`}
       </div>
-      {err && <div style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>⚠ {err}</div>}
+      {err && <div style={{ fontSize: 11, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)' }}>⚠ {err}</div>}
 
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" onClick={submit} disabled={busy || !!bad || !reason.trim()}
@@ -237,10 +237,10 @@ function SessionTile({ ses, siteMap, brk, now, onClosed, onBreakEnded }) {
   const v = ses.vendor
   const pid = (ses.inP && ses.inP.pid) || (ses.outP && ses.outP.pid) || null
   const dur = (ses.inP && ses.outP) ? new Date(ses.outP.punched_at).getTime() - new Date(ses.inP.punched_at).getTime() : null
-  const statusC = ot ? '#5b8def' : 'var(--green, #3dba7a)'
+  const statusC = ot ? '#7f93b8' : 'var(--green, #6f9a7e)'
   const onBreak = open && !!brk
   const brkOver = onBreak ? Math.max(0, (now - new Date(brk.started_at).getTime()) - (BREAK_MINUTES[brk.kind] || 0) * 60000) : 0
-  const brkTone = brkOver > 0 ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)'
+  const brkTone = brkOver > 0 ? 'var(--red, #b0645b)' : 'var(--accent, #c8963e)'
   const elapsed = open ? now - new Date(ses.inP.punched_at).getTime() : (dur || 0)
   const pct = Math.max(0, Math.min(100, (elapsed / SHIFT_MS) * 100))
   const pastShift = elapsed > SHIFT_MS
@@ -300,7 +300,7 @@ function SessionTile({ ses, siteMap, brk, now, onClosed, onBreakEnded }) {
       {ses.outP
         ? <PunchLine label="OUT" p={ses.outP} ot={ot} />
         : onBreak
-          ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '7px 10px', background: brkOver > 0 ? 'rgba(224,92,106,0.12)' : 'rgba(200,150,62,0.10)', border: `1px solid ${brkOver > 0 ? 'rgba(224,92,106,0.40)' : 'rgba(200,150,62,0.30)'}`, borderRadius: 8 }}>
+          ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '7px 10px', background: brkOver > 0 ? 'rgba(176,100,91,0.12)' : 'rgba(200,150,62,0.10)', border: `1px solid ${brkOver > 0 ? 'rgba(176,100,91,0.40)' : 'rgba(200,150,62,0.30)'}`, borderRadius: 8 }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: brkTone, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 On {BREAK_LABEL[brk.kind].toLowerCase()}
               </span>
@@ -310,7 +310,7 @@ function SessionTile({ ses, siteMap, brk, now, onClosed, onBreakEnded }) {
               {/* fmtBreakLeft returns +mm:ss once the allowance is gone, so the
                   word after it has to turn too — "+20:02 left" reads as twenty
                   minutes in hand when it means twenty minutes over. */}
-              <span style={{ fontSize: 10, color: brkOver > 0 ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{brkOver > 0 ? 'over' : 'left'}</span>
+              <span style={{ fontSize: 10, color: brkOver > 0 ? 'var(--red, #b0645b)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{brkOver > 0 ? 'over' : 'left'}</span>
             </div>
           : <div style={{ marginTop: 6, fontSize: 11, color: statusC, fontFamily: 'var(--font-mono, monospace)' }}>OUT&nbsp;&nbsp;— still on site</div>}
 
@@ -344,7 +344,7 @@ function RosterRow({ s, siteLabel, onOpen, now }) {
   // A break is its own state, not a flavour of "on site": the difference is
   // exactly what a supervisor looking at this board wants to know.
   const breakOver = onBreak && s.bt.open && s.bt.open.overMs > 0
-  const color = breakOver ? 'var(--red, #e05c6a)' : onBreak ? 'var(--accent, #c8963e)' : on ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)'
+  const color = breakOver ? 'var(--red, #b0645b)' : onBreak ? 'var(--accent, #c8963e)' : on ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)'
   const otRunning = s.openKind === 'overtime'
   const kt = KIND_TONE[otRunning ? 'overtime' : 'regular']
   const live = on ? (s.regMs + s.otMs) : 0
@@ -354,7 +354,7 @@ function RosterRow({ s, siteLabel, onOpen, now }) {
       {on && (
         <>
           <div aria-hidden style={{ position: 'absolute', inset: 0, width: `${pct}%`, background: kt.bg, opacity: 0.5, pointerEvents: 'none', transition: 'width 1s linear' }} />
-          <div aria-hidden style={{ position: 'absolute', left: 0, bottom: 0, height: 3, width: `${pct}%`, background: breakOver ? 'var(--red, #e05c6a)' : onBreak ? 'var(--accent, #c8963e)' : kt.ink, transition: 'width 1s linear' }} />
+          <div aria-hidden style={{ position: 'absolute', left: 0, bottom: 0, height: 3, width: `${pct}%`, background: breakOver ? 'var(--red, #b0645b)' : onBreak ? 'var(--accent, #c8963e)' : kt.ink, transition: 'width 1s linear' }} />
         </>
       )}
       <Ava v={s.vendor} size={36} />
@@ -380,7 +380,7 @@ function RosterRow({ s, siteLabel, onOpen, now }) {
         )}
         <span style={{ fontSize: 11, color: on ? 'var(--text, #e8e8f0)' : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums' }}>
           {on ? fmtElapsed(s.regMs + s.otMs) : fmtDuration(s.regMs)}
-          {!on && s.otMs > 0 ? <span style={{ color: '#5b8def' }}> · OT {fmtDuration(s.otMs)}</span> : ''}
+          {!on && s.otMs > 0 ? <span style={{ color: '#7f93b8' }}> · OT {fmtDuration(s.otMs)}</span> : ''}
         </span>
       </div>
     </button>
@@ -390,7 +390,7 @@ function RosterRow({ s, siteLabel, onOpen, now }) {
 // ── vendor day detail (bottom sheet): all punches + locations ───────────────
 function VendorDayDetail({ s, dateLabel, siteMap, date, now, onChanged, onClose }) {
   const on = s.status === 'on_site'
-  const color = on ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)'
+  const color = on ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)'
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 640, margin: '0 auto', background: 'var(--bg-panel, #1e2028)', borderRadius: '16px 16px 0 0', maxHeight: '90vh', display: 'flex', flexDirection: 'column', animation: 'slideUp 0.22s ease-out' }}>
@@ -406,15 +406,15 @@ function VendorDayDetail({ s, dateLabel, siteMap, date, now, onChanged, onClose 
         </div>
 
         <div style={{ display: 'flex', gap: 10, padding: '12px 18px', flexShrink: 0 }}>
-          <Tile label="Regular" value={fmtDuration(s.regMs)} color="var(--green, #3dba7a)" />
-          <Tile label="Overtime" value={fmtDuration(s.otMs)} color="#5b8def" />
+          <Tile label="Regular" value={fmtDuration(s.regMs)} color="var(--green, #6f9a7e)" />
+          <Tile label="Overtime" value={fmtDuration(s.otMs)} color="#7f93b8" />
           {/* Time on site includes the breaks inside it, so the break total is
               shown beside it rather than quietly deducted. Changing what a
               shift pays is a decision for payroll, not for a display — but
               nobody can make that decision from a number they cannot see. */}
           <Tile label="On break" value={fmtDuration(s.bt.takenMs)}
             sub={s.bt.overMs > 0 ? `+${fmtMs(s.bt.overMs)} over` : (s.bt.count ? 'within allowance' : null)}
-            color={s.bt.overMs > 0 ? 'var(--red, #e05c6a)' : 'var(--text, #e8e8f0)'} />
+            color={s.bt.overMs > 0 ? 'var(--red, #b0645b)' : 'var(--text, #e8e8f0)'} />
         </div>
 
         <div style={{ overflowY: 'auto', padding: '0 18px 18px', flex: 1, minHeight: 0 }}>
@@ -423,14 +423,14 @@ function VendorDayDetail({ s, dateLabel, siteMap, date, now, onChanged, onClose 
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '4px 0 2px' }}>Punch log</div>
           {[...s.punches].reverse().map((p, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
-              <span style={{ width: 8, height: 8, borderRadius: 4, marginTop: 4, flexShrink: 0, background: p.punch_type === 'in' ? ((p.kind || 'regular') === 'overtime' ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)' }} />
+              <span style={{ width: 8, height: 8, borderRadius: 4, marginTop: 4, flexShrink: 0, background: p.punch_type === 'in' ? ((p.kind || 'regular') === 'overtime' ? '#7f93b8' : 'var(--green, #6f9a7e)') : 'var(--text-muted, #6b6d82)' }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <PunchTag p={p} big />
                   <span style={{ fontSize: 12, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtTime(p.punched_at)}</span>
                   {p.pid && <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>· {siteMap[p.pid] || p.pid}</span>}
                   {/* typed PID that matches no Flent property — the office checks these */}
-                  {p.pid_flag === 'unknown_pid' && <span title="This PID is not a known Flent property — check where they were" style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--red, #e05c6a)', border: '1px solid rgba(224,92,106,0.45)', borderRadius: 6, padding: '1px 6px', fontFamily: 'var(--font-mono, monospace)' }}>check PID</span>}
+                  {p.pid_flag === 'unknown_pid' && <span title="This PID is not a known Flent property — check where they were" style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--red, #b0645b)', border: '1px solid rgba(176,100,91,0.45)', borderRadius: 6, padding: '1px 6px', fontFamily: 'var(--font-mono, monospace)' }}>check PID</span>}
                 </div>
                 <div style={{ marginTop: 3 }}><Loc p={p} /></div>
               </div>
@@ -563,16 +563,16 @@ export default function AttendanceTab() {
       </div>
 
       {error && (
-        <div style={{ padding: '12px 14px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontFamily: 'var(--font-mono, monospace)' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #e05c6a)', marginBottom: 4 }}>⚠ Could not load attendance</div>
+        <div style={{ padding: '12px 14px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8, fontFamily: 'var(--font-mono, monospace)' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #b0645b)', marginBottom: 4 }}>⚠ Could not load attendance</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', wordBreak: 'break-word' }}>{error}</div>
           <button type="button" onClick={load} style={{ marginTop: 8, fontSize: 11, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Retry</button>
         </div>
       )}
 
       {toast && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 13px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.30)', borderRadius: 8, fontFamily: 'var(--font-mono, monospace)' }}>
-          <span style={{ fontSize: 12, color: 'var(--green, #3dba7a)', flex: 1 }}>✓ {toast}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 13px', background: 'rgba(111,154,126,0.10)', border: '1px solid rgba(111,154,126,0.30)', borderRadius: 8, fontFamily: 'var(--font-mono, monospace)' }}>
+          <span style={{ fontSize: 12, color: 'var(--green, #6f9a7e)', flex: 1 }}>✓ {toast}</span>
           <button type="button" onClick={() => setToast('')} aria-label="Dismiss"
             style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
         </div>
@@ -583,7 +583,7 @@ export default function AttendanceTab() {
       {!loading && !error && punches && (
         <>
           <div style={{ display: 'flex', gap: 10 }}>
-            <Tile label={isToday ? 'On site now' : 'On site'} value={onSite} sub={onBreakNow > 0 ? `${onBreakNow} on break` : null} color="var(--green, #3dba7a)" />
+            <Tile label={isToday ? 'On site now' : 'On site'} value={onSite} sub={onBreakNow > 0 ? `${onBreakNow} on break` : null} color="var(--green, #6f9a7e)" />
             <Tile label="Checked out" value={out} color="var(--text-dim, #9394a8)" />
             {leaveCount > 0 && <Tile label="On leave" value={leaveCount} color="#6f9a7e" />}
             <Tile label="Not marked" value={absent} color="var(--amber, #c8963e)" />
@@ -594,10 +594,10 @@ export default function AttendanceTab() {
             </div>
           )}
           {overrun.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '11px 13px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.38)', borderRadius: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '11px 13px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.38)', borderRadius: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 13 }}>⚠</span>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em' }}>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em' }}>
                   {overrun.length} break{overrun.length === 1 ? '' : 's'} over allowance
                 </span>
               </div>
@@ -607,7 +607,7 @@ export default function AttendanceTab() {
                   <span style={{ color: 'var(--text-muted, #6b6d82)' }}>
                     {s.bt.over.map(r => r.label.toLowerCase()).join(', ')}
                   </span>
-                  <span style={{ fontWeight: 700, color: 'var(--red, #e05c6a)', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontWeight: 700, color: 'var(--red, #b0645b)', fontVariantNumeric: 'tabular-nums' }}>
                     +{fmtMs(s.bt.overMs)}{s.bt.open && s.bt.open.overMs > 0 ? ' · still out' : ''}
                   </span>
                 </div>
@@ -616,8 +616,8 @@ export default function AttendanceTab() {
           )}
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: 16, fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>
-            <span>Logged: <b style={{ color: 'var(--green, #3dba7a)' }}>{fmtDuration(totalReg)}</b> regular</span>
-            <span><b style={{ color: '#5b8def' }}>{fmtDuration(totalOt)}</b> overtime</span>
+            <span>Logged: <b style={{ color: 'var(--green, #6f9a7e)' }}>{fmtDuration(totalReg)}</b> regular</span>
+            <span><b style={{ color: '#7f93b8' }}>{fmtDuration(totalOt)}</b> overtime</span>
           </div>
 
           {/* view toggle */}
@@ -632,8 +632,8 @@ export default function AttendanceTab() {
           {view === 'feed' && (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px' }}>
-                <span style={{ width: 7, height: 7, borderRadius: 4, background: isToday ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: isToday ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{isToday ? 'Live' : dateLabel}</span>
+                <span style={{ width: 7, height: 7, borderRadius: 4, background: isToday ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)' }} />
+                <span style={{ fontSize: 10, fontWeight: 700, color: isToday ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{isToday ? 'Live' : dateLabel}</span>
                 <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{sessions.length} session{sessions.length === 1 ? '' : 's'}</span>
               </div>
               {sessions.length === 0

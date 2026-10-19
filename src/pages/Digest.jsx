@@ -204,15 +204,15 @@ export default function Digest() {
             </div>
           </div>
           <button type="button" onClick={copy} disabled={!data}
-            style={{ minHeight: 40, padding: '0 14px', borderRadius: 9, border: `1px solid ${copied === 'ok' ? 'var(--green, #3dba7a)' : 'var(--border, #2e3040)'}`,
-                     background: copied === 'ok' ? 'rgba(61,186,122,0.12)' : 'var(--bg-input, #252731)', color: copied === 'ok' ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)',
+            style={{ minHeight: 40, padding: '0 14px', borderRadius: 9, border: `1px solid ${copied === 'ok' ? 'var(--green, #6f9a7e)' : 'var(--border, #2e3040)'}`,
+                     background: copied === 'ok' ? 'rgba(111,154,126,0.12)' : 'var(--bg-input, #252731)', color: copied === 'ok' ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)',
                      fontFamily: MONO, fontSize: 11.5, fontWeight: 700, cursor: data ? 'pointer' : 'default', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
             {copied === 'ok' ? 'Copied' : copied === 'fail' ? 'Select & copy below' : 'Copy as text'}
           </button>
         </div>
 
         {error && (
-          <div className="dg-span" style={{ marginTop: 18, padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(224,92,106,0.32)', background: 'rgba(224,92,106,0.10)', fontFamily: MONO, fontSize: 12, color: 'var(--red, #e05c6a)', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="dg-span" style={{ marginTop: 18, padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(176,100,91,0.32)', background: 'rgba(176,100,91,0.10)', fontFamily: MONO, fontSize: 12, color: 'var(--red, #b0645b)', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ flex: 1, minWidth: 200 }}>Couldn't build the digest — {error}</span>
             <button type="button" onClick={reload} style={{ minHeight: 34, padding: '0 12px', borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--accent, #c8963e)', fontFamily: MONO, fontSize: 11.5, cursor: 'pointer' }}>Retry</button>
           </div>
@@ -236,11 +236,11 @@ export default function Digest() {
 
             {/* Going wrong comes first when there is any — it is the thing to read before coffee. */}
             {wrong.length > 0 && (
-              <Para tone="var(--red, #e05c6a)" lead={`${n(wrong.length, 'thing is', 'things are')} going wrong${wrong.filter(w => w.severity === 'critical').length ? `, ${wrong.filter(w => w.severity === 'critical').length} critical` : ''}.`}>
-                <div style={{ ...panel, borderColor: 'rgba(224,92,106,0.35)' }}>
+              <Para tone="var(--red, #b0645b)" lead={`${n(wrong.length, 'thing is', 'things are')} going wrong${wrong.filter(w => w.severity === 'critical').length ? `, ${wrong.filter(w => w.severity === 'critical').length} critical` : ''}.`}>
+                <div style={{ ...panel, borderColor: 'rgba(176,100,91,0.35)' }}>
                   {wrong.slice(0, CAP).map((r, i) => (
                     <Line key={`${r.category}:${r.pid}:${i}`} pid={r.pid} name={r.property_name} text={r.headline}
-                      meta={`${r.category.replace(/_/g, ' ')} · ${r.overdue_by > 0 ? `over by ${r.overdue_by}d` : ago(null, r.age_days)}`} tone="var(--red, #e05c6a)"
+                      meta={`${r.category.replace(/_/g, ' ')} · ${r.overdue_by > 0 ? `over by ${r.overdue_by}d` : ago(null, r.age_days)}`} tone="var(--red, #b0645b)"
                       onGo={() => go(r.route)} last={i === Math.min(wrong.length, CAP) - 1 && wrong.length <= CAP} />
                   ))}
                   {more(wrong, '/alerts', 'alert window')}
@@ -253,7 +253,7 @@ export default function Digest() {
                 <div style={panel}>
                   {needs.slice(0, CAP).map((r, i) => (
                     <Line key={r.pid} pid={r.pid} name={r.property_name} text={r.action}
-                      meta={`${r.label} · ${ago(null, r.age_days)}`} tone={r.urgency === 'overdue' ? 'var(--red, #e05c6a)' : undefined}
+                      meta={`${r.label} · ${ago(null, r.age_days)}`} tone={r.urgency === 'overdue' ? 'var(--red, #b0645b)' : undefined}
                       onGo={() => go(r.route)} last={i === Math.min(needs.length, CAP) - 1 && needs.length <= CAP} />
                   ))}
                   {more(needs, '/', 'home')}
@@ -281,7 +281,7 @@ export default function Digest() {
                         ? <div style={{ padding: 14, fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>none</div>
                         : items.slice(0, CAP).map((r, i) => (
                             <Line key={r.pid + r.label} pid={r.pid} name={r.property_name} text={r.label}
-                              meta={`${ago(null, r.age_days)}${r.urgency === 'overdue' ? ' · too long' : ''}`} tone={r.urgency === 'overdue' ? 'var(--red, #e05c6a)' : undefined}
+                              meta={`${ago(null, r.age_days)}${r.urgency === 'overdue' ? ' · too long' : ''}`} tone={r.urgency === 'overdue' ? 'var(--red, #b0645b)' : undefined}
                               onGo={() => go(r.route)} last={i === Math.min(items.length, CAP) - 1 && items.length <= CAP} />
                           ))}
                       {more(items, '/', 'home')}

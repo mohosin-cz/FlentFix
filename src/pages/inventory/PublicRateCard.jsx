@@ -11,7 +11,7 @@ const TRADE_META = {
   electrical: { color: '#f5c842', bg: 'rgba(245,200,66,0.08)', border: 'rgba(245,200,66,0.28)' },
   plumbing:   { color: '#5ba8e5', bg: 'rgba(91,168,229,0.08)',  border: 'rgba(91,168,229,0.28)'  },
   woodwork:   { color: '#c8963e', bg: 'rgba(200,150,62,0.08)',  border: 'rgba(200,150,62,0.28)'  },
-  cleaning:   { color: '#3dba7a', bg: 'rgba(61,186,122,0.08)',  border: 'rgba(61,186,122,0.28)'  },
+  cleaning:   { color: '#6f9a7e', bg: 'rgba(111,154,126,0.08)',  border: 'rgba(111,154,126,0.28)'  },
   misc:       { color: '#9394a8', bg: 'rgba(147,148,168,0.08)', border: 'rgba(147,148,168,0.28)' },
 }
 
@@ -40,7 +40,7 @@ function Toasts({ toasts }) {
   return (
     <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 100, display: 'flex', flexDirection: 'column-reverse', gap: 6, alignItems: 'center', pointerEvents: 'none' }}>
       {toasts.map(t => (
-        <div key={t.id} style={{ padding: '9px 18px', background: t.type === 'error' ? 'var(--red, #e05252)' : 'var(--green, #3dba7a)', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', boxShadow: '0 4px 16px rgba(0,0,0,0.4)', whiteSpace: 'nowrap' }}>
+        <div key={t.id} style={{ padding: '9px 18px', background: t.type === 'error' ? 'var(--red, #e05252)' : 'var(--green, #6f9a7e)', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', boxShadow: '0 4px 16px rgba(0,0,0,0.4)', whiteSpace: 'nowrap' }}>
           {t.msg}
         </div>
       ))}
@@ -676,7 +676,7 @@ export default function PublicRateCard() {
                                   <div><span style={s.label}>Flent ₹</span><input type="number" value={e.flent_price} onChange={ev => setEditingMat(p => ({ ...p, [item.id]: { ...p[item.id], flent_price: ev.target.value } }))} style={s.editInput} /></div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 8 }}>
-                                  <button onClick={() => saveMatRow(item)} disabled={savingMat[item.id]} style={{ flex: 1, padding: '7px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{savingMat[item.id] ? '…' : '✓ Save'}</button>
+                                  <button onClick={() => saveMatRow(item)} disabled={savingMat[item.id]} style={{ flex: 1, padding: '7px', background: 'var(--green, #6f9a7e)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{savingMat[item.id] ? '…' : '✓ Save'}</button>
                                   <button onClick={() => cancelEditMat(item.id)} style={{ flex: 1, padding: '7px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>✕ Cancel</button>
                                 </div>
                               </div>
@@ -721,7 +721,7 @@ export default function PublicRateCard() {
                             <>
                               <span style={{ flex: 2, fontSize: 13, color: 'var(--text, #e8e8f0)' }}>{item.item_name}</span>
                               <span style={{ flex: 1, fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{item.spec || '—'}</span>
-                              <span style={{ width: 90, flexShrink: 0, fontSize: 11, color: item.warranty_months > 0 ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)' }}>
+                              <span style={{ width: 90, flexShrink: 0, fontSize: 11, color: item.warranty_months > 0 ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)' }}>
                                 {item.warranty_months > 0 ? `${item.warranty_months}mo` : '—'}
                               </span>
                               <span style={{ width: 110, flexShrink: 0, fontSize: 12, color: 'var(--text-muted, #6b6d82)', textAlign: 'right', fontFamily: 'var(--font-mono, monospace)', textDecoration: parseFloat(item.market_price) > 0 ? 'line-through' : 'none' }}>
@@ -753,7 +753,7 @@ export default function PublicRateCard() {
                           <input type="number" value={newMatRow.warranty_months} onChange={e => setNewMatRow(p => ({ ...p, warranty_months: e.target.value }))} placeholder="Warranty mo" style={s.editInput} />
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={() => addMatItem(trade)} style={{ flex: 1, padding: '6px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
+                          <button onClick={() => addMatItem(trade)} style={{ flex: 1, padding: '6px', background: 'var(--green, #6f9a7e)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
                           <button onClick={() => setAddingToMat(null)} style={{ flex: 1, padding: '6px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
                         </div>
                       </div>
@@ -933,7 +933,7 @@ export default function PublicRateCard() {
                                   <div><span style={s.label}>Unit</span><input value={e.unit} onChange={ev => setEditingLab(p => ({ ...p, [row.id]: { ...p[row.id], unit: ev.target.value } }))} style={s.editInput} /></div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 8 }}>
-                                  <button onClick={() => saveLabRow(row)} disabled={savingLab[row.id]} style={{ flex: 1, padding: '7px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{savingLab[row.id] ? '…' : '✓ Save'}</button>
+                                  <button onClick={() => saveLabRow(row)} disabled={savingLab[row.id]} style={{ flex: 1, padding: '7px', background: 'var(--green, #6f9a7e)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{savingLab[row.id] ? '…' : '✓ Save'}</button>
                                   <button onClick={() => cancelEditLab(row.id)} style={{ flex: 1, padding: '7px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>✕ Cancel</button>
                                 </div>
                               </div>
@@ -998,7 +998,7 @@ export default function PublicRateCard() {
                           <input type="number" value={newLabRow.cost_per_unit} onChange={e => setNewLabRow(p => ({ ...p, cost_per_unit: e.target.value }))} placeholder="Rate ₹" style={s.editInput} />
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={() => addLabItem(trade)} style={{ flex: 1, padding: '6px', background: 'var(--green, #3dba7a)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
+                          <button onClick={() => addLabItem(trade)} style={{ flex: 1, padding: '6px', background: 'var(--green, #6f9a7e)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
                           <button onClick={() => setAddingToLab(null)} style={{ flex: 1, padding: '6px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 5, color: 'var(--text-muted, #6b6d82)', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
                         </div>
                       </div>
@@ -1030,7 +1030,7 @@ const s = {
   colHead: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#0d0d0d', fontSize: 9, fontWeight: 700, color: 'var(--accent, #c8963e)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono, monospace)' },
   editBtn: { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border, #2e3040)', borderRadius: 5, background: 'var(--bg-input, #252731)', color: 'var(--accent, #c8963e)', cursor: 'pointer' },
   deleteBtn: { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(224,82,82,0.35)', borderRadius: 5, background: 'rgba(224,82,82,0.08)', color: 'var(--red, #e05252)', cursor: 'pointer' },
-  saveBtn: { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRadius: 5, background: 'var(--green, #3dba7a)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' },
+  saveBtn: { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRadius: 5, background: 'var(--green, #6f9a7e)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' },
   cancelBtn: { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border, #2e3040)', borderRadius: 5, background: 'var(--bg-input, #252731)', color: 'var(--text-muted, #6b6d82)', fontSize: 11, fontWeight: 700, cursor: 'pointer' },
   editInput: { width: '100%', padding: '5px 8px', fontSize: 12, color: 'var(--text, #e8e8f0)', background: 'rgba(200,150,62,0.08)', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 4, outline: 'none', fontFamily: 'var(--font-mono, monospace)', boxSizing: 'border-box' },
   label: { fontSize: 10, fontWeight: 600, color: 'var(--text-dim, #9394a8)', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: 'var(--font-mono, monospace)', display: 'block', marginBottom: 3 },

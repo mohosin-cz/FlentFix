@@ -36,7 +36,7 @@ function Centered({ title, body }) {
 
 function Banner({ tone = 'red', children, onRetry }) {
   const c = tone === 'amber' ? '200,150,62' : '224,92,106'
-  const fg = tone === 'amber' ? 'var(--accent, #c8963e)' : 'var(--red, #e05c6a)'
+  const fg = tone === 'amber' ? 'var(--accent, #c8963e)' : 'var(--red, #b0645b)'
   return (
     <div style={{ padding: '11px 13px', background: `rgba(${c},0.10)`, border: `1px solid rgba(${c},0.32)`, borderRadius: 9, fontSize: 12.5, color: fg, lineHeight: 1.5, fontFamily: MONO, wordBreak: 'break-word' }}>
       {children}
@@ -57,7 +57,7 @@ function QueuedMark({ op }) {
   if (!op) return null
   const conflict = op.status === 'conflict'
   const failed = op.status === 'failed'
-  const c = conflict || failed ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)'
+  const c = conflict || failed ? 'var(--red, #b0645b)' : 'var(--accent, #c8963e)'
   return (
     <span style={{ fontSize: 10.5, fontWeight: 700, color: c, border: `1px solid ${c}`, borderRadius: 6, padding: '2px 7px', fontFamily: MONO, whiteSpace: 'nowrap' }}>
       {conflict ? 'needs a look' : failed ? 'not saved' : 'will sync'}
@@ -76,7 +76,7 @@ function ItemCard({ item, index, busy, error, onDone, onUndo, closed, token, que
     <li id={`wo-item-${item.id}`} style={{
       listStyle: 'none',
       background: 'var(--bg-panel, #1e2028)',
-      border: `1px solid ${sentBack ? 'rgba(200,150,62,0.42)' : done ? 'rgba(61,186,122,0.30)' : 'var(--border, #2e3040)'}`,
+      border: `1px solid ${sentBack ? 'rgba(200,150,62,0.42)' : done ? 'rgba(111,154,126,0.30)' : 'var(--border, #2e3040)'}`,
       borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 9,
       opacity: done ? 0.78 : 1,
       scrollMarginTop: 96,
@@ -135,7 +135,7 @@ function ItemCard({ item, index, busy, error, onDone, onUndo, closed, token, que
 
       {done ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ Done</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green, #6f9a7e)', fontFamily: MONO }}>✓ Done</span>
           <QueuedMark op={queuedOp} />
           {/* Tapped the wrong row? Undo it yourself — until Flent has looked at it. */}
           {!closed && item.status === 'vendor_closed' && (
@@ -172,7 +172,7 @@ function ItemCard({ item, index, busy, error, onDone, onUndo, closed, token, que
               </button>
             )}
             <button type="button" onClick={() => onDone(note.trim() || null)} disabled={busy}
-              style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 44, padding: '0 17px', borderRadius: 9, border: '1px solid var(--green, #3dba7a)', background: 'rgba(61,186,122,0.14)', color: 'var(--green, #3dba7a)', fontSize: 13.5, fontWeight: 600, cursor: busy ? 'wait' : 'pointer', fontFamily: SANS, WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 44, padding: '0 17px', borderRadius: 9, border: '1px solid var(--green, #6f9a7e)', background: 'rgba(111,154,126,0.14)', color: 'var(--green, #6f9a7e)', fontSize: 13.5, fontWeight: 600, cursor: busy ? 'wait' : 'pointer', fontFamily: SANS, WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M20 6L9 17l-5-5" />
               </svg>
@@ -398,7 +398,7 @@ export default function VendorWorkOrder({ token: tokenProp, embedded, onBack }) 
 
           <div style={{ marginTop: 10 }}>
             <div style={{ height: 8, borderRadius: 4, background: 'var(--bg-input, #252731)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${pctDone}%`, background: 'var(--green, #3dba7a)', borderRadius: 4, transition: 'width .2s' }} />
+              <div style={{ height: '100%', width: `${pctDone}%`, background: 'var(--green, #6f9a7e)', borderRadius: 4, transition: 'width .2s' }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', marginTop: 7 }}>
               {/* The filter chips already carry every one of these numbers —
@@ -437,8 +437,8 @@ export default function VendorWorkOrder({ token: tokenProp, embedded, onBack }) 
 
       <main style={wrap}>
         {submitted && (
-          <div style={{ margin: '14px 0', padding: '15px 14px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.34)', borderRadius: 11 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 15, fontWeight: 700, color: 'var(--green, #3dba7a)' }}>
+          <div style={{ margin: '14px 0', padding: '15px 14px', background: 'rgba(111,154,126,0.10)', border: '1px solid rgba(111,154,126,0.34)', borderRadius: 11 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 15, fontWeight: 700, color: 'var(--green, #6f9a7e)' }}>
               {closed ? 'Verified — thank you' : queuedSubmit ? 'Submitted — sends when back online' : 'Waiting for Flent to verify'}
               <QueuedMark op={queuedSubmit} />
             </div>
@@ -521,7 +521,7 @@ export default function VendorWorkOrder({ token: tokenProp, embedded, onBack }) 
               style={{
                 width: '100%', minHeight: 54, borderRadius: 11,
                 border: openCount > 0 ? '1px solid var(--border, #2e3040)' : 'none',
-                background: openCount > 0 ? 'var(--bg-input, #252731)' : 'var(--green, #3dba7a)',
+                background: openCount > 0 ? 'var(--bg-input, #252731)' : 'var(--green, #6f9a7e)',
                 color: openCount > 0 ? 'var(--text-dim, #9394a8)' : '#062012',
                 fontSize: 15.5, fontWeight: 700, fontFamily: SANS,
                 cursor: submitting ? 'wait' : 'pointer',

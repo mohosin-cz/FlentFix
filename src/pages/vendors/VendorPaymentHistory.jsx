@@ -54,8 +54,8 @@ export default function VendorPaymentHistory({ vendorId }) {
   if (loading) return <div style={{ padding: '14px 0', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Loading…</div>
 
   if (state.err) return (
-    <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>⚠ Could not load payments</div>
+    <div style={{ padding: '10px 12px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #b0645b)', fontFamily: MONO }}>⚠ Could not load payments</div>
       <div style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, marginTop: 3, wordBreak: 'break-word' }}>{state.err}</div>
     </div>
   )
@@ -106,7 +106,7 @@ export default function VendorPaymentHistory({ vendorId }) {
                   {Number(r.allowance) > 0 && <Line label="Allowance" value={money(r.allowance)} />}
                   {Number(r.ot_amount) > 0 && <Line label={`Overtime${r.ot_days ? ` · ${r.ot_days}d` : ''}`} value={money(r.ot_amount)} />}
                   {Number(r.advance_given) > 0 && <Line label="Advance given" value={money(r.advance_given)} color="var(--accent, #c8963e)" />}
-                  {Number(r.advance_recovered) > 0 && <Line label="Advance recovered" value={'− ' + money(r.advance_recovered)} color="var(--red, #e05c6a)" />}
+                  {Number(r.advance_recovered) > 0 && <Line label="Advance recovered" value={'− ' + money(r.advance_recovered)} color="var(--red, #b0645b)" />}
                   <Line label="Total payout" value={money(r.total_payout)} strong />
                   {r.utr && <Line label="UTR" value={r.utr} />}
                   {r.period?.locked_at && <Line label="Finalised" value={fmtDate(r.period.locked_at)} />}

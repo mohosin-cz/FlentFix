@@ -145,7 +145,7 @@ export function InstallRow() {
           </div>
         </div>
         {installed
-          ? <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: MONO, flexShrink: 0 }}>✓ Installed</span>
+          ? <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--green, #6f9a7e)', fontFamily: MONO, flexShrink: 0 }}>✓ Installed</span>
           : <button type="button" onClick={canPrompt ? onInstall : () => setHow(true)} disabled={busy}
               style={{ minHeight: 36, padding: '0 14px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text, #e8e8f0)', fontSize: 12.5, fontWeight: 600, cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0, opacity: busy ? 0.6 : 1 }}>
               {busy ? '…' : canPrompt ? 'Install' : 'How'}

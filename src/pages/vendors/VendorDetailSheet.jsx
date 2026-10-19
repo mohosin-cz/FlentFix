@@ -144,9 +144,9 @@ function Field({ f, value, editing, draft, error, onChange, children }) {
               autoCapitalize={f.type === 'email' ? 'off' : undefined}
               autoCorrect={f.type === 'email' ? 'off' : undefined}
               style={{ width: '100%', padding: '8px 10px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', borderRadius: 7, outline: 'none', fontFamily: 'inherit',
-                border: `1px solid ${error ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}` }} />
+                border: `1px solid ${error ? 'var(--red, #b0645b)' : 'var(--border, #2e3040)'}` }} />
             {f.suggestions && <datalist id={`dl-${f.name}`}>{f.suggestions.map(o => <option key={o} value={o} />)}</datalist>}
-            {error && <span style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>{error}</span>}
+            {error && <span style={{ fontSize: 11, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)' }}>{error}</span>}
           </div>
         ) : (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -201,7 +201,7 @@ function PodPicker({ value, options, onChange, disabled }) {
 // ── loud error strip (real messages only) ───────────────────────────────────
 function ErrStrip({ children }) {
   return (
-    <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-word' }}>
+    <div style={{ padding: '10px 12px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-word' }}>
       ⚠ {children}
     </div>
   )
@@ -213,7 +213,7 @@ function Warn({ tone, children }) {
   return (
     <div style={{ display: 'flex', gap: 9, padding: '9px 11px', marginTop: 6, background: `rgba(${c},0.10)`, border: `1px solid rgba(${c},0.32)`, borderRadius: 8 }}>
       <span style={{ fontSize: 13, lineHeight: 1.3 }}>⚠</span>
-      <span style={{ fontSize: 11.5, color: tone === 'red' ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.5 }}>{children}</span>
+      <span style={{ fontSize: 11.5, color: tone === 'red' ? 'var(--red, #b0645b)' : 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.5 }}>{children}</span>
     </div>
   )
 }
@@ -283,7 +283,7 @@ function DocThumb({ label, doc }) {
       ) : doc.missing ? (
         <div style={{ ...box, color: 'var(--text-muted, #6b6d82)', fontSize: 11 }}>not provided</div>
       ) : doc.err ? (
-        <div style={{ ...box, border: '1px solid rgba(224,92,106,0.4)', color: 'var(--red, #e05c6a)', fontSize: 10, textAlign: 'center', padding: 6, fontFamily: 'var(--font-mono, monospace)' }}>{doc.err}</div>
+        <div style={{ ...box, border: '1px solid rgba(176,100,91,0.4)', color: 'var(--red, #b0645b)', fontSize: 10, textAlign: 'center', padding: 6, fontFamily: 'var(--font-mono, monospace)' }}>{doc.err}</div>
       ) : (
         <button type="button" onClick={() => setViewing(true)} title={`View ${label}`}
           style={{ ...box, padding: 0, overflow: 'hidden', border: '1px solid var(--border, #2e3040)' }}>
@@ -307,7 +307,7 @@ function LocationCard({ lat, lng, accuracy, at }) {
         background: 'repeating-linear-gradient(0deg, var(--bg-input,#252731), var(--bg-input,#252731) 14px, var(--bg-panel,#1e2028) 14px, var(--bg-panel,#1e2028) 15px), repeating-linear-gradient(90deg, var(--bg-input,#252731), var(--bg-input,#252731) 14px, var(--bg-panel,#1e2028) 14px, var(--bg-panel,#1e2028) 15px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 22s7-6.2 7-12a7 7 0 10-14 0c0 5.8 7 12 7 12z" fill="var(--red, #e05c6a)"/><circle cx="12" cy="10" r="2.6" fill="#fff"/></svg>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 22s7-6.2 7-12a7 7 0 10-14 0c0 5.8 7 12 7 12z" fill="var(--red, #b0645b)"/><circle cx="12" cy="10" r="2.6" fill="#fff"/></svg>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontFamily: 'var(--font-mono, monospace)', fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>
         <span>{Number(lat).toFixed(5)}, {Number(lng).toFixed(5)}</span>
@@ -542,8 +542,8 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
             <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.full_name}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.28)', borderRadius: 6, padding: '1px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{row.trade}</span>
-              {row.vendor_code && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.28)', borderRadius: 6, padding: '1px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{row.vendor_code}</span>}
-              {removed && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #e05c6a)', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.35)', borderRadius: 6, padding: '1px 8px', fontFamily: 'var(--font-mono, monospace)' }}>REMOVED</span>}
+              {row.vendor_code && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green, #6f9a7e)', background: 'rgba(111,154,126,0.10)', border: '1px solid rgba(111,154,126,0.28)', borderRadius: 6, padding: '1px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{row.vendor_code}</span>}
+              {removed && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #b0645b)', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.35)', borderRadius: 6, padding: '1px 8px', fontFamily: 'var(--font-mono, monospace)' }}>REMOVED</span>}
               {row.pod && <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{row.pod}</span>}
               <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{relTime(row.submitted_at)}</span>
             </div>
@@ -693,16 +693,16 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
                 Still on the books, just not active — payroll skips them while archived. Bring them back any time.
               </div>
               <button type="button" onClick={unarchiveVendor} disabled={busy === 'remove'}
-                style={{ width: '100%', minHeight: 46, borderRadius: 10, border: '1px solid var(--green, #3dba7a)', background: 'rgba(61,186,122,0.10)', color: 'var(--green, #3dba7a)', fontSize: 14, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                style={{ width: '100%', minHeight: 46, borderRadius: 10, border: '1px solid var(--green, #6f9a7e)', background: 'rgba(111,154,126,0.10)', color: 'var(--green, #6f9a7e)', fontSize: 14, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                 {busy === 'remove' ? 'Returning…' : 'Return to roster'}
               </button>
             </>
           ) : removed ? (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.35)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.35)', borderRadius: 10 }}>
                 <span style={{ fontSize: 20 }}>⦸</span>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>Removed from on-roll{row.exited_at ? ` · ${fmtDate(row.exited_at)}` : ''}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red, #b0645b)' }}>Removed from on-roll{row.exited_at ? ` · ${fmtDate(row.exited_at)}` : ''}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-word' }}>
                     {row.exited_by || '—'}{row.exit_reason ? ` · ${row.exit_reason}` : ''}
                   </div>
@@ -713,17 +713,17 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
               </div>
               {admin && (
                 <button type="button" onClick={restoreVendor} disabled={busy === 'remove'}
-                  style={{ width: '100%', minHeight: 46, borderRadius: 10, border: '1px solid var(--green, #3dba7a)', background: 'rgba(61,186,122,0.10)', color: 'var(--green, #3dba7a)', fontSize: 14, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                  style={{ width: '100%', minHeight: 46, borderRadius: 10, border: '1px solid var(--green, #6f9a7e)', background: 'rgba(111,154,126,0.10)', color: 'var(--green, #6f9a7e)', fontSize: 14, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                   {busy === 'remove' ? 'Restoring…' : 'Put back on roll'}
                 </button>
               )}
             </>
           ) : onboardedCode ? (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'rgba(111,154,126,0.10)', border: '1px solid rgba(111,154,126,0.35)', borderRadius: 10 }}>
                 <span style={{ fontSize: 20 }}>✓</span>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green, #3dba7a)' }}>Onboarded{row.reviewed_at ? ` · ${fmtDate(row.reviewed_at)}` : ''}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green, #6f9a7e)' }}>Onboarded{row.reviewed_at ? ` · ${fmtDate(row.reviewed_at)}` : ''}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>Vendor code {onboardedCode}</div>
                 </div>
               </div>
@@ -735,9 +735,9 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
 
               {!done && (pending ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: '12px 13px', borderRadius: 10,
-                  background: pending === 'remove' ? 'rgba(224,92,106,0.07)' : 'rgba(200,150,62,0.07)',
-                  border: `1px solid ${pending === 'remove' ? 'rgba(224,92,106,0.30)' : 'rgba(200,150,62,0.32)'}` }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: pending === 'remove' ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)' }}>
+                  background: pending === 'remove' ? 'rgba(176,100,91,0.07)' : 'rgba(200,150,62,0.07)',
+                  border: `1px solid ${pending === 'remove' ? 'rgba(176,100,91,0.30)' : 'rgba(200,150,62,0.32)'}` }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: pending === 'remove' ? 'var(--red, #b0645b)' : 'var(--accent, #c8963e)' }}>
                     {pending === 'remove'
                       ? `Remove ${row.full_name.split(' ')[0]} from the on-roll list?`
                       : `Archive ${row.full_name.split(' ')[0]}?`}
@@ -752,7 +752,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
                     style={{ padding: '8px 10px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, outline: 'none', fontFamily: 'inherit' }} />
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button type="button" onClick={pending === 'remove' ? removeVendor : archiveVendor} disabled={busy === 'remove'}
-                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', background: pending === 'remove' ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', background: pending === 'remove' ? 'var(--red, #b0645b)' : 'var(--accent, #c8963e)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                       {busy === 'remove' ? 'Working…' : pending === 'remove' ? 'Yes, remove' : 'Yes, archive'}
                     </button>
                     <button type="button" onClick={() => { setPending(''); setReason(''); setErr('') }}
@@ -769,7 +769,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
                   </button>
                   {admin && (
                     <button type="button" onClick={() => setPending('remove')}
-                      style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--red, #e05c6a)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                      style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--red, #b0645b)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                       Remove from on-roll
                     </button>
                   )}
@@ -778,10 +778,10 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
             </>
           ) : rejected ? (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.35)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.35)', borderRadius: 10 }}>
                 <span style={{ fontSize: 20 }}>✕</span>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>Rejected{row.reviewed_at ? ` · ${fmtDate(row.reviewed_at)}` : ''}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red, #b0645b)' }}>Rejected{row.reviewed_at ? ` · ${fmtDate(row.reviewed_at)}` : ''}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-word' }}>
                     {row.reviewed_by || '—'}{row.reject_reason ? ` · ${row.reject_reason}` : ''}
                   </div>
@@ -792,14 +792,14 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
               </div>
 
               {pending === 'delete' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: '12px 13px', borderRadius: 10, background: 'rgba(224,92,106,0.07)', border: '1px solid rgba(224,92,106,0.30)' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>Delete {row.full_name.split(' ')[0]} permanently?</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: '12px 13px', borderRadius: 10, background: 'rgba(176,100,91,0.07)', border: '1px solid rgba(176,100,91,0.30)' }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red, #b0645b)' }}>Delete {row.full_name.split(' ')[0]} permanently?</div>
                   <div style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5, fontFamily: 'var(--font-mono, monospace)' }}>
                     The submission is erased for good. This cannot be undone. Uploaded documents stay in storage — this row is the only index of them, so clear those from the bucket too if the record must go entirely.
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button type="button" onClick={deleteVendor} disabled={busy === 'remove'}
-                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', background: 'var(--red, #e05c6a)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', background: 'var(--red, #b0645b)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                       {busy === 'remove' ? 'Deleting…' : 'Delete forever'}
                     </button>
                     <button type="button" onClick={() => { setPending(''); setErr('') }}
@@ -811,12 +811,12 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
               ) : (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button type="button" onClick={unrejectVendor} disabled={busy === 'remove'}
-                    style={{ flex: 1, minHeight: 46, borderRadius: 10, border: '1px solid var(--green, #3dba7a)', background: 'rgba(61,186,122,0.10)', color: 'var(--green, #3dba7a)', fontSize: 14, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                    style={{ flex: 1, minHeight: 46, borderRadius: 10, border: '1px solid var(--green, #6f9a7e)', background: 'rgba(111,154,126,0.10)', color: 'var(--green, #6f9a7e)', fontSize: 14, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                     {busy === 'remove' ? 'Working…' : '↩ Back to pending'}
                   </button>
                   {admin && (
                     <button type="button" onClick={() => setPending('delete')}
-                      style={{ padding: '7px 12px', minHeight: 46, borderRadius: 10, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--red, #e05c6a)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                      style={{ padding: '7px 12px', minHeight: 46, borderRadius: 10, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--red, #b0645b)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                       Delete
                     </button>
                   )}
@@ -856,8 +856,8 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
                   was no way to say so — a duplicate or a test submission sat
                   in the queue for ever. */}
               {pending === 'reject' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: '12px 13px', borderRadius: 10, background: 'rgba(224,92,106,0.07)', border: '1px solid rgba(224,92,106,0.30)' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>Reject {row.full_name.split(' ')[0]}&rsquo;s application?</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: '12px 13px', borderRadius: 10, background: 'rgba(176,100,91,0.07)', border: '1px solid rgba(176,100,91,0.30)' }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red, #b0645b)' }}>Reject {row.full_name.split(' ')[0]}&rsquo;s application?</div>
                   <div style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5, fontFamily: 'var(--font-mono, monospace)' }}>
                     It comes off the pending list. Nothing is deleted, and you can put it back at any time.
                   </div>
@@ -866,7 +866,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
                     style={{ padding: '8px 10px', fontSize: 14, color: 'var(--text, #e8e8f0)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 7, outline: 'none', fontFamily: 'inherit' }} />
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button type="button" onClick={rejectVendor} disabled={busy === 'remove'}
-                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', background: 'var(--red, #e05c6a)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', background: 'var(--red, #b0645b)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                       {busy === 'remove' ? 'Rejecting…' : 'Yes, reject'}
                     </button>
                     <button type="button" onClick={() => { setPending(''); setReason(''); setErr('') }}
@@ -877,7 +877,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
                 </div>
               ) : (
                 <button type="button" onClick={() => setPending('reject')}
-                  style={{ width: '100%', minHeight: 44, borderRadius: 10, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--red, #e05c6a)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                  style={{ width: '100%', minHeight: 44, borderRadius: 10, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--red, #b0645b)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                   Reject application
                 </button>
               )}

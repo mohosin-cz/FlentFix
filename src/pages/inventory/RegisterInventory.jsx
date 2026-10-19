@@ -68,7 +68,7 @@ function StepBar({ step }) {
     <div style={{ padding: '10px 20px', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', display: 'flex', alignItems: 'center', gap: 10 }}>
       {[1, 2].map(n => (
         <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', background: step === n ? 'var(--accent, #c8963e)' : step > n ? 'var(--green, #3dba7a)' : 'var(--bg-input, #252731)', color: step >= n ? '#fff' : 'var(--text-muted, #6b6d82)', border: step >= n ? 'none' : '1px solid var(--border, #2e3040)' }}>
+          <div style={{ width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', background: step === n ? 'var(--accent, #c8963e)' : step > n ? 'var(--green, #6f9a7e)' : 'var(--bg-input, #252731)', color: step >= n ? '#fff' : 'var(--text-muted, #6b6d82)', border: step >= n ? 'none' : '1px solid var(--border, #2e3040)' }}>
             {step > n ? '✓' : n}
           </div>
           <span style={{ fontSize: 11, fontWeight: step === n ? 600 : 400, color: step === n ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
@@ -294,7 +294,7 @@ export default function RegisterInventory() {
               <Label optional>Invoice</Label>
               <input ref={invoiceRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => setInvoiceFile(e.target.files[0] || null)} />
               <button type="button" onClick={() => invoiceRef.current?.click()}
-                style={{ ...s.uploadBtn, borderColor: invoiceFile ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)', color: invoiceFile ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', background: invoiceFile ? 'rgba(61,186,122,0.06)' : 'var(--bg-input, #252731)' }}>
+                style={{ ...s.uploadBtn, borderColor: invoiceFile ? 'var(--green, #6f9a7e)' : 'var(--border-dash, #3a3d52)', color: invoiceFile ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)', background: invoiceFile ? 'rgba(111,154,126,0.06)' : 'var(--bg-input, #252731)' }}>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 11v2a1 1 0 001 1h12a1 1 0 001-1v-2M8 1v9M5 4l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 {invoiceFile ? invoiceFile.name : 'Attach Invoice'}
               </button>
@@ -367,7 +367,7 @@ export default function RegisterInventory() {
                         </button>
                         {items.length > 1 && (
                           <button type="button" onClick={() => removeItem(i)}
-                            style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 5, background: 'rgba(224,92,106,0.08)', color: 'var(--red, #e05c6a)', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
+                            style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(176,100,91,0.3)', borderRadius: 5, background: 'rgba(176,100,91,0.08)', color: 'var(--red, #b0645b)', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
                             ×
                           </button>
                         )}
@@ -384,7 +384,7 @@ export default function RegisterInventory() {
                       <div style={{ display: 'flex', gap: 6 }}>
                         {item.itemName && (
                           <button type="button" onClick={() => collapseItem(item._key)}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 4, background: 'rgba(61,186,122,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(111,154,126,0.35)', borderRadius: 4, background: 'rgba(111,154,126,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--green, #6f9a7e)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                             ✓ done
                           </button>
                         )}
@@ -513,7 +513,7 @@ const s = {
   itemCard: { background: 'var(--bg-input, #252731)', borderRadius: 8, padding: 14, border: '1px solid var(--border, #2e3040)', marginBottom: 12 },
   itemNum: { fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' },
   fxinBadge: { fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.1)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 4, padding: '2px 7px', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em' },
-  removeBtn: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 4, background: 'rgba(224,92,106,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' },
-  errorBox: { padding: '10px 14px', background: 'rgba(224,92,106,0.1)', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 6, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' },
+  removeBtn: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(176,100,91,0.3)', borderRadius: 4, background: 'rgba(176,100,91,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #b0645b)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' },
+  errorBox: { padding: '10px 14px', background: 'rgba(176,100,91,0.1)', border: '1px solid rgba(176,100,91,0.3)', borderRadius: 6, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)' },
   submitBtn: { width: '100%', padding: '13px 20px', background: 'var(--accent, #c8963e)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.02em' },
 }

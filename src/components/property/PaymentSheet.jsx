@@ -637,7 +637,7 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
                   <button type="button" onClick={() => openBill(b)}
                     style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 10.5, cursor: 'pointer', fontFamily: MONO }}>View</button>
                   <button type="button" onClick={() => removeBill(b)} aria-label={`Remove ${b.filename || 'invoice'}`}
-                    style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--red, #e05c6a)', fontSize: 10.5, cursor: 'pointer', fontFamily: MONO }}>Remove</button>
+                    style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--red, #b0645b)', fontSize: 10.5, cursor: 'pointer', fontFamily: MONO }}>Remove</button>
                 </div>
               ))}
             </div>
@@ -679,10 +679,10 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
         </div>
 
         {err && (
-          <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: MONO, lineHeight: 1.5 }}>{err}</div>
+          <div style={{ padding: '10px 12px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: MONO, lineHeight: 1.5 }}>{err}</div>
         )}
         {flash && (
-          <div style={{ padding: '10px 12px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>{flash} · next one ready</div>
+          <div style={{ padding: '10px 12px', background: 'rgba(111,154,126,0.10)', border: '1px solid rgba(111,154,126,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--green, #6f9a7e)', fontFamily: MONO }}>{flash} · next one ready</div>
         )}
 
         <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>

@@ -36,7 +36,7 @@ export default function PausedBanner({ pid, onResumed }) {
         style={{ minHeight: 36, padding: '0 14px', borderRadius: 8, border: '1px solid rgba(200,150,62,0.45)', background: 'rgba(200,150,62,0.12)', color: 'var(--accent, #c8963e)', fontFamily: MONO, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
         {busy ? 'Resuming…' : 'Resume journey'}
       </button>
-      {err && <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--red, #e05c6a)' }}>{err}</span>}
+      {err && <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--red, #b0645b)' }}>{err}</span>}
     </div>
   )
 }

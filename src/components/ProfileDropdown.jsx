@@ -116,7 +116,7 @@ export default function ProfileDropdown({ name, email, onLogout }) {
                 <AppearancePicker />
               </div>
               <div style={{ padding: '0 10px 10px' }}>
-                <button onClick={onLogout} style={{ width: '100%', padding: '9px 14px', borderRadius: 6, border: '1px solid rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.08)', fontSize: 12, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+                <button onClick={onLogout} style={{ width: '100%', padding: '9px 14px', borderRadius: 6, border: '1px solid rgba(176,100,91,0.3)', background: 'rgba(176,100,91,0.08)', fontSize: 12, fontWeight: 600, color: 'var(--red, #b0645b)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                   ⎋ log out
                 </button>
               </div>
@@ -138,8 +138,8 @@ function DropItem({ icon, label, onClick, danger }) {
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
         width: '100%', padding: '11px 16px', border: 'none',
-        background: hover ? (danger ? 'rgba(224,92,106,0.08)' : 'rgba(200,150,62,0.08)') : 'transparent',
-        color: danger ? 'var(--red, #e05c6a)' : hover ? 'var(--accent, #c8963e)' : 'var(--text, #e8e8f0)',
+        background: hover ? (danger ? 'rgba(176,100,91,0.08)' : 'rgba(200,150,62,0.08)') : 'transparent',
+        color: danger ? 'var(--red, #b0645b)' : hover ? 'var(--accent, #c8963e)' : 'var(--text, #e8e8f0)',
         fontSize: 13, fontWeight: 500, cursor: 'pointer',
         fontFamily: 'var(--font-mono, monospace)', textAlign: 'left',
         transition: 'background 0.12s, color 0.12s',

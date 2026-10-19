@@ -15,8 +15,8 @@ const KINDS = {
   landlord:   { label: 'Landlord',   color: '#4dd9c0' },
   work:       { label: 'Work',       color: '#a78bfa' },
   site:       { label: 'On site',    color: '#a78bfa' },
-  payment:    { label: 'Payment',    color: 'var(--green, #3dba7a)' },
-  invoice:    { label: 'Invoice',    color: 'var(--green, #3dba7a)' },
+  payment:    { label: 'Payment',    color: 'var(--green, #6f9a7e)' },
+  invoice:    { label: 'Invoice',    color: 'var(--green, #6f9a7e)' },
 }
 
 const dayKey = (d) => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
@@ -97,9 +97,9 @@ export default function RecordTimeline({ pid }) {
         </div>
       )}
       {error && (
-        <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.07)', fontFamily: MONO, fontSize: 12, color: 'var(--red, #e05c6a)', display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(176,100,91,0.3)', background: 'rgba(176,100,91,0.07)', fontFamily: MONO, fontSize: 12, color: 'var(--red, #b0645b)', display: 'flex', justifyContent: 'space-between', gap: 10 }}>
           <span>Couldn't load the timeline — {error}</span>
-          <button onClick={load} style={{ background: 'none', border: '1px solid rgba(224,92,106,0.4)', borderRadius: 6, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: MONO, fontSize: 11 }}>Retry</button>
+          <button onClick={load} style={{ background: 'none', border: '1px solid rgba(176,100,91,0.4)', borderRadius: 6, color: 'var(--red, #b0645b)', cursor: 'pointer', fontFamily: MONO, fontSize: 11 }}>Retry</button>
         </div>
       )}
       {rows && rows.length === 0 && (

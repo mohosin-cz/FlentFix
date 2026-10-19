@@ -92,7 +92,7 @@ export default function DocViewer({ url, name, onClose }) {
       <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
         style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 12px 16px', overflow: 'auto' }}>
         {state.loading && <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontFamily: MONO }}>Loading…</div>}
-        {state.err && <div style={{ maxWidth: 340, fontSize: 13, color: state.undecodable ? 'rgba(255,255,255,0.75)' : '#e8697a', fontFamily: MONO, textAlign: 'center', lineHeight: 1.65 }}>⚠ {state.err}</div>}
+        {state.err && <div style={{ maxWidth: 340, fontSize: 13, color: state.undecodable ? 'rgba(255,255,255,0.75)' : '#b0645b', fontFamily: MONO, textAlign: 'center', lineHeight: 1.65 }}>⚠ {state.err}</div>}
         {state.href && !state.undecodable && (isPdf
           ? <iframe title="Document" src={state.href} style={{ width: '100%', height: '100%', border: 'none', borderRadius: 8, background: '#fff' }} />
           : <img src={state.href} alt={name || ''} onClick={() => setZoom(z => !z)}

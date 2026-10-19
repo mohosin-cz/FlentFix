@@ -45,7 +45,7 @@ function VendorTile({ v, url, properties, onOpen }) {
           <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text, #e8e8f0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.full_name}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 4, minWidth: 0 }}>
             <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.28)', borderRadius: 6, padding: '1px 7px', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>{v.trade}</span>
-            <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.vendor_code || '—'}</span>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--green, #6f9a7e)', fontFamily: 'var(--font-mono, monospace)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.vendor_code || '—'}</span>
             {v.pod && <span style={{ fontSize: 10.5, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.pod}</span>}
           </div>
         </div>
@@ -163,7 +163,7 @@ function PasswordRollout({ rows, onDone }) {
       <span style={{ fontSize: 15 }}>🔑</span>
       <div style={{ flex: 1, minWidth: 180, fontSize: 12.5, color: 'var(--accent, #c8963e)', lineHeight: 1.5 }}>
         {missing.length} vendor{missing.length === 1 ? ' has' : 's have'} no portal password — they can&rsquo;t sign in to punch or see their payslips.
-        {err && <div style={{ color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', fontSize: 11.5, marginTop: 4 }}>⚠ {err}</div>}
+        {err && <div style={{ color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)', fontSize: 11.5, marginTop: 4 }}>⚠ {err}</div>}
       </div>
       <button type="button" onClick={generateAll} disabled={busy}
         style={{ minHeight: 40, padding: '0 14px', borderRadius: 8, border: 'none', background: 'var(--accent, #c8963e)', color: 'var(--on-accent, #1a1408)', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', cursor: 'pointer' }}>
@@ -243,8 +243,8 @@ export default function OnboardingTab() {
       <Nudge count={candidates.length} onReview={() => setShowCandidates(true)} />
 
       {error && (
-        <div style={{ padding: '12px 14px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontFamily: 'var(--font-mono, monospace)' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #e05c6a)', marginBottom: 4 }}>⚠ Could not load vendors</div>
+        <div style={{ padding: '12px 14px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8, fontFamily: 'var(--font-mono, monospace)' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #b0645b)', marginBottom: 4 }}>⚠ Could not load vendors</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', wordBreak: 'break-word' }}>{error}</div>
           <button type="button" onClick={load} style={{ marginTop: 8, fontSize: 11, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Retry</button>
         </div>

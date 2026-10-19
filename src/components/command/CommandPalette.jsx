@@ -317,7 +317,7 @@ export default function CommandSurface() {
     const propRows = (q ? properties : (intent ? allProperties : [])).map(p => ({
       kind: 'property', id: p.pid, pid: p.pid, label: p.name || 'Unnamed property',
       sub: `${p.stage_label || 'No stage'} · ${ago(p.since, p.age_days)}`,
-      tone: p.urgency === 'overdue' ? 'var(--red, #e05c6a)' : undefined,
+      tone: p.urgency === 'overdue' ? 'var(--red, #b0645b)' : undefined,
       route: INTENT.open.route(p.pid), altRoute: p.next_action_route || null, altLabel: p.next_action_label || null,
     }))
     for (const r of remote.property) propRows.push({ kind: 'property', id: r.pid, pid: r.pid, label: r.label, sub: r.sub, route: r.route })
@@ -426,7 +426,7 @@ export default function CommandSurface() {
       {nothing && (
         <div style={{ padding: '22px 14px', fontFamily: MONO, fontSize: 12.5, color: 'var(--text-muted, #6b6d82)', lineHeight: 1.5 }}>
           Nothing for ‘{query.trim()}’.
-          {remoteError && <div style={{ fontSize: 11, marginTop: 6, color: 'var(--red, #e05c6a)' }}>Long-tail search failed: {remoteError}</div>}
+          {remoteError && <div style={{ fontSize: 11, marginTop: 6, color: 'var(--red, #b0645b)' }}>Long-tail search failed: {remoteError}</div>}
           {!searched && !remoteError && q.length < 2 && <div style={{ fontSize: 11, marginTop: 6 }}>Type one more character to search work orders, estimates and invoices.</div>}
         </div>
       )}
@@ -434,7 +434,7 @@ export default function CommandSurface() {
         <div style={{ padding: '10px 14px', fontFamily: MONO, fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>loading your properties and vendors…</div>
       )}
       {indexError && (
-        <div style={{ margin: '8px 14px', padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(224,92,106,0.32)', background: 'rgba(224,92,106,0.10)', fontFamily: MONO, fontSize: 11, color: 'var(--red, #e05c6a)', display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ margin: '8px 14px', padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(176,100,91,0.32)', background: 'rgba(176,100,91,0.10)', fontFamily: MONO, fontSize: 11, color: 'var(--red, #b0645b)', display: 'flex', gap: 10, alignItems: 'center' }}>
           <span style={{ flex: 1 }}>Couldn't load the index — {indexError}</span>
           <button type="button" onClick={() => ensureIndex({ force: true })} style={{ minHeight: 30, padding: '0 10px', borderRadius: 6, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--accent, #c8963e)', fontFamily: MONO, fontSize: 11, cursor: 'pointer' }}>Retry</button>
         </div>

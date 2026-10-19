@@ -96,8 +96,8 @@ function Shell({ children }) {
 }
 function RedStrip({ title, children }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 14px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8 }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>⚠ {title}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 14px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)' }}>⚠ {title}</span>
       {children && <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5, fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-word' }}>{children}</span>}
     </div>
   )
@@ -113,9 +113,9 @@ function RedStrip({ title, children }) {
 // It matters most here: this is the screen someone uses outdoors, in sunlight,
 // on a cheap phone, to record that they turned up.
 const BTN_FILL = {
-  danger: 'var(--red, #e05c6a)',
-  ot: '#5b8def',
-  go: 'var(--green, #3dba7a)',
+  danger: 'var(--red, #b0645b)',
+  ot: '#7f93b8',
+  go: 'var(--green, #6f9a7e)',
   primary: 'var(--accent, #c8963e)',
 }
 function bigBtn(kind, disabled) {
@@ -144,9 +144,9 @@ const EDIT_TOPICS = ['Phone', 'Bank / UPI', 'Address', 'Documents', 'Name spelli
 // Colour is the state — green to start, red to stop, blue for overtime — and
 // the lens says a photo follows, which is the part people were surprised by.
 const PUNCH_TONE = {
-  go:     'var(--green, #3dba7a)',
-  danger: 'var(--red, #e05c6a)',
-  ot:     '#5b8def',
+  go:     'var(--green, #6f9a7e)',
+  danger: 'var(--red, #b0645b)',
+  ot:     '#7f93b8',
   busy:   'var(--bg-input, #252731)',
 }
 const PUNCH_REST = 'inset 0 1px 0 rgba(255,255,255,.30), inset 0 -2px 0 rgba(0,0,0,.14), 0 3px 10px rgba(0,0,0,.5)'
@@ -199,8 +199,8 @@ function PRow({ label, children }) {
 const WO_STATE = {
   assigned:          { label: 'To do',      ink: 'var(--accent, #c8963e)', bg: 'rgba(200,150,62,0.12)', line: 'rgba(200,150,62,0.35)' },
   in_progress:       { label: 'In progress', ink: 'var(--accent, #c8963e)', bg: 'rgba(200,150,62,0.12)', line: 'rgba(200,150,62,0.35)' },
-  vendor_completed:  { label: 'Submitted',  ink: '#5b8def', bg: 'rgba(91,141,239,0.12)', line: 'rgba(91,141,239,0.35)' },
-  verified:          { label: 'Closed',     ink: 'var(--green, #3dba7a)', bg: 'rgba(61,186,122,0.10)', line: 'rgba(61,186,122,0.30)' },
+  vendor_completed:  { label: 'Submitted',  ink: '#7f93b8', bg: 'rgba(127,147,184,0.12)', line: 'rgba(127,147,184,0.35)' },
+  verified:          { label: 'Closed',     ink: 'var(--green, #6f9a7e)', bg: 'rgba(111,154,126,0.10)', line: 'rgba(111,154,126,0.30)' },
 }
 function WoCard({ w, onOpen }) {
   const st = WO_STATE[w.status] || { label: w.status, ink: 'var(--text-dim, #9394a8)', bg: 'var(--bg-input, #252731)', line: 'var(--border, #2e3040)' }
@@ -217,7 +217,7 @@ function WoCard({ w, onOpen }) {
       {/* Work sent back is not the same as work not started, and it is the one
           thing on this card somebody has to act on today. */}
       {w.disputed_count > 0 && (
-        <span style={{ fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>
+        <span style={{ fontSize: 11.5, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)' }}>
           ⚠ {w.disputed_count} sent back
         </span>
       )}
@@ -735,11 +735,11 @@ export default function Attend() {
                 the setup small underneath. The old screen gave the mode switch,
                 the status, the PID and the location a box each, all the same
                 weight, so nothing on it was the point. */}
-            <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${onClock ? (isOt ? 'rgba(91,141,239,0.35)' : 'rgba(61,186,122,0.35)') : 'var(--border, #2e3040)'}`, borderRadius: 16, overflow: 'hidden' }}>
-              <div style={{ padding: onClock ? '16px 16px 18px' : '14px 16px', background: onClock ? (isOt ? 'rgba(91,141,239,0.07)' : 'rgba(61,186,122,0.07)') : 'transparent' }}>
+            <div style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${onClock ? (isOt ? 'rgba(127,147,184,0.35)' : 'rgba(111,154,126,0.35)') : 'var(--border, #2e3040)'}`, borderRadius: 16, overflow: 'hidden' }}>
+              <div style={{ padding: onClock ? '16px 16px 18px' : '14px 16px', background: onClock ? (isOt ? 'rgba(127,147,184,0.07)' : 'rgba(111,154,126,0.07)') : 'transparent' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: onClock ? (isOt ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)' }} />
-                  <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'var(--font-mono, monospace)', color: openBreak ? (bt.open && bt.open.overMs > 0 ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)') : onClock ? (isOt ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: onClock ? (isOt ? '#7f93b8' : 'var(--green, #6f9a7e)') : 'var(--text-muted, #6b6d82)' }} />
+                  <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'var(--font-mono, monospace)', color: openBreak ? (bt.open && bt.open.overMs > 0 ? 'var(--red, #b0645b)' : 'var(--accent, #c8963e)') : onClock ? (isOt ? '#7f93b8' : 'var(--green, #6f9a7e)') : 'var(--text-muted, #6b6d82)' }}>
                     {openBreak ? `On ${BREAK_RULES[openBreak.kind].label.toLowerCase()} break${bt.open && bt.open.overMs > 0 ? ' · over' : ''}` : onClock ? (isOt ? 'Overtime running' : 'On site') : (isOt ? 'No overtime running' : 'Not checked in')}
                   </span>
                   {onClock && activeOpen.pid && (
@@ -748,7 +748,7 @@ export default function Attend() {
                 </div>
                 {onClock && (
                   <div style={{ marginTop: 10 }}>
-                    <span style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, letterSpacing: '0.02em', fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', color: openBreak ? (bt.open && bt.open.overMs > 0 ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)') : 'var(--text, #e8e8f0)' }}>
+                    <span style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, letterSpacing: '0.02em', fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', color: openBreak ? (bt.open && bt.open.overMs > 0 ? 'var(--red, #b0645b)' : 'var(--accent, #c8963e)') : 'var(--text, #e8e8f0)' }}>
                       {openBreak ? fmtBreakLeft(openBreak, tick) : fmtElapsed(tick - new Date(activeOpen.punched_at).getTime())}
                     </span>
                     <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 5 }}>
@@ -764,7 +764,7 @@ export default function Attend() {
                   <div style={{ display: 'flex', gap: 4, padding: 3, background: 'var(--bg, #16171f)', borderRadius: 9 }}>
                     {[{ k: 'regular', l: 'Regular' }, { k: 'overtime', l: 'Overtime' }].map(o => {
                       const on = kind === o.k
-                      const c = o.k === 'overtime' ? '#5b8def' : 'var(--green, #3dba7a)'
+                      const c = o.k === 'overtime' ? '#7f93b8' : 'var(--green, #6f9a7e)'
                       return <button key={o.k} type="button" onClick={() => { setKind(o.k); setConfirm(null); setErr('') }}
                         style={{ flex: 1, padding: '8px', fontSize: 12.5, fontWeight: on ? 700 : 500, border: 'none', borderRadius: 7, cursor: 'pointer', background: on ? 'var(--bg-input, #252731)' : 'transparent', color: on ? c : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', boxShadow: on ? `inset 0 0 0 1px ${c}55` : 'none' }}>{o.l}</button>
                     })}
@@ -772,7 +772,7 @@ export default function Attend() {
                   {/* pick the property, don't type it — see SitePicker */}
                   <SitePicker token={tokenRef.current} value={pid} onChange={setPid} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px' }}>
-                    <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: geo ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }} />
+                    <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: geo ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)' }} />
                     <span style={{ flex: 1, fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
                       {geo ? `Location ±${Math.round(geo.accuracy)}m` : geoBusy ? 'Getting location…' : 'No location'}
                     </span>
@@ -784,9 +784,9 @@ export default function Attend() {
 
             {geoErr && <RedStrip title="Location">{geoErr}</RedStrip>}
             {confirm && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(111,154,126,0.10)', border: '1px solid rgba(111,154,126,0.35)', borderRadius: 10 }}>
                 <span style={{ fontSize: 18 }}>✓</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>{(confirm.kind === 'overtime' ? 'Overtime ' : '')}{confirm.punch_type === 'in' ? 'started' : 'ended'} at {fmtTime(confirm.punched_at)}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green, #6f9a7e)', fontFamily: 'var(--font-mono, monospace)' }}>{(confirm.kind === 'overtime' ? 'Overtime ' : '')}{confirm.punch_type === 'in' ? 'started' : 'ended'} at {fmtTime(confirm.punched_at)}</span>
               </div>
             )}
             {err && <RedStrip title="Couldn’t record">{err}</RedStrip>}
@@ -809,12 +809,12 @@ export default function Attend() {
                     The start and the end were already stored; nothing had ever
                     subtracted them, so "how long was lunch" was a question the
                     system held the answer to and never showed. */}
-                <div style={{ background: 'var(--bg-input, #252731)', border: `1px solid ${bt.overMs > 0 ? 'rgba(224,92,106,0.40)' : 'var(--border, #2e3040)'}`, borderRadius: 12, padding: '11px 13px', display: 'flex', flexDirection: 'column', gap: 9 }}>
+                <div style={{ background: 'var(--bg-input, #252731)', border: `1px solid ${bt.overMs > 0 ? 'rgba(176,100,91,0.40)' : 'var(--border, #2e3040)'}`, borderRadius: 12, padding: '11px 13px', display: 'flex', flexDirection: 'column', gap: 9 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
                     <span style={{ flex: 1, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
                       Breaks · today
                     </span>
-                    <span style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', color: bt.overMs > 0 ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}>
+                    <span style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', color: bt.overMs > 0 ? 'var(--red, #b0645b)' : 'var(--text-dim, #9394a8)' }}>
                       {Math.round(bt.takenMs / 60000)} / {Math.round(bt.allowedMs / 60000) || 60} min
                     </span>
                   </div>
@@ -823,12 +823,12 @@ export default function Attend() {
                   )}
                   {bt.rows.map(r => (
                     <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 11.5, fontFamily: 'var(--font-mono, monospace)' }}>
-                      <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: r.overMs > 0 ? 'var(--red, #e05c6a)' : r.open ? 'var(--accent, #c8963e)' : 'var(--green, #3dba7a)' }} />
+                      <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: r.overMs > 0 ? 'var(--red, #b0645b)' : r.open ? 'var(--accent, #c8963e)' : 'var(--green, #6f9a7e)' }} />
                       <span style={{ width: 52, flexShrink: 0, color: 'var(--text, #e8e8f0)' }}>{r.label}</span>
                       <span style={{ flex: 1, minWidth: 0, color: 'var(--text-muted, #6b6d82)' }}>
                         {fmtTime(new Date(r.startedAt).toISOString())}{r.endedAt ? `–${fmtTime(new Date(r.endedAt).toISOString())}` : ' · running'}
                       </span>
-                      <span style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums', color: r.overMs > 0 ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}>
+                      <span style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums', color: r.overMs > 0 ? 'var(--red, #b0645b)' : 'var(--text-dim, #9394a8)' }}>
                         {fmtMs(r.takenMs)}{r.overMs > 0 ? ` +${fmtMs(r.overMs)}` : ''}
                       </span>
                     </div>
@@ -837,9 +837,9 @@ export default function Attend() {
 
                 {/* Said while it can still be acted on, not filed afterwards. */}
                 {bt.open && bt.open.overMs > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', borderRadius: 10, background: 'rgba(224,92,106,0.12)', border: '1px solid rgba(224,92,106,0.40)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', borderRadius: 10, background: 'rgba(176,100,91,0.12)', border: '1px solid rgba(176,100,91,0.40)' }}>
                     <span style={{ fontSize: 16 }}>⚠</span>
-                    <span style={{ flex: 1, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.45 }}>
+                    <span style={{ flex: 1, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.45 }}>
                       Your {bt.open.label.toLowerCase()} is <b>{fmtMs(bt.open.overMs)}</b> over — the office can see this. End it to stop the clock.
                     </span>
                   </div>
@@ -885,8 +885,8 @@ export default function Attend() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDate(d.date)}</span>
                     <span style={{ display: 'flex', gap: 8 }}>
-                      <span style={{ fontSize: 11, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDuration(d.regularMs)}</span>
-                      {d.otMs > 0 && <span style={{ fontSize: 11, color: '#5b8def', fontFamily: 'var(--font-mono, monospace)' }}>+OT {fmtDuration(d.otMs)}</span>}
+                      <span style={{ fontSize: 11, color: 'var(--green, #6f9a7e)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtDuration(d.regularMs)}</span>
+                      {d.otMs > 0 && <span style={{ fontSize: 11, color: '#7f93b8', fontFamily: 'var(--font-mono, monospace)' }}>+OT {fmtDuration(d.otMs)}</span>}
                     </span>
                   </div>
                   {d.punches.map((h, j) => {
@@ -894,9 +894,9 @@ export default function Attend() {
                     const inn = h.punch_type === 'in'
                     return (
                       <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
-                        <span style={{ width: 6, height: 6, borderRadius: 3, background: inn ? (ot ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-muted, #6b6d82)', flexShrink: 0 }} />
-                        <span style={{ fontSize: 11, fontWeight: 600, color: inn ? (ot ? '#5b8def' : 'var(--green, #3dba7a)') : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', minWidth: 30 }}>{inn ? 'IN' : 'OUT'}</span>
-                        {ot && <span style={{ fontSize: 9, color: '#5b8def', border: '1px solid #5b8def55', borderRadius: 4, padding: '0 4px', fontFamily: 'var(--font-mono, monospace)' }}>OT</span>}
+                        <span style={{ width: 6, height: 6, borderRadius: 3, background: inn ? (ot ? '#7f93b8' : 'var(--green, #6f9a7e)') : 'var(--text-muted, #6b6d82)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 11, fontWeight: 600, color: inn ? (ot ? '#7f93b8' : 'var(--green, #6f9a7e)') : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', minWidth: 30 }}>{inn ? 'IN' : 'OUT'}</span>
+                        {ot && <span style={{ fontSize: 9, color: '#7f93b8', border: '1px solid #7f93b855', borderRadius: 4, padding: '0 4px', fontFamily: 'var(--font-mono, monospace)' }}>OT</span>}
                         <span style={{ flex: 1, fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtTime(h.punched_at)}{h.pid ? ` · ${h.pid}` : ''}</span>
                       </div>
                     )
@@ -935,7 +935,7 @@ export default function Attend() {
                 <div style={{ fontSize: 20, fontWeight: 700 }}>{profile.full_name}</div>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 6, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent, #c8963e)', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.28)', borderRadius: 12, padding: '2px 10px', fontFamily: 'var(--font-mono, monospace)' }}>{profile.trade}</span>
-                  {profile.vendor_code && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.28)', borderRadius: 12, padding: '2px 10px', fontFamily: 'var(--font-mono, monospace)' }}>{profile.vendor_code}</span>}
+                  {profile.vendor_code && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green, #6f9a7e)', background: 'rgba(111,154,126,0.10)', border: '1px solid rgba(111,154,126,0.28)', borderRadius: 12, padding: '2px 10px', fontFamily: 'var(--font-mono, monospace)' }}>{profile.vendor_code}</span>}
                   {profile.pod && <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: '2px 10px', fontFamily: 'var(--font-mono, monospace)' }}>{profile.pod}</span>}
                 </div>
               </div>
@@ -944,14 +944,14 @@ export default function Attend() {
             </div>
             {/* ── edit-access gate ─────────────────────────────────── */}
             {isGranted ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: '11px 14px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 12 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>✎ Editing open · {minsLeft} min left</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: '11px 14px', background: 'rgba(111,154,126,0.10)', border: '1px solid rgba(111,154,126,0.35)', borderRadius: 12 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green, #6f9a7e)', fontFamily: 'var(--font-mono, monospace)' }}>✎ Editing open · {minsLeft} min left</span>
                 <span style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5 }}>Change what you need below, then submit — staff review your changes before they go live.</span>
               </div>
             ) : editReq && editReq.status === 'requested' ? (
               <div style={{ padding: '11px 14px', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.30)', borderRadius: 12, fontSize: 12, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>⏳ Edit access requested — waiting for staff approval.</div>
             ) : editReq && editReq.status === 'submitted' ? (
-              <div style={{ padding: '11px 14px', background: 'rgba(91,141,239,0.10)', border: '1px solid rgba(91,141,239,0.30)', borderRadius: 12, fontSize: 12, color: '#5b8def', fontFamily: 'var(--font-mono, monospace)' }}>✓ Changes submitted — pending staff review.</div>
+              <div style={{ padding: '11px 14px', background: 'rgba(127,147,184,0.10)', border: '1px solid rgba(127,147,184,0.30)', borderRadius: 12, fontSize: 12, color: '#7f93b8', fontFamily: 'var(--font-mono, monospace)' }}>✓ Changes submitted — pending staff review.</div>
             ) : (
               // Closed until asked for. This is an occasional errand, not what
               // the page is for, and as a solid accent slab above the profile it
@@ -959,8 +959,8 @@ export default function Attend() {
               // on top of, and the same hue as the "waiting for approval" strip
               // it turns into.
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
-                {editReq && editReq.status === 'applied' && <span style={{ fontSize: 12, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>✓ Your last update was applied.</span>}
-                {editReq && editReq.status === 'denied' && <span style={{ fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>Your last request was declined{editReq.decision_note ? `: ${editReq.decision_note}` : '.'}</span>}
+                {editReq && editReq.status === 'applied' && <span style={{ fontSize: 12, color: 'var(--green, #6f9a7e)', fontFamily: 'var(--font-mono, monospace)' }}>✓ Your last update was applied.</span>}
+                {editReq && editReq.status === 'denied' && <span style={{ fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)' }}>Your last request was declined{editReq.decision_note ? `: ${editReq.decision_note}` : '.'}</span>}
 
                 {!editOpen ? (
                   <>

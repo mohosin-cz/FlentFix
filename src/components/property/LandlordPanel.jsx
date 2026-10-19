@@ -27,7 +27,7 @@ export default function LandlordPanel({ pid }) {
   if (loading) return <section style={box} aria-busy="true"><div style={title}>property</div><div style={{ height: 14, width: '60%', background: 'var(--border, #2e3040)', borderRadius: 4, marginTop: 12, opacity: 0.6 }} /></section>
   if (error) {
     const notYet = /column|does not exist|schema cache/i.test(error)
-    return <section style={box}><div style={title}>property</div><div style={{ ...note, color: notYet ? note.color : 'var(--red, #e05c6a)' }}>{notYet ? 'Landlord and map details arrive once the Holy Grail sync is switched on.' : `Couldn't load — ${error}`}</div></section>
+    return <section style={box}><div style={title}>property</div><div style={{ ...note, color: notYet ? note.color : 'var(--red, #b0645b)' }}>{notYet ? 'Landlord and map details arrive once the Holy Grail sync is switched on.' : `Couldn't load — ${error}`}</div></section>
   }
   if (!row?.landlord_name && !row?.units && !row?.maps_url) {
     return <section style={box}><div style={title}>property</div><div style={note}>No landlord, units or map for PID {pid} yet. If it's in the Holy Grail sheet's Properties tab, it arrives at the next sync (9am or 6pm); if not, add it there.</div></section>

@@ -164,12 +164,12 @@ const s = {
     transition: 'border-color 0.15s',
   },
   errorBox: {
-    background: 'rgba(224,92,106,0.10)',
-    border: '1px solid rgba(224,92,106,0.3)',
+    background: 'rgba(176,100,91,0.10)',
+    border: '1px solid rgba(176,100,91,0.3)',
     borderRadius: 6,
     padding: '10px 14px',
     fontSize: 13,
-    color: 'var(--red, #e05c6a)',
+    color: 'var(--red, #b0645b)',
     fontFamily: 'var(--font-mono, monospace)',
   },
   btn: {

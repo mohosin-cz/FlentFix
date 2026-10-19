@@ -44,9 +44,9 @@ const TILES = [
         <path d="M9 24l3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
       </svg>
     ),
-    accent: '#3dba7a',
-    bg: 'rgba(61,186,122,0.06)',
-    border: 'rgba(61,186,122,0.22)',
+    accent: '#6f9a7e',
+    bg: 'rgba(111,154,126,0.06)',
+    border: 'rgba(111,154,126,0.22)',
   },
   {
     label: 'Rate Card',
@@ -58,9 +58,9 @@ const TILES = [
         <path d="M9 10h14M9 15h14M9 20h9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
       </svg>
     ),
-    accent: '#3dba7a',
-    bg: 'rgba(61,186,122,0.06)',
-    border: 'rgba(61,186,122,0.22)',
+    accent: '#6f9a7e',
+    bg: 'rgba(111,154,126,0.06)',
+    border: 'rgba(111,154,126,0.22)',
   },
   {
     label: 'Purchase History',

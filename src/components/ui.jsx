@@ -72,8 +72,8 @@ export function StepBar({ steps, current }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <div style={{
                   width: 20, height: 20, borderRadius: 4,
-                  background: done ? 'var(--green, #3dba7a)' : active ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)',
-                  border: `1.5px solid ${done ? 'var(--green, #3dba7a)' : active ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`,
+                  background: done ? 'var(--green, #6f9a7e)' : active ? 'var(--accent, #c8963e)' : 'var(--bg-input, #252731)',
+                  border: `1.5px solid ${done ? 'var(--green, #6f9a7e)' : active ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0, transition: 'all 0.2s',
                 }}>
@@ -93,7 +93,7 @@ export function StepBar({ steps, current }) {
             {i < steps.length - 1 && (
               <div style={{
                 width: 20, height: 1,
-                background: done ? 'var(--green, #3dba7a)' : 'var(--border, #2e3040)',
+                background: done ? 'var(--green, #6f9a7e)' : 'var(--border, #2e3040)',
                 margin: '0 4px', flexShrink: 0, transition: 'background 0.2s',
               }} />
             )}
@@ -123,7 +123,7 @@ export function Field({ label, optional, error, hint, children }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <label style={{
         fontSize: 11, fontWeight: 600,
-        color: error ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)',
+        color: error ? 'var(--red, #b0645b)' : 'var(--text-dim, #9394a8)',
         textTransform: 'uppercase', letterSpacing: '0.08em',
         fontFamily: 'var(--font-mono, monospace)',
       }}>
@@ -132,7 +132,7 @@ export function Field({ label, optional, error, hint, children }) {
       </label>
       {children}
       {error && (
-        <span style={{ fontSize: 11, color: 'var(--red, #e05c6a)', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-mono, monospace)' }}>
+        <span style={{ fontSize: 11, color: 'var(--red, #b0645b)', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-mono, monospace)' }}>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/><path d="M6 4v3M6 8.5v.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
           {error}
         </span>
@@ -158,11 +158,11 @@ export function Input({ value, onChange, placeholder, type = 'text', error, ...r
         fontSize: 16,
         color: 'var(--text, #e8e8f0)',
         background: 'var(--bg-input, #252731)',
-        border: `1px solid ${error ? 'var(--red, #e05c6a)' : 'var(--border, #2e3040)'}`,
+        border: `1px solid ${error ? 'var(--red, #b0645b)' : 'var(--border, #2e3040)'}`,
         borderRadius: 6, outline: 'none',
         minHeight: 44,
         transition: 'border-color 0.15s',
-        boxShadow: error ? '0 0 0 2px rgba(224,92,106,0.15)' : 'none',
+        boxShadow: error ? '0 0 0 2px rgba(176,100,91,0.15)' : 'none',
         fontFamily: 'inherit',
         WebkitTapHighlightColor: 'transparent',
       }}
@@ -280,7 +280,7 @@ export function CardToggle({ options, value, onChange }) {
 
 // ── Health slider ─────────────────────────────────────────────────────────────
 export function HealthSlider({ value, onChange }) {
-  const color   = value === null ? 'var(--text-muted, #6b6d82)' : value >= 7 ? 'var(--green, #3dba7a)' : value >= 4 ? 'var(--amber, #c8963e)' : 'var(--red, #e05c6a)'
+  const color   = value === null ? 'var(--text-muted, #6b6d82)' : value >= 7 ? 'var(--green, #6f9a7e)' : value >= 4 ? 'var(--amber, #c8963e)' : 'var(--red, #b0645b)'
   const touched = value !== null && value !== undefined
 
   return (
@@ -340,10 +340,10 @@ export function MediaButton({ attached, onToggle, label = 'Attach Photos / Video
       style={{
         display: 'flex', alignItems: 'center', gap: 12,
         width: '100%', padding: '10px 14px', textAlign: 'left',
-        border: `1px dashed ${attached ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)'}`,
+        border: `1px dashed ${attached ? 'var(--green, #6f9a7e)' : 'var(--border-dash, #3a3d52)'}`,
         borderRadius: 6, cursor: 'pointer',
-        background: attached ? 'rgba(61,186,122,0.08)' : 'var(--bg-input, #252731)',
-        color: attached ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)',
+        background: attached ? 'rgba(111,154,126,0.08)' : 'var(--bg-input, #252731)',
+        color: attached ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)',
         fontSize: 13, fontWeight: 500,
         transition: 'all 0.15s',
         fontFamily: 'inherit',
@@ -361,10 +361,10 @@ export function MediaButton({ attached, onToggle, label = 'Attach Photos / Video
 // ── Info banner ───────────────────────────────────────────────────────────────
 export function Banner({ type = 'info', children }) {
   const c = {
-    info:    { bg: 'rgba(61,186,122,0.08)',  color: 'var(--green, #3dba7a)',  border: 'rgba(61,186,122,0.25)',  icon: 'ℹ' },
+    info:    { bg: 'rgba(111,154,126,0.08)',  color: 'var(--green, #6f9a7e)',  border: 'rgba(111,154,126,0.25)',  icon: 'ℹ' },
     warning: { bg: 'rgba(200,150,62,0.08)',  color: 'var(--amber, #c8963e)', border: 'rgba(200,150,62,0.25)',  icon: '⚠' },
-    danger:  { bg: 'rgba(224,92,106,0.08)', color: 'var(--red, #e05c6a)',   border: 'rgba(224,92,106,0.25)', icon: '!' },
-    success: { bg: 'rgba(61,186,122,0.08)',  color: 'var(--green, #3dba7a)',  border: 'rgba(61,186,122,0.25)',  icon: '✓' },
+    danger:  { bg: 'rgba(176,100,91,0.08)', color: 'var(--red, #b0645b)',   border: 'rgba(176,100,91,0.25)', icon: '!' },
+    success: { bg: 'rgba(111,154,126,0.08)',  color: 'var(--green, #6f9a7e)',  border: 'rgba(111,154,126,0.25)',  icon: '✓' },
   }[type]
   return (
     <div style={{
@@ -383,7 +383,7 @@ export function Banner({ type = 'info', children }) {
 // ── Expandable accordion card ─────────────────────────────────────────────────
 export function AccordionCard({ title, badge, status, isOpen, onToggle, children, headerAction }) {
   const borderColor = status === 'done'
-    ? 'var(--green, #3dba7a)'
+    ? 'var(--green, #6f9a7e)'
     : status === 'na'
       ? 'rgba(107,109,130,0.45)'
       : isOpen
@@ -412,7 +412,7 @@ export function AccordionCard({ title, badge, status, isOpen, onToggle, children
         <div style={{
           width: 8, height: 8, borderRadius: 2, flexShrink: 0,
           background: status === 'done'
-            ? 'var(--green, #3dba7a)'
+            ? 'var(--green, #6f9a7e)'
             : status === 'na'
               ? 'var(--text-muted, #6b6d82)'
               : status === 'partial'
@@ -426,7 +426,7 @@ export function AccordionCard({ title, badge, status, isOpen, onToggle, children
         </div>
         {status === 'done' && (
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <rect width="16" height="16" rx="4" fill="var(--green, #3dba7a)"/>
+            <rect width="16" height="16" rx="4" fill="var(--green, #6f9a7e)"/>
             <path d="M4.5 8l3 3 4-4.5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         )}
@@ -584,7 +584,7 @@ export function TabBar({ tabs, active, onChange, counts, variant = 'fill' }) {
           {counts && (
             <span style={{
               fontSize: 9, fontWeight: 600,
-              color: counts[i] > 0 ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)',
+              color: counts[i] > 0 ? 'var(--green, #6f9a7e)' : 'var(--border-dash, #3a3d52)',
               fontFamily: 'var(--font-mono, monospace)',
             }}>
               {counts[i]}/{counts[`${i}_total`] ?? '?'}

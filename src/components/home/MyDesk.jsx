@@ -15,9 +15,9 @@ const MONO = "var(--font-nav, 'Urbanist', 'Poppins', sans-serif)"
 const C = {
   panel: 'var(--bg-panel, #1e2028)', input: 'var(--bg-input, #252731)', bg: 'var(--bg, #16171f)', border: 'var(--border, #2e3040)',
   text: 'var(--text, #e8e8f0)', dim: 'var(--text-dim, #9394a8)', muted: 'var(--text-muted, #6b6d82)',
-  accent: 'var(--accent, #c8963e)', green: 'var(--green, #3dba7a)', red: 'var(--red, #e05c6a)',
+  accent: 'var(--accent, #c8963e)', green: 'var(--green, #6f9a7e)', red: 'var(--red, #b0645b)',
 }
-const SOFT = { red: 'rgba(224,92,106,0.12)', amber: 'rgba(200,150,62,0.12)', green: 'rgba(61,186,122,0.12)' }
+const SOFT = { red: 'rgba(176,100,91,0.12)', amber: 'rgba(200,150,62,0.12)', green: 'rgba(111,154,126,0.12)' }
 const URG = { overdue: 0, today: 1, soon: 2, waiting: 3, done: 4 }
 
 const CSS = `
@@ -167,7 +167,7 @@ export default function MyDesk({ home, desk, viewing, onPickView, onChanged }) {
                 {moves.map(r => (
                   <div key={r.pid + r.stage_code} className="dk-row">
                     <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-                      <T1>{r.is_prospect ? <span style={{ fontFamily: MONO, fontSize: 11, color: '#e07ba8', marginRight: 6 }}>Explore</span> : <Pid pid={r.pid} />}{r.is_prospect ? r.stage_label.replace(/^Explore · /, '') : (r.next_action_label || r.stage_label)}</T1>
+                      <T1>{r.is_prospect ? <span style={{ fontFamily: MONO, fontSize: 11, color: '#b0645b', marginRight: 6 }}>Explore</span> : <Pid pid={r.pid} />}{r.is_prospect ? r.stage_label.replace(/^Explore · /, '') : (r.next_action_label || r.stage_label)}</T1>
                       <T2>{r.is_prospect ? r.property_name : `${clean(r.property_name, r.pid) || r.pid} · ${r.stage_label}`}</T2>
                     </div>
                     <Chip tone={r.urgency === 'overdue' ? 'red' : r.urgency === 'today' ? 'amber' : 'grey'}>
@@ -253,9 +253,9 @@ function ExploratoryVisits({ list, navigate, onChanged, viewing }) {
         {list.map(x => {
           const live = x.days === 0
           return (
-            <div key={x.id} style={{ padding: '11px 14px', display: 'grid', gap: 8, background: x.overdue ? SOFT.red : live ? 'rgba(224,123,168,0.08)' : undefined, borderLeft: live ? '3px solid #e07ba8' : undefined }}>
+            <div key={x.id} style={{ padding: '11px 14px', display: 'grid', gap: 8, background: x.overdue ? SOFT.red : live ? 'rgba(176,100,91,0.08)' : undefined, borderLeft: live ? '3px solid #b0645b' : undefined }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: x.overdue ? C.red : '#e07ba8', }}>
+                <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: x.overdue ? C.red : '#b0645b', }}>
                   {x.overdue ? `● Visit was ${dayLbl(x.date)} — findings due` : `${live ? '● ' : ''}Explore · ${x.days === 0 ? 'today' : x.days === 1 ? 'tomorrow' : dayLbl(x.date)}${x.time ? `, ${t(x.time)}` : ''}`}
                 </span>
               </div>
@@ -263,7 +263,7 @@ function ExploratoryVisits({ list, navigate, onChanged, viewing }) {
                 <T1>{x.name}{x.config ? <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }}> · {x.config}</span> : ''}</T1>
                 <T2>{(x.address || '').split('\n')[0]}{x.owner_name ? ` · landlord ${x.owner_name}` : ''}</T2>
               </button>
-              {x.notes && <div style={{ borderLeft: '3px solid #e07ba8', background: 'rgba(224,123,168,0.10)', padding: '6px 10px', borderRadius: '0 8px 8px 0', fontSize: 12.5 }}><span style={{ fontFamily: MONO, fontSize: 10, color: '#e07ba8', display: 'block' }}>Supply’s ask</span>{x.notes}</div>}
+              {x.notes && <div style={{ borderLeft: '3px solid #b0645b', background: 'rgba(176,100,91,0.10)', padding: '6px 10px', borderRadius: '0 8px 8px 0', fontSize: 12.5 }}><span style={{ fontFamily: MONO, fontSize: 10, color: '#b0645b', display: 'block' }}>Supply’s ask</span>{x.notes}</div>}
               {asking === x.id ? (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   <input value={why[x.id] || ''} onChange={e => setWhy(w => ({ ...w, [x.id]: e.target.value }))} placeholder="Why can’t you go? (goes to the admin)" autoFocus
@@ -303,7 +303,7 @@ function WaitingOnSupply({ rows, navigate }) {
         {rows.sort((a, b) => (b.age_days || 0) - (a.age_days || 0)).map(r => (
           <div key={r.pid} className="dk-row">
             <button type="button" onClick={() => navigate(`/explore/${r.request_id}`)} style={{ flex: '1 1 200px', minWidth: 0, background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: C.text }}>
-              <T1><span style={{ fontFamily: MONO, fontSize: 11, color: '#e07ba8', marginRight: 6 }}>Explore</span>{r.property_name}</T1>
+              <T1><span style={{ fontFamily: MONO, fontSize: 11, color: '#b0645b', marginRight: 6 }}>Explore</span>{r.property_name}</T1>
               <T2>{name1(r.owner_email)} visited · supply hasn’t decided</T2>
             </button>
             <Chip tone={r.urgency === 'overdue' ? 'red' : 'grey'}>{r.age_days || 0}d</Chip>
@@ -317,7 +317,7 @@ function WaitingOnSupply({ rows, navigate }) {
 
 function WeekAhead({ week, navigate }) {
   const days = Array.from({ length: 7 }, (_, i) => isoDay(i))
-  const tone = { setup: [C.accent, SOFT.amber, 'setup'], handover: [C.green, SOFT.green, 'handover'], close_by: [C.dim, C.input, 'close by'], exploratory: ['#e07ba8', 'rgba(224,123,168,0.13)', 'exploratory'] }
+  const tone = { setup: [C.accent, SOFT.amber, 'setup'], handover: [C.green, SOFT.green, 'handover'], close_by: [C.dim, C.input, 'close by'], exploratory: ['#b0645b', 'rgba(176,100,91,0.13)', 'exploratory'] }
   return (
     <Panel id="dk-week" title="Week ahead" meta="setups · handovers · work-order close-by dates"
       action={<button type="button" onClick={() => navigate('/calendar')} style={{ background: 'none', border: 'none', padding: 0, color: C.accent, fontFamily: MONO, fontSize: 11.5, cursor: 'pointer' }}>Full calendar ›</button>}>
@@ -394,7 +394,7 @@ function Today({ today, navigate }) {
   )
 }
 
-const FEED_ICON = { explore_raised: ['+', '#e07ba8', 'rgba(224,123,168,0.13)'], explore_logged: ['◉', '#e07ba8', 'rgba(224,123,168,0.13)'], explore_decided: ['✓', C.green, SOFT.green], approved: ['✓', C.green, SOFT.green], queried: ['?', C.red, SOFT.red], viewed: ['◉', C.dim, C.input], vendor_closed: ['◆', C.accent, SOFT.amber], payment: ['₹', C.dim, C.input], journey: ['·', C.dim, C.input] }
+const FEED_ICON = { explore_raised: ['+', '#b0645b', 'rgba(176,100,91,0.13)'], explore_logged: ['◉', '#b0645b', 'rgba(176,100,91,0.13)'], explore_decided: ['✓', C.green, SOFT.green], approved: ['✓', C.green, SOFT.green], queried: ['?', C.red, SOFT.red], viewed: ['◉', C.dim, C.input], vendor_closed: ['◆', C.accent, SOFT.amber], payment: ['₹', C.dim, C.input], journey: ['·', C.dim, C.input] }
 function feedText(f) {
   switch (f.kind) {
     case 'approved': return [f.whole ? 'Landlord approved the estimate' : `Landlord approved ${f.n} line${f.n === 1 ? '' : 's'}`, f.who ? `by ${f.who}` : '']
@@ -419,7 +419,7 @@ function SinceFeed({ feed, since, navigate }) {
               <button key={i} type="button" className="dk-row" onClick={() => navigate(String(f.pid).startsWith('explore:') ? `/explore/${f.pid.slice(8)}` : `/properties/${f.pid}`)}
                 style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', color: C.text, alignItems: 'flex-start' }}>
                 <span style={{ width: 24, height: 24, borderRadius: 7, display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 12, fontWeight: 700, color: ic[1], background: ic[2], flex: 'none' }}>{ic[0]}</span>
-                <span style={{ flex: '1 1 180px', minWidth: 0 }}><T1>{t}</T1><T2>{String(f.pid).startsWith('explore:') ? <span style={{ color: '#e07ba8', marginRight: 6 }}>Explore</span> : <><Pid pid={f.pid} />{clean(f.name, f.pid)}</>}{sub ? `${String(f.pid).startsWith('explore:') ? '' : ' · '}${sub}` : ''}</T2></span>
+                <span style={{ flex: '1 1 180px', minWidth: 0 }}><T1>{t}</T1><T2>{String(f.pid).startsWith('explore:') ? <span style={{ color: '#b0645b', marginRight: 6 }}>Explore</span> : <><Pid pid={f.pid} />{clean(f.name, f.pid)}</>}{sub ? `${String(f.pid).startsWith('explore:') ? '' : ' · '}${sub}` : ''}</T2></span>
                 <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>{ago(f.at)}</span>
               </button>
             )

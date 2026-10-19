@@ -63,7 +63,7 @@ export default function MoneyTrail({ pid }) {
       )}
 
       {!loading && error && (
-        <div style={{ padding: '11px 13px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', borderRadius: 9, fontFamily: MONO, fontSize: 11.5, color: 'var(--red, #e05c6a)' }}>
+        <div style={{ padding: '11px 13px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.32)', borderRadius: 9, fontFamily: MONO, fontSize: 11.5, color: 'var(--red, #b0645b)' }}>
           ⚠ {error}
           <button type="button" onClick={load} style={{ marginLeft: 10, fontSize: 11, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 5, padding: '3px 9px', cursor: 'pointer', fontFamily: MONO }}>Retry</button>
         </div>
@@ -80,7 +80,7 @@ export default function MoneyTrail({ pid }) {
           {/* Headline: how much of the spend can be traced at all. */}
           <div style={{ ...rowStyle(false), background: 'var(--bg-input, #252731)' }}>
             <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, flex: 1 }}>
-              {inr(grand)} spent · <span style={{ color: linkedTotal > 0 ? 'var(--green, #3dba7a)' : 'var(--red, #e05c6a)' }}>
+              {inr(grand)} spent · <span style={{ color: linkedTotal > 0 ? 'var(--green, #6f9a7e)' : 'var(--red, #b0645b)' }}>
                 {grand > 0 ? Math.round((linkedTotal / grand) * 100) : 0}% traceable to a work order
               </span>
             </span>
@@ -115,9 +115,9 @@ export default function MoneyTrail({ pid }) {
           ))}
 
           {unlinkedN > 0 && (
-            <div style={{ ...rowStyle(true), flexDirection: 'column', gap: 8, background: 'rgba(224,92,106,0.05)' }}>
+            <div style={{ ...rowStyle(true), flexDirection: 'column', gap: 8, background: 'rgba(176,100,91,0.05)' }}>
               <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', width: '100%', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, color: 'var(--red, #e05c6a)', fontWeight: 600, flex: 1, minWidth: 160 }}>
+                <span style={{ fontSize: 13, color: 'var(--red, #b0645b)', fontWeight: 600, flex: 1, minWidth: 160 }}>
                   Unlinked · {unlinkedN} payment{unlinkedN > 1 ? 's' : ''}
                 </span>
                 <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: MONO }}>{inr(unlinkedTotal)}</span>

@@ -77,8 +77,8 @@ function VendorAssetCard({ vendor, assets, open, onToggle, onOpenAsset }) {
         <Tile label="Items" value={assets.length} />
         <Tile label="Value" value={assetMoney(value) || '₹0'} />
         {flagged > 0
-          ? <Tile label="Lost / damaged" value={flagged} color="var(--red, #e05c6a)" />
-          : <Tile label="Assigned" value={byStatus.assigned || 0} color="var(--green, #3dba7a)" />}
+          ? <Tile label="Lost / damaged" value={flagged} color="var(--red, #b0645b)" />
+          : <Tile label="Assigned" value={byStatus.assigned || 0} color="var(--green, #6f9a7e)" />}
       </div>
 
       {open && (
@@ -183,8 +183,8 @@ export default function AssetsTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {err && (
-        <div style={{ padding: '12px 14px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontFamily: MONO }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>⚠ Could not load assets</div>
+        <div style={{ padding: '12px 14px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8, fontFamily: MONO }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #b0645b)' }}>⚠ Could not load assets</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', wordBreak: 'break-word', marginTop: 3 }}>{err}</div>
           {/relation|does not exist|schema cache|Could not find the table/i.test(err) && (
             <div style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', marginTop: 6 }}>
@@ -216,8 +216,8 @@ export default function AssetsTab() {
       {/* summary */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <Tile label="Assets" value={assets == null ? '…' : stats.total} sub={`${stats.stores} in stores`} />
-        <Tile label="With vendors" value={assets == null ? '…' : stats.assigned} color="var(--green, #3dba7a)" />
-        <Tile label="Lost / damaged" value={assets == null ? '…' : stats.trouble} color={stats.trouble ? 'var(--red, #e05c6a)' : undefined} />
+        <Tile label="With vendors" value={assets == null ? '…' : stats.assigned} color="var(--green, #6f9a7e)" />
+        <Tile label="Lost / damaged" value={assets == null ? '…' : stats.trouble} color={stats.trouble ? 'var(--red, #b0645b)' : undefined} />
         <Tile label="Value held" value={assets == null ? '…' : money(stats.value)} sub="excludes returned" color="var(--accent, #c8963e)" />
       </div>
 

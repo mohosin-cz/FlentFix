@@ -34,7 +34,7 @@ export default function ShareSheet({ title, subtitle, url, onClose }) {
           {qr ? (
             <img src={qr} alt="QR code" width={220} height={220} style={{ borderRadius: 10, background: '#fff', padding: 8 }} />
           ) : qrErr ? (
-            <div style={{ width: 220, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 16, border: '1px solid rgba(224,92,106,0.4)', borderRadius: 10, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)' }}>⚠ {qrErr}</div>
+            <div style={{ width: 220, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 16, border: '1px solid rgba(176,100,91,0.4)', borderRadius: 10, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)' }}>⚠ {qrErr}</div>
           ) : (
             <div style={{ width: 220, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>generating…</div>
           )}
@@ -42,7 +42,7 @@ export default function ShareSheet({ title, subtitle, url, onClose }) {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
           <span style={{ flex: 1, fontSize: 12, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{url}</span>
-          <button type="button" onClick={copy} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: copied ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)', background: 'none', border: `1px solid ${copied ? 'var(--green, #3dba7a)' : 'var(--border, #2e3040)'}`, borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{copied ? 'copied ✓' : 'copy'}</button>
+          <button type="button" onClick={copy} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: copied ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)', background: 'none', border: `1px solid ${copied ? 'var(--green, #6f9a7e)' : 'var(--border, #2e3040)'}`, borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>{copied ? 'copied ✓' : 'copy'}</button>
         </div>
 
         <button type="button" onClick={onClose} style={{ width: '100%', padding: '12px', background: 'transparent', color: 'var(--text-muted, #6b6d82)', border: '1px solid var(--border-dash, #3a3d52)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-mono, monospace)' }}>close</button>

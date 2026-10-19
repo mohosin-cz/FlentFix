@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase'
 // Shows nothing when the property did not come from an exploratory.
 
 const MONO = 'var(--font-mono, monospace)'
-const RATING = { fix: ['Needs work', 'var(--accent, #c8963e)'], poor: ['Poor', 'var(--red, #e05c6a)'] }
+const RATING = { fix: ['Needs work', 'var(--accent, #c8963e)'], poor: ['Poor', 'var(--red, #b0645b)'] }
 const VERDICT = { go: 'Accept', no_go: 'Reject', unsure: 'Under review' }
 const first = (e) => { const s = (e || '').split('@')[0]; return s ? s[0].toUpperCase() + s.slice(1) : '' }
 
@@ -30,15 +30,15 @@ export default function ExploratoryHeadStart({ pid, compact = false }) {
   if (!log && !stageText && !r.notes) return null
 
   return (
-    <section style={{ border: '1px solid rgba(224,123,168,0.45)', background: 'rgba(224,123,168,0.07)', borderRadius: 12, padding: 14, display: 'grid', gap: 8, marginBottom: 20 }}>
+    <section style={{ border: '1px solid rgba(176,100,91,0.45)', background: 'rgba(176,100,91,0.07)', borderRadius: 12, padding: 14, display: 'grid', gap: 8, marginBottom: 20 }}>
       <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
         style={{ display: 'flex', alignItems: 'baseline', gap: 8, background: 'none', border: 0, padding: 0, color: 'inherit', cursor: 'pointer', textAlign: 'left', flexWrap: 'wrap' }}>
-        <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.08em', color: '#e07ba8', fontWeight: 700 }}>FROM THE EXPLORATORY VISIT</span>
+        <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.08em', color: '#b0645b', fontWeight: 700 }}>FROM THE EXPLORATORY VISIT</span>
         <span style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--text-muted, #6b6d82)' }}>
           {by ? `${first(by)}` : ''}{r.visit_date ? ` · ${new Date(r.visit_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}
           {log?.verdict ? ` · ${VERDICT[log.verdict]}` : sv?.outcome ? ` · ${sv.outcome}` : ''}{log?.capex_band ? ` · capex ${log.capex_band}` : sv?.capex ? ` · capex ₹${Math.round(sv.capex).toLocaleString('en-IN')}` : ''}
         </span>
-        <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 11, color: '#e07ba8' }}>{open ? 'hide' : `${flagged.length ? `${flagged.length} to confirm` : 'show'}`}</span>
+        <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 11, color: '#b0645b' }}>{open ? 'hide' : `${flagged.length ? `${flagged.length} to confirm` : 'show'}`}</span>
       </button>
       {open && <>
         {r.notes && <div style={{ fontSize: 12.5, color: 'var(--text-dim, #9394a8)' }}><b style={{ color: 'var(--text, #e8e8f0)' }}>Supply asked:</b> {r.notes}</div>}

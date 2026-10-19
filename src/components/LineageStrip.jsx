@@ -30,9 +30,9 @@ const STEPS = [
 ]
 
 const STATUS_TONE = {
-  approved: 'var(--green, #3dba7a)', verified: 'var(--green, #3dba7a)', attended: 'var(--green, #3dba7a)',
-  paid: 'var(--green, #3dba7a)', sent: 'var(--green, #3dba7a)',
-  disputed: 'var(--red, #e05c6a)', overdue: 'var(--red, #e05c6a)',
+  approved: 'var(--green, #6f9a7e)', verified: 'var(--green, #6f9a7e)', attended: 'var(--green, #6f9a7e)',
+  paid: 'var(--green, #6f9a7e)', sent: 'var(--green, #6f9a7e)',
+  disputed: 'var(--red, #b0645b)', overdue: 'var(--red, #b0645b)',
   vendor_closed: 'var(--accent, #c8963e)', pending: 'var(--text-muted, #6b6d82)', draft: 'var(--text-muted, #6b6d82)',
   removed: 'var(--text-muted, #6b6d82)', excluded: 'var(--text-muted, #6b6d82)',
 }
@@ -84,7 +84,7 @@ function Slot({ step, rows, onGo, palette }) {
     tone = 'node'; border = `1px solid ${isRoot ? palette.accent : palette.border}`; bg = isRoot ? palette.accentFaint : palette.panel; text = c
     title = head.label
   } else if (missing?.is_gap) {
-    tone = 'gap'; border = '1px dashed var(--red, #e05c6a)'; bg = 'rgba(224,92,106,0.08)'; text = 'var(--red, #e05c6a)'
+    tone = 'gap'; border = '1px dashed var(--red, #b0645b)'; bg = 'rgba(176,100,91,0.08)'; text = 'var(--red, #b0645b)'
     title = missing.reason
   } else {
     tone = 'notyet'; border = `1px dashed ${palette.border}`; bg = 'transparent'; text = palette.muted
@@ -143,7 +143,7 @@ function Slot({ step, rows, onGo, palette }) {
             </button>
           ))}
           {tone !== 'node' && (
-            <div style={{ padding: '6px 9px', borderRadius: 7, border: `1px solid ${palette.border}`, background: palette.panel, color: tone === 'gap' ? 'var(--red, #e05c6a)' : palette.muted, fontFamily: MONO, fontSize: 10.5, lineHeight: 1.45 }}>
+            <div style={{ padding: '6px 9px', borderRadius: 7, border: `1px solid ${palette.border}`, background: palette.panel, color: tone === 'gap' ? 'var(--red, #b0645b)' : palette.muted, fontFamily: MONO, fontSize: 10.5, lineHeight: 1.45 }}>
               {step.long}: {title}
             </div>
           )}
@@ -201,7 +201,7 @@ export function LineageStrip({ kind, id, token, light = false, onGo, style }) {
   }
   if (error) {
     return (
-      <div className="lineage-strip" style={{ padding: '9px 12px', borderRadius: 9, border: '1px solid rgba(224,92,106,0.32)', background: 'rgba(224,92,106,0.10)', fontFamily: MONO, fontSize: 11, color: 'var(--red, #e05c6a)', ...style }}>
+      <div className="lineage-strip" style={{ padding: '9px 12px', borderRadius: 9, border: '1px solid rgba(176,100,91,0.32)', background: 'rgba(176,100,91,0.10)', fontFamily: MONO, fontSize: 11, color: 'var(--red, #b0645b)', ...style }}>
         ⚠ Lineage failed: {error}
         <button type="button" onClick={reload} style={{ marginLeft: 10, fontSize: 10.5, color: palette.accent, background: 'none', border: `1px solid ${palette.border}`, borderRadius: 5, padding: '2px 8px', cursor: 'pointer', fontFamily: MONO }}>Retry</button>
       </div>
@@ -233,7 +233,7 @@ export function LineageStrip({ kind, id, token, light = false, onGo, style }) {
         ))}
       </div>
       {gaps > 0 && (
-        <div style={{ fontFamily: MONO, fontSize: 10.5, color: 'var(--red, #e05c6a)' }}>
+        <div style={{ fontFamily: MONO, fontSize: 10.5, color: 'var(--red, #b0645b)' }}>
           {gaps} broken link{gaps > 1 ? 's' : ''} in this chain — tap the red slot to see why.
         </div>
       )}

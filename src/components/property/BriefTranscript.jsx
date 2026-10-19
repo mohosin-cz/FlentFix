@@ -52,7 +52,7 @@ function AreaBlock({ area, answers }) {
     <div style={{ border: '1px solid var(--border, #2e3040)', borderRadius: 11, overflow: 'hidden', background: 'var(--bg-panel, #1e2028)' }}>
       <button type="button" onClick={() => setOpen(o => !o)}
         style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '11px 13px', background: filled ? 'var(--bg-input, #252731)' : 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer', color: 'inherit', font: 'inherit' }}>
-        <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: filled ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)' }} />
+        <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: filled ? 'var(--green, #6f9a7e)' : 'var(--border-dash, #3a3d52)' }} />
         <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: filled ? 700 : 400, color: filled ? 'var(--text, #e8e8f0)' : 'var(--text-muted, #6b6d82)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {area}
         </span>

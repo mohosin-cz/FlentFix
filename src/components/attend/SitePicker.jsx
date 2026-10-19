@@ -59,8 +59,8 @@ export default function SitePicker({ token, value, onChange }) {
   const big = (on) => ({
     display: 'flex', alignItems: 'center', gap: 12, width: '100%', minHeight: 56, padding: '10px 14px', textAlign: 'left',
     borderRadius: 11, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
-    border: `1px solid ${on ? 'var(--green, #3dba7a)' : 'var(--border, #2e3040)'}`,
-    background: on ? 'rgba(61,186,122,0.12)' : 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'inherit',
+    border: `1px solid ${on ? 'var(--green, #6f9a7e)' : 'var(--border, #2e3040)'}`,
+    background: on ? 'rgba(111,154,126,0.12)' : 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'inherit',
   })
   const tag = (txt, tone) => <span style={{ marginInlineStart: 'auto', fontSize: 11, fontWeight: 700, fontFamily: MONO, color: tone || 'var(--text-muted, #6b6d82)', whiteSpace: 'nowrap' }}>{txt}</span>
   const pidChip = (pid) => <span style={{ fontSize: 12, fontWeight: 800, fontFamily: MONO, color: 'var(--accent, #c8963e)', minWidth: 36, flexShrink: 0 }}>{pid}</span>
@@ -73,7 +73,7 @@ export default function SitePicker({ token, value, onChange }) {
         <div style={big(true)}>
           {pidChip(chosen.pid)}
           <span style={{ fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chosen.name || chosen.pid}</span>
-          {tag('✓', 'var(--green, #3dba7a)')}
+          {tag('✓', 'var(--green, #6f9a7e)')}
         </div>
         <button type="button" onClick={clear} style={linkBtn}>Change property</button>
       </div>
@@ -98,7 +98,7 @@ export default function SitePicker({ token, value, onChange }) {
             <button key={'w' + s.pid} type="button" onClick={() => pick(s)} style={big(false)}>
               {pidChip(s.pid)}
               <span style={{ fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-              {tag(s.when_label, s.when_label === 'today' ? 'var(--green, #3dba7a)' : s.when_label === 'tomorrow' ? 'var(--accent, #c8963e)' : undefined)}
+              {tag(s.when_label, s.when_label === 'today' ? 'var(--green, #6f9a7e)' : s.when_label === 'tomorrow' ? 'var(--accent, #c8963e)' : undefined)}
             </button>
           ))}
           {recent.length > 0 && <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 4 }}>Been here recently</div>}

@@ -68,8 +68,8 @@ export default function AssetRequestsPanel({ vendors, onChanged }) {
       </div>
 
       {err && (
-        <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontFamily: MONO }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>⚠ Could not load requests</div>
+        <div style={{ padding: '10px 12px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8, fontFamily: MONO }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #b0645b)' }}>⚠ Could not load requests</div>
           <div style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', marginTop: 3, wordBreak: 'break-word' }}>{err}</div>
           {/relation|does not exist|schema cache/i.test(err) && (
             <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginTop: 5 }}>Run supabase/migrations/vendor_asset_requests.sql.</div>
@@ -102,7 +102,7 @@ export default function AssetRequestsPanel({ vendors, onChanged }) {
                 </div>
               </div>
               {r.status === 'denied' && (
-                <span style={{ fontSize: 10.5, fontWeight: 700, fontFamily: MONO, flexShrink: 0, color: 'var(--red, #e05c6a)' }}>Denied</span>
+                <span style={{ fontSize: 10.5, fontWeight: 700, fontFamily: MONO, flexShrink: 0, color: 'var(--red, #b0645b)' }}>Denied</span>
               )}
             </div>
 
@@ -118,7 +118,7 @@ export default function AssetRequestsPanel({ vendors, onChanged }) {
                   <button type="button" onClick={() => { setDenying(null); setReason('') }} className="tct tct-raised"
                     style={{ minHeight: 40, padding: '0 16px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
                   <button type="button" onClick={() => deny(r)} disabled={busy === r.id}
-                    style={{ minWidth: 124, minHeight: 40, padding: '0 18px', borderRadius: 10, border: 'none', background: 'var(--red, #e05c6a)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>Confirm deny</button>
+                    style={{ minWidth: 124, minHeight: 40, padding: '0 18px', borderRadius: 10, border: 'none', background: 'var(--red, #b0645b)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>Confirm deny</button>
                 </div>
               </div>
             ) : r.status === 'requested' ? (
@@ -128,7 +128,7 @@ export default function AssetRequestsPanel({ vendors, onChanged }) {
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                 <button type="button" onClick={() => setDenying(r.id)} disabled={busy === r.id}
                   className="tct tct-raised"
-                  style={{ minHeight: 40, padding: '0 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: 'var(--red, #e05c6a)' }}>Deny</button>
+                  style={{ minHeight: 40, padding: '0 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: 'var(--red, #b0645b)' }}>Deny</button>
                 <button type="button" onClick={() => approve(r)} disabled={busy === r.id}
                   style={{ minWidth: 124, minHeight: 40, padding: '0 20px', borderRadius: 10, border: 'none', background: 'var(--accent, #c8963e)', color: 'var(--on-accent, #1a1408)', fontSize: 13, fontWeight: 700, cursor: busy === r.id ? 'wait' : 'pointer', fontFamily: MONO, boxShadow: '0 2px 8px rgba(0,0,0,0.32)' }}>
                   {busy === r.id ? '…' : 'Approve'}

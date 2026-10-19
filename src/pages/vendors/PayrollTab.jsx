@@ -60,7 +60,7 @@ function Ava({ name, path, size = 34 }) {
     ? <img src={url} alt="" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border, #2e3040)' }} />
     : <span style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: avatarColor(name || '?') + '22', color: avatarColor(name || '?'), fontWeight: 700, fontSize: size * 0.38, fontFamily: 'var(--font-mono, monospace)', border: `1px solid ${avatarColor(name || '?')}55` }}>{initials(name || '?')}</span>
 }
-function Err({ children }) { return <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-word' }}>⚠ {children}</div> }
+function Err({ children }) { return <div style={{ padding: '10px 12px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-word' }}>⚠ {children}</div> }
 
 // ── one month, as a tile ─────────────────────────────────────────────────────
 // A month row was a name at one end, two figures in the middle and a pill at
@@ -81,7 +81,7 @@ function MonthTile({ p, sig, onOpen }) {
   const rows = p.payouts || []
   const total = rows.reduce((a, r) => a + Number(r.total_payout || 0), 0)
   const draft = p.status === 'draft'
-  const tone = draft ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)'
+  const tone = draft ? 'var(--amber, #c8963e)' : 'var(--green, #6f9a7e)'
   // draft | locked | paid are all real states, and 'paid' is not 'final' — only
   // 'locked' is renamed, because that is the word the rest of the screen uses.
   const statusLabel = p.status === 'locked' ? 'final' : p.status
@@ -98,7 +98,7 @@ function MonthTile({ p, sig, onOpen }) {
             as not-yet-started. */}
         {sig && sig.issued > 0 && (
           <span title={`${sig.signed} of ${sig.total} invoices signed`}
-            style={{ fontSize: 10, fontWeight: 700, color: allSigned ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>
+            style={{ fontSize: 10, fontWeight: 700, color: allSigned ? 'var(--green, #6f9a7e)' : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>
             ✎ {sig.signed}/{sig.total}
           </span>
         )}
@@ -258,7 +258,7 @@ export default function PayrollTab() {
         <div style={{ padding: '14px', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ flex: 1, fontSize: 16, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{monthLabel(period.period_month)}</div>
-            <span style={{ fontSize: 10, fontWeight: 700, color: period.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)', border: `1px solid ${period.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #3dba7a)'}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{period.status === 'locked' ? 'final' : period.status}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: period.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #6f9a7e)', border: `1px solid ${period.status === 'draft' ? 'var(--amber, #c8963e)' : 'var(--green, #6f9a7e)'}`, borderRadius: 10, padding: '2px 8px', fontFamily: 'var(--font-mono, monospace)' }}>{period.status === 'locked' ? 'final' : period.status}</span>
           </div>
           <div style={{ display: 'flex', gap: 20, marginTop: 12, fontFamily: 'var(--font-mono, monospace)' }}>
             <div><div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent, #c8963e)' }}>{money(total)}</div><div style={lbl}>total payout</div></div>
@@ -268,16 +268,16 @@ export default function PayrollTab() {
             ? <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', alignItems: 'center' }}>
                 <button type="button" onClick={() => downloadCsv(period, payouts || [])} style={actBtn}>⤓ CSV</button>
                 <button type="button" onClick={async () => { setActErr(''); const { error: rErr } = await supabase.rpc('payroll_fill_month', { p_period_id: period.id }); if (rErr) { setActErr(rErr.message); return } openPeriod(period) }} style={actBtn}>↻ Regenerate</button>
-                <button type="button" onClick={async () => { if (!window.confirm('Delete this draft month and its lines?')) return; await supabase.from('vendor_payouts').delete().eq('period_id', period.id); await supabase.from('vendor_payroll_periods').delete().eq('id', period.id); setPeriod(null); setPayouts(null); loadPeriods() }} style={{ ...actBtn, color: 'var(--red, #e05c6a)' }}>Delete</button>
-                <button type="button" onClick={async () => { if (!confirmFinalize()) return; const at = new Date().toISOString(); const { error: mErr } = await supabase.from('vendor_payroll_periods').update({ status: 'locked', locked_at: at }).eq('id', period.id); if (mErr) { setActErr(mErr.message); return } setActErr(''); setPeriod({ ...period, status: 'locked', locked_at: at }) }} style={{ ...actBtn, color: 'var(--green, #3dba7a)', borderColor: 'var(--green, #3dba7a)' }}>✓ Mark final</button>
+                <button type="button" onClick={async () => { if (!window.confirm('Delete this draft month and its lines?')) return; await supabase.from('vendor_payouts').delete().eq('period_id', period.id); await supabase.from('vendor_payroll_periods').delete().eq('id', period.id); setPeriod(null); setPayouts(null); loadPeriods() }} style={{ ...actBtn, color: 'var(--red, #b0645b)' }}>Delete</button>
+                <button type="button" onClick={async () => { if (!confirmFinalize()) return; const at = new Date().toISOString(); const { error: mErr } = await supabase.from('vendor_payroll_periods').update({ status: 'locked', locked_at: at }).eq('id', period.id); if (mErr) { setActErr(mErr.message); return } setActErr(''); setPeriod({ ...period, status: 'locked', locked_at: at }) }} style={{ ...actBtn, color: 'var(--green, #6f9a7e)', borderColor: 'var(--green, #6f9a7e)' }}>✓ Mark final</button>
                 {/* A part-done review says so on the button, so you know there
                     is progress waiting before you open it. */}
                 <button type="button" onClick={() => setReviewing(true)} style={{ ...actBtn, marginLeft: 'auto', color: '#fff', background: 'var(--accent, #c8963e)', border: 'none', fontWeight: 700 }}>
                   {reviewedCount > 0 && reviewedCount < (payouts || []).length ? `▸ Resume review · ${reviewedCount}/${(payouts || []).length}` : '▸ Review & finalize'}
                 </button>
               </div>
-            : <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap', alignItems: 'center', padding: '10px 12px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.30)', borderRadius: 10 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>✓ Finalized{period.locked_at ? ` · ${new Date(period.locked_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}</span>
+            : <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap', alignItems: 'center', padding: '10px 12px', background: 'rgba(111,154,126,0.10)', border: '1px solid rgba(111,154,126,0.30)', borderRadius: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green, #6f9a7e)', fontFamily: 'var(--font-mono, monospace)' }}>✓ Finalized{period.locked_at ? ` · ${new Date(period.locked_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}</span>
                 <button type="button" onClick={async () => { setActErr(''); const { error: uErr } = await supabase.from('vendor_payroll_periods').update({ status: 'draft', locked_at: null }).eq('id', period.id); if (uErr) { setActErr(uErr.message); return } setPeriod({ ...period, status: 'draft', locked_at: null }) }} style={{ ...actBtn, fontSize: 11 }}>Reopen</button>
                 <button type="button" onClick={() => downloadCsv(period, payouts || [])} style={{ ...actBtn, marginLeft: 'auto', color: '#fff', background: 'var(--accent, #c8963e)', border: 'none', fontWeight: 700 }}>⤓ Download CSV</button>
               </div>}
@@ -293,12 +293,12 @@ export default function PayrollTab() {
               style={{ padding: '9px 14px', fontSize: 12.5, lineHeight: 1, minHeight: 38, cursor: 'pointer' }}>
               {l}
               {k === 'review' && reviewedCount > 0 && (
-                <span style={{ marginInlineStart: 7, fontSize: 10.5, fontFamily: 'var(--font-mono, monospace)', color: reviewedCount >= (payouts || []).length ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)' }}>
+                <span style={{ marginInlineStart: 7, fontSize: 10.5, fontFamily: 'var(--font-mono, monospace)', color: reviewedCount >= (payouts || []).length ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)' }}>
                   {reviewedCount}/{(payouts || []).length}
                 </span>
               )}
               {k === 'invoices' && signed && signed.total > 0 && (
-                <span style={{ marginInlineStart: 7, fontSize: 10.5, fontFamily: 'var(--font-mono, monospace)', color: signed.signed >= signed.total ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)' }}>
+                <span style={{ marginInlineStart: 7, fontSize: 10.5, fontFamily: 'var(--font-mono, monospace)', color: signed.signed >= signed.total ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)' }}>
                   {signed.signed}/{signed.total}
                 </span>
               )}
@@ -404,7 +404,7 @@ function RatesSheet({ onClose }) {
       {trades.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No approved vendors yet.</div>}
       {trades.map(t => <NumField key={t} label={t} prefix="₹" value={rates[t] ?? ''} onChange={v => setRates(p => ({ ...p, [t]: v }))} />)}
       {err && <Err>{err}</Err>}
-      {saved && <div style={{ fontSize: 12, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>✓ Saved.</div>}
+      {saved && <div style={{ fontSize: 12, color: 'var(--green, #6f9a7e)', fontFamily: 'var(--font-mono, monospace)' }}>✓ Saved.</div>}
       <button type="button" onClick={save} disabled={busy} style={primary(busy)}>{busy ? 'Saving…' : 'Save'}</button>
     </Sheet>
   )
@@ -477,7 +477,7 @@ function ReviewTable({ period, rows: initialRows, onReload }) {
                 {/* The tick the card review left behind. Blank is "not looked
                     at yet", and editing the row clears it on save. */}
                 <td style={{ ...td, padding: '0 4px', textAlign: 'center' }} title={r.reviewed_at ? `Approved ${new Date(r.reviewed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}${r.reviewed_by ? ` by ${r.reviewed_by}` : ''}` : 'Not reviewed yet'}>
-                  <span style={{ fontSize: 12, color: r.reviewed_at && !dirty.has(r.id) ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', opacity: r.reviewed_at && !dirty.has(r.id) ? 1 : 0.35 }}>{r.reviewed_at && !dirty.has(r.id) ? '✓' : '·'}</span>
+                  <span style={{ fontSize: 12, color: r.reviewed_at && !dirty.has(r.id) ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)', opacity: r.reviewed_at && !dirty.has(r.id) ? 1 : 0.35 }}>{r.reviewed_at && !dirty.has(r.id) ? '✓' : '·'}</span>
                 </td>
                 <td style={td}>
                   <input value={r.beneficiary_name || ''} readOnly={locked} onChange={e => upd(r.id, { beneficiary_name: e.target.value })} placeholder="Name" style={cellIn(160, true)} />
@@ -493,7 +493,7 @@ function ReviewTable({ period, rows: initialRows, onReload }) {
                 <td style={td}><input value={r.bank_account_no || ''} readOnly={locked} onChange={e => upd(r.id, { bank_account_no: e.target.value })} placeholder="—" style={cellIn(140, true)} /></td>
                 <td style={td}><input value={r.bank_ifsc || ''} readOnly={locked} onChange={e => upd(r.id, { bank_ifsc: e.target.value })} placeholder="—" style={cellIn(110, true)} /></td>
                 <td style={td}><input value={r.upi_id || ''} readOnly={locked} onChange={e => upd(r.id, { upi_id: e.target.value })} placeholder="—" style={cellIn(130, true)} /></td>
-                {!locked && <td style={td}><button type="button" title="Remove" onClick={() => removeRow(r.id)} style={{ background: 'none', border: 'none', color: 'var(--red, #e05c6a)', cursor: 'pointer', fontSize: 14, padding: '6px 10px' }}>✕</button></td>}
+                {!locked && <td style={td}><button type="button" title="Remove" onClick={() => removeRow(r.id)} style={{ background: 'none', border: 'none', color: 'var(--red, #b0645b)', cursor: 'pointer', fontSize: 14, padding: '6px 10px' }}>✕</button></td>}
               </tr>
             ))}
           </tbody>
@@ -666,7 +666,7 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
   const overlay = { position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(8,9,13,0.55)', backdropFilter: 'blur(7px)', WebkitBackdropFilter: 'blur(7px)', overflowY: 'auto', padding: '20px 16px' }
   const cardStyle = { animation: 'cardIn .25s ease', width: '100%', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 18, padding: 18, display: 'flex', flexDirection: 'column', gap: 11, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }
   const navBtn = { padding: '11px 14px', fontSize: 14, fontWeight: 600, borderRadius: 9, cursor: 'pointer', fontFamily: mono, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)' }
-  const approveBtn = { flex: 1, padding: '11px 14px', fontSize: 14, fontWeight: 700, borderRadius: 9, cursor: 'pointer', fontFamily: mono, border: 'none', background: 'var(--green, #3dba7a)', color: '#fff' }
+  const approveBtn = { flex: 1, padding: '11px 14px', fontSize: 14, fontWeight: 700, borderRadius: 9, cursor: 'pointer', fontFamily: mono, border: 'none', background: 'var(--green, #6f9a7e)', color: '#fff' }
   const closeBtn = { width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: '#fff', cursor: 'pointer', fontSize: 13 }
   const brkRow = { display: 'flex', justifyContent: 'space-between' }
 
@@ -680,7 +680,7 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
           <button type="button" onClick={closeFlow} style={closeBtn}>✕</button>
         </div>
         <div style={{ height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${total ? Math.round(approved.size / total * 100) : 0}%`, background: 'var(--green, #3dba7a)', transition: 'width .2s' }} />
+          <div style={{ height: '100%', width: `${total ? Math.round(approved.size / total * 100) : 0}%`, background: 'var(--green, #6f9a7e)', transition: 'width .2s' }} />
         </div>
         {/* Say out loud that the ticks came back, and that leaving is safe —
             the last version lost everything on exit, and nobody trusts a
@@ -701,7 +701,7 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
                 <input value={cur.beneficiary_name || ''} onChange={e => upd({ beneficiary_name: e.target.value })} placeholder="Name" style={{ ...inp, fontWeight: 700, padding: '7px 10px' }} />
                 {cur.team && <div style={{ fontSize: 11, color: muted, fontFamily: mono, marginTop: 4 }}>{cur.team}</div>}
               </div>
-              <div style={{ fontSize: 11, color: approved.has(cur.id) ? 'var(--green, #3dba7a)' : muted, fontFamily: mono, whiteSpace: 'nowrap', fontWeight: 700 }}>{approved.has(cur.id) ? '✓ ' : ''}{idx + 1}/{total}</div>
+              <div style={{ fontSize: 11, color: approved.has(cur.id) ? 'var(--green, #6f9a7e)' : muted, fontFamily: mono, whiteSpace: 'nowrap', fontWeight: 700 }}>{approved.has(cur.id) ? '✓ ' : ''}{idx + 1}/{total}</div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <NumField label="Monthly salary" prefix="₹" value={cur.fixed_pay} onChange={v => upd({ fixed_pay: v })} />
@@ -729,7 +729,7 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
               <div style={brkRow}><span>Per day (÷30)</span><span>{money(Math.round(perDayOf(cur)))}</span></div>
               <div style={brkRow}><span>Earned · {daysWorkedOf(cur)} days</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(earnedOf(cur))}</span></div>
               <div style={brkRow}><span>Overtime · {Number(cur.ot_days || 0)} × {OT_RATE} days</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(otAmtOf(cur))}</span></div>
-              {Number(cur.advance_recovered) > 0 && <div style={brkRow}><span>Advance back{cur.advance_note ? <span style={{ display: 'block', fontSize: 10.5, color: '#a8895a' }}>{cur.advance_note}</span> : null}</span><span style={{ color: 'var(--red, #e05c6a)' }}>− {money(Number(cur.advance_recovered))}</span></div>}
+              {Number(cur.advance_recovered) > 0 && <div style={brkRow}><span>Advance back{cur.advance_note ? <span style={{ display: 'block', fontSize: 10.5, color: '#a8895a' }}>{cur.advance_note}</span> : null}</span><span style={{ color: 'var(--red, #b0645b)' }}>− {money(Number(cur.advance_recovered))}</span></div>}
               {/* Paid out separately, so it is recorded here and deliberately
                   left out of the total — it comes back off a later month as
                   Advance recovered. Adding it to this payout would pay it
@@ -750,13 +750,13 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
                 ? 'Edited — saved when you approve or move to the next card.'
                 : 'Approvals are saved as you go. Close any time and pick up here.'}
             </div>
-            <button type="button" onClick={removeCurrent} style={{ background: 'none', border: 'none', color: 'var(--red, #e05c6a)', cursor: 'pointer', fontSize: 12, fontFamily: mono, padding: '2px', alignSelf: 'center' }}>✕ Remove this person from the month</button>
+            <button type="button" onClick={removeCurrent} style={{ background: 'none', border: 'none', color: 'var(--red, #b0645b)', cursor: 'pointer', fontSize: 12, fontFamily: mono, padding: '2px', alignSelf: 'center' }}>✕ Remove this person from the month</button>
           </div>
         )}
 
         {phase === 'done' && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: mono }}>✓ All {total} approved</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--green, #6f9a7e)', fontFamily: mono }}>✓ All {total} approved</div>
             <div style={{ fontSize: 13, color: muted, lineHeight: 1.5 }}>Grand total <b style={{ color: 'var(--accent, #c8963e)' }}>{money(grand)}</b>. Every line is saved and approved already — submitting locks the month so it can be exported and invoiced.</div>
             {err && <Err>{err}</Err>}
             <div style={{ display: 'flex', gap: 8 }}>
@@ -769,7 +769,7 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
 
         {phase === 'final' && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: mono }}>✓ Finalized</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--green, #6f9a7e)', fontFamily: mono }}>✓ Finalized</div>
             <div style={{ fontSize: 13, color: muted }}>{monthLabel(period.period_month)} · {total} vendors · {money(grand)}</div>
             <button type="button" onClick={() => downloadCsv({ ...period, status: 'locked' }, rows)} style={{ ...approveBtn, background: 'var(--accent, #c8963e)' }}>⤓ Download CSV</button>
             <button type="button" onClick={onClose} style={navBtn}>Close</button>

@@ -31,7 +31,7 @@ const primaryBtn = { ...actBtn, background: 'var(--accent, #c8963e)', color: 'va
 function Err({ children, onClose }) {
   if (!children) return null
   return (
-    <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: MONO, wordBreak: 'break-word', display: 'flex', gap: 8 }}>
+    <div style={{ padding: '10px 12px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: MONO, wordBreak: 'break-word', display: 'flex', gap: 8 }}>
       <span style={{ flex: 1 }}>⚠ {children}</span>
       {onClose && <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0 }}>×</button>}
     </div>
@@ -121,7 +121,7 @@ export function BillingEntitySheet({ onClose }) {
         </div>
       )}
       <Err>{err}</Err>
-      {saved && <div style={{ fontSize: 12, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ Saved.</div>}
+      {saved && <div style={{ fontSize: 12, color: 'var(--green, #6f9a7e)', fontFamily: MONO }}>✓ Saved.</div>}
       <button type="button" onClick={save} disabled={busy || !row} style={{ ...primaryBtn, minHeight: 46, fontSize: 14 }}>{busy ? 'Saving…' : 'Save'}</button>
     </Sheet>
   )
@@ -223,7 +223,7 @@ function SplitSheet({ invoice, lines: initial, properties, logged, propName, onC
               value={l.amount ?? ''} onChange={e => upd(i, { amount: e.target.value.replace(/[^\d.]/g, '') })} />
             {!locked && lines.length > 1
               ? <button type="button" onClick={() => del(i)} title="Remove line"
-                  style={{ background: 'none', border: 'none', color: 'var(--red, #e05c6a)', cursor: 'pointer', fontSize: 15, padding: 6 }}>✕</button>
+                  style={{ background: 'none', border: 'none', color: 'var(--red, #b0645b)', cursor: 'pointer', fontSize: 15, padding: 6 }}>✕</button>
               : <span />}
           </div>
         ))}
@@ -233,7 +233,7 @@ function SplitSheet({ invoice, lines: initial, properties, logged, propName, onC
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <button type="button" onClick={add} style={actBtn}>+ Add PID</button>
           <button type="button" onClick={splitEven} style={actBtn}>Split evenly</button>
-          <span style={{ marginInlineStart: 'auto', fontSize: 12, fontFamily: MONO, color: remaining === 0 ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)' }}>
+          <span style={{ marginInlineStart: 'auto', fontSize: 12, fontFamily: MONO, color: remaining === 0 ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)' }}>
             {remaining === 0 ? '✓ Fully allocated' : remaining > 0 ? `${inr(remaining)} left to allocate` : `${inr(-remaining)} over`}
           </span>
         </div>
@@ -300,7 +300,7 @@ function PidFillSheet({ rows, unlogged, propName, period, busy, onApply, onClose
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{r.name}</span>
                 <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{r.invoice.invoice_no} · {inr(r.invoice.subtotal)}</span>
-                <span style={{ marginInlineStart: 'auto', fontSize: 11, fontFamily: MONO, color: skip ? 'var(--text-muted, #6b6d82)' : 'var(--green, #3dba7a)' }}>
+                <span style={{ marginInlineStart: 'auto', fontSize: 11, fontFamily: MONO, color: skip ? 'var(--text-muted, #6b6d82)' : 'var(--green, #6f9a7e)' }}>
                   {skip ? 'kept as is' : `${preview.length} PID${preview.length === 1 ? '' : 's'}`}
                 </span>
               </div>
@@ -633,7 +633,7 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
         )}
 
         <div style={{ height: 6, background: 'var(--bg-input, #252731)', borderRadius: 4, overflow: 'hidden', display: 'flex' }}>
-          <div style={{ width: `${rows.length ? (counts.signed / rows.length) * 100 : 0}%`, background: 'var(--green, #3dba7a)', transition: 'width .2s' }} />
+          <div style={{ width: `${rows.length ? (counts.signed / rows.length) * 100 : 0}%`, background: 'var(--green, #6f9a7e)', transition: 'width .2s' }} />
           <div style={{ width: `${rows.length ? ((counts.sent + counts.viewed) / rows.length) * 100 : 0}%`, background: 'var(--accent, #c8963e)', transition: 'width .2s' }} />
         </div>
 
@@ -667,13 +667,13 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
             </button>
           )}
           {allSigned && (
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--green, #6f9a7e)', fontFamily: MONO }}>
               ✓ All signed — the month can be marked final
             </span>
           )}
         </div>
 
-        {note && <div style={{ fontSize: 12, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>{note}</div>}
+        {note && <div style={{ fontSize: 12, color: 'var(--green, #6f9a7e)', fontFamily: MONO }}>{note}</div>}
         <Err onClose={() => setErr('')}>{err}</Err>
       </div>
 
@@ -721,7 +721,7 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
                   </div>
 
                   {r.drifted && (
-                    <div style={{ fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: MONO, lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 11.5, color: 'var(--red, #b0645b)', fontFamily: MONO, lineHeight: 1.5 }}>
                       ⚠ Payout changed to {inr(r.payout.total_payout)} after this invoice was issued for {inr(r.invoice.net_payable)}. Void and re-raise.
                     </div>
                   )}
@@ -764,7 +764,7 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
                         <button type="button" onClick={() => reraise(r.invoice)} style={{ ...actBtn, marginInlineStart: 'auto' }}>Re-raise</button>
                       )}
                       {['sent', 'viewed'].includes(r.invoice.status) && (
-                        <button type="button" onClick={() => voidInvoice(r.invoice)} style={{ ...actBtn, marginInlineStart: 'auto', color: 'var(--red, #e05c6a)' }}>Void</button>
+                        <button type="button" onClick={() => voidInvoice(r.invoice)} style={{ ...actBtn, marginInlineStart: 'auto', color: 'var(--red, #b0645b)' }}>Void</button>
                       )}
                     </div>
                   )}
@@ -831,9 +831,9 @@ export default function InvoiceStage({ period, payouts, onChanged }) {
                 <button type="button" onClick={() => setMarkedSent(s => { const n = new Set(s); n.has(r.payout.id) ? n.delete(r.payout.id) : n.add(r.payout.id); return n })}
                   title="Mark as sent"
                   style={{ minHeight: 40, minWidth: 40, borderRadius: 9, cursor: 'pointer', fontFamily: MONO, fontSize: 13,
-                    border: `1px solid ${markedSent.has(r.payout.id) ? 'var(--green, #3dba7a)' : 'var(--border, #2e3040)'}`,
-                    background: markedSent.has(r.payout.id) ? 'rgba(61,186,122,0.12)' : 'var(--bg-input, #252731)',
-                    color: markedSent.has(r.payout.id) ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)' }}>
+                    border: `1px solid ${markedSent.has(r.payout.id) ? 'var(--green, #6f9a7e)' : 'var(--border, #2e3040)'}`,
+                    background: markedSent.has(r.payout.id) ? 'rgba(111,154,126,0.12)' : 'var(--bg-input, #252731)',
+                    color: markedSent.has(r.payout.id) ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)' }}>
                   {markedSent.has(r.payout.id) ? '✓' : '○'}
                 </button>
                 <Chip status={r.status} />

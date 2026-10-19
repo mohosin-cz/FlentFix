@@ -42,8 +42,8 @@ export default function VendorAssets({ vendorId }) {
   if (loading) return <div style={{ padding: '14px 0', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Loading…</div>
 
   if (state.err) return (
-    <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>⚠ Could not load assets</div>
+    <div style={{ padding: '10px 12px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red, #b0645b)', fontFamily: MONO }}>⚠ Could not load assets</div>
       <div style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, marginTop: 3, wordBreak: 'break-word' }}>{state.err}</div>
       {/relation|does not exist|schema cache/i.test(state.err) && (
         <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 5 }}>Run supabase/migrations/vendor_assets.sql.</div>

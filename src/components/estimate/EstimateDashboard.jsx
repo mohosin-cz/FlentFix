@@ -157,17 +157,17 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
         {v.firstViewed ? (
           <>
             <div className="condrow">
-              <span className="condnum" style={{ color: v.appPct === 100 ? 'var(--good)' : v.disputed > 0 ? 'var(--clay,#e05c6a)' : 'var(--ink)', fontSize:18 }}>{v.appPct}%</span>
+              <span className="condnum" style={{ color: v.appPct === 100 ? 'var(--good)' : v.disputed > 0 ? 'var(--clay,#b0645b)' : 'var(--ink)', fontSize:18 }}>{v.appPct}%</span>
               <span className="dist">{v.approved}/{v.live} approved</span>
             </div>
             <div className="sbar" title={`${v.approved} approved · ${v.disputed} disputed · ${v.pending} awaiting`}>
               {v.approved > 0 && <i style={{ width:`${v.appPct}%`, background:'#5fae6e' }} />}
-              {v.disputed > 0 && <i style={{ width:`${v.disPct}%`, background:'var(--clay,#e05c6a)' }} />}
+              {v.disputed > 0 && <i style={{ width:`${v.disPct}%`, background:'var(--clay,#b0645b)' }} />}
               {v.pending  > 0 && <i style={{ width:`${v.penPct}%`, background:'var(--line2)' }} />}
             </div>
             <div className="slegend">
               <span style={{ color:'#6fc47f' }}><b>{v.approved}</b> approved</span>
-              {v.disputed > 0 && <span style={{ color:'#e8697a' }}><b>{v.disputed}</b> disputed</span>}
+              {v.disputed > 0 && <span style={{ color:'#b0645b' }}><b>{v.disputed}</b> disputed</span>}
               <span style={{ color:'var(--muted)' }}><b>{v.pending}</b> awaiting</span>
             </div>
             {v.onTable > 0 && (

@@ -20,8 +20,8 @@ export function Card({ title, right, children, bodyPad = '13px 14px', style }) {
 }
 
 export function Pill({ children, tone, style }) {
-  const color = tone === 'ok' ? 'var(--green, #3dba7a)'
-    : tone === 'bad' ? 'var(--red, #e05c6a)'
+  const color = tone === 'ok' ? 'var(--green, #6f9a7e)'
+    : tone === 'bad' ? 'var(--red, #b0645b)'
     : tone === 'warn' ? 'var(--accent, #c8963e)'
     : 'var(--text-dim, #9394a8)'
   return (
@@ -53,7 +53,7 @@ export function Meter({ row }) {
       style={{ display: 'inline-flex', gap: 2 }}>
       {CORE_FIELDS.map((f, i) => (
         <i key={f.k} style={{ width: 5, height: 11, borderRadius: 1, display: 'inline-block',
-          background: i < c ? (c === n ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)') : 'var(--bg-input, #252731)' }} />
+          background: i < c ? (c === n ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)') : 'var(--bg-input, #252731)' }} />
       ))}
     </span>
   )

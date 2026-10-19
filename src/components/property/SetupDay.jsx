@@ -28,9 +28,9 @@ const dayLabel = (k) => {
 // The badge says which step it is at — "not booked" alone read as if the
 // request had never been made.
 const TONE = {
-  green: ['var(--green, #3dba7a)', 'rgba(61,186,122,0.45)'],
+  green: ['var(--green, #6f9a7e)', 'rgba(111,154,126,0.45)'],
   amber: ['var(--accent, #c8963e)', 'rgba(200,150,62,0.45)'],
-  red:   ['var(--red, #e05c6a)', 'rgba(224,92,106,0.45)'],
+  red:   ['var(--red, #b0645b)', 'rgba(176,100,91,0.45)'],
   muted: ['var(--text-muted, #6b6d82)', 'var(--border, #2e3040)'],
 }
 function utilityState(k, data) {
@@ -106,7 +106,7 @@ export function SetupPanel({ pid, panel }) {
               : isDay ? 'not arrived'
               : d < 0 ? (v.days_on_site_since_setup ? `${v.days_on_site_since_setup} day${v.days_on_site_since_setup === 1 ? '' : 's'} on site` : 'no punch-in since setup day')
               : 'assigned'
-            const tone = v.on_site_now ? 'var(--green, #3dba7a)' : (isDay && !v.first_in_today) || (d < 0 && !v.days_on_site_since_setup && v.items_closed < v.items_total) ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)'
+            const tone = v.on_site_now ? 'var(--green, #6f9a7e)' : (isDay && !v.first_in_today) || (d < 0 && !v.days_on_site_since_setup && v.items_closed < v.items_total) ? 'var(--red, #b0645b)' : 'var(--text-dim, #9394a8)'
             return (
               <VendorRow key={v.vendor_id} pid={pid} v={v} status={status} tone={tone} pct={pct} />
             )
@@ -120,9 +120,9 @@ export function SetupPanel({ pid, panel }) {
 // One assigned vendor. The name opens the row to show exactly what they were
 // given — loaded on first open, so the panel itself stays one read.
 const ITEM_STATE = {
-  verified:      ['Verified',      'var(--green, #3dba7a)'],
+  verified:      ['Verified',      'var(--green, #6f9a7e)'],
   vendor_closed: ['Done · to verify', 'var(--accent, #c8963e)'],
-  disputed:      ['Sent back',     'var(--red, #e05c6a)'],
+  disputed:      ['Sent back',     'var(--red, #b0645b)'],
   pending:       ['To do',         'var(--text-muted, #6b6d82)'],
 }
 function VendorRow({ pid, v, status, tone, pct }) {
@@ -165,18 +165,18 @@ function VendorRow({ pid, v, status, tone, pct }) {
           <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--text-muted, #6b6d82)', paddingLeft: 16 }}>{(v.trades || []).join(', ')}{v.closure_date ? ` · close by ${new Date(v.closure_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}</div>
         </button>
         <span style={{ fontFamily: MONO, fontSize: 11.5, color: tone, flex: '0 1 auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-          {v.on_site_now && <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--green, #3dba7a)' }} />}{status}
+          {v.on_site_now && <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--green, #6f9a7e)' }} />}{status}
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
-          <span style={{ width: 80, height: 6, borderRadius: 3, background: 'var(--bg-input, #252731)', overflow: 'hidden' }}><span style={{ display: 'block', height: '100%', width: `${pct}%`, background: 'var(--green, #3dba7a)' }} /></span>
+          <span style={{ width: 80, height: 6, borderRadius: 3, background: 'var(--bg-input, #252731)', overflow: 'hidden' }}><span style={{ display: 'block', height: '100%', width: `${pct}%`, background: 'var(--green, #6f9a7e)' }} /></span>
           <span style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--text-dim, #9394a8)', minWidth: 54 }}>{v.items_closed}/{v.items_total} done</span>
-          {v.items_sent_back > 0 && <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--red, #e05c6a)' }}>{v.items_sent_back} sent back</span>}
+          {v.items_sent_back > 0 && <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--red, #b0645b)' }}>{v.items_sent_back} sent back</span>}
         </span>
       </div>
 
       {open && (
         <div style={{ margin: '0 0 12px 16px', padding: '4px 12px', background: 'var(--bg-input, #252731)', borderRadius: 8 }}>
-          {err ? <div style={{ fontFamily: MONO, fontSize: 12, color: 'var(--red, #e05c6a)', padding: '8px 0' }}>{err}</div>
+          {err ? <div style={{ fontFamily: MONO, fontSize: 12, color: 'var(--red, #b0645b)', padding: '8px 0' }}>{err}</div>
           : !items ? <div style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-muted, #6b6d82)', padding: '8px 0' }}>Loading…</div>
           : items.length === 0 ? <div style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-muted, #6b6d82)', padding: '8px 0' }}>No items on their work order yet.</div>
           : items.map((i, n) => {
@@ -226,7 +226,7 @@ export function AttendanceHistory({ panel }) {
   if (loading) return <section style={box} aria-busy="true"><div style={title}>who came</div><div style={{ height: 12, width: '60%', background: 'var(--border, #2e3040)', borderRadius: 3, marginTop: 12, opacity: 0.6 }} /></section>
   if (error) {
     const notYet = /function|does not exist|schema cache/i.test(error)
-    return <section style={box}><div style={title}>who came</div><div style={{ marginTop: 10, fontFamily: MONO, fontSize: 12, color: notYet ? 'var(--text-muted, #6b6d82)' : 'var(--red, #e05c6a)' }}>{notYet ? 'Attendance history appears once the setup panel migration is applied.' : `Couldn't load attendance — ${error}`}</div></section>
+    return <section style={box}><div style={title}>who came</div><div style={{ marginTop: 10, fontFamily: MONO, fontSize: 12, color: notYet ? 'var(--text-muted, #6b6d82)' : 'var(--red, #b0645b)' }}>{notYet ? 'Attendance history appears once the setup panel migration is applied.' : `Couldn't load attendance — ${error}`}</div></section>
   }
 
   const shown = all ? days : days.slice(0, 5)
@@ -256,7 +256,7 @@ export function AttendanceHistory({ panel }) {
                 <span style={{ fontWeight: 600 }}>{v.vendor}</span>
                 <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{v.trade || ''}{v.kind === 'overtime' ? ' · OT' : ''}</span>
                 {!v.assigned && <span style={{ fontFamily: MONO, fontSize: 10.5, color: 'var(--text-muted, #6b6d82)' }}>not on a work order</span>}
-                {v.flag === 'unknown_pid' && <span style={{ fontFamily: MONO, fontSize: 10.5, color: 'var(--red, #e05c6a)' }}>check PID</span>}
+                {v.flag === 'unknown_pid' && <span style={{ fontFamily: MONO, fontSize: 10.5, color: 'var(--red, #b0645b)' }}>check PID</span>}
                 <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 11.5, color: 'var(--text-dim, #9394a8)' }}>{v.ins ? hhmm(v.ins) : '—'} → {v.outs ? hhmm(v.outs) : 'no out'}</span>
               </div>
             ))}

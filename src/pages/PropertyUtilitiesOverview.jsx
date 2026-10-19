@@ -23,10 +23,10 @@ const nowYM = () => { const d = new Date(); return `${d.getFullYear()}-${String(
 
 const DUE_FILTERS = [
   { key: 'all', label: 'All' },
-  { key: 'overdue', label: 'Overdue', color: 'var(--red, #e05c6a)' },
-  { key: 'due', label: 'Due ≤7d', color: 'var(--red, #e05c6a)' },
+  { key: 'overdue', label: 'Overdue', color: 'var(--red, #b0645b)' },
+  { key: 'due', label: 'Due ≤7d', color: 'var(--red, #b0645b)' },
   { key: 'month', label: 'This month', color: 'var(--accent, #c8963e)' },
-  { key: 'later', label: 'Later', color: 'var(--green, #3dba7a)' },
+  { key: 'later', label: 'Later', color: 'var(--green, #6f9a7e)' },
   { key: 'none', label: 'No date', color: 'var(--text-muted, #6b6d82)' },
 ]
 
@@ -323,7 +323,7 @@ export default function PropertyUtilitiesOverview() {
                   <Kpi label="Per year" value={money(kpi.monthly * 12)} color="var(--text-dim, #9394a8)" />
                   <Kpi label="Active" value={kpi.active} color="var(--text, #e8e8f0)" />
                   <Kpi label="Properties" value={kpi.props} color="var(--text, #e8e8f0)" />
-                  <Kpi label="New" sub="this mo" value={kpi.thisMonth} color="var(--green, #3dba7a)" span={phone} />
+                  <Kpi label="New" sub="this mo" value={kpi.thisMonth} color="var(--green, #6f9a7e)" span={phone} />
                 </div>
               )}
 

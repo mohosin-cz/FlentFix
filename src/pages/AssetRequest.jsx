@@ -117,7 +117,7 @@ function Field({ label, note, children }) {
 function Err({ children }) {
   if (!children) return null
   return (
-    <div style={{ padding: '11px 13px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.35)', borderRadius: 10, fontSize: 12.5, color: '#e8697a', fontFamily: MONO, lineHeight: 1.55, wordBreak: 'break-word' }}>
+    <div style={{ padding: '11px 13px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.35)', borderRadius: 10, fontSize: 12.5, color: '#b0645b', fontFamily: MONO, lineHeight: 1.55, wordBreak: 'break-word' }}>
       {children}
     </div>
   )
@@ -309,7 +309,7 @@ export default function AssetRequest() {
         <Input value={why} onChange={e => setWhy(e.target.value)} placeholder="Why do you need it? (optional)" aria-label="Reason" />
         <Err>{err}</Err>
         {sent && (
-          <div style={{ padding: '9px 11px', borderRadius: 9, background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.32)', fontSize: 12.5, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>
+          <div style={{ padding: '9px 11px', borderRadius: 9, background: 'rgba(111,154,126,0.10)', border: '1px solid rgba(111,154,126,0.32)', fontSize: 12.5, color: 'var(--green, #6f9a7e)', fontFamily: MONO }}>
             ✓ Sent — the office will review it.
           </div>
         )}
@@ -345,7 +345,7 @@ export default function AssetRequest() {
           )}
 
           {r.status === 'logged' && (
-            <div style={{ fontSize: 12, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ Logged — it is on your record</div>
+            <div style={{ fontSize: 12, color: 'var(--green, #6f9a7e)', fontFamily: MONO }}>✓ Logged — it is on your record</div>
           )}
         </div>
       ))}

@@ -267,10 +267,10 @@ export default function AssetFormSheet({ mode, asset, vendors, actor, onClose, o
                 style={{ ...inputStyle, background: 'var(--bg, #16171f)' }} />
             </Row>
             {emailEntered && (match ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 8, background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.32)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 8, background: 'rgba(111,154,126,0.10)', border: '1px solid rgba(111,154,126,0.32)' }}>
                 <span style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, fontFamily: MONO, background: avatarColor(match.full_name) + '22', color: avatarColor(match.full_name) }}>{initials(match.full_name)}</span>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green, #3dba7a)' }}>{match.full_name}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green, #6f9a7e)' }}>{match.full_name}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{[match.vendor_code, match.trade, match.status].filter(Boolean).join(' · ')}</div>
                 </div>
               </div>
@@ -291,11 +291,11 @@ export default function AssetFormSheet({ mode, asset, vendors, actor, onClose, o
                 ))}
               </div>
             ) : onlyIneligible ? (
-              <div style={{ padding: '8px 10px', borderRadius: 8, background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', fontSize: 11.5, color: '#e8697a', fontFamily: MONO, lineHeight: 1.5 }}>
+              <div style={{ padding: '8px 10px', borderRadius: 8, background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.32)', fontSize: 11.5, color: '#b0645b', fontFamily: MONO, lineHeight: 1.5 }}>
                 That email belongs to {candidates[0].full_name}, who is {candidates[0].status} — not on the roster. Assets can only be issued to on-roll vendors.
               </div>
             ) : (
-              <div style={{ padding: '8px 10px', borderRadius: 8, background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', fontSize: 11.5, color: '#e8697a', fontFamily: MONO, lineHeight: 1.5 }}>
+              <div style={{ padding: '8px 10px', borderRadius: 8, background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.32)', fontSize: 11.5, color: '#b0645b', fontFamily: MONO, lineHeight: 1.5 }}>
                 No vendor on the roster has this email. Check the spelling — assignment is refused until it matches.
               </div>
             ))}
@@ -325,19 +325,19 @@ export default function AssetFormSheet({ mode, asset, vendors, actor, onClose, o
               <button type="button" onClick={() => mark('damaged')} disabled={!!busy} className="tct tct-raised"
                 style={{ minHeight: 40, padding: '0 13px', fontSize: 12.5, cursor: 'pointer', color: 'var(--accent, #c8963e)' }}>Damaged</button>
               <button type="button" onClick={() => mark('lost')} disabled={!!busy} className="tct tct-raised"
-                style={{ minHeight: 40, padding: '0 13px', fontSize: 12.5, cursor: 'pointer', color: 'var(--red, #e05c6a)' }}>Lost</button>
+                style={{ minHeight: 40, padding: '0 13px', fontSize: 12.5, cursor: 'pointer', color: 'var(--red, #b0645b)' }}>Lost</button>
             </div>
           )}
 
           {err && (
-            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', fontSize: 12, color: '#e8697a', fontFamily: MONO, lineHeight: 1.5, wordBreak: 'break-word' }}>{err}</div>
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.32)', fontSize: 12, color: '#b0645b', fontFamily: MONO, lineHeight: 1.5, wordBreak: 'break-word' }}>{err}</div>
           )}
         </div>
 
         <div style={{ borderTop: '1px solid var(--border, #2e3040)', padding: '12px 18px', paddingBottom: 'max(14px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', gap: 8, background: 'var(--bg-panel, #1e2028)' }}>
           {editing && (
             <button type="button" onClick={remove} disabled={!!busy}
-              style={{ minHeight: 46, padding: '0 14px', borderRadius: 10, background: 'none', border: '1px solid var(--border, #2e3040)', color: 'var(--red, #e05c6a)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>
+              style={{ minHeight: 46, padding: '0 14px', borderRadius: 10, background: 'none', border: '1px solid var(--border, #2e3040)', color: 'var(--red, #b0645b)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>
               {busy === 'delete' ? '…' : 'Delete'}
             </button>
           )}

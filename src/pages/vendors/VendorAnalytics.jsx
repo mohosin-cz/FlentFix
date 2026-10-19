@@ -384,7 +384,7 @@ export default function VendorAnalytics() {
 
       <main style={{ flex: 1, width: '100%', maxWidth: 1180, margin: '0 auto', padding: phone ? '14px 16px 90px' : '20px 20px 60px', display: 'flex', flexDirection: 'column', gap: 14, boxSizing: 'border-box' }}>
         {loading ? <LogoSpinner /> : error ? (
-          <div style={{ padding: 14, background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 10, fontSize: 12.5, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>Couldn’t load: {error}</div>
+          <div style={{ padding: 14, background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 10, fontSize: 12.5, color: 'var(--red, #b0645b)', fontFamily: MONO }}>Couldn’t load: {error}</div>
         ) : !a || !a.active.length ? (
           <div style={{ padding: '48px 20px', textAlign: 'center', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 12 }}>
             <div style={{ fontSize: 14, fontWeight: 600 }}>Nothing to analyse yet</div>
@@ -406,7 +406,7 @@ export default function VendorAnalytics() {
                 <Stat label={a.latest ? `${a.latest.label} payout` : 'Payout'} value={a.latest ? money(a.latest.total) : '—'}
                   tone="var(--accent, #c8963e)" delta={a.prevM && a.latest ? pct(a.latest.total, a.prevM.total) : null} />
                 <Stat label="Punching" value={`${a.attendance.coverageNow}/${a.active.length}`}
-                  sub="busiest of the last 7 days" tone={a.attendance.coverageNow < a.active.length / 2 ? 'var(--red, #e05c6a)' : undefined} />
+                  sub="busiest of the last 7 days" tone={a.attendance.coverageNow < a.active.length / 2 ? 'var(--red, #b0645b)' : undefined} />
               </div>
 
               {/* The one number that spans two systems, and the reason this
@@ -425,8 +425,8 @@ export default function VendorAnalytics() {
                     <div style={grid(140)}>
                       <Stat label="Days paid" value={fmtInt(a.reco.rows.reduce((s, r) => s + r.paid, 0))} />
                       <Stat label="Days punched" value={fmtInt(a.reco.rows.reduce((s, r) => s + r.punched, 0))} />
-                      <Stat label="Unmatched days" value={fmtInt(a.reco.gapDays)} tone="var(--red, #e05c6a)" />
-                      <Stat label="At that day rate" value={money(a.reco.gapMoney)} tone="var(--red, #e05c6a)" />
+                      <Stat label="Unmatched days" value={fmtInt(a.reco.gapDays)} tone="var(--red, #b0645b)" />
+                      <Stat label="At that day rate" value={money(a.reco.gapMoney)} tone="var(--red, #b0645b)" />
                     </div>
                     <div style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, lineHeight: 1.6 }}>
                       An unmatched day is a day paid with no punch behind it. It is not proof of anything — a vendor who worked
@@ -545,8 +545,8 @@ export default function VendorAnalytics() {
                                   {r.trade && <span style={{ color: 'var(--text-muted, #6b6d82)' }}> · {r.trade}</span>}
                                 </td>
                                 <td style={tdR}>{fmtInt(r.paid)}</td>
-                                <td style={{ ...tdR, color: r.punched === 0 ? 'var(--red, #e05c6a)' : 'var(--text, #e8e8f0)' }}>{r.punched}</td>
-                                <td style={{ ...tdR, fontWeight: 700, color: r.gap > 0 ? 'var(--red, #e05c6a)' : 'var(--green, #3dba7a)' }}>{r.gap > 0 ? `+${fmtInt(r.gap)}` : fmtInt(r.gap)}</td>
+                                <td style={{ ...tdR, color: r.punched === 0 ? 'var(--red, #b0645b)' : 'var(--text, #e8e8f0)' }}>{r.punched}</td>
+                                <td style={{ ...tdR, fontWeight: 700, color: r.gap > 0 ? 'var(--red, #b0645b)' : 'var(--green, #6f9a7e)' }}>{r.gap > 0 ? `+${fmtInt(r.gap)}` : fmtInt(r.gap)}</td>
                                 <td style={tdR}>{fmtInt(r.otPaid)}/{r.otPunched}</td>
                                 <td style={tdR}>{r.gapMoney > 0 ? money(r.gapMoney) : '—'}</td>
                               </tr>
@@ -577,7 +577,7 @@ export default function VendorAnalytics() {
                   <Stat label="Busiest day" value={a.attendance.coverageNow} sub="last 7 recorded days" />
                   <Stat label="Overtime days" value={a.attendance.otVendorDays} sub="vendor-days with OT" />
                   <Stat label="Shifts never closed" value={a.attendance.unclosedPast}
-                    tone={a.attendance.unclosedPast ? 'var(--red, #e05c6a)' : 'var(--green, #3dba7a)'}
+                    tone={a.attendance.unclosedPast ? 'var(--red, #b0645b)' : 'var(--green, #6f9a7e)'}
                     sub={a.attendance.openToday ? `${a.attendance.openToday} open today, which is normal` : 'past days only'} />
                 </div>
 

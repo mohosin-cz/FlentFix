@@ -122,8 +122,8 @@ export default function PropertyBin() {
                     style={s.restoreBtn}
                     onClick={() => setModal({ type: 'restore', pid: row.pid })}
                     onMouseEnter={e => {
-                      e.currentTarget.style.borderColor = 'rgba(61,186,122,0.5)'
-                      e.currentTarget.style.color = 'var(--green, #3dba7a)'
+                      e.currentTarget.style.borderColor = 'rgba(111,154,126,0.5)'
+                      e.currentTarget.style.color = 'var(--green, #6f9a7e)'
                     }}
                     onMouseLeave={e => {
                       e.currentTarget.style.borderColor = 'var(--border, #2e3040)'
@@ -136,8 +136,8 @@ export default function PropertyBin() {
                     style={s.deleteBtn}
                     onClick={() => setModal({ type: 'delete', pid: row.pid })}
                     onMouseEnter={e => {
-                      e.currentTarget.style.borderColor = 'rgba(224,92,106,0.5)'
-                      e.currentTarget.style.color = '#e05c6a'
+                      e.currentTarget.style.borderColor = 'rgba(176,100,91,0.5)'
+                      e.currentTarget.style.color = '#b0645b'
                     }}
                     onMouseLeave={e => {
                       e.currentTarget.style.borderColor = 'var(--border, #2e3040)'
@@ -158,7 +158,7 @@ export default function PropertyBin() {
           title={`Restore PID${modal.pid}?`}
           body={<>PID{modal.pid} will be moved back to your properties list.</>}
           confirmLabel="Restore"
-          confirmStyle={{ background: 'rgba(61,186,122,0.12)', border: '1px solid rgba(61,186,122,0.4)', color: 'var(--green, #3dba7a)' }}
+          confirmStyle={{ background: 'rgba(111,154,126,0.12)', border: '1px solid rgba(111,154,126,0.4)', color: 'var(--green, #6f9a7e)' }}
           onConfirm={handleRestore}
           onCancel={() => !working && setModal(null)}
           loading={working}
@@ -170,7 +170,7 @@ export default function PropertyBin() {
           title={`Permanently delete PID${modal.pid}?`}
           body={<>All data for <strong style={{ color: 'var(--text, #e8e8f0)' }}>PID{modal.pid}</strong> will be erased forever. This cannot be undone.</>}
           confirmLabel="Delete forever"
-          confirmStyle={{ background: 'rgba(224,92,106,0.15)', border: '1px solid rgba(224,92,106,0.4)', color: '#e05c6a' }}
+          confirmStyle={{ background: 'rgba(176,100,91,0.15)', border: '1px solid rgba(176,100,91,0.4)', color: '#b0645b' }}
           onConfirm={handlePermanentDelete}
           onCancel={() => !working && setModal(null)}
           loading={working}

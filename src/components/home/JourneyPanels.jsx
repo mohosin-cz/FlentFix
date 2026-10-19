@@ -191,9 +191,9 @@ function Skeleton({ n = 3 }) {
 
 function ErrStrip({ error, onRetry }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(224,92,106,0.3)', background: 'rgba(224,92,106,0.07)' }}>
-      <span style={{ fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>Couldn't read the portfolio — {error}</span>
-      <button onClick={onRetry} style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(224,92,106,0.4)', background: 'transparent', color: 'var(--red, #e05c6a)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: MONO, flexShrink: 0 }}>Retry</button>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(176,100,91,0.3)', background: 'rgba(176,100,91,0.07)' }}>
+      <span style={{ fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: MONO }}>Couldn't read the portfolio — {error}</span>
+      <button onClick={onRetry} style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(176,100,91,0.4)', background: 'transparent', color: 'var(--red, #b0645b)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: MONO, flexShrink: 0 }}>Retry</button>
     </div>
   )
 }
@@ -213,7 +213,7 @@ export function Greeting({ name, home, team }) {
           : <>
               <b style={{ color: 'var(--text, #e8e8f0)' }}>{needsN}</b> need you
               {' · '}<b style={{ color: 'var(--text, #e8e8f0)' }}>{waitingN}</b> waiting on others
-              {counts?.overdue > 0 && <> · <b style={{ color: 'var(--red, #e05c6a)' }}>{counts.overdue}</b> overdue</>}
+              {counts?.overdue > 0 && <> · <b style={{ color: 'var(--red, #b0645b)' }}>{counts.overdue}</b> overdue</>}
               {counts?.unowned > 0 && team && <> · <span style={{ color: 'var(--amber, #c8963e)' }}>{counts.unowned} unowned</span></>}
             </>}
       </div>
@@ -238,7 +238,7 @@ export function NeedsYouPanel({ home, team }) {
               return (
                 <Row key={r.pid} pid={r.pid} name={r.property_name} title={r.next_action_label}
                   meta={`${r.stage_label} · ${od ? `overdue by ${od}` : ago(r.since, r.age_days)}`}
-                  tone={r.urgency === 'overdue' ? 'var(--red, #e05c6a)' : undefined}
+                  tone={r.urgency === 'overdue' ? 'var(--red, #b0645b)' : undefined}
                   onGo={() => r.next_action_route && navigate(r.next_action_route)} last={i === groups.needs.length - 1}
                   aside={<DraftMessageButton pid={r.pid} code={r.stage_code} compact />} />
               )
@@ -289,7 +289,7 @@ export function WaitingPanel({ home }) {
                     return (
                       <Row key={t.pid + t.code} pid={t.pid} name={t.name} title={t.label}
                         meta={od ? `overdue by ${od} · ${t.next_action_label}` : ago(t.since, t.age_days)}
-                        tone={od ? 'var(--red, #e05c6a)' : undefined}
+                        tone={od ? 'var(--red, #b0645b)' : undefined}
                         onGo={() => t.next_action_route && navigate(t.next_action_route)} last={i === items.length - 1}
                         aside={<DraftMessageButton pid={t.pid} code={t.code} compact />} />
                     )

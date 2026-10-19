@@ -28,7 +28,7 @@ const chip = (tone) => ({
   fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 7, cursor: 'pointer',
   fontFamily: MONO, border: tone === 'solid' ? 'none' : '1px solid var(--border, #2e3040)',
   background: tone === 'solid' ? 'var(--accent, #c8963e)' : 'none',
-  color: tone === 'solid' ? 'var(--on-accent, #16171f)' : tone === 'danger' ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)',
+  color: tone === 'solid' ? 'var(--on-accent, #16171f)' : tone === 'danger' ? 'var(--red, #b0645b)' : 'var(--text-dim, #9394a8)',
 })
 
 // ── the form behind every control ───────────────────────────────────────────
@@ -116,7 +116,7 @@ function BreakForm({ mode, breakRow, vendorId, kind, date, now, onDone, onCancel
     : `Remove this ${label.toLowerCase()} break`
   const verb = mode === 'end' ? 'End break' : mode === 'adjust' ? 'Save times'
     : mode === 'add' ? 'Record break' : 'Remove break'
-  const accent = mode === 'delete' ? 'var(--red, #e05c6a)' : 'var(--accent, #c8963e)'
+  const accent = mode === 'delete' ? 'var(--red, #b0645b)' : 'var(--accent, #c8963e)'
 
   return (
     <div style={{ marginTop: 9, padding: '11px 12px', background: 'var(--bg, #16171f)', border: `1px solid ${accent}`, borderRadius: 9, display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -175,14 +175,14 @@ function BreakForm({ mode, breakRow, vendorId, kind, date, now, onDone, onCancel
           style={{ ...inputCss, resize: 'vertical' }} />
       </label>
 
-      <div style={{ fontSize: 11, fontFamily: MONO, color: bad ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)' }}>
+      <div style={{ fontSize: 11, fontFamily: MONO, color: bad ? 'var(--red, #b0645b)' : 'var(--text-muted, #6b6d82)' }}>
         {bad || (mode === 'delete' ? 'Removed from the record'
           : running ? `Left running · ${allowed}m allowed`
           : Number.isFinite(takenMs)
             ? `Records ${fmtMs(takenMs)} of ${allowed}m${overMs > 0 ? ` · ${fmtMs(overMs)} over` : ' · within allowance'}`
             : '')}
       </div>
-      {err && <div style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>⚠ {err}</div>}
+      {err && <div style={{ fontSize: 11, color: 'var(--red, #b0645b)', fontFamily: MONO }}>⚠ {err}</div>}
 
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" onClick={submit} disabled={busy || !!bad || !reason.trim()}
@@ -201,7 +201,7 @@ function BreakForm({ mode, breakRow, vendorId, kind, date, now, onDone, onCancel
 // ── one break on the record, with its controls ──────────────────────────────
 function BreakRow({ r, now, onChanged }) {
   const [mode, setMode] = useState(null)
-  const dot = r.overMs > 0 ? 'var(--red, #e05c6a)' : r.open ? 'var(--accent, #c8963e)' : 'var(--green, #3dba7a)'
+  const dot = r.overMs > 0 ? 'var(--red, #b0645b)' : r.open ? 'var(--accent, #c8963e)' : 'var(--green, #6f9a7e)'
 
   return (
     <div style={{ padding: '9px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
@@ -213,7 +213,7 @@ function BreakRow({ r, now, onChanged }) {
           {r.endedAt ? ` – ${localTime(new Date(r.endedAt).getTime())}` : ' – still out'}
           <span style={{ marginInlineStart: 8 }}>allowed {Math.round(r.allowedMs / 60000)}m</span>
         </span>
-        <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: r.overMs > 0 ? 'var(--red, #e05c6a)' : 'var(--text-dim, #9394a8)' }}>
+        <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: r.overMs > 0 ? 'var(--red, #b0645b)' : 'var(--text-dim, #9394a8)' }}>
           {fmtMs(r.takenMs)}{r.overMs > 0 ? ` +${fmtMs(r.overMs)}` : ''}
         </span>
         {/* The end button only exists while there is something to end, and it
@@ -246,7 +246,7 @@ export function BreaksPanel({ s, date, now, onChanged }) {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '4px 0 2px' }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Breaks</span>
         {s.bt.overMs > 0 && (
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--red, #b0645b)', fontFamily: MONO }}>
             {fmtMs(s.bt.overMs)} over
           </span>
         )}

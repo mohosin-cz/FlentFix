@@ -130,7 +130,7 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
   const overlay = { position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(8,9,13,0.55)', backdropFilter: 'blur(7px)', WebkitBackdropFilter: 'blur(7px)', overflowY: 'auto', padding: '20px 16px' }
   const cardStyle = { animation: 'cardIn .25s ease', width: '100%', background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 18, padding: 18, display: 'flex', flexDirection: 'column', gap: 11, boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }
   const navBtn = { padding: '11px 14px', fontSize: 14, fontWeight: 600, borderRadius: 9, cursor: 'pointer', fontFamily: MONO, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)' }
-  const approveBtn = { flex: 1, padding: '11px 14px', fontSize: 14, fontWeight: 700, borderRadius: 9, cursor: 'pointer', fontFamily: MONO, border: 'none', background: 'var(--green, #3dba7a)', color: '#fff' }
+  const approveBtn = { flex: 1, padding: '11px 14px', fontSize: 14, fontWeight: 700, borderRadius: 9, cursor: 'pointer', fontFamily: MONO, border: 'none', background: 'var(--green, #6f9a7e)', color: '#fff' }
   const closeBtn = { width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: '#fff', cursor: 'pointer', fontSize: 13 }
   const smallBtn = { padding: '7px 11px', fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: MONO, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)' }
 
@@ -157,7 +157,7 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
           <button type="button" onClick={onClose} style={closeBtn}>✕</button>
         </div>
         <div style={{ height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${total ? Math.round(approved.size / total * 100) : 0}%`, background: 'var(--green, #3dba7a)', transition: 'width .2s' }} />
+          <div style={{ height: '100%', width: `${total ? Math.round(approved.size / total * 100) : 0}%`, background: 'var(--green, #6f9a7e)', transition: 'width .2s' }} />
         </div>
 
         {phase === 'review' && cur && (
@@ -173,7 +173,7 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
                   {cur.invoice.invoice_no} · gross {inr(gross)}
                 </div>
               </div>
-              <div style={{ fontSize: 11, fontWeight: 700, fontFamily: MONO, whiteSpace: 'nowrap', color: approved.has(cur.invoice.id) ? 'var(--green, #3dba7a)' : muted }}>
+              <div style={{ fontSize: 11, fontWeight: 700, fontFamily: MONO, whiteSpace: 'nowrap', color: approved.has(cur.invoice.id) ? 'var(--green, #6f9a7e)' : muted }}>
                 {approved.has(cur.invoice.id) ? '✓ ' : ''}{idx + 1}/{total}
               </div>
             </div>
@@ -212,7 +212,7 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
                     value={l.amount ?? ''} onChange={e => upd(li, { amount: e.target.value.replace(/[^\d.]/g, '') })} />
                   {!locked && cur.lines.length > 1
                     ? <button type="button" onClick={() => delLine(li)} title="Remove"
-                        style={{ background: 'none', border: 'none', color: 'var(--red, #e05c6a)', cursor: 'pointer', fontSize: 14, padding: 4 }}>✕</button>
+                        style={{ background: 'none', border: 'none', color: 'var(--red, #b0645b)', cursor: 'pointer', fontSize: 14, padding: 4 }}>✕</button>
                     : <span />}
                 </div>
               ))}
@@ -222,7 +222,7 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
                 <button type="button" onClick={addLine} style={smallBtn}>+ Add PID</button>
                 <button type="button" onClick={splitEven} style={smallBtn}>Split evenly</button>
-                <span style={{ marginInlineStart: 'auto', fontSize: 11.5, fontFamily: MONO, color: remaining === 0 ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)' }}>
+                <span style={{ marginInlineStart: 'auto', fontSize: 11.5, fontFamily: MONO, color: remaining === 0 ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)' }}>
                   {remaining === 0 ? '✓ Fully allocated' : remaining > 0 ? `${inr(remaining)} left` : `${inr(-remaining)} over`}
                 </span>
               </div>
@@ -231,7 +231,7 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '11px 13px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 10, fontFamily: MONO, fontSize: 12, color: muted }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Allocated</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{inr(allocated)} / {inr(gross)}</span></div>
               {Number(cur.invoice.advance_recovered) > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Less: advance</span><span style={{ color: 'var(--red, #e05c6a)' }}>− {inr(cur.invoice.advance_recovered)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Less: advance</span><span style={{ color: 'var(--red, #b0645b)' }}>− {inr(cur.invoice.advance_recovered)}</span></div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border, #2e3040)', paddingTop: 6 }}>
                 <span style={{ color: 'var(--text, #e8e8f0)', fontWeight: 700 }}>Net payable</span>
@@ -240,7 +240,7 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
             </div>
 
             {err && (
-              <div style={{ padding: '9px 11px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {err}</div>
+              <div style={{ padding: '9px 11px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8, fontSize: 11.5, color: 'var(--red, #b0645b)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {err}</div>
             )}
 
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -255,7 +255,7 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
 
         {phase === 'done' && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ All {total} have PIDs</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--green, #6f9a7e)', fontFamily: MONO }}>✓ All {total} have PIDs</div>
             <div style={{ fontSize: 13, color: muted, lineHeight: 1.55 }}>
               {cards.filter(c => c.invoice.status === 'draft' && isReady(c)).length} ready to issue.
               Issuing freezes each invoice and creates a private signing link — one per
@@ -263,7 +263,7 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
               list, by WhatsApp or your own mail client.
             </div>
             {err && (
-              <div style={{ padding: '9px 11px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.30)', borderRadius: 8, fontSize: 11.5, color: 'var(--red, #e05c6a)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {err}</div>
+              <div style={{ padding: '9px 11px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.30)', borderRadius: 8, fontSize: 11.5, color: 'var(--red, #b0645b)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {err}</div>
             )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" onClick={() => { setPhase('review'); setIdx(0); setErr('') }} style={navBtn}>‹ Back</button>
@@ -276,7 +276,7 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
 
         {phase === 'sent' && (
           <div style={cardStyle}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--green, #3dba7a)', fontFamily: MONO }}>✓ Issued</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--green, #6f9a7e)', fontFamily: MONO }}>✓ Issued</div>
             <div style={{ fontSize: 13, color: muted, lineHeight: 1.55 }}>
               {sendResult?.count ?? 0} invoice{(sendResult?.count ?? 0) === 1 ? '' : 's'} issued.
               <br />Close this and each one now has WhatsApp / Email / Copy link buttons

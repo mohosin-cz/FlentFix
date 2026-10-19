@@ -182,12 +182,12 @@ export default function DesignerBrief() {
             <span style={{ fontSize: 12.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
               PID {brief.pid}{brief.layout ? ` · ${brief.layout}` : ''}
             </span>
-            <span style={{ marginInlineStart: 'auto', fontSize: 11, fontFamily: MONO, color: saveState === 'error' ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)' }}>
+            <span style={{ marginInlineStart: 'auto', fontSize: 11, fontFamily: MONO, color: saveState === 'error' ? 'var(--red, #b0645b)' : 'var(--text-muted, #6b6d82)' }}>
               {submitted ? 'submitted' : saveState === 'saving' ? 'saving…' : saveState === 'saved' ? 'saved' : saveState === 'error' ? "couldn't save" : ''}
             </span>
           </div>
           <div style={{ height: 5, borderRadius: 3, background: 'var(--bg-input, #252731)', overflow: 'hidden', marginTop: 10 }}>
-            <div style={{ height: '100%', width: `${areas.length ? (filledCount / areas.length) * 100 : 0}%`, background: 'var(--green, #3dba7a)', transition: 'width .2s' }} />
+            <div style={{ height: '100%', width: `${areas.length ? (filledCount / areas.length) * 100 : 0}%`, background: 'var(--green, #6f9a7e)', transition: 'width .2s' }} />
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 6 }}>
             {filledCount} of {areas.length} areas · everything is optional
@@ -197,8 +197,8 @@ export default function DesignerBrief() {
 
       <main style={{ flex: 1, width: '100%', maxWidth: 620, margin: '0 auto', padding: '14px 16px calc(100px + env(safe-area-inset-bottom))', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {submitted && (
-          <div style={{ padding: '13px 15px', background: 'rgba(61,186,122,0.10)', border: '1px solid rgba(61,186,122,0.35)', borderRadius: 12 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--green, #3dba7a)' }}>Sent to Flent — thank you</div>
+          <div style={{ padding: '13px 15px', background: 'rgba(111,154,126,0.10)', border: '1px solid rgba(111,154,126,0.35)', borderRadius: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--green, #6f9a7e)' }}>Sent to Flent — thank you</div>
             <div style={{ fontSize: 12.5, color: 'var(--text-dim, #9394a8)', marginTop: 5, lineHeight: 1.55 }}>
               Nothing else to do. If something changes, ask the team for a fresh form rather than editing this one.
             </div>
@@ -215,7 +215,7 @@ export default function DesignerBrief() {
         )}
 
         {err && (
-          <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', borderRadius: 9, fontSize: 12.5, color: 'var(--red, #e05c6a)', fontFamily: MONO }}>⚠ {err}</div>
+          <div style={{ padding: '10px 12px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.32)', borderRadius: 9, fontSize: 12.5, color: 'var(--red, #b0645b)', fontFamily: MONO }}>⚠ {err}</div>
         )}
 
         {areas.map(area => {
@@ -227,7 +227,7 @@ export default function DesignerBrief() {
             <section key={area} style={{ background: 'var(--bg-panel, #1e2028)', border: `1px solid ${isOpen ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, borderRadius: 13, overflow: 'hidden' }}>
               <button type="button" onClick={() => setOpen(isOpen ? null : area)}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '14px 15px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', color: 'inherit', font: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
-                <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: done ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)' }} />
+                <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: done ? 'var(--green, #6f9a7e)' : 'var(--border-dash, #3a3d52)' }} />
                 <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600 }}>{area}</span>
                 {(a.photos || []).length > 0 && (
                   <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{a.photos.length} photo{a.photos.length === 1 ? '' : 's'}</span>
@@ -253,7 +253,7 @@ export default function DesignerBrief() {
                         <img src={publicUrl(p)} alt="" style={{ width: 74, height: 74, objectFit: 'cover', borderRadius: 9, border: '1px solid var(--border, #2e3040)', display: 'block' }} />
                         {!submitted && (
                           <button type="button" onClick={() => removePhoto(area, p)} aria-label="Remove photo"
-                            style={{ position: 'absolute', top: -7, right: -7, width: 24, height: 24, borderRadius: 12, border: '1px solid var(--border, #2e3040)', background: 'var(--bg, #16171f)', color: 'var(--red, #e05c6a)', fontSize: 12, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+                            style={{ position: 'absolute', top: -7, right: -7, width: 24, height: 24, borderRadius: 12, border: '1px solid var(--border, #2e3040)', background: 'var(--bg, #16171f)', color: 'var(--red, #b0645b)', fontSize: 12, cursor: 'pointer', lineHeight: 1 }}>✕</button>
                         )}
                       </div>
                     ))}

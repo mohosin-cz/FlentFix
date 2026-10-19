@@ -20,14 +20,14 @@ const BUCKETS = [
   { key: 'verify',   label: 'Waiting on you', tone: 'var(--accent, #c8963e)', match: (w) => w.status === 'vendor_completed' || awaitingVerify(w) > 0 },
   { key: 'progress', label: 'With the vendor', tone: '#6b8de6', match: (w) => w.status === 'in_progress' || w.status === 'assigned' },
   { key: 'draft',    label: 'Not issued yet',  tone: 'var(--text-muted, #6b6d82)', match: (w) => w.status === 'draft' },
-  { key: 'done',     label: 'Verified',        tone: 'var(--green, #3dba7a)', match: (w) => w.status === 'verified' },
+  { key: 'done',     label: 'Verified',        tone: 'var(--green, #6f9a7e)', match: (w) => w.status === 'verified' },
 ]
 const bucketOf = (w) => BUCKETS.find(b => b.match(w))?.key || 'progress'
 
 function ErrStrip({ children, onRetry }) {
   return (
-    <div style={{ padding: '12px 14px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', borderRadius: 9, fontFamily: MONO }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--red, #e05c6a)' }}>⚠ {children}</div>
+    <div style={{ padding: '12px 14px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.32)', borderRadius: 9, fontFamily: MONO }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--red, #b0645b)' }}>⚠ {children}</div>
       {onRetry && (
         <button type="button" onClick={onRetry} style={{ marginTop: 9, fontSize: 11.5, color: 'var(--accent, #c8963e)', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 6, padding: '5px 11px', cursor: 'pointer', fontFamily: MONO }}>Retry</button>
       )}
@@ -51,7 +51,7 @@ function OrderRow({ wo, onOpen }) {
           <span style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--accent, #c8963e)', fontFamily: MONO, background: 'rgba(200,150,62,0.12)', border: '1px solid rgba(200,150,62,0.3)', borderRadius: 5, padding: '1px 7px' }}>PID {wo.pid}</span>
           <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text, #e8e8f0)' }}>{tradeLabel(wo.trade)}</span>
           {disputed > 0 && (
-            <span style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--red, #e05c6a)', border: '1px solid var(--red, #e05c6a)', borderRadius: 9, padding: '1px 7px', fontFamily: MONO }}>{disputed} sent back</span>
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--red, #b0645b)', border: '1px solid var(--red, #b0645b)', borderRadius: 9, padding: '1px 7px', fontFamily: MONO }}>{disputed} sent back</span>
           )}
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap' }}>

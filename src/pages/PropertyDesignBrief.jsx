@@ -94,7 +94,7 @@ export default function PropertyDesignBrief() {
       <main style={{ flex: 1, width: '100%', padding: '14px 16px calc(90px + env(safe-area-inset-bottom))', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         {err && (
-          <div style={{ padding: '10px 12px', background: 'rgba(224,92,106,0.10)', border: '1px solid rgba(224,92,106,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--red, #e05c6a)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {err}</div>
+          <div style={{ padding: '10px 12px', background: 'rgba(176,100,91,0.10)', border: '1px solid rgba(176,100,91,0.32)', borderRadius: 9, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: MONO, wordBreak: 'break-word' }}>⚠ {err}</div>
         )}
 
         {!loaded ? null : !brief ? (
@@ -115,8 +115,8 @@ export default function PropertyDesignBrief() {
                 <span style={{
                   fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: MONO,
                   padding: '4px 9px', borderRadius: 6,
-                  color: submitted ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)',
-                  background: submitted ? 'rgba(61,186,122,0.12)' : 'rgba(200,150,62,0.12)',
+                  color: submitted ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)',
+                  background: submitted ? 'rgba(111,154,126,0.12)' : 'rgba(200,150,62,0.12)',
                 }}>{submitted ? 'Submitted' : 'Open with her'}</span>
                 <span style={{ fontSize: 12.5, color: 'var(--text-dim, #9394a8)' }}>
                   {brief.designer_name || 'No name given'}{brief.designer_phone ? ` · ${brief.designer_phone}` : ''}

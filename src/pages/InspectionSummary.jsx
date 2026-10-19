@@ -4,7 +4,7 @@ import { StickyFooter, BtnPrimary } from '../components/ui'
 import { supabase } from '../lib/supabase'
 import QuickNotes from '../components/QuickNotes'
 
-const CONDITION_COLOR = { Good: '#3dba7a', Fair: '#c8963e', Poor: '#e05c6a' }
+const CONDITION_COLOR = { Good: '#6f9a7e', Fair: '#c8963e', Poor: '#b0645b' }
 
 export default function InspectionSummary() {
   const navigate = useNavigate()
@@ -154,7 +154,7 @@ export default function InspectionSummary() {
       <StickyFooter left={
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{rooms.length} areas inspected</div>
-          <div style={{ fontSize: 11, color: submitError ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{submitError || pid}</div>
+          <div style={{ fontSize: 11, color: submitError ? 'var(--red, #b0645b)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{submitError || pid}</div>
         </div>
       }>
         <BtnPrimary onClick={handleSubmit} disabled={submitting}>

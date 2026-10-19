@@ -18,17 +18,17 @@ const MONO = 'var(--font-mono, monospace)'
 const C = {
   panel: 'var(--bg-panel, #1e2028)', input: 'var(--bg-input, #252731)', bg: 'var(--bg, #16171f)', border: 'var(--border, #2e3040)',
   text: 'var(--text, #e8e8f0)', dim: 'var(--text-dim, #9394a8)', muted: 'var(--text-muted, #6b6d82)',
-  accent: 'var(--accent, #c8963e)', green: 'var(--green, #3dba7a)', red: 'var(--red, #e05c6a)',
+  accent: 'var(--accent, #c8963e)', green: 'var(--green, #6f9a7e)', red: 'var(--red, #b0645b)',
 }
 const KIND = {
   visit:       { label: 'Exploratory visit',  short: 'visit',         fg: '#b0645b', bg: 'rgba(176,100,91,0.16)', group: 'visits' },
   setup:       { label: 'Setup',              short: 'setup',         fg: '#c8963e', bg: 'rgba(200,150,62,0.14)',  group: 'setups' },
   stage_setup: { label: 'Setup · Stage plan', short: 'setup (Stage)', fg: '#c8963e', bg: 'transparent',            group: 'setups', dashed: true },
   revamp:      { label: 'Revamp · Stage',     short: 'revamp',        fg: '#b08ae0', bg: 'rgba(176,138,224,0.12)', group: 'setups', dashed: true },
-  handover:    { label: 'Handover',           short: 'handover',      fg: '#3dba7a', bg: 'rgba(61,186,122,0.14)',  group: 'handovers' },
+  handover:    { label: 'Handover',           short: 'handover',      fg: '#6f9a7e', bg: 'rgba(111,154,126,0.14)',  group: 'handovers' },
   move_in:     { label: 'Move-in · Stage',    short: 'move-in',       fg: '#5fa8e8', bg: 'rgba(95,168,232,0.14)',  group: 'moveins' },
 }
-const GROUPS = [['visits', 'Visits', '#b0645b'], ['setups', 'Setups', '#c8963e'], ['moveins', 'Move-ins', '#5fa8e8'], ['handovers', 'Handovers', '#3dba7a'], ['vendors', 'Vendors', '#9394a8']]
+const GROUPS = [['visits', 'Visits', '#b0645b'], ['setups', 'Setups', '#c8963e'], ['moveins', 'Move-ins', '#5fa8e8'], ['handovers', 'Handovers', '#6f9a7e'], ['vendors', 'Vendors', '#9394a8']]
 const ORDER = ['visit', 'setup', 'stage_setup', 'revamp', 'handover', 'move_in']
 const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
@@ -172,7 +172,7 @@ export default function SetupCalendar() {
           <div key={x} role="button" tabIndex={0} onClick={() => clickDay(x)} onKeyDown={e => { if (e.key === 'Enter') clickDay(x) }} {...dropProps(x)}
             style={{ minHeight: phone ? 64 : 116, padding: 5, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0, cursor: 'pointer',
                      borderRight: (i % 7) < 6 ? `1px solid ${C.border}` : 'none', borderBottom: `1px solid ${C.border}`, opacity: out ? 0.45 : 1,
-                     background: picked ? 'rgba(61,186,122,0.06)' : x === sel ? 'rgba(200,150,62,0.10)' : x === t ? 'rgba(200,150,62,0.05)' : 'transparent' }}>
+                     background: picked ? 'rgba(111,154,126,0.06)' : x === sel ? 'rgba(200,150,62,0.10)' : x === t ? 'rgba(200,150,62,0.05)' : 'transparent' }}>
             <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: x === t ? C.accent : C.dim, ...(x === t ? { background: 'rgba(200,150,62,0.18)', borderRadius: 6, padding: '0 5px' } : {}) }}>{parse(x).getDate()}</span>
               {vs.length > 0 && !phone && <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: dbl ? C.red : C.muted }}>{vs.length} vendor{vs.length === 1 ? '' : 's'}{dbl ? ` · ${dbl}×2` : ''}</span>}
@@ -217,7 +217,7 @@ export default function SetupCalendar() {
         if (view === 'agenda' && !ev.length && !vs.length) return null
         return (
           <div key={x} style={{ borderBottom: `1px solid ${C.border}` }}>
-            {view === 'agenda' && <div onClick={() => clickDay(x)} style={{ padding: '8px 14px', fontFamily: MONO, fontSize: 12, fontWeight: 700, color: x === t ? C.accent : C.dim, background: picked ? 'rgba(61,186,122,0.06)' : 'transparent', cursor: 'pointer' }}>{x === t ? 'Today · ' : ''}{nice(x)}{picked ? ' — tap to place here' : ''}</div>}
+            {view === 'agenda' && <div onClick={() => clickDay(x)} style={{ padding: '8px 14px', fontFamily: MONO, fontSize: 12, fontWeight: 700, color: x === t ? C.accent : C.dim, background: picked ? 'rgba(111,154,126,0.06)' : 'transparent', cursor: 'pointer' }}>{x === t ? 'Today · ' : ''}{nice(x)}{picked ? ' — tap to place here' : ''}</div>}
             {!ev.length && !vs.length && <div style={{ padding: '12px 14px', fontSize: 13, color: C.muted }}>Nothing on this day.</div>}
             {ev.map(e => <EventRow key={evKey(e)} e={e} onOpen={() => openItem(e)} warn={warnOf(e)} done={doneOf(e)} />)}
             {vs.length > 0 && <div style={{ padding: '8px 14px', fontFamily: MONO, fontSize: 11.5, color: C.muted }}>Vendors: {vs.map(v => `${v.vendor}${v.double ? ' (×2)' : ''} at ${v.pids.join(', ')}`).join(' · ')}</div>}
@@ -277,7 +277,8 @@ export default function SetupCalendar() {
                 {picked ? <>Now tap a day for <b>{picked.pid}</b> · <button type="button" onClick={() => setPicked(null)} style={{ background: 'none', border: 0, color: C.accent, fontFamily: MONO, fontSize: 11, cursor: 'pointer', padding: 0 }}>cancel</button></> : 'Drag one onto a day — or tap it, then tap the day.'}
               </div>
             </section>
-            <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+            {/* assigning visits is the admin's job alone */}
+            {isAdmin && <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10 }}>
               <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C.border}` }}><b style={trayHead}>Needs someone</b></div>
               {unassigned.length === 0 ? <div style={{ padding: 12, fontSize: 12.5, color: C.muted }}>Every upcoming visit has someone.</div> : unassigned.map(e => (
                 <button key={evKey(e)} type="button" onClick={() => { openItem(e); setAnchor(e.date.slice(0, 8) + '01') }}
@@ -286,7 +287,7 @@ export default function SetupCalendar() {
                   <div style={{ fontFamily: MONO, fontSize: 11, color: '#b0645b' }}>{nice(e.date)}{e.time ? ` · ${e.time}` : ''} · assign ›</div>
                 </button>
               ))}
-            </section>
+            </section>}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: phone ? 'minmax(0,1fr)' : 'minmax(0,1fr) minmax(280px, 330px)', gap: 12, alignItems: 'start', minWidth: 0 }}>

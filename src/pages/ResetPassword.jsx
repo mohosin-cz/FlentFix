@@ -78,15 +78,15 @@ export default function ResetPassword() {
           }}>
             <div style={{
               width: 48, height: 48, borderRadius: 12,
-              background: 'rgba(61,186,122,0.12)',
-              border: '1px solid rgba(61,186,122,0.3)',
+              background: 'rgba(111,154,126,0.12)',
+              border: '1px solid rgba(111,154,126,0.3)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                <path d="M4 11l5 5 9-9" stroke="var(--green, #3dba7a)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M4 11l5 5 9-9" stroke="var(--green, #6f9a7e)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--green, #3dba7a)' }}>Password updated</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--green, #6f9a7e)' }}>Password updated</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
               redirecting to login…
             </div>
@@ -152,9 +152,9 @@ export default function ResetPassword() {
             {/* Error */}
             {error && (
               <div style={{
-                fontSize: 12, color: 'var(--red, #e05c6a)',
-                background: 'rgba(224,92,106,0.08)',
-                border: '1px solid rgba(224,92,106,0.25)',
+                fontSize: 12, color: 'var(--red, #b0645b)',
+                background: 'rgba(176,100,91,0.08)',
+                border: '1px solid rgba(176,100,91,0.25)',
                 borderRadius: 6, padding: '9px 12px',
                 fontFamily: 'var(--font-mono, monospace)',
               }}>

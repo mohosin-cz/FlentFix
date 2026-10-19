@@ -168,7 +168,7 @@ export function maskAccount(no) {
 }
 
 // ── avatar helpers (initials + a stable, tasteful colour per name) ──────────
-const AVATAR_COLORS = ['#c8963e', '#3dba7a', '#5b8def', '#c77dbb', '#d98748', '#57b3b0']
+const AVATAR_COLORS = ['#c8963e', '#6f9a7e', '#7f93b8', '#c77dbb', '#d98748', '#57b3b0']
 
 export function initials(name) {
   const parts = (name || '').trim().split(/\s+/).filter(Boolean)

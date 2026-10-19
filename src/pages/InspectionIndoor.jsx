@@ -405,7 +405,7 @@ function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photo
       <input ref={cameraRef}  type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFiles} />
       <input ref={videoRef}   type="file" accept="video/*" capture="environment" style={{ display: 'none' }} onChange={handleFiles} />
       <input ref={galleryRef} type="file" accept="image/*,video/*" multiple            style={{ display: 'none' }} onChange={handleFiles} />
-      <button type="button" onClick={() => !uploading && setSheet(true)} disabled={uploading} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', border: `1px dashed ${uploading ? 'var(--accent, #c8963e)' : files.length ? 'var(--green, #3dba7a)' : 'var(--border-dash, #3a3d52)'}`, borderRadius: 6, background: uploading ? 'rgba(200,150,62,0.08)' : files.length ? 'rgba(61,186,122,0.08)' : 'var(--bg-input, #252731)', fontSize: 13, fontWeight: 500, color: uploading ? 'var(--accent, #c8963e)' : files.length ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', cursor: uploading ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
+      <button type="button" onClick={() => !uploading && setSheet(true)} disabled={uploading} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', border: `1px dashed ${uploading ? 'var(--accent, #c8963e)' : files.length ? 'var(--green, #6f9a7e)' : 'var(--border-dash, #3a3d52)'}`, borderRadius: 6, background: uploading ? 'rgba(200,150,62,0.08)' : files.length ? 'rgba(111,154,126,0.08)' : 'var(--bg-input, #252731)', fontSize: 13, fontWeight: 500, color: uploading ? 'var(--accent, #c8963e)' : files.length ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)', cursor: uploading ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 11v2a1 1 0 001 1h12a1 1 0 001-1v-2M8 1v9M5 4l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         {uploading ? 'Uploading…' : label}
         {!uploading && files.length > 0 && <span style={{ marginLeft: 'auto', background: 'var(--accent, #c8963e)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono, monospace)' }}>{files.length}</span>}
@@ -415,7 +415,7 @@ function MediaUpload({ files = [], onChange, pid, itemKey, label = 'Attach Photo
           {files.map((file, i) => (
             <div key={i} style={{ position: 'relative' }}>
               <Thumb file={file} />
-              <button type="button" onClick={() => remove(i)} style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: 'var(--red, #e05c6a)', border: '2px solid var(--bg-panel, #1e2028)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>×</button>
+              <button type="button" onClick={() => remove(i)} style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: 'var(--red, #b0645b)', border: '2px solid var(--bg-panel, #1e2028)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>×</button>
             </div>
           ))}
         </div>
@@ -467,13 +467,13 @@ function ProofVideoCapture({ itemTotal, proofMedia, onChange, pid, itemKey }) {
     setUploading(false)
   }
   return (
-    <div style={{ borderRadius: 8, border: `1.5px solid ${hasProof ? 'rgba(61,186,122,0.45)' : 'rgba(200,150,62,0.6)'}`, background: hasProof ? 'rgba(61,186,122,0.06)' : 'rgba(200,150,62,0.08)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: hasProof ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+    <div style={{ borderRadius: 8, border: `1.5px solid ${hasProof ? 'rgba(111,154,126,0.45)' : 'rgba(200,150,62,0.6)'}`, background: hasProof ? 'rgba(111,154,126,0.06)' : 'rgba(200,150,62,0.08)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: hasProof ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
         {hasProof ? '✓ Proof video added' : `● High-value item (₹${itemTotal.toLocaleString('en-IN')}) — proof video required`}
       </div>
       {!hasProof && <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>Record at least 10 s · hold phone vertically</div>}
       {hasProof && <Thumb file={proofMedia[0]} />}
-      {error && <div style={{ fontSize: 11, color: 'var(--red, #e05c6a)', fontWeight: 600 }}>✗ {error}</div>}
+      {error && <div style={{ fontSize: 11, color: 'var(--red, #b0645b)', fontWeight: 600 }}>✗ {error}</div>}
       <input ref={inputRef} type="file" accept="video/*" capture="environment" style={{ display: 'none' }} onChange={handleFile} />
       <button type="button" disabled={uploading} onClick={() => { setError(''); inputRef.current?.click() }}
         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 6, background: 'rgba(200,150,62,0.1)', color: 'var(--accent, #c8963e)', fontSize: 12, fontWeight: 700, cursor: uploading ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.04em', minHeight: 40 }}>
@@ -521,11 +521,11 @@ function IssueCheckboxGrid({ presets, selectedIssues, otherIssue, onSetIssues, o
         <Textarea value={otherIssue || ''} onChange={onOtherChange} placeholder="Describe the issue…" rows={2} />
       )}
       {hasFunctional && (
-        <button type="button" onClick={() => toggle('Functional')} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', border: `1px solid ${isFunctional ? 'rgba(61,186,122,0.4)' : 'var(--border-dash, #3a3d52)'}`, borderRadius: 6, background: isFunctional ? 'rgba(61,186,122,0.08)' : 'var(--bg-input, #252731)', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
-          <span style={{ width: 14, height: 14, minWidth: 14, borderRadius: 3, border: `1.5px solid ${isFunctional ? 'var(--green, #3dba7a)' : 'var(--border, #2e3040)'}`, background: isFunctional ? 'var(--green, #3dba7a)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button type="button" onClick={() => toggle('Functional')} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', border: `1px solid ${isFunctional ? 'rgba(111,154,126,0.4)' : 'var(--border-dash, #3a3d52)'}`, borderRadius: 6, background: isFunctional ? 'rgba(111,154,126,0.08)' : 'var(--bg-input, #252731)', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+          <span style={{ width: 14, height: 14, minWidth: 14, borderRadius: 3, border: `1.5px solid ${isFunctional ? 'var(--green, #6f9a7e)' : 'var(--border, #2e3040)'}`, background: isFunctional ? 'var(--green, #6f9a7e)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {isFunctional && <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2.5 2.5L7 1.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
           </span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: isFunctional ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Functional — no issues</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: isFunctional ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Functional — no issues</span>
         </button>
       )}
     </div>
@@ -614,8 +614,8 @@ function LabourRateDropdown({ rates, value, labourCost, onSelect }) {
 // ── Not-available note ────────────────────────────────────────────────────────
 function NotAvailableNote({ value, onChange }) {
   return (
-    <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(224,92,106,0.3)' }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', marginBottom: 10, fontFamily: 'var(--font-mono, monospace)' }}>
+    <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(176,100,91,0.3)' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--red, #b0645b)', marginBottom: 10, fontFamily: 'var(--font-mono, monospace)' }}>
         Not available
       </div>
       <Field label="Note" optional>
@@ -1239,7 +1239,7 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
   const fixtureChips = (
     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
       <button type="button" onClick={e => { e.stopPropagation(); tapFS('functional') }}
-        style={chipStyle(effFS === 'functional', 'var(--green, #3dba7a)', 'rgba(61,186,122,0.15)', 'rgba(61,186,122,0.5)')}>
+        style={chipStyle(effFS === 'functional', 'var(--green, #6f9a7e)', 'rgba(111,154,126,0.15)', 'rgba(111,154,126,0.5)')}>
         {effFS === 'functional' ? '✓' : '✓ OK'}
       </button>
       <button type="button" onClick={e => { e.stopPropagation(); tapFS('not_available') }}
@@ -1260,7 +1260,7 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
       {!isAcPoint && fixtureChips}
       <button type="button" onClick={e => { e.stopPropagation(); onDuplicate() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(200,150,62,0.4)', background: 'rgba(200,150,62,0.08)', color: 'var(--accent, #c8963e)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>⊕</button>
       {totalCards > 1 && (
-        <button type="button" onClick={e => { e.stopPropagation(); onRemove() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(224,92,106,0.35)', background: 'rgba(224,92,106,0.08)', color: 'var(--red, #e05c6a)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>×</button>
+        <button type="button" onClick={e => { e.stopPropagation(); onRemove() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(176,100,91,0.35)', background: 'rgba(176,100,91,0.08)', color: 'var(--red, #b0645b)', fontSize: 14, cursor: 'pointer', fontWeight: 700, lineHeight: 1 }}>×</button>
       )}
     </div>
   )
@@ -1281,7 +1281,7 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
               {[['present', 'Present'], ['not_present', 'Not Present']].map(([val, lbl]) => {
                 const active = acProvision === val
                 return (
-                  <button key={val} type="button" onClick={() => onUpdate('acProvision', val)} style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, borderRadius: 5, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', border: `1px solid ${active ? (val === 'present' ? 'rgba(61,186,122,0.4)' : 'rgba(224,92,106,0.4)') : 'var(--border, #2e3040)'}`, background: active ? (val === 'present' ? 'rgba(61,186,122,0.1)' : 'rgba(224,92,106,0.1)') : 'transparent', color: active ? (val === 'present' ? 'var(--green, #3dba7a)' : 'var(--red, #e05c6a)') : 'var(--text-muted, #6b6d82)' }}>
+                  <button key={val} type="button" onClick={() => onUpdate('acProvision', val)} style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, borderRadius: 5, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', border: `1px solid ${active ? (val === 'present' ? 'rgba(111,154,126,0.4)' : 'rgba(176,100,91,0.4)') : 'var(--border, #2e3040)'}`, background: active ? (val === 'present' ? 'rgba(111,154,126,0.1)' : 'rgba(176,100,91,0.1)') : 'transparent', color: active ? (val === 'present' ? 'var(--green, #6f9a7e)' : 'var(--red, #b0645b)') : 'var(--text-muted, #6b6d82)' }}>
                     {lbl}
                   </button>
                 )
@@ -1292,14 +1292,14 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
 
         {/* AC Point not present — no further fields */}
         {isAcPoint && acProvision === 'not_present' ? (
-          <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(224,92,106,0.3)' }}>
+          <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(176,100,91,0.3)' }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Saved as no provision</div>
           </div>
         ) : effFS === 'not_available' ? (
           <NotAvailableNote value={card.notAvailableNote} onChange={v => onUpdate('notAvailableNote', v)} />
         ) : effFS === 'functional' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ padding: '10px 14px', background: 'rgba(61,186,122,0.08)', border: '1px solid rgba(61,186,122,0.25)', borderRadius: 8, fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', fontFamily: 'var(--font-mono, monospace)' }}>
+            <div style={{ padding: '10px 14px', background: 'rgba(111,154,126,0.08)', border: '1px solid rgba(111,154,126,0.25)', borderRadius: 8, fontSize: 11, fontWeight: 600, color: 'var(--green, #6f9a7e)', fontFamily: 'var(--font-mono, monospace)' }}>
               ✓ Functional — score 10 / 10
             </div>
             <MediaUpload files={card.media} onChange={v => onUpdate('media', v)} pid={pid} itemKey={`${itemConfig.key}_${cardIdx}`} />
@@ -1320,7 +1320,7 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
             {confirmSheet === 'functional' ? 'Marking as functional will remove them.' : 'Marking as N/A will remove them.'}
           </div>
           <button type="button" onClick={() => { applyFS(confirmSheet); setConfirmSheet(null) }}
-            style={{ width: '100%', padding: '12px 16px', background: confirmSheet === 'functional' ? 'rgba(61,186,122,0.12)' : 'rgba(107,109,130,0.12)', border: `1px solid ${confirmSheet === 'functional' ? 'rgba(61,186,122,0.4)' : 'rgba(107,109,130,0.4)'}`, borderRadius: 8, color: confirmSheet === 'functional' ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 10, fontFamily: 'inherit' }}>
+            style={{ width: '100%', padding: '12px 16px', background: confirmSheet === 'functional' ? 'rgba(111,154,126,0.12)' : 'rgba(107,109,130,0.12)', border: `1px solid ${confirmSheet === 'functional' ? 'rgba(111,154,126,0.4)' : 'rgba(107,109,130,0.4)'}`, borderRadius: 8, color: confirmSheet === 'functional' ? 'var(--green, #6f9a7e)' : 'var(--text-dim, #9394a8)', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 10, fontFamily: 'inherit' }}>
             {confirmSheet === 'functional' ? 'Clear & mark functional' : 'Clear & mark N/A'}
           </button>
           <button type="button" onClick={() => setConfirmSheet(null)}
@@ -1396,9 +1396,9 @@ function GeneralToggleItem({ config, data, onUpdate, cleaningRates, pid }) {
           {isDeepCleaning ? (
             <>
               {/* Full Home Yes/No */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: data.fullHome === true ? 'rgba(61,186,122,0.08)' : 'var(--bg-input, #252731)', border: `1px solid ${data.fullHome === true ? 'rgba(61,186,122,0.35)' : 'var(--border, #2e3040)'}`, borderRadius: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: data.fullHome === true ? 'rgba(111,154,126,0.08)' : 'var(--bg-input, #252731)', border: `1px solid ${data.fullHome === true ? 'rgba(111,154,126,0.35)' : 'var(--border, #2e3040)'}`, borderRadius: 8 }}>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: data.fullHome === true ? 'var(--green, #3dba7a)' : 'var(--text-dim, #9394a8)' }}>Full Home Deep Cleaning</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: data.fullHome === true ? 'var(--green, #6f9a7e)' : 'var(--text-dim, #9394a8)' }}>Full Home Deep Cleaning</div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>Covers all rooms and areas</div>
                 </div>
                 <YesNoControl value={data.fullHome} onChange={v => onUpdate('fullHome', v)} />
@@ -1424,7 +1424,7 @@ function GeneralToggleItem({ config, data, onUpdate, cleaningRates, pid }) {
                   {(data.specificAreas || []).map((sa, idx) => (
                     <div key={sa.id} style={{ background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <button type="button" onClick={() => removeSpecificArea(idx)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 4, background: 'rgba(224,92,106,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
+                        <button type="button" onClick={() => removeSpecificArea(idx)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(176,100,91,0.3)', borderRadius: 4, background: 'rgba(176,100,91,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #b0645b)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
                       </div>
                       <Field label="Area">
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
@@ -1528,7 +1528,7 @@ function CustomItemCard({ item, onChange, onRemove, pid }) {
     <div style={{ borderRadius: 8, border: '1px dashed var(--accent, #c8963e)', padding: 14, background: 'var(--bg-input, #252731)', display: 'flex', flexDirection: 'column', gap: 14, marginTop: 4 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent, #c8963e)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono, monospace)' }}>+ custom item</span>
-        <button type="button" onClick={onRemove} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 4, background: 'rgba(224,92,106,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
+        <button type="button" onClick={onRemove} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(176,100,91,0.3)', borderRadius: 4, background: 'rgba(176,100,91,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #b0645b)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
       </div>
 
       <Field label="Item Name">
@@ -1561,7 +1561,7 @@ function CustomItemCard({ item, onChange, onRemove, pid }) {
           return (
             <div key={row.id || idx} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button type="button" onClick={() => removeIssue(idx)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(224,92,106,0.3)', borderRadius: 4, background: 'rgba(224,92,106,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #e05c6a)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
+                <button type="button" onClick={() => removeIssue(idx)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', border: '1px solid rgba(176,100,91,0.3)', borderRadius: 4, background: 'rgba(176,100,91,0.08)', fontSize: 11, fontWeight: 600, color: 'var(--red, #b0645b)', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>× remove</button>
               </div>
               <Field label="Issue Description" optional>
                 <Textarea value={row.issueDescription} onChange={v => updateIssue(idx, 'issueDescription', v)} rows={2} placeholder="Describe the issue…" />
@@ -2194,7 +2194,7 @@ export default function InspectionIndoor() {
         onBack={() => navigate('/inspections/mode', { state })}
         right={
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: progress === 100 ? 'var(--green, #3dba7a)' : 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>{progress}%</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: progress === 100 ? 'var(--green, #6f9a7e)' : 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>{progress}%</div>
             <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', opacity: savedFlash ? 1 : 0, transition: 'opacity 0.4s ease' }}>draft saved</div>
           </div>
         }
@@ -2206,7 +2206,7 @@ export default function InspectionIndoor() {
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '6px 16px 0', maxWidth: 600, margin: '0 auto', width: '100%' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green, #3dba7a)', display: 'inline-block', opacity: 0.7 }} />
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green, #6f9a7e)', display: 'inline-block', opacity: 0.7 }} />
           auto-saving draft
         </span>
       </div>
@@ -2214,9 +2214,9 @@ export default function InspectionIndoor() {
       <TabBar tabs={tabLabels} active={tabIdx} onChange={handleTabChange} />
 
       {tabError && (
-        <div style={{ background: 'rgba(224,92,106,0.10)', borderBottom: '1px solid rgba(224,92,106,0.25)', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <span style={{ fontSize: 11, color: '#e05c6a', fontFamily: 'var(--font-mono, monospace)' }}>⚠ {tabError}</span>
-          <button onClick={() => setTabError('')} style={{ background: 'none', border: 'none', color: '#e05c6a', fontSize: 14, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+        <div style={{ background: 'rgba(176,100,91,0.10)', borderBottom: '1px solid rgba(176,100,91,0.25)', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <span style={{ fontSize: 11, color: '#b0645b', fontFamily: 'var(--font-mono, monospace)' }}>⚠ {tabError}</span>
+          <button onClick={() => setTabError('')} style={{ background: 'none', border: 'none', color: '#b0645b', fontSize: 14, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
         </div>
       )}
       {feasError.length > 0 && (
@@ -2331,7 +2331,7 @@ export default function InspectionIndoor() {
         ) : (
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>indoor</div>
-            <div style={{ fontSize: 11, color: estimateError ? 'var(--red, #e05c6a)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{estimateError || `${totalDone} of ${totalItems} complete`}</div>
+            <div style={{ fontSize: 11, color: estimateError ? 'var(--red, #b0645b)' : 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{estimateError || `${totalDone} of ${totalItems} complete`}</div>
           </div>
         )
       }>

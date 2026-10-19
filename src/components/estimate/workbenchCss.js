@@ -282,12 +282,12 @@ export const CSS = `
    the two rows that actually need attention. Disputed keeps its chip. */
 .spill-approved{background:none;color:#5a8f66;padding:0;font-size:9px;letter-spacing:.04em}
 .row:hover .spill-approved,.row.active .spill-approved{color:#6fc47f}
-.spill-disputed{background:rgba(224,92,106,.16);color:#e8697a}
+.spill-disputed{background:rgba(176,100,91,.16);color:#b0645b}
 .spill-pending{background:rgba(148,152,170,.12);color:#8d90a3}
 .spill-excluded{background:rgba(148,152,170,.10);color:#7a7d8e}
 /* Same logic on the edge stripe: the norm is a hairline, the exception is bold. */
 .row.s-approved:not(.active){box-shadow:inset 2px 0 0 rgba(95,174,110,.45)}
-.row.s-disputed:not(.active){box-shadow:inset 3px 0 0 var(--clay,#e05c6a)}
+.row.s-disputed:not(.active){box-shadow:inset 3px 0 0 var(--clay,#b0645b)}
 .sbar{display:flex;height:5px;border-radius:3px;overflow:hidden;background:rgba(255,255,255,.05);margin-top:3px}
 .sbar i{display:block;height:100%}
 .sbar i+i{box-shadow:inset 1px 0 0 var(--panel)}

@@ -57,8 +57,8 @@ function SetupCloseChecklist({ pid, checks, busy, btn, onPayments, onClose }) {
   const roOk = checks.ro?.not_needed || checks.ro?.registered
   const ready = pay && wifiOk && roOk
   const item = (ok, label, action) => (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 10px', borderRadius: 8, border: `1px solid ${ok ? 'rgba(61,186,122,0.4)' : 'var(--border, #2e3040)'}`, fontFamily: MONO, fontSize: 12 }}>
-      <span style={{ color: ok ? 'var(--green, #3dba7a)' : 'var(--amber, #c8963e)' }}>{ok ? '✓' : '○'}</span>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 10px', borderRadius: 8, border: `1px solid ${ok ? 'rgba(111,154,126,0.4)' : 'var(--border, #2e3040)'}`, fontFamily: MONO, fontSize: 12 }}>
+      <span style={{ color: ok ? 'var(--green, #6f9a7e)' : 'var(--amber, #c8963e)' }}>{ok ? '✓' : '○'}</span>
       <span style={{ color: ok ? 'var(--text-dim, #9394a8)' : 'var(--text, #e8e8f0)' }}>{label}</span>
       {action}
     </span>
@@ -185,7 +185,7 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
   if (state.loading) return <div style={box} aria-busy="true"><div style={{ height: 34, borderRadius: 8, background: 'var(--border, #2e3040)', opacity: 0.4 }} /></div>
   if (state.error) {
     const notYet = /function|does not exist|schema cache/i.test(state.error)
-    return <div style={{ ...box, fontFamily: MONO, fontSize: 12, color: notYet ? 'var(--text-muted, #6b6d82)' : 'var(--red, #e05c6a)' }}>{notYet ? 'Milestones appear once the journey milestones migration is applied.' : `Couldn't load milestones — ${state.error}`}</div>
+    return <div style={{ ...box, fontFamily: MONO, fontSize: 12, color: notYet ? 'var(--text-muted, #6b6d82)' : 'var(--red, #b0645b)' }}>{notYet ? 'Milestones appear once the journey milestones migration is applied.' : `Couldn't load milestones — ${state.error}`}</div>
   }
   if (!state.data) return null
 
@@ -209,9 +209,9 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
           return (
             <div key={m.key} title={s.hint}
               style={{ padding: '8px 10px', borderRadius: 8, minWidth: 0,
-                       border: `1px ${m.done || isDue ? 'solid' : 'dashed'} ${isDue ? 'var(--accent, #c8963e)' : m.done ? 'rgba(61,186,122,0.35)' : 'var(--border, #2e3040)'}`,
+                       border: `1px ${m.done || isDue ? 'solid' : 'dashed'} ${isDue ? 'var(--accent, #c8963e)' : m.done ? 'rgba(111,154,126,0.35)' : 'var(--border, #2e3040)'}`,
                        background: isDue ? 'rgba(200,150,62,0.08)' : 'transparent' }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: MONO, color: m.done ? 'var(--green, #3dba7a)' : isDue ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: MONO, color: m.done ? 'var(--green, #6f9a7e)' : isDue ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {m.done ? '✓ ' : ''}{s.label}
               </div>
               <div style={{ fontSize: 11, fontFamily: MONO, color: 'var(--text-dim, #9394a8)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -247,7 +247,7 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
         ) : due === 'closed' && (state.data.invoice?.exists || !state.data.invoice) ? (
           <>
             {state.data.invoice?.exists && (
-              <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--green, #3dba7a)' }}>✓ Invoice{state.data.invoice.number ? ` ${state.data.invoice.number}` : ''}</span>
+              <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--green, #6f9a7e)' }}>✓ Invoice{state.data.invoice.number ? ` ${state.data.invoice.number}` : ''}</span>
             )}
             <input type="date" value={closeDate} onChange={e => setCloseDate(e.target.value)} style={input} aria-label="Closure date" />
             <input value={note} onChange={e => setNote(e.target.value)} placeholder="Closure note (optional)" style={{ ...input, flex: '1 1 200px', minWidth: 0 }} />
@@ -299,7 +299,7 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
           <button type="button" disabled={busy} onClick={() => act('mark', due)} style={btn(true)}>{STEPS[due].action}</button>
         ) : (
           <>
-            <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--green, #3dba7a)' }}>Property closed.</span>
+            <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--green, #6f9a7e)' }}>Property closed.</span>
             {state.data.no_invoice && <NoInvoiceFlag ni={state.data.no_invoice} />}
           </>
         )}
@@ -322,7 +322,7 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
       </div>
 
       <DateSources setup={setup} handover={handover} stage={stage} busy={busy} onUse={takeStageDate} btn={btn} />
-      {err && <div role="alert" style={{ marginTop: 8, fontFamily: MONO, fontSize: 12, color: 'var(--red, #e05c6a)' }}>Not saved — {err}</div>}
+      {err && <div role="alert" style={{ marginTop: 8, fontFamily: MONO, fontSize: 12, color: 'var(--red, #b0645b)' }}>Not saved — {err}</div>}
     </div>
   )
 }

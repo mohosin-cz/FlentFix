@@ -62,9 +62,9 @@ const TILES = [
         <path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
       </svg>
     ),
-    color: 'var(--green, #3dba7a)',
-    bg: 'rgba(61,186,122,0.08)',
-    border: 'rgba(61,186,122,0.25)',
+    color: 'var(--green, #6f9a7e)',
+    bg: 'rgba(111,154,126,0.08)',
+    border: 'rgba(111,154,126,0.25)',
   },
   {
     key: 'utilities',
@@ -137,9 +137,9 @@ const TILES = [
         <path d="M6 15h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
       </svg>
     ),
-    color: 'var(--green, #3dba7a)',
-    bg: 'rgba(61,186,122,0.08)',
-    border: 'rgba(61,186,122,0.25)',
+    color: 'var(--green, #6f9a7e)',
+    bg: 'rgba(111,154,126,0.08)',
+    border: 'rgba(111,154,126,0.25)',
   },
   {
     key: 'invoice',
@@ -583,7 +583,7 @@ export default function PropertyDetail() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
                   {[
                     { label: 'Line Items', value: stats.totalItems },
-                    { label: 'Issues', value: stats.issues, color: stats.issues > 0 ? 'var(--red, #e05c6a)' : undefined },
+                    { label: 'Issues', value: stats.issues, color: stats.issues > 0 ? 'var(--red, #b0645b)' : undefined },
                     { label: 'Est. Cost', value: `₹${(stats.totalCost || 0).toLocaleString('en-IN')}`, color: stats.totalCost > 0 ? 'var(--accent, #c8963e)' : undefined },
                   ].map(stat => (
                     <div key={stat.label} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: '12px 10px', textAlign: 'center' }}>
@@ -765,9 +765,9 @@ export default function PropertyDetail() {
                                 <span style={{
                                   fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3,
                                   fontFamily: 'var(--font-mono, monospace)',
-                                  background: ins.status === 'completed' ? 'rgba(61,186,122,0.1)' : ins.status === 'estimate_generated' ? 'rgba(61,186,122,0.1)' : 'var(--bg-input, #252731)',
-                                  border: `1px solid ${ins.status === 'completed' || ins.status === 'estimate_generated' ? 'rgba(61,186,122,0.3)' : 'var(--border, #2e3040)'}`,
-                                  color: ins.status === 'completed' || ins.status === 'estimate_generated' ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)',
+                                  background: ins.status === 'completed' ? 'rgba(111,154,126,0.1)' : ins.status === 'estimate_generated' ? 'rgba(111,154,126,0.1)' : 'var(--bg-input, #252731)',
+                                  border: `1px solid ${ins.status === 'completed' || ins.status === 'estimate_generated' ? 'rgba(111,154,126,0.3)' : 'var(--border, #2e3040)'}`,
+                                  color: ins.status === 'completed' || ins.status === 'estimate_generated' ? 'var(--green, #6f9a7e)' : 'var(--text-muted, #6b6d82)',
                                 }}>
                                   {ins.status || 'draft'}
                                 </span>
@@ -776,7 +776,7 @@ export default function PropertyDetail() {
                             {ins.status === 'estimate_generated' && (
                               <button
                                 onClick={() => navigate(`/estimate/${ins.id}`)}
-                                style={{ fontSize: 11, fontWeight: 600, color: 'var(--green, #3dba7a)', background: 'rgba(61,186,122,0.08)', border: '1px solid rgba(61,186,122,0.25)', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}
+                                style={{ fontSize: 11, fontWeight: 600, color: 'var(--green, #6f9a7e)', background: 'rgba(111,154,126,0.08)', border: '1px solid rgba(111,154,126,0.25)', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}
                               >
                                 view estimate →
                               </button>
