@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { initials, avatarColor } from '../../utils/vendorHub'
 import InvoiceStage from './InvoiceStage'
+import AdvancesPanel from './AdvancesPanel'
 
 const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
 const monthLabel = (d) => d ? new Date(d).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : ''
@@ -323,6 +324,9 @@ export default function PayrollTab() {
         <button type="button" onClick={() => setSheet('rates')} style={{ padding: '9px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, color: 'var(--text-dim, #9394a8)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>Rates</button>
       </div>
       {error && <Err>{error}</Err>}
+      {/* Advances sit above the months: they are what next month's payroll
+          has to remember. */}
+      {!error && <AdvancesPanel periods={periods} onChanged={loadPeriods} />}
       {loading && !error && <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Loading…</div>}
       {!loading && !error && periods && (periods.length === 0
         ? <div style={{ padding: '44px 20px', textAlign: 'center', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 12 }}>
@@ -475,13 +479,16 @@ function ReviewTable({ period, rows: initialRows, onReload }) {
                 <td style={{ ...td, padding: '0 4px', textAlign: 'center' }} title={r.reviewed_at ? `Approved ${new Date(r.reviewed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}${r.reviewed_by ? ` by ${r.reviewed_by}` : ''}` : 'Not reviewed yet'}>
                   <span style={{ fontSize: 12, color: r.reviewed_at && !dirty.has(r.id) ? 'var(--green, #3dba7a)' : 'var(--text-muted, #6b6d82)', opacity: r.reviewed_at && !dirty.has(r.id) ? 1 : 0.35 }}>{r.reviewed_at && !dirty.has(r.id) ? '✓' : '·'}</span>
                 </td>
-                <td style={td}><input value={r.beneficiary_name || ''} readOnly={locked} onChange={e => upd(r.id, { beneficiary_name: e.target.value })} placeholder="Name" style={cellIn(160, true)} /></td>
+                <td style={td}>
+                  <input value={r.beneficiary_name || ''} readOnly={locked} onChange={e => upd(r.id, { beneficiary_name: e.target.value })} placeholder="Name" style={cellIn(160, true)} />
+                  {r.advance_note && <div title={r.advance_note} style={{ fontSize: 10.5, color: '#a8895a', fontFamily: 'var(--font-mono, monospace)', padding: '2px 8px 0', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.advance_note}</div>}
+                </td>
                 <td style={td}><input value={r.fixed_pay ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { fixed_pay: num(e.target.value) })} style={cellIn(92)} /></td>
                 <td style={td}><input title={/^Leave:/.test(r.comments || '') ? r.comments : undefined} value={r.days_worked ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { days_worked: num(e.target.value) })} style={cellIn(58)} /></td>
                 <td style={td}><input value={r.ot_days ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { ot_days: num(e.target.value) })} style={cellIn(52)} /></td>
                 <td style={td}><input value={r.allowance ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { allowance: num(e.target.value) })} style={cellIn(80)} /></td>
                 <td style={td}><input value={r.advance_given ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { advance_given: num(e.target.value) })} style={cellIn(80)} /></td>
-                <td style={td}><input value={r.advance_recovered ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { advance_recovered: num(e.target.value) })} style={cellIn(80)} /></td>
+                <td style={td}><input title={r.advance_auto ? 'From the advances ledger. Lower it and the rest moves to next month.' : undefined} value={r.advance_recovered ?? ''} readOnly={locked} inputMode="decimal" onChange={e => upd(r.id, { advance_recovered: num(e.target.value) })} style={cellIn(80)} /></td>
                 <td style={{ ...td, textAlign: 'right', padding: '9px 8px', fontFamily: 'var(--font-mono, monospace)', fontSize: 13, fontWeight: 700, color: 'var(--accent, #c8963e)', whiteSpace: 'nowrap' }}>{money(totalRow(r))}</td>
                 <td style={td}><input value={r.bank_account_no || ''} readOnly={locked} onChange={e => upd(r.id, { bank_account_no: e.target.value })} placeholder="—" style={cellIn(140, true)} /></td>
                 <td style={td}><input value={r.bank_ifsc || ''} readOnly={locked} onChange={e => upd(r.id, { bank_ifsc: e.target.value })} placeholder="—" style={cellIn(110, true)} /></td>
@@ -708,8 +715,11 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
               <NumField label="OT days" value={cur.ot_days} onChange={v => upd({ ot_days: v })} />
               <NumField label="Allowance" prefix="₹" value={cur.allowance} onChange={v => upd({ allowance: v })} />
               <NumField label="Advance paid" prefix="₹" value={cur.advance_given} onChange={v => upd({ advance_given: v })} />
-              <NumField label="Advance rec." prefix="₹" value={cur.advance_recovered} onChange={v => upd({ advance_recovered: v })} />
+              <NumField label="Advance back" prefix="₹" value={cur.advance_recovered} onChange={v => upd({ advance_recovered: v })} />
             </div>
+            {cur.advance_auto && (
+              <div style={{ fontSize: 11, color: muted, fontFamily: mono, lineHeight: 1.5 }}>Advance back comes from the advances ledger. Lower it and the rest moves to next month; raise it and it’s pulled forward.</div>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <TextField label="Bank A/C" value={cur.bank_account_no} onChange={v => upd({ bank_account_no: v })} placeholder="account no" />
               <TextField label="IFSC" value={cur.bank_ifsc} onChange={v => upd({ bank_ifsc: v })} placeholder="IFSC" />
@@ -719,7 +729,7 @@ function ReviewFlow({ period, rows: initialRows, confirmFinalize, onClose }) {
               <div style={brkRow}><span>Per day (÷30)</span><span>{money(Math.round(perDayOf(cur)))}</span></div>
               <div style={brkRow}><span>Earned · {daysWorkedOf(cur)} days</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(earnedOf(cur))}</span></div>
               <div style={brkRow}><span>Overtime · {Number(cur.ot_days || 0)} × {OT_RATE} days</span><span style={{ color: 'var(--text, #e8e8f0)' }}>{money(otAmtOf(cur))}</span></div>
-              {Number(cur.advance_recovered) > 0 && <div style={brkRow}><span>Advance recovered</span><span style={{ color: 'var(--red, #e05c6a)' }}>− {money(Number(cur.advance_recovered))}</span></div>}
+              {Number(cur.advance_recovered) > 0 && <div style={brkRow}><span>Advance back{cur.advance_note ? <span style={{ display: 'block', fontSize: 10.5, color: '#a8895a' }}>{cur.advance_note}</span> : null}</span><span style={{ color: 'var(--red, #e05c6a)' }}>− {money(Number(cur.advance_recovered))}</span></div>}
               {/* Paid out separately, so it is recorded here and deliberately
                   left out of the total — it comes back off a later month as
                   Advance recovered. Adding it to this payout would pay it

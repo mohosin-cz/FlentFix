@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import InvoiceDoc from './InvoiceDoc'
 import SignaturePad from './SignaturePad'
 import { inr, monthLabel, dateLabel } from '../../utils/vendorInvoice'
+import PortalAdvances from './PortalAdvances'
 
 // The vendor's own payroll, inside the portal they already sign into daily.
 //
@@ -116,6 +117,8 @@ export default function PortalPayroll({ token, vendorName }) {
     <div style={{ padding: '30px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Loading…</div>
   )
   if (!months.length) return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <PortalAdvances token={token} />
     <div style={{ padding: '44px 24px', textAlign: 'center', border: '1px dashed var(--border-dash, #3a3d52)', borderRadius: 12 }}>
       <div style={{ fontSize: 30, marginBottom: 10 }}>₹</div>
       <div style={{ fontSize: 15, fontWeight: 700 }}>{pending ? 'Payroll — coming soon' : 'Nothing here yet'}</div>
@@ -125,12 +128,14 @@ export default function PortalPayroll({ token, vendorName }) {
           : 'Your months will appear here once payroll has been run for you.'}
       </div>
     </div>
+    </div>
   )
 
   const toSign = months.filter(m => m.invoice?.signable)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <PortalAdvances token={token} />
       {toSign.length > 0 && (
         <div style={{ padding: '12px 14px', background: 'rgba(200,150,62,0.10)', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 12, fontSize: 12.5, color: 'var(--accent, #c8963e)', lineHeight: 1.55 }}>
           {toSign.length === 1
