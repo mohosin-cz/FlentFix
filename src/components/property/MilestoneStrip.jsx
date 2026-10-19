@@ -30,7 +30,7 @@ export const NO_INVOICE_REASONS = {
   other:                  'Other',
 }
 
-const who = (email) => (email || '').split('@')[0] || 'someone'
+const who = (email) => (email === 'stage' ? 'Stage' : (email || '').split('@')[0] || 'someone')
 function when(at) {
   if (!at) return ''
   const d = new Date(at), days = Math.floor((Date.now() - d.getTime()) / 86400000)
@@ -110,10 +110,27 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
   const [noInv, setNoInv] = useState(false)        // "close without invoice" open
   const [noInvReason, setNoInvReason] = useState('')
 
+  // What Stage says. Stage's dates are the source of truth; a date set here
+  // stays in Pulse (nothing is written back), and "Use Stage's" hands it back.
+  const [stage, setStage] = useState(null)
   const load = useCallback(async () => {
-    const { data, error } = await supabase.rpc('property_milestones', { p_pid: pid })
+    const [{ data, error }, sd] = await Promise.all([
+      supabase.rpc('property_milestones', { p_pid: pid }),
+      supabase.rpc('property_stage_dates', { p_pid: pid }),
+    ])
     setState({ loading: false, error: error ? error.message : null, data })
+    setStage(sd.error ? null : sd.data)
   }, [pid])
+
+  async function takeStageDate(kind) {
+    setErr(null); setBusy(true)
+    const { data, error } = await supabase.rpc('property_use_stage_date', { p_pid: pid, p_kind: kind })
+    setBusy(false)
+    if (error) { setErr(error.message); return }
+    setState({ loading: false, error: null, data })
+    setMoving(false); setHoMoving(false); setDate(''); setHoDate('')
+    onChange && onChange()
+  }
   useEffect(() => { load() }, [load])
   useEffect(() => { if (state.data && onData) onData(state.data) }, [state.data, onData])
 
@@ -215,6 +232,7 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
           <>
             <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>{moving ? 'Move setup date to' : 'Setup date'}</span>
             <input type="date" value={date} min={todayIso()} onChange={e => setDate(e.target.value)} style={input} aria-label="Setup date" />
+            {stage?.setup && stage.setup !== setup?.date && <button type="button" disabled={busy} onClick={() => takeStageDate('setup')} style={btn(false)} title="Take Stage's setup date and follow Stage from now on">Use Stage’s · {fmtDay(stage.setup)}</button>}
             <button type="button" disabled={!date || busy} onClick={() => act('mark', 'setup_date', { p_date: date })} style={{ ...btn(true), opacity: date ? 1 : 0.5 }}>{moving ? 'Move' : 'Set setup date'}</button>
             {moving && <button type="button" onClick={() => { setMoving(false); setDate('') }} style={btn(false)}>Cancel</button>}
           </>
@@ -222,6 +240,7 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
           <>
             <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>{handover?.date ? 'Move handover date to' : 'Handover date'}</span>
             <input type="date" value={hoDate} onChange={e => setHoDate(e.target.value)} style={input} aria-label="Handover date" />
+            {stage?.handover && stage.handover !== handover?.date && <button type="button" disabled={busy} onClick={() => takeStageDate('handover')} style={btn(false)} title="Take Stage's handover date and follow Stage from now on">Use Stage’s · {fmtDay(stage.handover)}</button>}
             <button type="button" disabled={!hoDate || busy} onClick={setHandoverDate} style={{ ...btn(true), opacity: hoDate ? 1 : 0.5 }}>{handover?.date ? 'Move' : 'Set handover date'}</button>
             {hoMoving && <button type="button" onClick={() => { setHoMoving(false); setHoDate('') }} style={btn(false)}>Cancel</button>}
           </>
@@ -302,7 +321,33 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
         )}
       </div>
 
+      <DateSources setup={setup} handover={handover} stage={stage} busy={busy} onUse={takeStageDate} btn={btn} />
       {err && <div role="alert" style={{ marginTop: 8, fontFamily: MONO, fontSize: 12, color: 'var(--red, #e05c6a)' }}>Not saved — {err}</div>}
+    </div>
+  )
+}
+
+// Where the setup and handover dates come from, said in one line: from Stage,
+// or changed in Pulse (with Stage's date beside it and a way back).
+function DateSources({ setup, handover, stage, busy, onUse, btn }) {
+  if (!stage) return null
+  const rows = []
+  for (const [kind, label, cur, by] of [['setup', 'Setup', setup?.date, setup?.by], ['handover', 'Handover', handover?.date, handover?.date_by]]) {
+    const sd = stage[kind]
+    if (!sd && !cur) continue
+    if (by === 'stage' || (!by && cur && cur === sd)) rows.push({ kind, text: `${label} ${fmtDay(cur)} · from Stage`, tone: 'var(--text-muted, #6b6d82)' })
+    else if (sd && cur && cur !== sd) rows.push({ kind, text: `${label} ${fmtDay(cur)} · changed in Pulse${by && by !== 'none' ? ` by ${who(by)}` : ''} · Stage says ${fmtDay(sd)}`, tone: 'var(--amber, #c8963e)', use: true })
+    else if (sd && !cur) rows.push({ kind, text: `${label}: cleared in Pulse · Stage says ${fmtDay(sd)}`, tone: 'var(--amber, #c8963e)', use: true })
+  }
+  if (!rows.length) return null
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+      {rows.map(r => (
+        <div key={r.kind} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontFamily: MONO, fontSize: 11.5, color: r.tone }}>
+          <span>{r.text}</span>
+          {r.use && <button type="button" disabled={busy} onClick={() => onUse(r.kind)} style={{ ...btn(false), minHeight: 26, padding: '0 9px', fontSize: 11 }}>Use Stage’s</button>}
+        </div>
+      ))}
     </div>
   )
 }

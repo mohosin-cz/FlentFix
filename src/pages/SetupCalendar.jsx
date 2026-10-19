@@ -241,7 +241,10 @@ export default function SetupCalendar() {
         <HomeMark />
         <span className="pulse-title" style={{ fontSize: 15.5 }}>Calendar</span>
         {!phone && <span style={{ fontSize: 12.5, color: C.dim }}>visits, setups, move-ins and handovers — act on anything where it sits</span>}
-        <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 11.5, color: C.muted }} title="Stage dates and visits refresh every 30 minutes">Stage synced {ago(d?.synced_at)}</span>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }} title="Stage dates and visits refresh every 30 minutes">Stage synced {ago(d?.synced_at)}</span>
+          <SyncNow syncedAt={d?.synced_at} onReload={load} onDone={(t) => setToast({ text: t })} />
+        </span>
       </div>
       <main style={{ padding: phone ? '12px 12px calc(96px + env(safe-area-inset-bottom, 0px))' : '16px 20px 40px', display: 'grid', gap: 12 }}>
 
@@ -451,5 +454,47 @@ function Sheet({ e, isAdmin, team, busy, vendors, warn, onClose, navigate, act, 
       </dl>
       <div style={{ display: 'grid', gap: 6, padding: '8px 14px 14px' }}>{actions}</div>
     </section>
+  )
+}
+
+// "Sync now": asks GitHub to run the Stage sync straight away (see
+// supabase/functions/stage-sync-now), then watches for the new sync time and
+// reloads the calendar when it lands. A run takes about a minute.
+function SyncNow({ syncedAt, onReload, onDone }) {
+  const [phase, setPhase] = useState('idle')     // idle | starting | running | error
+  const [msg, setMsg] = useState('')
+  const [since, setSince] = useState(null)       // the sync time when we asked
+  useEffect(() => {
+    if (phase !== 'running') return undefined
+    if (syncedAt && since !== undefined && syncedAt !== since) {
+      const t = setTimeout(() => { setPhase('idle'); onDone && onDone('Synced with Stage just now') }, 0)
+      return () => clearTimeout(t)
+    }
+    const iv = setInterval(() => onReload(), 15000)
+    const stop = setTimeout(() => { setPhase('error'); setMsg('Still running on GitHub — it will show up on the next refresh.') }, 5 * 60000)
+    return () => { clearInterval(iv); clearTimeout(stop) }
+  }, [phase, syncedAt, since, onReload, onDone])
+
+  async function go() {
+    setPhase('starting'); setMsg(''); setSince(syncedAt || null)
+    const { data, error } = await supabase.functions.invoke('stage-sync-now', { body: {} })
+    if (error) {
+      let text = error.message
+      try { const j = await error.context?.json?.(); if (j?.error) text = j.error } catch { /* not json */ }
+      setPhase('error'); setMsg(text); return
+    }
+    if (!data?.ok) { setPhase('error'); setMsg(data?.error || 'Couldn’t start the sync'); return }
+    setPhase('running')
+  }
+
+  const busy = phase === 'starting' || phase === 'running'
+  return (
+    <>
+      <button type="button" onClick={go} disabled={busy} title={msg || 'Pull dates and visits from Stage now (about a minute)'}
+        style={{ minHeight: 30, padding: '0 10px', borderRadius: 8, border: `1px solid ${phase === 'error' ? 'rgba(176,100,91,0.55)' : 'var(--border, #2e3040)'}`, background: 'var(--bg-input, #252731)', color: phase === 'error' ? '#b0645b' : 'var(--text-dim, #9394a8)', fontFamily: MONO, fontSize: 11.5, fontWeight: 600, cursor: busy ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}>
+        {phase === 'starting' ? 'Starting…' : phase === 'running' ? '↻ Syncing… ~1 min' : phase === 'error' ? '↻ Retry sync' : '↻ Sync now'}
+      </button>
+      {phase === 'error' && msg && <span role="alert" style={{ fontFamily: MONO, fontSize: 11, color: '#b0645b', maxWidth: 260 }}>{msg}</span>}
+    </>
   )
 }

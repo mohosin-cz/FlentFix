@@ -65,12 +65,13 @@ function ago(at) {
 }
 const days = (v) => v == null ? null : v < 1 ? '<1d' : `${Math.round(v * 10) / 10}d`
 
-function Panel({ title, meta, children }) {
+function Panel({ title, meta, action, children }) {
   return (
     <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '11px 14px', borderBottom: `1px solid ${C.border}`, flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0, fontFamily: MONO, fontSize: 13.5, color: C.text, fontWeight: 600 }}>{title}</h2>
         {meta && <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>{meta}</span>}
+        {action && <span style={{ marginLeft: 'auto', alignSelf: 'center' }}>{action}</span>}
       </div>
       {children}
     </section>
@@ -277,16 +278,43 @@ export default function TeamView({ home, team, onViewDesk, onPickView, queue }) 
   )
 }
 
-// Exploratory work, end to end: raised → visited → decided → approved → set up
-// (last 90 days), and how often each person's verdict matched supply's call.
-function ExploreFunnel({ f, calls, people }) {
+// Exploratory work, end to end: raised → visited → decided → approved → set up,
+// and how often each person's verdict matched supply's call — over the last
+// 1, 3 or 6 months. Three months comes with the Team view; the others are
+// fetched when picked, and the choice is remembered on this device.
+const WINDOWS = [[30, '1 month'], [90, '3 months'], [180, '6 months']]
+function ExploreFunnel({ f: f90, calls: calls90, people }) {
+  const [days, setDays] = useState(() => { try { return Number(localStorage.getItem('pulse.team.explore.days')) || 90 } catch { return 90 } })
+  const [other, setOther] = useState({})        // days → { funnel, calls }
+  useEffect(() => { try { localStorage.setItem('pulse.team.explore.days', String(days)) } catch { /* private window */ } }, [days])
+  useEffect(() => {
+    if (days === 90 || other[days]) return undefined
+    let alive = true
+    supabase.rpc('home_explore_funnel', { p_days: days }).then(({ data, error }) => {
+      if (!alive) return
+      setOther(o => ({ ...o, [days]: error || !data ? { failed: true } : data }))
+    })
+    return () => { alive = false }
+  }, [days, other])
+  const loadingDays = days !== 90 && !other[days] ? days : null
+  const f = days === 90 ? f90 : other[days]?.funnel || f90
+  const calls = days === 90 ? calls90 : other[days]?.calls || calls90
   if (!f) return null
   const steps = [['Raised', f.raised], ['Visited', f.visited], ['Decided', f.decided], ['Approved', f.approved], ['Set up', f.set_up]]
   const max = Math.max(1, f.raised || 0)
   const mine = calls.filter(c => people.includes(c.email))
   const others = calls.filter(c => !people.includes(c.email))
   return (
-    <Panel title="Exploratory · last 90 days" meta={[f.raise_to_visit != null && `visited ~${Math.round(f.raise_to_visit)}d after raised`, f.visit_to_decision != null && `decided ~${Math.round(f.visit_to_decision)}d after the visit`].filter(Boolean).join(' · ')}>
+    <Panel title="Exploratory" action={
+      <span role="group" aria-label="Window" style={{ display: 'inline-flex', gap: 2, padding: 2, borderRadius: 8, background: C.input }}>
+        {WINDOWS.map(([d, l]) => (
+          <button key={d} type="button" aria-pressed={days === d} onClick={() => setDays(d)}
+            style={{ border: 'none', borderRadius: 6, padding: '4px 9px', fontFamily: MONO, fontSize: 11.5, cursor: 'pointer', background: days === d ? C.panel : 'transparent', color: days === d ? C.text : C.muted, fontWeight: days === d ? 600 : 500 }}>
+            {loadingDays === d ? '…' : l}
+          </button>
+        ))}
+      </span>
+    } meta={[f.raise_to_visit != null && `visited ~${Math.round(f.raise_to_visit)}d after raised`, f.visit_to_decision != null && `decided ~${Math.round(f.visit_to_decision)}d after the visit`].filter(Boolean).join(' · ')}>
       <div style={{ padding: '12px 14px', display: 'grid', gap: 6 }}>
         {steps.map(([k, v], i) => (
           <div key={k} style={{ display: 'grid', gridTemplateColumns: '78px 1fr 90px', gap: 10, alignItems: 'center' }}>
@@ -300,7 +328,7 @@ function ExploreFunnel({ f, calls, people }) {
         <div style={{ fontFamily: MONO, fontSize: 12, color: C.muted, }}>Whose calls match supply’s</div>
         {mine.length === 0 && <div style={{ fontSize: 12.5, color: C.muted }}>No decided visits with a verdict yet.</div>}
         {[...mine, ...others].map(c => (
-          <div key={c.email} title={(c.misses || []).map(m => `${m.name}: said ${m.said === 'go' ? 'Go' : 'No-go'}, supply ${m.supply}`).join('\n')}
+          <div key={c.email} title={(c.misses || []).map(m => `${m.name}: said ${m.said === 'go' ? 'Accept' : 'Reject'}, supply ${m.supply}`).join('\n')}
             style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 13, opacity: people.includes(c.email) ? 1 : 0.6 }}>
             <b style={{ minWidth: 80 }}>{first(c.email)}</b>
             <span className="n" style={{ color: c.match === c.n ? M.green : M.amber }}>{c.match} of {c.n}</span>
@@ -308,7 +336,7 @@ function ExploreFunnel({ f, calls, people }) {
             {!people.includes(c.email) && <span style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>supply / other</span>}
           </div>
         ))}
-        <div style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>A verdict is the visitor’s Go / No-go in Pulse, or the outcome they recorded in Stage.</div>
+        <div style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>A verdict is the visitor’s Accept / Reject in Pulse, or the outcome they recorded in Stage. Counts visits raised in the window.</div>
       </div>
     </Panel>
   )
