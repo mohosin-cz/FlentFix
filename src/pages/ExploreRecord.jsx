@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import AppHeader from '../components/AppHeader'
 import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { first, slotText, timeText, VERDICT, RATING, stageCopy, copyText } from '../utils/explore'
+import { FACTS, first, slotText, timeText, VERDICT, RATING, stageCopy, copyText } from '../utils/explore'
 
 // A prospect's record — the start of a property's journey.
 //
@@ -215,7 +215,7 @@ export default function ExploreRecord() {
           {next}
           <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 11, color: C.muted }} title="Stage's status is the verdict; Pulse's step follows it">Stage: {(r.status || '').replace('_', ' ')}</span>
         </div>
-        {paste && <PasteBar r={r} log={lastPulse} onCopied={() => setToast('Copied — paste it into the visit form in Stage. Pulse ticks it when the sync sees it.')} />}
+        {paste && <PasteBar r={r} log={lastPulse} onOpenLog={() => navigate(`/explore/${id}/log`)} onCopied={() => setToast('Copied — paste it into the visit form in Stage. Pulse ticks it when the sync sees it.')} />}
         {err && <div role="alert" style={{ fontFamily: MONO, fontSize: 12, color: C.red }}>{err}</div>}
       </section>
 
@@ -350,15 +350,20 @@ function LogCard({ r, l }) {
       <div style={{ display: 'grid', gap: 5 }}>
         {(l.checks || []).filter(c => c.rating || c.note).map(c => (
           <div key={c.key} style={{ fontSize: 13 }}>
-            <b>{c.label}</b> <span style={{ fontFamily: MONO, fontSize: 11.5, color: c.rating === 'poor' ? C.red : c.rating === 'fix' ? C.accent : C.green }}>{RATING[c.rating] || ''}</span>
+            <b>{c.label}</b> <span style={{ fontFamily: MONO, fontSize: 11.5, color: c.rating === 'poor' ? C.red : c.rating === 'fix' ? C.accent : C.green }}>{c.score != null ? `${c.score}/10` : RATING[c.rating] || ''}</span>
             {c.note && <span style={{ color: C.dim }}> — {c.note}</span>}
             {(c.photos || []).length > 0 && <span style={{ display: 'inline-flex', gap: 4, marginLeft: 6 }}>{c.photos.map((u, i) => <a key={i} href={u} target="_blank" rel="noreferrer" style={{ fontFamily: MONO, fontSize: 11, color: C.accent }}>📷{i + 1}</a>)}</span>}
           </div>
         ))}
       </div>
-      {(l.retain || []).length > 0 && <div style={{ fontSize: 12.5, color: C.dim }}><b style={{ color: C.text }}>Furniture:</b> {l.retain.map(x => `${x.item} (${x.keep ? 'keep' : 'replace'})`).join(', ')}</div>}
+      {l.detail?.facts && FACTS.some(([k]) => l.detail.facts[k]?.v) && (
+        <div style={{ fontSize: 12.5, color: C.dim }}><b style={{ color: C.text }}>Site:</b> {FACTS.filter(([k]) => l.detail.facts[k]?.v).map(([k, label, opts]) => `${label} ${((opts.find(o => o[0] === l.detail.facts[k].v) || [])[1] || '').toLowerCase()}${l.detail.facts[k].note ? ` (${l.detail.facts[k].note})` : ''}`).join(' · ')}{l.detail.facts.other ? ` · ${l.detail.facts.other}` : ''}</div>
+      )}
+      {l.detail?.follow_up?.needed && <div style={{ fontSize: 12.5 }}><b>Follow-up:</b> <span style={{ color: C.dim }}>{l.detail.follow_up.what || 'needed'}</span></div>}
+      {(l.retain || []).length > 0 && <div style={{ fontSize: 12.5, color: C.dim }}><b style={{ color: C.text }}>{l.detail ? 'Not to retain:' : 'Furniture:'}</b> {l.retain.map(x => l.detail ? `${x.item}${x.note ? ` (${x.note})` : ''}` : `${x.item} (${x.keep ? 'keep' : 'replace'})`).join(', ')}</div>}
       {l.landlord_note && <div style={{ fontSize: 13 }}><b>Landlord:</b> <span style={{ color: C.dim }}>{l.landlord_note}</span></div>}
-      {l.notes && <div style={{ fontSize: 13, color: C.dim, whiteSpace: 'pre-wrap' }}>{l.notes}</div>}
+      {l.notes && !l.detail && <div style={{ fontSize: 13, color: C.dim, whiteSpace: 'pre-wrap' }}>{l.notes}</div>}
+      {l.detail?.internal && <div style={{ fontSize: 12.5 }}><b>Internal:</b> <span style={{ color: C.dim }}>{l.detail.internal}</span></div>}
       <CopyButton text={stageCopy(r, l, l.author)} />
     </section>
   )
@@ -369,12 +374,14 @@ function CopyButton({ text, label = 'Copy for Stage', onDone }) {
   return <button style={{ ...btn(done ? '' : 'primary'), justifySelf: 'start' }} onClick={async () => { if (await copyText(text)) { setDone(true); onDone && onDone(); setTimeout(() => setDone(false), 2500) } }}>{done ? '✓ Copied' : label}</button>
 }
 
-function PasteBar({ r, log, onCopied }) {
+function PasteBar({ r, log, onCopied, onOpenLog }) {
   if (!log) return null
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '10px 12px', borderRadius: 8, background: SOFT.amber, border: '1px solid rgba(200,150,62,0.35)' }}>
       <span style={{ flex: '1 1 260px', fontSize: 13 }}><b>Paste the findings into Stage</b> — Pulse ticks this off by itself once the next sync sees them there.</span>
-      <CopyButton text={stageCopy(r, log, log.author)} onDone={onCopied} />
+      {log.detail
+        ? <button style={btn('primary')} onClick={onOpenLog}>Fill Stage field by field ›</button>
+        : <CopyButton text={stageCopy(r, log, log.author)} onDone={onCopied} />}
     </div>
   )
 }

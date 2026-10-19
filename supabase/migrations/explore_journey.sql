@@ -308,7 +308,8 @@ begin
   select * into e from stage_exploratory where id = p_id;
   if not found then raise exception 'No such request'; end if;
   v := nullif(p_log->>'verdict', '');
-  if p_submit and v is null then raise exception 'Pick a verdict: Go, No-go or Unsure'; end if;
+  -- Stage's words: Accept / Reject / Under review (stored as go / no_go / unsure)
+  if p_submit and v is null then raise exception 'Pick the outcome: Accept, Reject or Under review'; end if;
   select id into lid from exploratory_logs where request_id = p_id and author = me and submitted_at is null;
   if lid is null then
     insert into exploratory_logs (request_id, author) values (p_id, me) returning id into lid;
@@ -321,6 +322,7 @@ begin
     landlord_note = nullif(btrim(p_log->>'landlord_note'), ''),
     retain        = coalesce(p_log->'retain', retain),
     notes         = nullif(btrim(p_log->>'notes'), ''),
+    detail        = coalesce(p_log->'detail', detail),
     submitted_at  = case when p_submit then now() else submitted_at end,
     updated_at    = now()
    where id = lid;
@@ -328,8 +330,8 @@ begin
     insert into notifications (user_email, kind, pid, title, body, route, dedupe_key)
     select ad, 'exploratory_logged', null,
            split_part(me, '@', 1) || ' logged ' || coalesce(e.property_name, 'a visit') || ' — ' ||
-             case v when 'go' then 'Go' when 'no_go' then 'No-go' else 'Unsure' end,
-           coalesce(nullif(btrim(p_log->>'notes'), ''), 'findings in Pulse · to be pasted into Stage'),
+             case v when 'go' then 'Accept' when 'no_go' then 'Reject' else 'Under review' end,
+           coalesce(nullif(btrim(p_log->>'summary'), ''), 'findings in Pulse · to be pasted into Stage'),
            '/explore/' || p_id, 'exploratory_logged:' || lid
       from unnest(pulse_admins()) ad where ad <> me;
   end if;

@@ -1,3 +1,4 @@
+import { FACTS } from '../../utils/explore'
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 
@@ -8,7 +9,7 @@ import { supabase } from '../../lib/supabase'
 
 const MONO = 'var(--font-mono, monospace)'
 const RATING = { fix: ['Needs work', 'var(--accent, #c8963e)'], poor: ['Poor', 'var(--red, #e05c6a)'] }
-const VERDICT = { go: 'Go', no_go: 'No-go', unsure: 'Unsure' }
+const VERDICT = { go: 'Accept', no_go: 'Reject', unsure: 'Under review' }
 const first = (e) => { const s = (e || '').split('@')[0]; return s ? s[0].toUpperCase() + s.slice(1) : '' }
 
 export default function ExploratoryHeadStart({ pid, compact = false }) {
@@ -46,12 +47,18 @@ export default function ExploratoryHeadStart({ pid, compact = false }) {
             <span style={{ fontFamily: MONO, fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', letterSpacing: '0.06em' }}>SEEN AT EXPLORATORY — CONFIRM DURING THIS INSPECTION</span>
             {flagged.map(c => (
               <div key={c.key} style={{ fontSize: 13, display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: RATING[c.rating][1], minWidth: 74 }}>{RATING[c.rating][0]}</span>
+                <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: RATING[c.rating][1], minWidth: 74 }}>{c.score != null ? `${c.score}/10` : RATING[c.rating][0]}</span>
                 <b>{c.label}</b>{c.note && <span style={{ color: 'var(--text-dim, #9394a8)' }}>— {c.note}</span>}
                 {(c.photos || []).map((u, i) => <a key={i} href={u} target="_blank" rel="noreferrer" style={{ fontFamily: MONO, fontSize: 11, color: 'var(--accent, #c8963e)' }}>photo {i + 1}</a>)}
               </div>
             ))}
           </div>
+        )}
+        {log?.detail?.facts && Object.keys(log.detail.facts).length > 0 && (
+          <div style={{ fontSize: 12.5 }}><b>Site checks:</b> <span style={{ color: 'var(--text-dim, #9394a8)' }}>
+            {FACTS.filter(([k]) => log.detail.facts[k]?.v).map(([k, label, opts]) => `${label}: ${(opts.find(o => o[0] === log.detail.facts[k].v) || [])[1]}${log.detail.facts[k].note ? ` (${log.detail.facts[k].note})` : ''}`).join(' · ')}
+            {log.detail.facts.other ? ` · ${log.detail.facts.other}` : ''}
+          </span></div>
         )}
         {keep.length > 0 && <div style={{ fontSize: 12.5 }}><b>Furniture:</b> <span style={{ color: 'var(--text-dim, #9394a8)' }}>{keep.map(x => `${x.item} (${x.keep ? 'keep' : 'replace'})`).join(', ')}</span></div>}
         {log?.landlord_note && <div style={{ fontSize: 12.5 }}><b>Landlord:</b> <span style={{ color: 'var(--text-dim, #9394a8)' }}>{log.landlord_note}</span></div>}
