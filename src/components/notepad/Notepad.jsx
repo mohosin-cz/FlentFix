@@ -57,6 +57,55 @@ const SHEET = {
   boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 6px 16px rgba(0,0,0,0.3)', color: 'var(--text, #e8e8f0)',
 }
 
+// ── smart writing ─────────────────────────────────────────────────────────
+// Lists keep themselves in order: "1." items renumber as lines come and go,
+// "- " or "* " becomes a bullet, "[ ] " a checkbox, "[x] " a ticked one, and
+// /today, /tomorrow, /now and /pid expand where they're typed.
+const NUM_RE = /^(\s*)(\d+)([.)])\s/
+function renumber(text) {
+  const lines = text.split('\n')
+  const last = {}                                  // indent → [number, delimiter]
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i]
+    if (!l.trim()) { for (const k in last) delete last[k]; continue }
+    const ind = l.match(/^\s*/)[0].length
+    const m = l.match(NUM_RE)
+    for (const k in last) if (Number(k) > ind) delete last[k]
+    if (m) {
+      const prev = last[ind]
+      if (prev && prev[1] === m[3]) {
+        const n = prev[0] + 1
+        lines[i] = `${m[1]}${n}${m[3]} ${l.slice(m[0].length)}`
+        last[ind] = [n, m[3]]
+      } else last[ind] = [Number(m[2]), m[3]]
+    } else if (!/^\s*[•☐☑-]\s/.test(l)) {
+      for (const k in last) if (Number(k) >= ind) delete last[k]
+    }
+  }
+  return lines.join('\n')
+}
+const dayText = (d) => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+function smartFormat(text, caret, pid) {
+  let t = text, c = caret
+  const swap = (from, to) => { t = t.slice(0, c - from.length) + to + t.slice(c); c += to.length - from.length }
+  const before = t.slice(0, c)
+  const lineStart = before.lastIndexOf('\n') + 1
+  const head = before.slice(lineStart)
+  let m
+  if ((m = head.match(/^(\s*)[-*] $/))) swap(head, `${m[1]}• `)
+  else if ((m = head.match(/^(\s*)\[\s?\] $/))) swap(head, `${m[1]}☐ `)
+  else if ((m = head.match(/^(\s*)\[[xX]\] $/))) swap(head, `${m[1]}☑ `)
+  else if (/(^|\s)\/today $/.test(before)) swap('/today ', dayText(new Date()) + ' ')
+  else if (/(^|\s)\/tomorrow $/.test(before)) swap('/tomorrow ', dayText(new Date(Date.now() + 86400000)) + ' ')
+  else if (/(^|\s)\/now $/.test(before)) swap('/now ', new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) + ' ')
+  else if (pid && /(^|\s)\/pid $/.test(before)) swap('/pid ', `PID ${pid} `)
+  if (NUM_RE.test(t) || /\n\s*\d+[.)]\s/.test(t)) {
+    const caretAfter = renumber(t.slice(0, c)).length
+    t = renumber(t); c = caretAfter
+  }
+  return { text: t, caret: c }
+}
+
 const CSS = `
 @keyframes np-drop { 0% { opacity: 0; transform: translateY(-70px) scale(.96) } 55% { opacity: 1; transform: translateY(8px) scale(1) } 75% { transform: translateY(-3px) } 100% { transform: translateY(0) } }
 @keyframes np-fall { 0% { opacity: 1; transform: translateY(0) rotate(0) } 100% { opacity: 0; transform: translateY(90px) rotate(2deg) scale(.92) } }
@@ -98,6 +147,9 @@ function Pad({ userId, email, pathname }) {
   const [confirmDel, setConfirmDel] = useState(false)
   const [author, setAuthor] = useState(() => (email || '').split('@')[0])
   const [vw, setVw] = useState(() => window.innerWidth)
+  // normal · max (a big writing surface) · min (just the bar, out of the way)
+  const [size, setSize] = useState(() => (ls.get('pulse_notepad_size', 'normal') === 'max' ? 'max' : 'normal'))
+  const sizeTo = (v) => { setSize(v); ls.set('pulse_notepad_size', v === 'min' ? 'normal' : v) }
 
   const notesRef = useRef(notes)
   const teamRef = useRef(team)
@@ -301,23 +353,59 @@ function Pad({ userId, email, pathname }) {
     setTimeout(() => { ta.focus(); ta.selectionStart = ta.selectionEnd = at }, 0)
   }
   function onKeyDown(e) {
-    if (e.key !== 'Enter') return
     const ta = e.currentTarget
     const { selectionStart: at, selectionEnd, value } = ta
-    const s = value.lastIndexOf('\n', at - 1) + 1
-    const line = value.slice(s, at)
-    const m = line.match(/^(\s*)([•☐☑-])\s/)
-    if (!m) return
-    e.preventDefault()
-    if (line.trim() === m[0].trim()) {           // empty item: end the list
-      setBody(value.slice(0, s) + value.slice(selectionEnd))
-      setTimeout(() => { ta.selectionStart = ta.selectionEnd = s }, 0)
+    const s0 = value.lastIndexOf('\n', at - 1) + 1
+    const line = value.slice(s0, at)
+    const put = (text, caret) => { const out = renumber(text); const c = renumber(text.slice(0, caret)).length; setBody(out); setTimeout(() => { ta.selectionStart = ta.selectionEnd = c }, 0) }
+
+    // ⌘/Ctrl + Enter ticks the checkbox on this line
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); tickLine(); return }
+
+    // Tab / Shift+Tab indent a list item (a nested list)
+    if (e.key === 'Tab' && /^\s*([•☐☑-]|\d+[.)])\s/.test(value.slice(s0))) {
+      e.preventDefault()
+      if (e.shiftKey) {
+        const cut = (value.slice(s0).match(/^ {1,2}/) || [''])[0].length
+        if (cut) put(value.slice(0, s0) + value.slice(s0 + cut), Math.max(s0, at - cut))
+      } else put(value.slice(0, s0) + '  ' + value.slice(s0), at + 2)
       return
     }
-    const mark = m[2] === '☑' ? '☐' : m[2]
-    const ins = `\n${m[1]}${mark} `
-    setBody(value.slice(0, at) + ins + value.slice(selectionEnd))
-    setTimeout(() => { ta.selectionStart = ta.selectionEnd = at + ins.length }, 0)
+
+    if (e.key !== 'Enter' || e.shiftKey) return
+    const num = line.match(NUM_RE)
+    const m = line.match(/^(\s*)([•☐☑-])\s/)
+    if (!num && !m) return
+    e.preventDefault()
+    const mk = num ? num[0] : m[0]
+    if (line.trim() === mk.trim()) {                 // empty item: end the list (or step out a level)
+      const ind = (num || m)[1]
+      if (ind.length >= 2) { put(value.slice(0, s0) + value.slice(s0 + 2), at - 2); return }
+      put(value.slice(0, s0) + value.slice(selectionEnd), s0)
+      return
+    }
+    const ins = num ? `\n${num[1]}${Number(num[2]) + 1}${num[3]} ` : `\n${m[1]}${m[2] === '☑' ? '☐' : m[2]} `
+    put(value.slice(0, at) + ins + value.slice(selectionEnd), at + ins.length)
+  }
+
+  function onType(e) {
+    const ta = e.target
+    const { text, caret } = smartFormat(ta.value, ta.selectionStart, cur?.pid || herePid)
+    setBody(text)
+    if (text !== ta.value) setTimeout(() => { ta.selectionStart = ta.selectionEnd = caret }, 0)
+  }
+
+  function toggleNumber() {
+    const ta = taRef.current; if (!ta) return
+    const { selectionStart: at, value } = ta
+    const [st, en] = lineAt(value, at)
+    const l = value.slice(st, en)
+    const num = l.match(NUM_RE)
+    const bare = l.replace(/^(\s*)([•☐☑-]\s|\d+[.)]\s)/, '$1')
+    const next = num ? bare : `${(l.match(/^\s*/) || [''])[0]}1. ${bare.trimStart()}`
+    const text = renumber(value.slice(0, st) + next + value.slice(en))
+    setBody(text)
+    setTimeout(() => { ta.focus(); ta.selectionStart = ta.selectionEnd = Math.min(text.length, st + renumber(value.slice(0, st) + next).length - st) }, 0)
   }
 
   async function copyOne() {
@@ -369,6 +457,11 @@ function Pad({ userId, email, pathname }) {
   const penStyle = pos ? { left: Math.min(pos.x, vw - PEN), top: Math.min(pos.y, window.innerHeight - PEN) } : { right: 20, bottom: 'calc(88px + env(safe-area-inset-bottom))' }
 
   function panelStyle() {
+    if (size === 'max') {
+      if (phone) return { left: 0, right: 0, top: 'env(safe-area-inset-top, 0px)', bottom: 0, borderRadius: 0 }
+      const W = Math.min(980, vw - 48)
+      return { left: Math.round((vw - W) / 2), top: '5vh', width: W, height: '88vh' }
+    }
     if (phone) return { left: 8, right: 8, bottom: 'calc(150px + env(safe-area-inset-bottom))', maxHeight: 'calc(100svh - 230px)' }
     const W = 380, H = 540, gap = 12
     if (!pos) return { right: 20, bottom: 'calc(150px + env(safe-area-inset-bottom))', width: W, maxHeight: 'min(560px, calc(100vh - 190px))' }
@@ -480,8 +573,9 @@ function Pad({ userId, email, pathname }) {
     <>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', padding: '7px 12px', borderBottom: `1px solid ${C.border}` }}>
         <Tb onClick={() => { setView('list'); setFilter(editingTeam ? team.pid : (scopePid || 'all')); setPicking(false) }} title="All notes">☰ All</Tb>
-        <Tb onClick={() => toggleMark('•')} title="Bullet">•</Tb>
-        <Tb onClick={tickLine} title="Checkbox — tap again to tick">☐</Tb>
+        <Tb onClick={() => toggleMark('•')} title="Bullet — or type - and a space">•</Tb>
+        <Tb onClick={toggleNumber} title="Numbered list — or type 1. and a space">1.</Tb>
+        <Tb onClick={tickLine} title="Checkbox — tap again to tick (⌘/Ctrl+Enter), or type [ ] and a space">☐</Tb>
         {hasSpeech && <Tb onClick={() => (listening ? stopDict() : startDict())} title={listening ? 'Stop dictating' : 'Dictate'} danger={listening}>{listening ? '■ stop' : '🎙'}</Tb>}
         {cur && <Tb onClick={() => patch(cur.id, { pinned: !cur.pinned })} title={cur.pinned ? 'Unpin' : 'Pin to the top'} accent={cur.pinned}>★</Tb>}
         <span style={{ flex: 1 }} />
@@ -524,9 +618,9 @@ function Pad({ userId, email, pathname }) {
       )}
       {interim && <div style={{ padding: '6px 14px', fontSize: 12.5, color: C.muted, fontStyle: 'italic', fontFamily: MONO }}>{interim}…</div>}
       {noSpeech && !interim && <div style={{ padding: '6px 14px', fontSize: 11.5, color: C.muted }}>No speech heard — speak near the mic.</div>}
-      <textarea ref={taRef} value={body} onChange={e => setBody(e.target.value)} onKeyDown={onKeyDown}
-        placeholder={'Write here — or hold the pen to dictate.\n\n• starts a bullet, ☐ a checkbox; Enter carries it on.'}
-        style={{ flex: 1, minHeight: phone ? 180 : 220, padding: '8px 14px 12px', background: 'transparent', border: 'none', outline: 'none', resize: 'none', fontSize: 13.5, lineHeight: 1.7, color: C.text, fontFamily: MONO, caretColor: C.accent }} />
+      <textarea ref={taRef} value={body} onChange={onType} onKeyDown={onKeyDown}
+        placeholder={'Write here — or hold the pen to dictate.\n\n- or * starts a bullet · 1. a numbered list · [ ] a checkbox\nEnter carries the list on · Tab nests it · /today /now /pid'}
+        style={{ flex: 1, minHeight: size === 'max' ? 0 : phone ? 180 : 220, padding: size === 'max' ? '14px 20px 18px' : '8px 14px 12px', background: 'transparent', border: 'none', outline: 'none', resize: 'none', fontSize: size === 'max' ? 15 : 13.5, lineHeight: 1.7, color: C.text, fontFamily: MONO, caretColor: C.accent }} />
       </div>
       {confirmDel ? (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 14px', borderTop: `1px solid ${C.border}`, fontSize: 12.5 }}>
@@ -550,15 +644,20 @@ function Pad({ userId, email, pathname }) {
       {open && (
         <div ref={panelRef} role="dialog" aria-label="Notepad" className={phase === 'in' ? 'np-in' : phase === 'out' ? 'np-out' : ''}
           style={{ position: 'fixed', ...panelStyle(), zIndex: Z, display: 'flex', flexDirection: 'column', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: '0 18px 50px rgba(0,0,0,0.55)', overflow: 'hidden', fontFamily: F, color: C.text, transformOrigin: 'bottom right' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 10px 10px 14px', borderBottom: `1px solid ${C.border}` }}>
+          <div onDoubleClick={(e) => { if (!e.target.closest('button')) sizeTo(size === 'max' ? 'normal' : 'max') }} title="Double-click to maximise or restore"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 10px 10px 14px', borderBottom: size === 'min' ? 'none' : `1px solid ${C.border}`, userSelect: 'none' }}>
             <span style={{ fontWeight: 600, fontSize: 14 }}>{view === 'list' || !(editingTeam || cur) ? 'My notes' : editingTeam ? 'Team note' : 'Note'}</span>
             {herePid && <span style={{ fontSize: 12, color: C.muted }}>· on PID {herePid}{names[herePid] ? ` · ${names[herePid]}` : ''}</span>}
             {listening && <span style={{ fontSize: 11, color: C.red, fontWeight: 600 }}>● live</span>}
             <span style={{ flex: 1 }} />
+            <button type="button" className="np-ib" onClick={() => sizeTo(size === 'min' ? 'normal' : 'min')} aria-label={size === 'min' ? 'Restore notepad' : 'Minimise notepad'} title={size === 'min' ? 'Restore' : 'Minimise'}
+              style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'none', color: C.muted, cursor: 'pointer', fontSize: 15, lineHeight: 1 }}>{size === 'min' ? '▴' : '–'}</button>
+            <button type="button" className="np-ib" onClick={() => sizeTo(size === 'max' ? 'normal' : 'max')} aria-label={size === 'max' ? 'Restore notepad size' : 'Maximise notepad'} title={size === 'max' ? 'Restore size' : 'Maximise'}
+              style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'none', color: C.muted, cursor: 'pointer', fontSize: 14 }}>{size === 'max' ? '⤡' : '⤢'}</button>
             <button type="button" className="np-ib" onClick={closePad} aria-label="Close notepad" title="Close (Esc)"
               style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'none', color: C.muted, cursor: 'pointer', fontSize: 14 }}>✕</button>
           </div>
-          {view === 'list' ? listView : editView}
+          {size !== 'min' && (view === 'list' ? listView : editView)}
         </div>
       )}
       {toast && (
