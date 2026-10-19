@@ -258,7 +258,6 @@ function ExploratoryVisits({ list, navigate, onChanged, viewing }) {
                 <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: x.overdue ? C.red : '#e07ba8', }}>
                   {x.overdue ? `● Visit was ${dayLbl(x.date)} — findings due` : `${live ? '● ' : ''}Explore · ${x.days === 0 ? 'today' : x.days === 1 ? 'tomorrow' : dayLbl(x.date)}${x.time ? `, ${t(x.time)}` : ''}`}
                 </span>
-                {x.pulse_assigned && !x.confirmed && !x.overdue && <Chip tone="amber">not confirmed yet</Chip>}
               </div>
               <button type="button" onClick={() => navigate(`/explore/${x.id}`)} style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: C.text }}>
                 <T1>{x.name}{x.config ? <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }}> · {x.config}</span> : ''}</T1>
@@ -274,13 +273,11 @@ function ExploratoryVisits({ list, navigate, onChanged, viewing }) {
                 </div>
               ) : (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {!viewing && x.pulse_assigned && !x.confirmed && !x.overdue && <>
-                    <Btn kind="primary" disabled={busy === x.id} onClick={() => respond(x, true)}>Got it</Btn>
-                    <Btn onClick={() => setAsking(x.id)}>Can’t make it</Btn>
-                  </>}
                   {!viewing && (live || x.overdue || x.draft) && <Btn kind="primary" onClick={() => navigate(`/explore/${x.id}/log`)}>{x.draft ? 'Continue the log' : live ? 'Start visit' : 'Log the findings'}</Btn>}
                   {x.maps_link && <a href={x.maps_link} target="_blank" rel="noreferrer" className="dk-btn" style={{ ...btnStyle(), display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>Map</a>}
                   {x.owner_phone && <a href={`tel:${x.owner_phone}`} className="dk-btn" style={{ ...btnStyle(), display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>Call landlord</a>}
+                  {/* assigning is final; this is only the way out if plans change */}
+                  {!viewing && x.pulse_assigned && !x.overdue && <button type="button" onClick={() => setAsking(x.id)} style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: '0 4px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>Can’t make it?</button>}
                 </div>
               )}
             </div>

@@ -232,14 +232,15 @@ begin
   values (p_id, who, me, now())
   on conflict (request_id) do update
      set assignee = excluded.assignee, assigned_by = excluded.assigned_by, assigned_at = now(),
-         confirmed_at = null, stage_conflict = null,
+         -- assigning is final: nobody has to confirm before it counts
+         confirmed_at = case when excluded.assignee is not null then now() end, stage_conflict = null,
          declined_by = case when excluded.assignee is null then exploratory_assignments.declined_by end,
          declined_at = case when excluded.assignee is null then exploratory_assignments.declined_at end,
          decline_reason = case when excluded.assignee is null then exploratory_assignments.decline_reason end;
   if who is not null and who <> me then
     insert into notifications (user_email, kind, pid, title, body, route, dedupe_key)
     values (who, 'exploratory_assigned', null, 'Exploratory visit: ' || coalesce(e.property_name, 'property'),
-            explore_slot_text(e.visit_date, e.visit_time) || ' · assigned by ' || split_part(me, '@', 1) || ' · confirm you can go',
+            explore_slot_text(e.visit_date, e.visit_time) || ' · you’re going (assigned by ' || split_part(me, '@', 1) || ') · open it for the address, landlord and what supply wants',
             '/explore/' || p_id, 'exploratory_assigned:' || p_id || ':' || who || ':' || extract(epoch from now())::bigint)
     on conflict do nothing;
   end if;
@@ -287,7 +288,7 @@ begin
   if not pulse_is_admin() then raise exception 'Only an admin can settle this'; end if;
   if p_use_stage then
     update exploratory_assignments set assignee = nullif(stage_conflict, ''), stage_written_assignee = coalesce(stage_conflict, ''),
-           stage_conflict = null, confirmed_at = null where request_id = p_id;
+           stage_conflict = null, confirmed_at = case when stage_conflict is not null then now() end where request_id = p_id;
   else
     update exploratory_assignments set stage_conflict = null, stage_written_assignee = null where request_id = p_id;  -- re-push Pulse's
   end if;

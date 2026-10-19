@@ -94,7 +94,6 @@ export default function ExploreRecord() {
   tl.push({ at: r.created_at, tone: 'pink', h: 'Raised in Stage by supply', s: r.notes ? `“${r.notes.slice(0, 140)}${r.notes.length > 140 ? '…' : ''}”` : (r.requester ? `by ${r.requester}` : '') })
   if (a?.declined_at) tl.push({ at: a.declined_at, tone: 'red', h: `${first(a.declined_by)} can’t make it`, s: a.decline_reason })
   if (a?.assigned_at && a?.assignee) tl.push({ at: a.assigned_at, tone: 'amber', h: `Assigned to ${first(a.assignee)}`, s: `by ${first(a.assigned_by)}${a.stage_written_at && a.stage_written_assignee === a.assignee ? ' · written to Stage ✓' : ' · goes to Stage on the next sync'}` })
-  if (a?.confirmed_at) tl.push({ at: a.confirmed_at, tone: 'green', h: `${first(a.assignee)} confirmed`, s: '' })
   if (r.visit_date) tl.push({ at: `${r.visit_date}T${r.visit_time || '00:00:00'}`, tone: day != null && day > 0 ? '' : 'amber', h: `Visit slot · ${slotText(r.visit_date, r.visit_time)}`, s: r.reschedule_reason ? `rescheduled: ${r.reschedule_reason}` : '' })
   for (const l of (d.logs || []).filter(x => x.submitted_at)) {
     tl.push({ at: l.submitted_at, tone: VERDICT[l.verdict]?.[1] || 'amber', h: `${first(l.author)} logged · ${VERDICT[l.verdict]?.[0] || '—'}`, s: [l.capex_band && `capex ${l.capex_band}`, (l.checks || []).filter(c => c.rating === 'poor').map(c => c.label.toLowerCase()).join(', ')].filter(Boolean).join(' · ') })
@@ -117,24 +116,21 @@ export default function ExploreRecord() {
       case 'explore_assign':
         return isAdmin ? <AssignChoice d={d} busy={busy} onAssign={(email) => call('exploratory_assign', { p_id: id, p_email: email }, `Assigned ${first(email)} — on their desk now; written to Stage on the next sync`)} />
           : <span style={{ fontSize: 14 }}>Waiting for an admin to assign someone for {slotText(r.visit_date, r.visit_time)}.</span>
+      // Assigning is final now; an old unconfirmed row reads as a booked visit.
       case 'explore_confirm':
-        return myVisit ? (declining ? (
-          <>
-            <input value={why} onChange={e => setWhy(e.target.value)} placeholder="Why can’t you go? (goes to the admin)" style={{ ...input, flex: '1 1 260px' }} autoFocus />
-            <button style={btn('danger')} disabled={busy || !why.trim()} onClick={async () => { if (await call('exploratory_respond', { p_id: id, p_ok: false, p_reason: why }, 'Sent back to the admin')) { setDeclining(false); setWhy('') } }}>Send</button>
-            <button style={btn()} onClick={() => setDeclining(false)}>Cancel</button>
-          </>) : (
-          <>
-            <span style={{ flex: '1 1 240px', fontSize: 14 }}><b>Can you make {slotText(r.visit_date, r.visit_time)}?</b></span>
-            <button style={btn('primary')} disabled={busy} onClick={() => call('exploratory_respond', { p_id: id, p_ok: true }, 'Confirmed — see you there')}>Got it</button>
-            <button style={btn()} onClick={() => setDeclining(true)}>Can’t make it</button>
-          </>))
-          : <span style={{ fontSize: 14 }}>Waiting for {first(who)} to confirm the visit.</span>
       case 'explore_visit':
         return (
           <>
             <span style={{ flex: '1 1 240px', fontSize: 14 }}><b>Visit {day === 0 ? 'today' : day === 1 ? 'tomorrow' : slotText(r.visit_date)}{r.visit_time ? `, ${timeText(r.visit_time)}` : ''}</b> · {first(who)}</span>
-            {myVisit && <button style={btn('primary')} onClick={() => navigate(`/explore/${id}/log`)}>{day === 0 ? 'Start visit' : 'Open the log'}</button>}
+            {myVisit && !declining && <button style={btn('primary')} onClick={() => navigate(`/explore/${id}/log`)}>{day === 0 ? 'Start visit' : 'Open the log'}</button>}
+            {/* Nothing waits on this — it's the way out if plans change. */}
+            {myVisit && (declining ? (
+              <>
+                <input value={why} onChange={e => setWhy(e.target.value)} placeholder="Why can’t you go? (goes to the admin)" style={{ ...input, flex: '1 1 240px' }} autoFocus />
+                <button style={btn('danger')} disabled={busy || !why.trim()} onClick={async () => { if (await call('exploratory_respond', { p_id: id, p_ok: false, p_reason: why }, 'Sent back to the admin')) { setDeclining(false); setWhy('') } }}>Send</button>
+                <button style={btn()} onClick={() => setDeclining(false)}>Cancel</button>
+              </>
+            ) : <button style={{ ...btn(), background: 'none', border: 'none', color: 'var(--text-muted, #6b6d82)' }} onClick={() => setDeclining(true)}>Can’t make it?</button>)}
           </>)
       case 'explore_log':
         return (
