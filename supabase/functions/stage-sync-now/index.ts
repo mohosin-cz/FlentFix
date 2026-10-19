@@ -58,7 +58,16 @@ Deno.serve(async (req: Request) => {
   const res = await gh("/dispatches", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref: REF }) });
   if (res.status !== 204) {
     const detail = await res.text().catch(() => "");
-    return json({ ok: false, error: `GitHub didn’t start the sync (${res.status})`, detail: detail.slice(0, 300) }, 502);
+    // Say what's wrong with the token without ever showing it: its length,
+    // the public prefix GitHub gives every token, and stray characters.
+    const t = TOKEN;
+    const shape = `${t.length} characters, starts “${t.slice(0, t.startsWith("github_pat_") ? 11 : 4)}…”` +
+      (/\s/.test(t) ? ", has spaces or line breaks" : "") + (/[<>"']/.test(t) ? ", has < > or quotes" : "");
+    const hint = res.status === 401 ? `GitHub rejected the token (bad credentials) — the saved token is ${shape}. A real fine-grained token is about 93 characters and starts “github_pat_”.`
+      : res.status === 403 ? "The token can’t run workflows — give it Actions: Read and write."
+      : res.status === 404 ? "The token can’t see the FlentFix repository — give it access to mohosin-cz/FlentFix."
+      : `GitHub didn’t start the sync (${res.status}).`;
+    return json({ ok: false, error: hint, detail: detail.slice(0, 200) }, 502);
   }
   return json({ ok: true, requested_by: user.email, requested_at: new Date().toISOString() });
 });
