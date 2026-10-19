@@ -94,7 +94,7 @@ export function useTeam(enabled) {
 export default function TeamView({ home, team, onViewDesk, onPickView, queue }) {
   const navigate = useNavigate()
   const t = team.data
-  const rows = useMemo(() => (home.rows || []).filter(r => !/^test/i.test(r.pid)), [home.rows])
+  const rows = useMemo(() => (home.rows || []).filter(r => !/^test/i.test(r.pid) && r.stage_code !== 'closed' && r.stage_code !== 'archived'), [home.rows])
   const owners = t?.owners || {}
 
   const people = useMemo(() => {

@@ -101,7 +101,7 @@ export default function MyDesk({ home, desk, viewing, onPickView, onChanged }) {
   const d = desk.data
   const mine = useMemo(() => new Set(d?.mine || []), [d])
   // my properties, plus prospects (exploratory requests) whose open step is mine
-  const rows = useMemo(() => (home.rows || []).filter(r => r.is_prospect ? (r.owner_email || '').toLowerCase() === d?.me && r.stage_code !== 'explore_not_taken' : mine.has(r.pid)), [home.rows, mine, d])
+  const rows = useMemo(() => (home.rows || []).filter(r => r.stage_code !== 'closed' && r.stage_code !== 'archived').filter(r => r.is_prospect ? (r.owner_email || '').toLowerCase() === d?.me && r.stage_code !== 'explore_not_taken' : mine.has(r.pid)), [home.rows, mine, d])
 
   if (desk.error) {
     const notYet = /home_desk|does not exist|schema cache/i.test(desk.error)
