@@ -99,7 +99,12 @@ export default function WorkQueue({ home, pickView, scope = 'mine', title, embed
   // Exploratory requests are assigned by the admin alone (told 2026-10-19).
   // Everyone else sees a prospect only once it's theirs — never as an
   // "assign someone" task, and never someone else's visit.
-  const rows = useMemo(() => (isAdmin(me) ? allRows : (allRows || []).filter(r => !r.is_prospect || (r.owner_email || '').toLowerCase() === me)), [allRows, me])
+  // A closed or archived property is finished: it is nobody's open work, on
+  // any tab. (The engine marks it done; tabs like All and Unowned list every
+  // row, so they have to be told.)
+  const rows = useMemo(() => (allRows || [])
+    .filter(r => r.stage_code !== 'closed' && r.stage_code !== 'archived')
+    .filter(r => isAdmin(me) || !r.is_prospect || (r.owner_email || '').toLowerCase() === me), [allRows, me])
 
   // assigned_to is not on the engine's rows (and is empty today); one cheap read.
   const [assigned, setAssigned] = useState(() => new Map())
