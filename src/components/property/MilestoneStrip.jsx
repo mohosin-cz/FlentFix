@@ -253,6 +253,13 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
             <input value={note} onChange={e => setNote(e.target.value)} placeholder="Closure note (optional)" style={{ ...input, flex: '1 1 200px', minWidth: 0 }} />
             <button type="button" disabled={busy} onClick={() => act('mark', 'closed', { p_date: closeDate || null, p_note: note })} style={btn(true)}>Close property</button>
           </>
+        ) : due === 'closed' && state.data.invoice?.draft ? (
+          // A draft invoice: invoicing isn't finished, so closing waits for it.
+          <>
+            <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--amber, #a8895a)' }}>○ Invoice {state.data.invoice.draft.number} is a draft · {state.data.invoice.draft.lines} line{state.data.invoice.draft.lines === 1 ? '' : 's'}</span>
+            <button type="button" onClick={() => navigate(`/invoice/${state.data.invoice.draft.inspection_id || state.data.invoice.inspection_id}`)} style={btn(true)}>Finish and finalise ›</button>
+            <span style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--text-muted, #6b6d82)' }}>The property closes once the invoice is final.</span>
+          </>
         ) : due === 'closed' && !noInv ? (
           // No invoice with lines yet: create it, or say why none is needed.
           <>

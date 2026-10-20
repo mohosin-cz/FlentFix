@@ -638,6 +638,25 @@ export default function LandlordInvoice() {
     }
   }
 
+  // ── Finalise ──
+  // A draft isn't invoicing: the journey and the close check only count a
+  // final invoice (sent / paid / overdue) with lines. This is the one step
+  // that makes it final — and the way back, if something needs changing.
+  const [finalising, setFinalising] = useState(false)
+  async function setFinal(final) {
+    if (!invoice?.id) return
+    if (final && lineItems.filter(l => (l.description || '').trim() || Number(l.unit_price || 0)).length === 0) {
+      setNotice({ tone: 'err', text: 'Add at least one line before finalising.' }); return
+    }
+    setFinalising(true)
+    const next = final ? 'sent' : 'draft'
+    const { error: fErr } = await supabase.from('landlord_invoices').update({ status: next, updated_at: new Date().toISOString() }).eq('id', invoice.id)
+    setFinalising(false)
+    if (fErr) { setNotice({ tone: 'err', text: `Couldn’t ${final ? 'finalise' : 'reopen'} — ${fErr.message}` }); return }
+    setStatus(next); setInvoice(i => ({ ...i, status: next }))
+    setNotice({ tone: 'ok', text: final ? 'Finalised — this counts as invoiced, and the property can now be closed.' : 'Back to draft — the property can’t close until it’s final again.' })
+  }
+
   // ── Save ──
   async function handleSave() {
     if (!invoice) return
@@ -792,6 +811,13 @@ export default function LandlordInvoice() {
               <button onClick={() => setEditing(true)} style={{ padding: '7px 14px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', color: '#555', cursor: 'pointer', fontSize: 12 }}>
                 ✏ Edit
               </button>
+              {status === 'draft'
+                ? <button onClick={() => setFinal(true)} disabled={finalising} style={{ padding: '7px 14px', border: 'none', borderRadius: 6, background: '#5e8a6e', color: '#fff', cursor: finalising ? 'wait' : 'pointer', fontSize: 12, fontWeight: 700 }}>
+                    {finalising ? 'Finalising…' : '✓ Finalise invoice'}
+                  </button>
+                : <button onClick={() => setFinal(false)} disabled={finalising} title="Back to draft to change it" style={{ padding: '7px 14px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', color: '#888', cursor: finalising ? 'wait' : 'pointer', fontSize: 12 }}>
+                    ↺ Back to draft
+                  </button>}
               <button onClick={() => window.print()} style={{ padding: '7px 14px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', color: '#555', cursor: 'pointer', fontSize: 12 }}>
                 ⬇ PDF
               </button>
@@ -802,6 +828,16 @@ export default function LandlordInvoice() {
           )}
         </div>
       </div>
+
+      {/* ── DRAFT ── a draft isn't invoicing yet; say so where it can be fixed */}
+      {!loading && invoice && status === 'draft' && (
+        <div className="inv-noprint" style={{ maxWidth: 860, margin: '10px auto 0', padding: isMobile ? '0 14px' : '0 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 12.5, lineHeight: 1.5, borderRadius: 6, padding: '9px 13px', background: '#fbf6ec', border: '1px solid #ead9b5', color: '#7a5a1c' }}>
+            <span style={{ flex: '1 1 260px' }}><b>Draft.</b> It doesn’t count as invoiced yet, and the property can’t be closed until it’s final. Check the lines, then finalise.</span>
+            {!editing && <button onClick={() => setFinal(true)} disabled={finalising} style={{ padding: '6px 12px', border: 'none', borderRadius: 6, background: '#5e8a6e', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>{finalising ? 'Finalising…' : '✓ Finalise'}</button>}
+          </div>
+        </div>
+      )}
 
       {/* ── NOTICE ── */}
       {notice && (

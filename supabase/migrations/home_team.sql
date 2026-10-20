@@ -93,7 +93,7 @@ begin
       from estimates es order by es.pid, es.created_at desc
   ),
   has_inv as (
-    select distinct li.pid from landlord_invoices li where exists (select 1 from landlord_invoice_items ii where ii.invoice_id = li.id)
+    select distinct li.pid from landlord_invoices li where li.status in ('sent', 'paid', 'overdue') and exists (select 1 from landlord_invoice_items ii where ii.invoice_id = li.id)
   ),
 
   -- vendors -------------------------------------------------------------
