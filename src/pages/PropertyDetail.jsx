@@ -380,6 +380,26 @@ export default function PropertyDetail() {
   const [loading, setLoading]         = useState(true)
   const [toast, setToast]             = useState('')
   const [stats, setStats]             = useState({ totalItems: 0, issues: 0, totalCost: 0 })
+  // The estimate as the landlord sees it: the total that was sent, and how
+  // much of it they've approved (each line × its quantity, priced lines only).
+  const [est, setEst]                 = useState(null)
+  useEffect(() => {
+    if (!pid) return undefined
+    let alive = true
+    supabase.from('estimates')
+      .select('id, status, total, sent_at, estimate_items(status, cost_type, material_cost, labour_cost, qty)')
+      .eq('pid', pid).order('created_at', { ascending: false }).limit(5)
+      .then(({ data }) => {
+        if (!alive || !data) return
+        const sent = data.find(e => e.status !== 'draft' || e.sent_at)
+        const items = (sent?.estimate_items || []).filter(i => i.status !== 'removed')
+        const approved = items.filter(i => i.status === 'approved' && i.cost_type === 'priced')
+          .reduce((t, i) => t + ((Number(i.material_cost) || 0) + (Number(i.labour_cost) || 0)) * (Number(i.qty) || 1), 0)
+        setEst(sent ? { total: Number(sent.total) || 0, approved, all: items.length > 0 && items.every(i => i.status === 'approved' || i.status === 'excluded'), draft: false }
+                    : data.length ? { draft: true, total: Number(data[0].total) || 0 } : null)
+      })
+    return () => { alive = false }
+  }, [pid])
   const [showAllInspections, setShowAllInspections] = useState(false)
   const [quickNote, setQuickNote]     = useState(null)
   const [propName, setPropName]       = useState(null)
@@ -584,7 +604,8 @@ export default function PropertyDetail() {
                   {[
                     { label: 'Line Items', value: stats.totalItems },
                     { label: 'Issues', value: stats.issues, color: stats.issues > 0 ? 'var(--red, #b0645b)' : undefined },
-                    { label: 'Est. Cost', value: `₹${(stats.totalCost || 0).toLocaleString('en-IN')}`, color: stats.totalCost > 0 ? 'var(--accent, #c8963e)' : undefined },
+                    // the estimate that went to the landlord, not a sum of inspection lines
+                    { label: est && !est.draft ? 'Estimate sent' : 'Est. Cost', value: est && !est.draft ? `₹${est.total.toLocaleString('en-IN')}` : '—', color: est && !est.draft && est.total > 0 ? 'var(--accent, #c8963e)' : undefined },
                   ].map(stat => (
                     <div key={stat.label} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 8, padding: '12px 10px', textAlign: 'center' }}>
                       <div style={{ fontSize: 16, fontWeight: 700, color: stat.color || 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{stat.value}</div>
@@ -711,7 +732,16 @@ export default function PropertyDetail() {
                           <div style={{ color: tile.color, lineHeight: 0, opacity: 0.85 }}>{tile.icon}</div>
                           <div>
                             <div style={{ fontSize: 13, fontWeight: 700, color: tile.color, fontFamily: 'var(--font-mono, monospace)', marginBottom: 3 }}>{tile.title}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{tile.sub}</div>
+                            {tile.key === 'estimate' && est && !est.draft ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                <span style={{ fontSize: 15, fontWeight: 700, color: est.approved > 0 ? 'var(--green, #6f9a7e)' : 'var(--text, #e8e8f0)', fontVariantNumeric: 'tabular-nums' }}>
+                                  ₹{est.approved.toLocaleString('en-IN')} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted, #6b6d82)' }}>approved</span>
+                                </span>
+                                <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{est.all ? '✓ all approved' : `of ₹${est.total.toLocaleString('en-IN')} sent`}</span>
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{tile.key === 'estimate' && est?.draft ? 'Draft · not sent yet' : tile.sub}</div>
+                            )}
                           </div>
                         </button>
                       ))}
