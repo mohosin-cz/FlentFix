@@ -86,7 +86,7 @@ export default function EstimateWorkspace() {
       supabase.auth.getUser(),
       supabase
         .from('estimates')
-        .select('*, estimate_items(id, status, cost_type, material_cost, labour_cost, item_name, area, trade, issue_description, sort_order), estimate_events(*), estimate_disputes(count)')
+        .select('*, estimate_items(id, status, cost_type, material_cost, labour_cost, qty, item_name, area, trade, issue_description, sort_order), estimate_events(*), estimate_disputes(count)')
         .eq('pid', pid)
         .order('created_at', { ascending: false }),
       supabase.from('inspections').select('house_type, config').eq('pid', pid).order('created_at', { ascending: false }).limit(1).maybeSingle(),
