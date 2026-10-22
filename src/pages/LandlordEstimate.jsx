@@ -232,9 +232,10 @@ const CSS = `
     color: var(--le-clay); white-space: nowrap; flex-shrink: 0; letter-spacing: 0.08em; padding-top: 4px;
   }
   .le-plate-assumed {
-    font-family: var(--le-mono); font-size: 10px; color: var(--le-clay);
-    letter-spacing: 0.04em; margin-top: 6px;
+    font-size: 12.5px; line-height: 1.5; color: var(--le-ink-soft);
+    margin-top: 6px; padding-left: 10px; border-left: 2px solid var(--le-clay);
   }
+  .le-plate-assumed b { color: var(--le-clay); font-weight: 600; }
   .le-total-actuals { font-family: var(--le-mono); font-size: 11px; color: var(--le-ink-soft); letter-spacing: 0.02em; margin-top: 6px; }
   .le-plate-action-mark {
     font-family: var(--le-mono); font-size: 9px; font-weight: 500;
@@ -1101,14 +1102,16 @@ export default function LandlordEstimate() {
                         <div className="le-plate-title-row">
                           <span className="le-plate-title">{item.item_name || '—'}</span>
                           {total != null && total > 0 ? (
-                            <span className="le-plate-cost">₹{fmt(total)}</span>
+                            <span className="le-plate-cost">{costKind(item.cost_type) === 'actuals' && <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--le-clay)', marginRight: 4 }}>approx.</span>}₹{fmt(total)}</span>
                           ) : costKind(item.cost_type) === 'actuals' ? (
                             <span className="le-plate-actuals">At actual cost</span>
                           ) : null}
                         </div>
                         {costKind(item.cost_type) === 'actuals' && (
                           <div className="le-plate-assumed">
-                            {total > 0 ? 'Assumed cost · final amount charged at actuals after the work' : 'Charged at actuals after the work'}
+                            {total > 0
+                              ? <><b>Ballpark estimate.</b> This is our best estimate for this work — the actual cost may differ once it’s done, and you’ll be charged the actual amount.</>
+                              : <><b>Charged on actuals.</b> The cost depends on what the work turns out to need, so you’ll be charged the actual amount once it’s done.</>}
                           </div>
                         )}
 
