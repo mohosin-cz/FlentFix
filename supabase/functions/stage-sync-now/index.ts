@@ -1,4 +1,4 @@
-// "Sync now" on the calendar: runs the Stage → Pulse sync straight away instead
+// "Sync now" on the calendar — and the half-hourly schedule: runs the Stage → Pulse sync straight away instead
 // of waiting for the next half-hour.
 //
 // The sync itself is the GitHub Actions workflow (.github/workflows/stage-sync.yml,
@@ -30,13 +30,24 @@ Deno.serve(async (req: Request) => {
   const REPO = Deno.env.get("GITHUB_SYNC_REPO") ?? "mohosin-cz/FlentFix";
   const REF = Deno.env.get("GITHUB_SYNC_REF") ?? "main";
 
-  // Staff only: the caller's session is checked with Supabase, not trusted.
-  const auth = req.headers.get("Authorization") ?? "";
-  if (!auth.startsWith("Bearer ")) return json({ ok: false, error: "Sign in first" }, 401);
-  const who = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { Authorization: auth, apikey: ANON } });
-  if (!who.ok) return json({ ok: false, error: "Sign in first" }, 401);
-  const user = await who.json();
-  if (!String(user?.email ?? "").toLowerCase().endsWith("@flent.in")) return json({ ok: false, error: "Staff only" }, 403);
+  // The half-hourly schedule (pg_cron, stage_sync_cron.sql) calls with a shared
+  // secret instead of a session: GitHub's own cron fires a few times a day at
+  // best, a dispatch starts within seconds.
+  const CRON = Deno.env.get("STAGE_SYNC_CRON_SECRET") ?? "";
+  const given = req.headers.get("x-cron-secret") ?? "";
+  const scheduled = CRON.length >= 32 && given.length === CRON.length &&
+    [...given].reduce((d, ch, i) => d | (ch.charCodeAt(0) ^ CRON.charCodeAt(i)), 0) === 0;
+
+  // Otherwise staff only: the caller's session is checked with Supabase, not trusted.
+  let user: { email?: string } = { email: "schedule" };
+  if (!scheduled) {
+    const auth = req.headers.get("Authorization") ?? "";
+    if (!auth.startsWith("Bearer ")) return json({ ok: false, error: "Sign in first" }, 401);
+    const who = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { Authorization: auth, apikey: ANON } });
+    if (!who.ok) return json({ ok: false, error: "Sign in first" }, 401);
+    user = await who.json();
+    if (!String(user?.email ?? "").toLowerCase().endsWith("@flent.in")) return json({ ok: false, error: "Staff only" }, 403);
+  }
 
   if (!TOKEN) {
     return json({ ok: false, error: "Sync now isn’t set up yet: add the GITHUB_SYNC_TOKEN secret to the Supabase edge functions." }, 503);
