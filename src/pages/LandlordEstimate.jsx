@@ -811,9 +811,12 @@ export default function LandlordEstimate() {
   const visibleItems   = items.filter(i => i.status !== 'removed' && i.status !== 'excluded' && costKind(i.cost_type) !== 'nil')
   const pendingCount   = visibleItems.filter(i => !i.status || i.status === 'pending').length
   // Use snapshot total (version), then stored estimate total, then client-side compute
-  const grandTotal     = snapshotTotal != null ? snapshotTotal : estimate?.total != null
+  // The sent version's total still counts a line Flent dropped after sending,
+  // so take dropped lines out here rather than waiting for a resend.
+  const droppedSum     = visibleItems.filter(i => i.status === 'rejected').reduce((s, i) => s + (itemTotal(i) || 0), 0)
+  const grandTotal     = snapshotTotal != null ? Math.max(0, snapshotTotal - droppedSum) : estimate?.total != null
     ? estimate.total
-    : visibleItems.reduce((s, i) => s + (itemTotal(i) || 0), 0)
+    : visibleItems.filter(i => i.status !== 'rejected').reduce((s, i) => s + (itemTotal(i) || 0), 0)
   const actualsItems   = visibleItems.filter(i => costKind(i.cost_type) === 'actuals' && i.status !== 'rejected')
   const actualsSum     = actualsItems.reduce((s, i) => s + (itemTotal(i) || 0), 0)
   const actualsLine    = actualsItems.length
@@ -1102,12 +1105,12 @@ export default function LandlordEstimate() {
                         <div className="le-plate-title-row">
                           <span className="le-plate-title">{item.item_name || '—'}</span>
                           {total != null && total > 0 ? (
-                            <span className="le-plate-cost">{costKind(item.cost_type) === 'actuals' && <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--le-clay)', marginRight: 4 }}>approx.</span>}₹{fmt(total)}</span>
+                            <span className="le-plate-cost" style={item.status === 'rejected' ? { textDecoration: 'line-through', color: 'var(--le-ink-soft)', fontWeight: 400 } : undefined}>{costKind(item.cost_type) === 'actuals' && <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--le-clay)', marginRight: 4 }}>approx.</span>}₹{fmt(total)}</span>
                           ) : costKind(item.cost_type) === 'actuals' ? (
                             <span className="le-plate-actuals">At actual cost</span>
                           ) : null}
                         </div>
-                        {costKind(item.cost_type) === 'actuals' && (
+                        {costKind(item.cost_type) === 'actuals' && item.status !== 'rejected' && (
                           <div className="le-plate-assumed">
                             {total > 0
                               ? <><b>Ballpark estimate.</b> This is our best estimate for this work — the actual cost may differ once it’s done, and you’ll be charged the actual amount.</>
@@ -1153,6 +1156,11 @@ export default function LandlordEstimate() {
                           })()
                         }
 
+                        {/* a dropped line says so even once the estimate is final */}
+                        {isLocked && item.status === 'rejected' && (
+                          <span className="le-plate-state" style={{ color: 'var(--le-ink-soft)' }}>Dropped from this estimate · not included in your total</span>
+                        )}
+
                         {/* approve / ask — hidden when estimate is locked */}
                         {!isLocked && (
                           <div className="le-plate-actions">
@@ -1161,7 +1169,7 @@ export default function LandlordEstimate() {
                                 Approved{item.approved_by_email ? ` · ${item.approved_by_email}` : ''}
                               </span>
                             ) : status === 'rejected' ? (
-                              <span className="le-plate-state" style={{ color: 'var(--le-ink-soft)' }}>Not going ahead · not included in your total</span>
+                              <span className="le-plate-state" style={{ color: 'var(--le-ink-soft)' }}>Dropped from this estimate · not included in your total</span>
                             ) : (
                               <>
                                 {/* Approve when Flent replied last or no thread yet */}
