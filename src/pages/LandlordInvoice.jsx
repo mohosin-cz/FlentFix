@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { LineageToggle } from '../components/LineageStrip'
 import { HashScroll } from '../hooks/useHashScroll'
 import { advanceStage } from '../utils/propertyJourney'
 import { belongsInEstimate } from '../utils/generateEstimate'
@@ -304,6 +303,50 @@ function PullReview({ review, setReview, onAdd }) {
   )
 }
 
+// What a landlord needs beside each line: where the problem was and what was
+// found. The line itself says what was done. Read from the estimate line or,
+// for verified work, the inspection finding behind the work order item; a
+// line typed by hand has neither and shows nothing.
+function useLineContext(lineItems) {
+  const estIds = [...new Set(lineItems.map(l => l.estimate_item_id).filter(Boolean))].sort()
+  const woIds  = [...new Set(lineItems.map(l => l.wo_item_id).filter(Boolean))].sort()
+  const key = estIds.join(',') + '|' + woIds.join(',')
+  const [ctx, setCtx] = useState({})
+  useEffect(() => {
+    if (key === '|') return undefined
+    let alive = true
+    ;(async () => {
+      const out = {}
+      const shape = (r) => {
+        // "Basics" is the inspection's tab for whole-home work, not a place
+        const room = [r.section_name, r.area].map(x => (x || '').trim()).find(x => x && !/^(basics|custom|misc)$/i.test(x)) || ''
+        const thing = (r.item_name || '').trim()
+        const issue = (r.issue_description || '').trim()
+        return {
+          where: [room, thing && thing.toLowerCase() !== room.toLowerCase() ? thing : ''].filter(Boolean).join(' · '),
+          issue: /^(functional|issues)$/i.test(issue) ? '' : issue,
+        }
+      }
+      if (estIds.length) {
+        const { data } = await supabase.from('estimate_items').select('id, section_name, area, item_name, issue_description').in('id', estIds)
+        for (const r of data || []) out['e:' + r.id] = shape(r)
+      }
+      if (woIds.length) {
+        const { data: wo } = await supabase.from('work_order_items').select('id, area, inspection_line_item_id').in('id', woIds)
+        const inspIds = [...new Set((wo || []).map(w => w.inspection_line_item_id).filter(Boolean))]
+        const { data: insp } = inspIds.length
+          ? await supabase.from('inspection_line_items').select('id, section_name, area, item_name, issue_description').in('id', inspIds)
+          : { data: [] }
+        const byId = new Map((insp || []).map(r => [r.id, r]))
+        for (const w of wo || []) out['w:' + w.id] = shape(byId.get(w.inspection_line_item_id) || { area: w.area })
+      }
+      if (alive) setCtx(out)
+    })()
+    return () => { alive = false }
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (l) => (l.wo_item_id && ctx['w:' + l.wo_item_id]) || (l.estimate_item_id && ctx['e:' + l.estimate_item_id]) || null
+}
+
 const STATUS_STYLES = {
   draft:   { bg: '#f5f5f5', color: '#888',    label: 'DRAFT' },
   sent:    { bg: '#eff6ff', color: '#3b82f6', label: 'SENT' },
@@ -386,6 +429,7 @@ export default function LandlordInvoice() {
 
   const [invoice, setInvoice]       = useState(null)
   const [lineItems, setLineItems]   = useState([])
+  const lineContext = useLineContext(lineItems)
   const [editing, setEditing]       = useState(false)
   const [saving, setSaving]         = useState(false)
   const [loading, setLoading]       = useState(true)
@@ -1001,7 +1045,7 @@ export default function LandlordInvoice() {
           <table style={{ width: '100%', minWidth: isMobile && lineItems.length > 0 ? 440 : undefined, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #1a1a1a' }}>
-                {['Sl', 'Description', 'Category', 'Qty', 'Amount', ...(editing ? [''] : [])].map(h => (
+                {['Sl', 'Work done', 'Category', 'Qty', 'Amount', ...(editing ? [''] : [])].map(h => (
                   <th key={h} style={{ padding: `12px ${cellX}px`, textAlign: h === 'Amount' ? 'right' : h === 'Qty' ? 'center' : 'left', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -1029,6 +1073,21 @@ export default function LandlordInvoice() {
                       {editing
                         ? <input className="inv-input" value={item.description} onChange={e => updateItem(item.id, 'description', e.target.value)} />
                         : <span style={{ color: '#1a1a1a' }}>{item.description || '—'}</span>}
+                      {(() => {
+                        const c0 = lineContext(item)
+                        if (!c0) return null
+                        // an issue that only repeats the line says nothing new
+                        const d = (item.description || '').toLowerCase(), iss = (c0.issue || '').toLowerCase()
+                        const c = { ...c0, issue: iss && (d.includes(iss) || iss.includes(d)) ? '' : c0.issue }
+                        if (!c.where && !c.issue) return null
+                        return (
+                          <div style={{ fontSize: 11, color: '#888', marginTop: 3, lineHeight: 1.45 }}>
+                            {c.where && <span style={{ color: '#666' }}>{c.where}</span>}
+                            {c.where && c.issue && ' — '}
+                            {c.issue && <span>found: {c.issue}</span>}
+                          </div>
+                        )
+                      })()}
                       {editing && (item._actuals || !amount) && (
                         <div className="inv-noprint" style={{ fontSize: 11, color: '#b26a00', marginTop: 4 }}>
                           {item._actuals ? (amount ? 'On actuals — assumed cost; change it to the final amount' : 'On actuals — enter the final cost') : 'No amount yet'}
@@ -1059,12 +1118,6 @@ export default function LandlordInvoice() {
                         >×</button>
                       </td>
                     )}
-                  </tr>
-                  {/* Provenance, on screen only: never on the landlord's printed copy. */}
-                  <tr className="inv-noprint">
-                    <td colSpan={editing ? 6 : 5} style={{ padding: `0 ${cellX}px 8px`, borderBottom: '1px solid #f0f0f0' }}>
-                      <LineageToggle kind="invoice_item" id={item.id} light label="Where this line came from" />
-                    </td>
                   </tr>
                   </Fragment>
                 )
