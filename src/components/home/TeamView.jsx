@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { clean } from './MyDesk'
+import { liveRows, teamLoad, STEP_NAME } from '../../utils/teamLoad'
 
 // The admin's Team view — who is carrying what, where work is stuck, what
 // slipped. Per-person load and the stuck grid come from the journey engine
@@ -20,17 +21,6 @@ const SOFT = { red: 'rgba(158,90,82,0.16)', amber: 'rgba(160,132,82,0.16)', gree
 // not neon — the same red / amber / green, with the saturation taken out
 const M = { red: '#b0645b', amber: '#a8895a', green: '#6f9a7e' }
 const WAIT = [['setup_ops', 'Setup ops'], ['landlord', 'Landlord'], ['vendor', 'Vendor'], ['supply', 'Supply']]
-// Steps whose engine label carries a count ("9 of 21 items approved") are
-// grouped under one name, so the grid has one row per step.
-const STEP_NAME = {
-  landlord_deciding: 'Landlord approving items',
-  explore_assign: 'Explore · assign someone', explore_confirm: 'Explore · confirm the visit', explore_visit: 'Explore · visit booked',
-  explore_log: 'Explore · log the findings', explore_decision: 'Explore · supply to decide', explore_deal: 'Explore · supply closing the deal',
-  explore_link: 'Explore · link to its PID', explore_create_pid: 'Explore · create the PID', explore_slot: 'Explore · supply to set a slot',
-  explore_stale: 'Explore · stale in Stage', explore_paste: 'Explore · paste findings into Stage', explore_paste_main: 'Explore · logged, not in Stage yet', items_to_verify: 'Vendor work to verify', disputed: 'Items sent back to vendor',
-  setup_day: 'Setup day', setup_in_progress: 'Work under way', vendors_on_site: 'Vendors on site', wo_awaiting_day: 'Waiting for setup day',
-  wo_overdue: 'Items open past closure date', wo_unassigned: 'Work orders with no vendor', wo_undated: 'Work orders with no closure date',
-}
 const METRICS = [['insp_to_sent', 'Inspection → estimate sent'], ['sent_to_approved', 'Sent → approved'], ['setup_to_closed', 'Setup → closed']]
 
 const CSS = `
@@ -45,6 +35,8 @@ const CSS = `
 .tv tr:last-child td{border-bottom:0}
 .tv .n{font-family:var(--font-nav, Urbanist, Poppins, sans-serif);font-variant-numeric:tabular-nums}
 .tv-rows>*+*{border-top:1px solid var(--border,#2e3040)}
+.tv-link{font-family:var(--font-nav, Urbanist, Poppins, sans-serif);font-size:12px;font-weight:700;color:var(--accent,#c8963e);text-decoration:none;white-space:nowrap;padding:4px 0}
+.tv-link:hover{text-decoration:underline}
 .tv-btn{min-height:32px;padding:0 11px;border-radius:8px;font-family:var(--font-nav, Urbanist, Poppins, sans-serif);font-size:11.5px;font-weight:700;white-space:nowrap;cursor:pointer;border:1px solid var(--border,#2e3040);background:var(--bg-input,#252731);color:var(--text-dim,#9394a8)}
 @media (max-width:1100px){.tv-grid{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:720px){
@@ -94,25 +86,10 @@ export function useTeam(enabled) {
 export default function TeamView({ home, team, onViewDesk, onPickView, queue }) {
   const navigate = useNavigate()
   const t = team.data
-  const rows = useMemo(() => (home.rows || []).filter(r => !/^test/i.test(r.pid) && r.stage_code !== 'closed' && r.stage_code !== 'archived'), [home.rows])
+  const rows = useMemo(() => liveRows(home.rows), [home.rows])
   const owners = t?.owners || {}
 
-  const people = useMemo(() => {
-    if (!t) return []
-    return t.people.map(p => {
-      const mine = rows.filter(r => (r.is_prospect ? (r.owner_email || '').toLowerCase() : owners[r.pid]) === p.email && r.stage_code !== 'explore_not_taken')
-      const open = mine.filter(r => r.urgency !== 'done')
-      return {
-        ...p, owned: mine.length,
-        overdue: mine.filter(r => r.urgency === 'overdue').length,
-        today: mine.filter(r => r.urgency === 'today').length,
-        setups: mine.filter(r => r.days_to_setup != null && r.days_to_setup >= 0 && r.days_to_setup <= 6).length,
-        onThem: open.filter(r => r.blocked_on === 'setup_ops').length,
-        onOthers: open.filter(r => r.blocked_on && r.blocked_on !== 'setup_ops').length,
-        quiet: mine.length - open.length,
-      }
-    }).sort((a, b) => b.owned - a.owned)
-  }, [t, rows, owners])
+  const people = useMemo(() => t ? teamLoad(t.people, rows, owners) : [], [t, rows, owners])
 
   const stuck = useMemo(() => {
     const m = new Map()
@@ -161,7 +138,8 @@ export default function TeamView({ home, team, onViewDesk, onPickView, queue }) 
 
       <div className="tv-grid">
         <div className="tv-col">
-          <Panel title="Team load" meta="who is carrying what · bar: waiting on them / on others / quiet">
+          <Panel title="Team load" meta="who is carrying what · bar: on them / others due or late / quiet"
+            action={<Link to="/team/load" className="tv-link">Full breakdown ›</Link>}>
             <Scroll><table>
               <thead><tr><th>Person</th><th>Owns</th><th>Load</th><th>Overdue</th><th>Due today</th><th>Setups wk</th><th>To verify</th><th>Last active</th><th></th></tr></thead>
               <tbody>{people.map(p => (
@@ -169,7 +147,7 @@ export default function TeamView({ home, team, onViewDesk, onPickView, queue }) 
                   <td><b>{first(p.email)}</b></td>
                   <td className="n">{p.owned}</td>
                   <td>
-                    <span title={`${p.onThem} waiting on them · ${p.onOthers} waiting on others · ${p.quiet} quiet`}
+                    <span title={`${p.onThem} on them · ${p.onOthers} on others, due or late · ${p.quiet} quiet — someone else has it, on time`}
                       style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: C.input, width: Math.max(24, Math.round(140 * p.owned / maxOwned)) }}>
                       {[[p.onThem, M.red], [p.onOthers, M.amber], [p.quiet, M.green]].map(([v, col], i) => <i key={i} style={{ display: 'block', height: '100%', width: `${p.owned ? 100 * v / p.owned : 0}%`, background: col }} />)}
                     </span>

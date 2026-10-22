@@ -11,6 +11,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import AlertWindow from './pages/AlertWindow'
 import Digest from './pages/Digest'
+import TeamLoad from './pages/TeamLoad'
 import SetupCalendar from './pages/SetupCalendar'
 import ExploreRecord from './pages/ExploreRecord'
 import VisitLog from './pages/VisitLog'
@@ -112,6 +113,7 @@ export default function App() {
           />
           <Route path="/alerts" element={<ProtectedRoute><AlertWindow /></ProtectedRoute>} />
           <Route path="/digest" element={<ProtectedRoute><Digest /></ProtectedRoute>} />
+          <Route path="/team/load" element={<ProtectedRoute><TeamLoad /></ProtectedRoute>} />
           <Route
             path="/inspections/new"
             element={
