@@ -663,6 +663,9 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
   const [itemBusyId, setItemBusyId] = useState(null)
   const [itemErr, setItemErr] = useState({})
   const [toast, setToast] = useState(null)         // { text, undo?, tone? }
+  // Work orders open once the estimate is marked final; the database enforces
+  // it (estimate_final_gate.sql), this only says so before anyone tries.
+  const [estimateFinal, setEstimateFinal] = useState(true)
   // Cards are ordered "waiting on you first" when the page arrives, then held
   // still. Re-sorting live would yank a card out from under you the moment you
   // verified its last item.
@@ -734,6 +737,8 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
       setLineItems(withPhoto.filter(belongsInEstimate))
       setObservations(withPhoto.length - withPhoto.filter(belongsInEstimate).length)
 
+      supabase.from('properties').select('estimate_final_at').eq('pid', pid).maybeSingle()
+        .then(({ data }) => setEstimateFinal(!data || !!data.estimate_final_at))
       const [{ data: wos, error: wErr }, { data: vends, error: vErr }, { data: acts, error: aErr }] = await Promise.all([
         supabase.from('work_orders').select('*, work_order_items(id, area, description, fix_type, material, quantity, status, sort_order, dispute_count, dispute_reason, vendor_note, verified_at, verified_by)')
           .eq('pid', pid).order('created_at', { ascending: true }),
@@ -1207,6 +1212,12 @@ export default function WorkOrdersSection({ pid, heading = 'Work orders' }) {
         <div style={{ padding: '10px 12px', background: 'rgba(200,150,62,0.09)', border: '1px solid rgba(200,150,62,0.30)', borderRadius: 9, fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.55 }}>
           {strandedOrders.length} work order{strandedOrders.length === 1 ? '' : 's'} on this property belong{strandedOrders.length === 1 ? 's' : ''} to an earlier inspection
           {' '}({[...new Set(strandedOrders.map(w => tradeLabel(w.trade)))].join(', ')}) and {strandedOrders.length === 1 ? 'is' : 'are'} not shown below.
+        </div>
+      )}
+
+      {!loading && !error && !estimateFinal && (
+        <div style={{ padding: '10px 12px', background: 'rgba(200,150,62,0.09)', border: '1px solid rgba(200,150,62,0.30)', borderRadius: 9, fontSize: 12, color: 'var(--accent, #c8963e)', fontFamily: MONO, lineHeight: 1.55 }}>
+          The estimate isn’t marked final yet, so work orders can’t be raised. Once the landlord has approved every item, mark it final on the property’s journey.
         </div>
       )}
 
