@@ -5,7 +5,7 @@ import ItemDrawer from '../components/estimate/ItemDrawer'
 import RateDrawer from '../components/estimate/RateDrawer'
 import { MediaLightbox, TypeSeg, ScoreChip, MediaCell, FilterSelect } from '../components/estimate/parts'
 import { CSS } from '../components/estimate/workbenchCss'
-import { uiType, dbType, tc, fmt, itemTot, getScore, needsPricing, invPrice, maxSort } from '../utils/estimateHelpers'
+import { uiType, dbType, tc, fmt, itemTot, getScore, needsPricing, invPrice, maxSort, landlordNumbers } from '../utils/estimateHelpers'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { reconcileEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
@@ -813,6 +813,10 @@ function EstimateWorkbenchInner() {
   // Grouped case-insensitively: "Cleaning" and "cleaning" are one trade, not
   // two half-empty sections. The first spelling seen becomes the group's value,
   // so dragging into it normalises the odd one out rather than preserving it.
+  // Numbered over every line, not just the filtered ones, so a line keeps its
+  // number whatever the filters show.
+  const slNo = useMemo(() => landlordNumbers(items), [items])
+
   const tradeGroups = useMemo(() => {
     const map = {}
     for (const item of items.filter(matchesQuery)) {
@@ -1244,6 +1248,9 @@ function EstimateWorkbenchInner() {
                                   below stay beside the name where they catch
                                   the eye. */}
                               <div className="ar">
+                                {slNo.has(item.id)
+                                  ? <span className="slno" title={`Item ${slNo.get(item.id)} on the landlord’s estimate`}>{slNo.get(item.id)}</span>
+                                  : <span className="slno slno-off" title="Not on the landlord’s estimate (excluded or nil)">—</span>}
                                 <span className="ar-area">{item.area || '—'}</span>
                                 {item.status === 'approved' && (
                                   <button className="spill spill-approved"

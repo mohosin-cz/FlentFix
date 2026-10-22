@@ -137,6 +137,8 @@ export const CSS = `
 .idn .it>.spill:first-of-type{margin-left:5px}
 .idn .ar{display:flex;align-items:center;gap:6px;min-width:0;font-family:var(--mono);font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
 .idn .ar-area{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.idn .slno{flex-shrink:0;min-width:20px;padding:1px 4px;border-radius:4px;background:var(--line,rgba(127,127,127,.14));color:var(--ink,inherit);font-variant-numeric:tabular-nums;letter-spacing:.04em;text-align:center}
+.idn .slno-off{background:none;color:var(--faint)}
 .idn .ar .spill{flex-shrink:0;margin-left:0}
 .ddot{color:var(--clay);font-size:9px;margin-left:5px}
 .fnd{color:var(--ink2);font-size:12px;line-height:1.4;overflow:hidden}

@@ -61,3 +61,25 @@ export function invPrice(r) {
   if (r.market_price) return r.market_price
   return Math.round((parseFloat(r.price_inc) || 0) * (1 + (r.margin_percent || 0) / 100))
 }
+
+// The number each line carries on the landlord's estimate (01, 02, …), so the
+// workbench and the landlord can both say "item 07" and mean the same line.
+// Same rules as LandlordEstimate: only lines the landlord sees (not removed,
+// excluded or nil), grouped by the room they were captured in — rooms in walk
+// order (their lowest sort_order), "Whole Home" last — numbered top to bottom.
+export function landlordNumbers(items) {
+  const seen = (items || [])
+    .filter(i => i.status !== 'removed' && i.status !== 'excluded' && i.cost_type !== 'nil')
+    .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
+  const rooms = new Map()
+  for (const it of seen) {
+    const k = it.section_name || ''
+    if (!rooms.has(k)) rooms.set(k, { min: it.sort_order ?? 9999, items: [] })
+    rooms.get(k).items.push(it)
+  }
+  const order = [...rooms.entries()].sort(([ka, a], [kb, b]) => (ka === '') - (kb === '') || a.min - b.min)
+  const out = new Map()
+  let n = 0
+  for (const [, r] of order) for (const it of r.items) out.set(it.id, String(++n).padStart(2, '0'))
+  return out
+}

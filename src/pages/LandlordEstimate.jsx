@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import LogoSpinner from '../components/LogoSpinner'
 import FlentWordmark from '../components/FlentWordmark'
 import { useHashScroll } from '../hooks/useHashScroll'
+import { landlordNumbers } from '../utils/estimateHelpers'
 
 const HERO_TITLE    = 'Your home, cared for'
 const HERO_SUBTITLE = 'before anyone moves in.'
@@ -832,10 +833,9 @@ export default function LandlordEstimate() {
   }
   const groups = groupBySection(visibleItems)
 
-  // Sequential plate counter in render order (across all sections, top to bottom)
-  const plateOrder = new Map()
-  let _plate = 0
-  groups.forEach(({ items: gi }) => gi.forEach(item => plateOrder.set(item.id, ++_plate)))
+  // Sequential plate number across all sections, top to bottom — the same
+  // numbers the workbench shows staff (landlordNumbers).
+  const plateOrder = landlordNumbers(visibleItems)
 
   const address  = inspection?.config?.address || ''
   const inspector = estimate?.inspector_name || '—'
@@ -978,7 +978,7 @@ export default function LandlordEstimate() {
               </div>
 
               {secItems.map(item => {
-                const plateIdx  = String(plateOrder.get(item.id)).padStart(2, '0')
+                const plateIdx  = plateOrder.get(item.id)
                 const total     = itemTotal(item)
                 // Show area when it differs from the section label (e.g. BATHROOM under Bedroom 2).
                 // Otherwise fall back to trade name so each plate has a useful eyebrow.
