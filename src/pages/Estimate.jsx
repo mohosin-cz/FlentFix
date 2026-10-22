@@ -206,7 +206,7 @@ function EstimateWorkbenchInner() {
     // Auto-backfill stored total if null (first open after migration or after regenerate)
     if (est.total == null) {
       const firmTotal = fetched
-        .filter(i => !['removed', 'excluded'].includes(i.status) && isCosted(i))
+        .filter(i => !['removed', 'excluded', 'rejected'].includes(i.status) && isCosted(i))
         .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
       supabase.from('estimates').update({ total: firmTotal }).eq('id', id)
         .then(() => setEstimate(prev => prev ? { ...prev, total: firmTotal } : prev))
@@ -492,7 +492,7 @@ function EstimateWorkbenchInner() {
 
   const landlordUrl = () => `${window.location.origin}/e/${estimate?.share_token}`
   const pricedTotal = () => items
-    .filter(i => !['removed', 'excluded'].includes(i.status) && isCosted(i))
+    .filter(i => !['removed', 'excluded', 'rejected'].includes(i.status) && isCosted(i))
     .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
 
   async function getAccessCode() {
@@ -522,7 +522,7 @@ function EstimateWorkbenchInner() {
     const pid = estimate?.pid
     const { data: prop } = await supabase.from('properties')
       .select('name, address, flat_no, floor, landlord_name, maps_url').eq('pid', pid).maybeSingle()
-    const live = items.filter(i => !['removed', 'excluded'].includes(i.status) && isCosted(i))
+    const live = items.filter(i => !['removed', 'excluded', 'rejected'].includes(i.status) && isCosted(i))
     const lineTotal = i => ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1)
     const priced = live.filter(i => !isActuals(i))
     const actuals = live.filter(i => isActuals(i))
@@ -580,7 +580,7 @@ function EstimateWorkbenchInner() {
       return
     }
     const snapTotal = liveItems
-      .filter(i => i.status !== 'excluded' && isCosted(i))
+      .filter(i => i.status !== 'excluded' && i.status !== 'rejected' && isCosted(i))
       .reduce((s, i) => s + ((parseFloat(i.material_cost)||0) + (parseFloat(i.labour_cost)||0)) * (i.qty||1), 0)
     const nextVersion = (estimate?.current_version || 0) + 1
 
@@ -682,13 +682,37 @@ function EstimateWorkbenchInner() {
     }
   }
 
-  async function handleLock() {
-    if (!window.confirm('Mark this estimate as final? All editing will be disabled and the landlord will see a read-only view.')) return
-    setLocking(true)
+  // Record the landlord's decision on a line (approved / rejected / back to
+  // pending). Returns an error message, or null.
+  async function decideItem(itemId, decision, note) {
+    const { error } = await supabase.rpc('estimate_staff_decide', { p_item_id: itemId, p_decision: decision, p_note: note || null })
+    if (error) return error.message
     const now = new Date().toISOString()
-    await supabase.from('estimates').update({ locked: true, locked_at: now, locked_by: userEmail }).eq('id', id)
-    setEstimate(p => ({ ...p, locked: true, locked_at: now, locked_by: userEmail }))
+    setItems(prev => prev.map(i => i.id !== itemId ? i : {
+      ...i, status: decision,
+      approved_at: decision === 'approved' ? now : null, approved_by_email: decision === 'approved' ? userEmail : null,
+      rejected_at: decision === 'rejected' ? now : null, rejected_by_email: decision === 'rejected' ? userEmail : null,
+      rejection_note: decision === 'rejected' ? (note || null) : null,
+    }))
+    const it = items.find(i => i.id === itemId)
+    logActivity(supabase, id, { action: 'decision', field: 'status', old_value: it?.status, new_value: decision, item_id: itemId, item_name: it?.item_name, changed_by: userEmail })
+    return null
+  }
+
+  // Lines still owed a decision: everything live except approved and rejected.
+  const undecided = items.filter(i => !['approved', 'rejected', 'removed', 'excluded'].includes(i.status || 'pending') && i.cost_type !== 'nil').length
+
+  // Mark final: one action, the same check as the journey step. It locks the
+  // estimate and marks the property's estimate final.
+  async function handleLock() {
+    if (undecided > 0) { setSendError(`${undecided} item${undecided === 1 ? '' : 's'} still need${undecided === 1 ? 's' : ''} a decision — approve or reject each one first`); return }
+    if (!window.confirm('Mark this estimate as final? All editing will be disabled, the landlord will see a read-only view, and the property moves on to setup planning.')) return
+    setLocking(true)
+    const { error } = await supabase.rpc('estimate_mark_final', { p_estimate_id: id })
     setLocking(false)
+    if (error) { setSendError(error.message); return }
+    const now = new Date().toISOString()
+    setEstimate(p => ({ ...p, locked: true, locked_at: p?.locked_at || now, locked_by: p?.locked_by || userEmail }))
     logActivity(supabase, id, { action: 'lock', changed_by: userEmail })
   }
 
@@ -704,8 +728,9 @@ function EstimateWorkbenchInner() {
     return {
       all: live.length,
       approved: live.filter(i => i.status === 'approved').length,
+      rejected: live.filter(i => i.status === 'rejected').length,
       disputed: live.filter(i => i.status === 'disputed').length,
-      pending:  live.filter(i => !['approved', 'disputed'].includes(i.status)).length,
+      pending:  live.filter(i => !['approved', 'rejected', 'disputed'].includes(i.status)).length,
     }
   }, [items])
 
@@ -739,7 +764,7 @@ function EstimateWorkbenchInner() {
   const matchesStatus = useCallback((it) => {
     if (statusF === 'all') return true
     if (['removed', 'excluded'].includes(it.status)) return false
-    if (statusF === 'pending') return !['approved', 'disputed'].includes(it.status)
+    if (statusF === 'pending') return !['approved', 'rejected', 'disputed'].includes(it.status)
     return it.status === statusF
   }, [statusF])
 
@@ -839,7 +864,7 @@ function EstimateWorkbenchInner() {
     return Object.values(map).map(({ trade, rows }) => ({
       trade,
       rows: [...rows].sort((a,b) => (a.sort_order||0)-(b.sort_order||0)),
-      subtotal: rows.filter(i => !['removed','excluded'].includes(i.status) && isCosted(i)).reduce((s,i) => s+itemTot(i), 0),
+      subtotal: rows.filter(i => !['removed','excluded','rejected'].includes(i.status) && isCosted(i)).reduce((s,i) => s+itemTot(i), 0),
     }))
   }, [items, matchesQuery])
 
@@ -1022,8 +1047,9 @@ function EstimateWorkbenchInner() {
             // Mark final is irreversible and shouldn't read as a bare-text
             // action sitting next to Notes.
             <button className="btn ghost tct tct-bare" onClick={handleLock} disabled={locking}
-              style={{ color:'var(--gold)' }}>
-              {locking ? 'Locking…' : 'Mark final'}
+              title={undecided > 0 ? `${undecided} item${undecided === 1 ? '' : 's'} still need a decision` : 'Lock the estimate and move the property on to setup planning'}
+              style={{ color: undecided > 0 ? 'var(--muted)' : 'var(--gold)' }}>
+              {locking ? 'Locking…' : undecided > 0 ? `Mark final · ${undecided} undecided` : 'Mark final'}
             </button>
           )}
         </div>
@@ -1101,6 +1127,7 @@ function EstimateWorkbenchInner() {
             {[
               { k:'all',      l:'All',      n:statusCounts.all },
               { k:'approved', l:'Approved', n:statusCounts.approved },
+              { k:'rejected', l:'Rejected', n:statusCounts.rejected },
               { k:'disputed', l:'Disputed', n:statusCounts.disputed },
               { k:'pending',  l:'Awaiting', n:statusCounts.pending },
             ].map(f => (
@@ -1215,7 +1242,7 @@ function EstimateWorkbenchInner() {
                         if (item.status === 'removed') return null
                         const type       = uiType(item.cost_type)
                         const isActive   = item.id === pinnedId
-                        const isDim      = type === 'none' || item.status === 'excluded'
+                        const isDim      = type === 'none' || item.status === 'excluded' || item.status === 'rejected'
                         const score      = getScore(item)
                         const ds         = disputeMap[item.id]
                         const hasDispute = ds?.length > 0
@@ -1280,6 +1307,12 @@ function EstimateWorkbenchInner() {
                                   </button>
                                 )}
                                 {item.status === 'excluded' && <span className="spill spill-excluded">excluded</span>}
+                                {item.status === 'rejected' && (
+                                  <button className="spill spill-disputed" title={item.rejection_note || 'Landlord rejected this line'}
+                                    onClick={e => { e.stopPropagation(); setDrawerInitTab('details'); setPinnedId(item.id) }}>
+                                    ✕ Rejected
+                                  </button>
+                                )}
                                 {(() => {
                                   if (!hasDispute) return null
                                   const firstReason = ds[0]?.reason_tag
@@ -1372,6 +1405,7 @@ function EstimateWorkbenchInner() {
             readOnly={isLocked}
             initTab={drawerInitTab}
             disputes={disputeMap[drawerItem.id] || []}
+            onDecide={decideItem}
           />
         )}
       </aside>

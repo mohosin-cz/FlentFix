@@ -11,12 +11,56 @@ import { TypeSeg, ScoreChip, DrawerGallery, DrawerMatPicker, ProofVideoInput } f
 
 // ─── ItemDrawer (dossier) ─────────────────────────────────────────────────────
 
+const who = (e) => (e || '').split('@')[0]
+const when = (iso) => iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''
+
+function DecisionSection({ item, readOnly, onDecide }) {
+  const [rejecting, setRejecting] = useState(false)
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const st = item.status || 'pending'
+  async function decide(d, n) {
+    if (!onDecide || busy) return
+    setBusy(true); setErr('')
+    const e = await onDecide(item.id, d, n)
+    setBusy(false)
+    if (e) setErr(e); else { setRejecting(false); setNote('') }
+  }
+  const btn = (bg, fg, bd) => ({ flex: 1, minHeight: 34, borderRadius: 7, border: `1px solid ${bd}`, background: bg, color: fg, fontFamily: 'var(--sans)', fontSize: 12.5, fontWeight: 600, cursor: busy ? 'wait' : 'pointer' })
+  return (
+    <div className="sec">
+      <span className="ey">Landlord’s decision</span>
+      {st === 'approved' && <div className="fld" style={{ color: 'var(--good)' }}>✓ Approved{item.approved_by_email ? ` by ${who(item.approved_by_email)}` : ''}{item.approved_at ? ` · ${when(item.approved_at)}` : ''}</div>}
+      {st === 'rejected' && <div className="fld" style={{ color: 'var(--clay)' }}>✕ Rejected{item.rejected_by_email ? ` · recorded by ${who(item.rejected_by_email)}` : ''}{item.rejected_at ? ` · ${when(item.rejected_at)}` : ''}{item.rejection_note ? <div style={{ color: 'var(--muted)', marginTop: 3 }}>“{item.rejection_note}”</div> : null}</div>}
+      {st === 'disputed' && <div className="fld" style={{ color: 'var(--amber)' }}>Landlord has a query on this line — answer it, then record the decision.</div>}
+      {(st === 'pending' || !['approved', 'rejected', 'disputed'].includes(st)) && <div className="fld" style={{ color: 'var(--muted)' }}>No decision yet.</div>}
+      {readOnly ? null : rejecting ? (
+        <div style={{ display: 'grid', gap: 6, marginTop: 6 }}>
+          <input className="inp" value={note} onChange={e => setNote(e.target.value)} placeholder="Why (optional) — e.g. landlord will arrange it" autoFocus style={{ width: '100%' }} />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" onClick={() => setRejecting(false)} style={btn('transparent', 'var(--muted)', 'var(--line2)')}>Cancel</button>
+            <button type="button" onClick={() => decide('rejected', note)} disabled={busy} style={btn('rgba(208,112,80,.14)', 'var(--clay)', 'rgba(208,112,80,.45)')}>{busy ? 'Saving…' : 'Record rejection'}</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+          {st !== 'approved' && <button type="button" onClick={() => decide('approved')} disabled={busy} style={btn('rgba(95,174,110,.12)', 'var(--good)', 'rgba(95,174,110,.4)')}>✓ Approved</button>}
+          {st !== 'rejected' && <button type="button" onClick={() => setRejecting(true)} disabled={busy} style={btn('rgba(208,112,80,.10)', 'var(--clay)', 'rgba(208,112,80,.4)')}>✕ Rejected</button>}
+          {(st === 'approved' || st === 'rejected') && <button type="button" onClick={() => decide('pending')} disabled={busy} style={btn('transparent', 'var(--muted)', 'var(--line2)')}>Undo</button>}
+        </div>
+      )}
+      {err && <div className="fld" style={{ color: 'var(--clay)', marginTop: 4 }}>{err}</div>}
+    </div>
+  )
+}
+
 export default function ItemDrawer({
   item, media, allItems, itemIndex,
   onClose, onNavigate, onUpdate,
   onAddMedia, onAddProofVideo, onDeleteMedia, onReplaceMedia, onSetPrimary,
   onOpenLightbox, userEmail, estimateId, readOnly,
-  initTab = 'details', disputes = [],
+  initTab = 'details', disputes = [], onDecide,
 }) {
   const [drafts, setDrafts] = useState({})
   const [drawerTab, setDrawerTab] = useState(initTab)
@@ -124,6 +168,13 @@ export default function ItemDrawer({
 
       {/* Scrollable body — Details tab */}
       {drawerTab === 'details' && <div className="db">
+
+        {/* The landlord's decision. Every live line needs one before the
+            estimate can be marked final; a "no" given outside the landlord's
+            page is recorded here. */}
+        {item.status !== 'removed' && item.status !== 'excluded' && item.cost_type !== 'nil' && (
+          <DecisionSection item={item} readOnly={readOnly} onDecide={onDecide} />
+        )}
 
         {/* Media */}
         <div className="sec">

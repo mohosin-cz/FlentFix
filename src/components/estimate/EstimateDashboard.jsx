@@ -29,7 +29,7 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
         const t = ((parseFloat(it.material_cost)||0) + (parseFloat(it.labour_cost)||0)) * (it.qty||1)
         if (t >= HIGH_VALUE_VIDEO_THRESHOLD && !itMedia.some(m => m.is_proof_video)) np++
       }
-      if (it.status === 'excluded' || it.status === 'removed') return
+      if (it.status === 'excluded' || it.status === 'removed' || it.status === 'rejected') return
       // an actuals line counts as costed once it has its assumed figure
       if (costKind(it.cost_type) === 'nil') { n++ }
       else {
@@ -68,7 +68,7 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
     const money = (rows) => rows
       .filter(isCosted)
       .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
-    const onTable     = money(live)
+    const onTable     = money(live.filter(i => i.status !== 'rejected'))
     const approvedVal = money(live.filter(i => i.status === 'approved'))
     const disputedVal = money(live.filter(i => i.status === 'disputed'))
 

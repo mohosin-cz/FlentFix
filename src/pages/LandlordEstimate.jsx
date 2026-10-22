@@ -814,7 +814,7 @@ export default function LandlordEstimate() {
   const grandTotal     = snapshotTotal != null ? snapshotTotal : estimate?.total != null
     ? estimate.total
     : visibleItems.reduce((s, i) => s + (itemTotal(i) || 0), 0)
-  const actualsItems   = visibleItems.filter(i => costKind(i.cost_type) === 'actuals')
+  const actualsItems   = visibleItems.filter(i => costKind(i.cost_type) === 'actuals' && i.status !== 'rejected')
   const actualsSum     = actualsItems.reduce((s, i) => s + (itemTotal(i) || 0), 0)
   const actualsLine    = actualsItems.length
     ? (actualsSum > 0 ? `incl. ₹${fmt(actualsSum)} assumed` : `+ ${actualsItems.length} at actuals`)
@@ -983,7 +983,7 @@ export default function LandlordEstimate() {
 
         {/* section groups → plates (grouped by inspection room/section) */}
         {groups.map(({ key, label, items: secItems }) => {
-          const secTotal = secItems.reduce((s, i) => s + (itemTotal(i) || 0), 0)
+          const secTotal = secItems.filter(i => i.status !== 'rejected').reduce((s, i) => s + (itemTotal(i) || 0), 0)
           return (
             <div key={key} className="le-trade-group">
               <div className="le-trade-head">
@@ -1160,6 +1160,8 @@ export default function LandlordEstimate() {
                               <span className="le-plate-state le-plate-state--approved" title={item.approved_by_email ? `Approved by ${item.approved_by_email}` : undefined}>
                                 Approved{item.approved_by_email ? ` · ${item.approved_by_email}` : ''}
                               </span>
+                            ) : status === 'rejected' ? (
+                              <span className="le-plate-state" style={{ color: 'var(--le-ink-soft)' }}>Not going ahead · not included in your total</span>
                             ) : (
                               <>
                                 {/* Approve when Flent replied last or no thread yet */}
