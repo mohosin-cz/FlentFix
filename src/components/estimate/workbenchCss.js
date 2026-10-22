@@ -105,7 +105,7 @@ export const CSS = `
 .ghead .gr{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
 .ghead .gr b{color:var(--ink)}
 .grp-body{overflow-x:auto}
-.colhead,.row{display:grid;grid-template-columns:16px 44px 148px 1fr 78px 78px 34px 88px 122px 56px 16px;gap:10px;align-items:center;padding:8px 13px;min-width:700px}
+.colhead,.row{display:grid;grid-template-columns:16px 22px 44px 148px 1fr 78px 78px 34px 88px 122px 56px 16px;gap:10px;align-items:center;padding:8px 13px;min-width:700px}
 .colhead{padding:7px 13px;border-bottom:1px solid var(--line)}
 .colhead span{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#4c515c}
 .row{border-bottom:1px solid rgba(35,39,47,.55);cursor:pointer;transition:background .12s}
@@ -120,6 +120,7 @@ export const CSS = `
 .row.dim{opacity:.5}
 .hnd{color:var(--faint);font-size:12px;cursor:grab;user-select:none}
 .hnd:active{cursor:grabbing}
+.row .sl,.colhead .sl{font-family:var(--mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
 .row.drag-over{background:rgba(227,170,90,.1)!important;box-shadow:inset 2px 0 0 var(--gold),inset 0 2px 0 rgba(227,170,90,.25)}
 .grp.drag-target>.ghead{background:rgba(227,170,90,.06)}
 /* A tint carries the verdict; the outline was a second, louder copy of the
@@ -137,8 +138,6 @@ export const CSS = `
 .idn .it>.spill:first-of-type{margin-left:5px}
 .idn .ar{display:flex;align-items:center;gap:6px;min-width:0;font-family:var(--mono);font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
 .idn .ar-area{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.idn .slno{flex-shrink:0;min-width:20px;padding:1px 4px;border-radius:4px;background:var(--line,rgba(127,127,127,.14));color:var(--ink,inherit);font-variant-numeric:tabular-nums;letter-spacing:.04em;text-align:center}
-.idn .slno-off{background:none;color:var(--faint)}
 .idn .ar .spill{flex-shrink:0;margin-left:0}
 .ddot{color:var(--clay);font-size:9px;margin-left:5px}
 .fnd{color:var(--ink2);font-size:12px;line-height:1.4;overflow:hidden}

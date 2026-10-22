@@ -5,7 +5,7 @@ import ItemDrawer from '../components/estimate/ItemDrawer'
 import RateDrawer from '../components/estimate/RateDrawer'
 import { MediaLightbox, TypeSeg, ScoreChip, MediaCell, FilterSelect } from '../components/estimate/parts'
 import { CSS } from '../components/estimate/workbenchCss'
-import { uiType, dbType, tc, fmt, itemTot, getScore, needsPricing, invPrice, maxSort, landlordNumbers } from '../utils/estimateHelpers'
+import { uiType, dbType, tc, fmt, itemTot, getScore, needsPricing, invPrice, maxSort } from '../utils/estimateHelpers'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { reconcileEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
@@ -813,9 +813,20 @@ function EstimateWorkbenchInner() {
   // Grouped case-insensitively: "Cleaning" and "cleaning" are one trade, not
   // two half-empty sections. The first spelling seen becomes the group's value,
   // so dragging into it normalises the odd one out rather than preserving it.
-  // Numbered over every line, not just the filtered ones, so a line keeps its
-  // number whatever the filters show.
-  const slNo = useMemo(() => landlordNumbers(items), [items])
+  // Line numbers, 1…N down the page: trade by trade, in each trade's order.
+  // Counted over every line rather than the filtered ones, so a line keeps its
+  // number while you search.
+  const slNo = useMemo(() => {
+    const groups = {}
+    for (const it of items) {
+      if (it.status === 'removed') continue
+      ;(groups[(it.trade || '').trim().toLowerCase()] ||= []).push(it)
+    }
+    const out = new Map()
+    let n = 0
+    for (const rows of Object.values(groups)) for (const it of [...rows].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))) out.set(it.id, ++n)
+    return out
+  }, [items])
 
   const tradeGroups = useMemo(() => {
     const map = {}
@@ -1184,6 +1195,7 @@ function EstimateWorkbenchInner() {
                     <div className="grp-body">
                       <div className="colhead">
                         <span />
+                        <span className="sl">#</span>
                         <span>Cond</span>
                         <span>Area · Item</span>
                         <span>Finding</span>
@@ -1238,6 +1250,7 @@ function EstimateWorkbenchInner() {
                             <div className="hnd" draggable={!needle}
                               onDragStart={e => { e.stopPropagation(); dragRef.current = { itemId: item.id, trade: item.trade || '' }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', item.id) }}
                               onDragEnd={() => { dragRef.current = null; setDragOverId(null); setDragOverTrade(null) }}>⠿</div>
+                            <div className="sl">{slNo.get(item.id)}</div>
                             <div><ScoreChip score={score} /></div>
                             <div className="idn">
                               {/* Approved rides the area line, not the name
@@ -1248,9 +1261,6 @@ function EstimateWorkbenchInner() {
                                   below stay beside the name where they catch
                                   the eye. */}
                               <div className="ar">
-                                {slNo.has(item.id)
-                                  ? <span className="slno" title={`Item ${slNo.get(item.id)} on the landlord’s estimate`}>{slNo.get(item.id)}</span>
-                                  : <span className="slno slno-off" title="Not on the landlord’s estimate (excluded or nil)">—</span>}
                                 <span className="ar-area">{item.area || '—'}</span>
                                 {item.status === 'approved' && (
                                   <button className="spill spill-approved"
