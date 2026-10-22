@@ -5,7 +5,7 @@ import ItemDrawer from '../components/estimate/ItemDrawer'
 import RateDrawer from '../components/estimate/RateDrawer'
 import { MediaLightbox, TypeSeg, ScoreChip, MediaCell, FilterSelect } from '../components/estimate/parts'
 import { CSS } from '../components/estimate/workbenchCss'
-import { uiType, dbType, tc, fmt, itemTot, getScore, needsPricing, invPrice, maxSort } from '../utils/estimateHelpers'
+import { uiType, dbType, tc, fmt, itemTot, getScore, needsPricing, invPrice, maxSort, isCosted, isActuals } from '../utils/estimateHelpers'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { reconcileEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
@@ -206,7 +206,7 @@ function EstimateWorkbenchInner() {
     // Auto-backfill stored total if null (first open after migration or after regenerate)
     if (est.total == null) {
       const firmTotal = fetched
-        .filter(i => !['removed', 'excluded'].includes(i.status) && i.cost_type === 'priced')
+        .filter(i => !['removed', 'excluded'].includes(i.status) && isCosted(i))
         .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
       supabase.from('estimates').update({ total: firmTotal }).eq('id', id)
         .then(() => setEstimate(prev => prev ? { ...prev, total: firmTotal } : prev))
@@ -492,7 +492,7 @@ function EstimateWorkbenchInner() {
 
   const landlordUrl = () => `${window.location.origin}/e/${estimate?.share_token}`
   const pricedTotal = () => items
-    .filter(i => !['removed', 'excluded'].includes(i.status) && i.cost_type === 'priced')
+    .filter(i => !['removed', 'excluded'].includes(i.status) && isCosted(i))
     .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
 
   async function getAccessCode() {
@@ -522,12 +522,12 @@ function EstimateWorkbenchInner() {
     const pid = estimate?.pid
     const { data: prop } = await supabase.from('properties')
       .select('name, address, flat_no, floor, landlord_name, maps_url').eq('pid', pid).maybeSingle()
-    const live = items.filter(i => !['removed', 'excluded'].includes(i.status) && i.cost_type !== 'nil')
+    const live = items.filter(i => !['removed', 'excluded'].includes(i.status) && isCosted(i))
     const lineTotal = i => ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1)
-    const priced = live.filter(i => i.cost_type === 'priced')
-    const actuals = live.filter(i => i.cost_type !== 'priced')
+    const priced = live.filter(i => !isActuals(i))
+    const actuals = live.filter(i => isActuals(i))
     const byTrade = {}
-    priced.forEach(i => { const t = i.trade || 'misc'; byTrade[t] = (byTrade[t] || 0) + lineTotal(i) })
+    live.forEach(i => { const t = i.trade || 'misc'; byTrade[t] = (byTrade[t] || 0) + lineTotal(i) })
     const inr = n => '₹' + Math.round(n).toLocaleString('en-IN')
     const cap = t => t[0].toUpperCase() + t.slice(1)
     const url = landlordUrl()
@@ -580,7 +580,7 @@ function EstimateWorkbenchInner() {
       return
     }
     const snapTotal = liveItems
-      .filter(i => i.status !== 'excluded' && i.cost_type === 'priced')
+      .filter(i => i.status !== 'excluded' && isCosted(i))
       .reduce((s, i) => s + ((parseFloat(i.material_cost)||0) + (parseFloat(i.labour_cost)||0)) * (i.qty||1), 0)
     const nextVersion = (estimate?.current_version || 0) + 1
 
@@ -839,7 +839,7 @@ function EstimateWorkbenchInner() {
     return Object.values(map).map(({ trade, rows }) => ({
       trade,
       rows: [...rows].sort((a,b) => (a.sort_order||0)-(b.sort_order||0)),
-      subtotal: rows.filter(i => !['removed','excluded'].includes(i.status) && i.cost_type==='priced').reduce((s,i) => s+itemTot(i), 0),
+      subtotal: rows.filter(i => !['removed','excluded'].includes(i.status) && isCosted(i)).reduce((s,i) => s+itemTot(i), 0),
     }))
   }, [items, matchesQuery])
 
@@ -928,22 +928,24 @@ function EstimateWorkbenchInner() {
   function tcell(it) {
     const tot = itemTot(it)
     if (it.status === 'excluded')    return <span className="mut">excl</span>
-    if (it.cost_type === 'actuals')  return <span className="act-cell">On actuals</span>
-    if (it.cost_type === 'nil')      return <span className="none-cell">₹0</span>
-    if (it.cost_type === 'priced' && tot > 0) return <span className="tot-cell">₹{fmt(tot)}</span>
+    if (!isCosted(it))               return <span className="none-cell">₹0</span>
+    if (isActuals(it)) return tot > 0
+      ? <span className="tot-cell" title="Assumed cost — settled at actuals after the work">₹{fmt(tot)}<span className="act-cell"> · assumed</span></span>
+      : <span className="np-cell" title="On actuals — add a ballpark figure">⚠ ballpark</span>
+    if (tot > 0) return <span className="tot-cell">₹{fmt(tot)}</span>
     return <span className="np-cell">⚠ price</span>
   }
 
   function mcell(it) {
     const tot = itemTot(it)
-    return it.cost_type==='priced' && tot>0 && (it.material_cost||0)>0
+    return isCosted(it) && tot>0 && (it.material_cost||0)>0
       ? <span className="num">₹{fmt(it.material_cost)}</span>
       : <span className="mut">—</span>
   }
 
   function lcell(it) {
     const tot = itemTot(it)
-    return it.cost_type==='priced' && tot>0 && (it.labour_cost||0)>0
+    return isCosted(it) && tot>0 && (it.labour_cost||0)>0
       ? <span className="num">₹{fmt(it.labour_cost)}</span>
       : <span className="mut">—</span>
   }

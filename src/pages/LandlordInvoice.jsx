@@ -63,7 +63,7 @@ const sanitizeLineItem = (data) => Object.fromEntries(
 // estimate and the work order must not drift apart, and an invoice makes three.
 const SOURCES = {
   wo:       { label: 'Work orders', note: 'verified work' },
-  estimate: { label: 'Estimate',    note: 'approved items — priced, and on actuals for you to price' },
+  estimate: { label: 'Estimate',    note: 'approved items — priced, and on actuals at their assumed cost' },
   both:     { label: 'Both',        note: 'verified work and approved items, deduped' },
 }
 
@@ -127,9 +127,9 @@ async function fetchWorkOrderLines(pid, skipWoItemIds = new Set()) {
 }
 
 // The estimate the landlord actually saw — the most recent one for the
-// property. Approved lines only, priced and on actuals. An actuals line has no
-// agreed figure, so it comes in at ₹0 marked _actuals for the real cost to be
-// typed in; the estimate's own figure, if it had one, rides along as a guide.
+// property. Approved lines only, priced and on actuals. An actuals line comes
+// in at its assumed figure, marked _actuals so the final cost gets checked
+// before the invoice goes out.
 async function fetchEstimateLines(pid, skipEstimateItemIds = new Set()) {
   const { data: est, error: eErr } = await supabase
     .from('estimates')
@@ -146,7 +146,7 @@ async function fetchEstimateLines(pid, skipEstimateItemIds = new Set()) {
     .select('id, line_item_id, area, item_name, trade, issue_description, action, material_description, qty, material_cost, labour_cost, cost_type, sort_order')
     .eq('estimate_id', est.id)
     .eq('status', 'approved')
-    .in('cost_type', ['priced', 'actuals'])
+    .in('cost_type', ['priced', 'actuals', 'as_actuals'])
     .order('sort_order')
   if (iErr) throw iErr
 
@@ -155,17 +155,17 @@ async function fetchEstimateLines(pid, skipEstimateItemIds = new Set()) {
     const total = (Number(it.material_cost) || 0) + (Number(it.labour_cost) || 0)
     const qty   = Number(it.qty) > 0 ? Number(it.qty) : 1
     const raw   = (it.issue_description || '').trim() || (it.item_name || '').trim()
-    const actuals = it.cost_type === 'actuals'
+    const actuals = it.cost_type === 'actuals' || it.cost_type === 'as_actuals'
     return {
       description: raw,
       _raw: raw,
       category: it.trade || '',
       qty,
       unit: 'job',
-      unit_price: !actuals && total ? +(total / qty).toFixed(2) : 0,
+      unit_price: total ? +(total / qty).toFixed(2) : 0,
       estimate_item_id: it.id,
       _insp_id: it.line_item_id || null,
-      ...(actuals ? { _actuals: true, _guide: total || null } : {}),
+      ...(actuals ? { _actuals: true } : {}),
     }
   })
 
@@ -191,7 +191,7 @@ async function fetchPullLines(pid, source, { woIds = new Set(), estimateIds = ne
     available:    wo.available + est.available,
     observations: wo.observations,
     duplicates:   est.lines.length - estFresh.length,
-    unpriced:     lines.filter(l => !l.unit_price && !l._actuals).length,
+    unpriced:     lines.filter(l => !l.unit_price).length,
     actuals:      lines.filter(l => l._actuals).length,
   }
 }
@@ -254,7 +254,7 @@ function pullSummary(added, source, { available = 0, observations = 0, duplicate
   if (observations > 0) text += ` · ${observations} left on the work order as ${observations === 1 ? 'an observation' : 'observations'}, not billed`
   if (duplicates > 0)   text += ` · ${plural(duplicates, 'estimate line', 'estimate lines')} skipped as already covered by the work order`
   if (unpriced > 0)     text += ` · ${plural(unpriced, 'line has', 'lines have')} no cost, so price ${unpriced === 1 ? 'it' : 'them'} before sending`
-  if (actuals > 0)      text += ` · ${plural(actuals, 'line is', 'lines are')} on actuals — enter the final cost`
+  if (actuals > 0)      text += ` · ${plural(actuals, 'line is', 'lines are')} on actuals at the assumed cost — check the final amount`
   return `${text}.`
 }
 
@@ -271,7 +271,7 @@ function PullReview({ review, setReview, onAdd }) {
     <div className="inv-noprint" style={{ border: '1px solid #e2e2e2', borderRadius: 8, margin: '4px 0 14px', background: '#fafafa' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid #ececec' }}>
         <b style={{ fontSize: 13, color: '#1a1a1a' }}>{plural(lines.length, 'line', 'lines')} found</b>
-        {actuals > 0 && <span style={{ fontSize: 11.5, color: '#b26a00' }}>· {actuals} on actuals, at ₹0 until you enter the cost</span>}
+        {actuals > 0 && <span style={{ fontSize: 11.5, color: '#b26a00' }}>· {actuals} on actuals, at the assumed cost</span>}
         <button onClick={() => setAll(!all)} style={{ marginLeft: 'auto', fontSize: 12, background: 'none', border: 'none', color: '#555', cursor: 'pointer', textDecoration: 'underline' }}>{all ? 'Untick all' : 'Tick all'}</button>
       </div>
       <div style={{ maxHeight: 340, overflowY: 'auto' }}>
@@ -286,15 +286,15 @@ function PullReview({ review, setReview, onAdd }) {
                   {[l.category, l.qty > 1 && `qty ${l.qty}`, l.wo_item_id ? 'verified work' : 'estimate'].filter(Boolean).join(' · ')}
                 </span>
               </span>
-              <span style={{ fontFamily: MONO, fontSize: 12.5, whiteSpace: 'nowrap', textAlign: 'right', color: l._actuals ? '#b26a00' : amt ? '#1a1a1a' : '#b26a00' }}>
-                {l._actuals ? 'On actuals' : amt ? `₹${fmt(amt)}` : 'No cost'}
+              <span style={{ fontFamily: MONO, fontSize: 12.5, whiteSpace: 'nowrap', textAlign: 'right', color: l._actuals || !amt ? '#b26a00' : '#1a1a1a' }}>
+                {amt ? `₹${fmt(amt)}` : 'No cost'}{l._actuals && <span style={{ display: 'block', fontSize: 10.5, fontFamily: SANS }}>assumed · on actuals</span>}
               </span>
             </label>
           )
         })}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', padding: '10px 12px' }}>
-        <span style={{ fontSize: 12, color: '#666' }}>{picked.size} ticked · ₹{fmt(total)}{actuals ? ' + actuals' : ''}</span>
+        <span style={{ fontSize: 12, color: '#666' }}>{picked.size} ticked · ₹{fmt(total)}</span>
         <button onClick={() => setReview(null)} style={{ marginLeft: 'auto', fontSize: 12, color: '#555', background: '#fff', border: '1px solid #ddd', borderRadius: 6, padding: '7px 14px', cursor: 'pointer' }}>Cancel</button>
         <button onClick={onAdd} disabled={!picked.size} style={{ fontSize: 12, color: '#fff', background: picked.size ? '#1a1a1a' : '#999', border: 'none', borderRadius: 6, padding: '7px 14px', cursor: picked.size ? 'pointer' : 'default', fontWeight: 600 }}>
           Add {plural(picked.size, 'line', 'lines')}
@@ -621,7 +621,7 @@ export default function LandlordInvoice() {
     setLineItems(prev => [...prev, ...added])
     setEditing(true)
     // lines left unticked aren't "already on this invoice" — take them out of what was available
-    const counts = { ...review.counts, available: review.counts.available - left, unpriced: chosen.filter(l => !l.unit_price && !l._actuals).length, actuals: chosen.filter(l => l._actuals).length }
+    const counts = { ...review.counts, available: review.counts.available - left, unpriced: chosen.filter(l => !l.unit_price).length, actuals: chosen.filter(l => l._actuals).length }
     setNotice({ tone: 'ok', text: `${pullSummary(chosen.length, review.source, counts).replace(/\.$/, '')}${left ? ` · ${left} left out` : ''}. Save to keep them.` })
     rewriteDescriptions(added)
   }
@@ -1029,9 +1029,9 @@ export default function LandlordInvoice() {
                       {editing
                         ? <input className="inv-input" value={item.description} onChange={e => updateItem(item.id, 'description', e.target.value)} />
                         : <span style={{ color: '#1a1a1a' }}>{item.description || '—'}</span>}
-                      {editing && !amount && (
+                      {editing && (item._actuals || !amount) && (
                         <div className="inv-noprint" style={{ fontSize: 11, color: '#b26a00', marginTop: 4 }}>
-                          {item._actuals ? `On actuals — enter the final cost${item._guide ? ` (estimate said ₹${fmt(item._guide)})` : ''}` : 'No amount yet'}
+                          {item._actuals ? (amount ? 'On actuals — assumed cost; change it to the final amount' : 'On actuals — enter the final cost') : 'No amount yet'}
                         </div>
                       )}
                     </td>

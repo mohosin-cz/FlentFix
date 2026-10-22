@@ -59,13 +59,13 @@ export default function ItemDrawer({
   function costSection() {
     if (excl) return <div className="fld" style={{ color:'var(--muted)' }}>Excluded from this estimate.</div>
     if (type === 'none') return <><div className="matpick"><span className="nm">Not charged</span><span className="pr" style={{ color:'var(--faint)' }}>₹0</span></div><div className="tot2"><span className="ey">Total</span><span className="v" style={{ color:'var(--faint)' }}>₹0</span></div></>
-    // Both 'priced' and 'actual' show editable inputs.
-    // For 'actual', inputs are optional ballpark; row stays out of firm total.
+    // Both 'priced' and 'actual' take a figure and count in the total. For
+    // 'actual' it is a ballpark: the landlord sees it as an assumed cost.
     return (
       <>
         {type === 'actual' && (
-          <div className="fld" style={{ color:'var(--teal)', fontStyle:'italic', marginBottom:4 }}>
-            On actuals — ballpark only, not counted in firm total.
+          <div className="fld" style={{ color: np ? 'var(--amber)' : 'var(--teal)', marginBottom:4 }}>
+            {np ? '⚠ On actuals — add a ballpark figure. The landlord sees it as an assumed cost.' : 'On actuals — the landlord sees this as an assumed cost, settled after the work.'}
           </div>
         )}
         {np && type !== 'actual' && (
@@ -90,7 +90,7 @@ export default function ItemDrawer({
             <input className="inp" type="number" inputMode="numeric" value={dv('qty')} onChange={e => sd('qty', e.target.value)} onBlur={() => commit('qty')} style={{ width:60 }} disabled={readOnly} />
           </div>
         </div>
-        {type === 'priced' && <div className="tot2"><span className="ey">Total</span><span className="v">₹{fmt(tot)}</span></div>}
+        <div className="tot2"><span className="ey">{type === 'actual' ? 'Assumed total' : 'Total'}</span><span className="v">₹{fmt(tot)}</span></div>
       </>
     )
   }

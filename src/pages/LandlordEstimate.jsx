@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import LogoSpinner from '../components/LogoSpinner'
 import FlentWordmark from '../components/FlentWordmark'
 import { useHashScroll } from '../hooks/useHashScroll'
-import { landlordNumbers } from '../utils/estimateHelpers'
+import { landlordNumbers, costKind } from '../utils/estimateHelpers'
 
 const HERO_TITLE    = 'Your home, cared for'
 const HERO_SUBTITLE = 'before anyone moves in.'
@@ -231,12 +231,11 @@ const CSS = `
     font-family: var(--le-mono); font-size: 10px; font-weight: 600; text-transform: uppercase;
     color: var(--le-clay); white-space: nowrap; flex-shrink: 0; letter-spacing: 0.08em; padding-top: 4px;
   }
-  .le-plate-actuals-note {
-    margin-top: 10px; padding: 8px 10px; border-left: 2px solid var(--le-clay);
-    background: rgba(199,107,74,0.07); font-size: 12.5px; line-height: 1.5; color: var(--le-ink-soft);
+  .le-plate-assumed {
+    font-family: var(--le-mono); font-size: 10px; color: var(--le-clay);
+    letter-spacing: 0.04em; margin-top: 6px;
   }
-  .le-plate-actuals-note b { color: var(--le-ink); font-weight: 600; }
-  .le-total-actuals { font-family: var(--le-mono); font-size: 11px; color: var(--le-clay); letter-spacing: 0.02em; margin-top: 6px; }
+  .le-total-actuals { font-family: var(--le-mono); font-size: 11px; color: var(--le-ink-soft); letter-spacing: 0.02em; margin-top: 6px; }
   .le-plate-action-mark {
     font-family: var(--le-mono); font-size: 9px; font-weight: 500;
     color: var(--le-ink-soft); letter-spacing: 0.08em; text-transform: uppercase;
@@ -557,8 +556,10 @@ function addDays(str, days) {
 }
 function fmt(n) { return (n || 0).toLocaleString('en-IN') }
 function titleCase(str) { return (str || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }
+// On-actuals lines carry an assumed figure and count like any other; only
+// nil lines have no total.
 function itemTotal(item) {
-  if (item.cost_type === 'actuals' || item.cost_type === 'nil') return null
+  if (costKind(item.cost_type) === 'nil') return null
   return ((parseFloat(item.material_cost) || 0) + (parseFloat(item.labour_cost) || 0)) * (item.qty || 1)
 }
 
@@ -806,15 +807,18 @@ export default function LandlordEstimate() {
 
   // ── Computed ──────────────────────────────────────────────────────────────
   // Hide removed, excluded, and nil-cost items from the landlord view
-  const visibleItems   = items.filter(i => i.status !== 'removed' && i.status !== 'excluded' && i.cost_type !== 'nil')
+  const visibleItems   = items.filter(i => i.status !== 'removed' && i.status !== 'excluded' && costKind(i.cost_type) !== 'nil')
   const pendingCount   = visibleItems.filter(i => !i.status || i.status === 'pending').length
   // Use snapshot total (version), then stored estimate total, then client-side compute
   const grandTotal     = snapshotTotal != null ? snapshotTotal : estimate?.total != null
     ? estimate.total
     : visibleItems.reduce((s, i) => s + (itemTotal(i) || 0), 0)
-  const actualsCount   = visibleItems.filter(i => i.cost_type === 'actuals').length
-  const actualsLine    = actualsCount ? `+ ${actualsCount} item${actualsCount === 1 ? '' : 's'} at actual cost` : ''
-  const attentionCount = visibleItems.filter(i => { const t = itemTotal(i); return (t != null && t > 0) || i.cost_type === 'actuals' }).length
+  const actualsItems   = visibleItems.filter(i => costKind(i.cost_type) === 'actuals')
+  const actualsSum     = actualsItems.reduce((s, i) => s + (itemTotal(i) || 0), 0)
+  const actualsLine    = actualsItems.length
+    ? (actualsSum > 0 ? `incl. ₹${fmt(actualsSum)} assumed` : `+ ${actualsItems.length} at actuals`)
+    : ''
+  const attentionCount = visibleItems.filter(i => { const t = itemTotal(i); return (t != null && t > 0) || costKind(i.cost_type) === 'actuals' }).length
 
   // Group by section_name (room the inspector captured items in).
   // Items without section_name → "Whole Home" bucket appended last.
@@ -938,7 +942,9 @@ export default function LandlordEstimate() {
             <span className="le-summary-total">₹{fmt(grandTotal)}</span>
             <span className="le-summary-total-lbl">Total estimate</span>
           </div>
-          {actualsLine && <div className="le-total-actuals">{actualsLine}, billed once the work is done</div>}
+          {actualsLine && <div className="le-total-actuals">{actualsSum > 0
+            ? (() => { const n = actualsItems.filter(i => (itemTotal(i) || 0) > 0).length; return `Includes ₹${fmt(actualsSum)} assumed for ${n} item${n === 1 ? '' : 's'} at actual cost — final amounts after the work` })()
+            : `${actualsItems.length} item${actualsItems.length === 1 ? '' : 's'} charged at actuals after the work`}</div>}
           {typeof estimate?.overall_score === 'number' && (
             <div className="le-gauge-wrap">
               <div className="le-gauge-track">
@@ -1096,10 +1102,15 @@ export default function LandlordEstimate() {
                           <span className="le-plate-title">{item.item_name || '—'}</span>
                           {total != null && total > 0 ? (
                             <span className="le-plate-cost">₹{fmt(total)}</span>
-                          ) : item.cost_type === 'actuals' ? (
+                          ) : costKind(item.cost_type) === 'actuals' ? (
                             <span className="le-plate-actuals">At actual cost</span>
                           ) : null}
                         </div>
+                        {costKind(item.cost_type) === 'actuals' && (
+                          <div className="le-plate-assumed">
+                            {total > 0 ? 'Assumed cost · final amount charged at actuals after the work' : 'Charged at actuals after the work'}
+                          </div>
+                        )}
 
                         {/* action mark: action_type · warranty */}
                         {(item.action_type || item.warranty_months) && (
@@ -1123,20 +1134,8 @@ export default function LandlordEstimate() {
                         {item.action && (
                           <div className="le-plate-remedy">{item.action}</div>
                         )}
-
-                        {/* on actuals: say what that means, once, where the price would be */}
-                        {item.cost_type === 'actuals' && (() => {
-                          const guide = ((item.material_cost || 0) + (item.labour_cost || 0)) * (item.qty || 1)
-                          return (
-                            <div className="le-plate-actuals-note">
-                              <b>Charged at actual cost.</b> The price depends on what the work turns out to need, so it isn’t fixed here — you’ll see the final amount on your invoice once it’s done.
-                              {guide > 0 && <> Expected to be around <b>₹{fmt(guide)}</b>.</>}
-                            </div>
-                          )
-                        })()}
-
                         {/* material / labour breakdown */}
-                        {item.cost_type !== 'actuals' && item.cost_type !== 'nil' &&
+                        {costKind(item.cost_type) !== 'nil' &&
                           ((item.material_cost || 0) > 0 || (item.labour_cost || 0) > 0) && (() => {
                             const qty = item.qty || 1
                             const parts = []

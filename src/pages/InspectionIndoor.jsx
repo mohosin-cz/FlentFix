@@ -737,7 +737,7 @@ function CardMaterialPicker({ card, onUpdate, trade }) {
 function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelectRate, onSelectMaterial }) {
   const costType = costRow.costType || 'priced'
   const qty      = Math.max(1, parseFloat(costRow.qty) || 1)
-  const unitCost = costType === 'priced' ? (parseFloat(costRow.materialCost) || 0) + (parseFloat(costRow.labourCost) || 0) : 0
+  const unitCost = costType !== 'nil' ? (parseFloat(costRow.materialCost) || 0) + (parseFloat(costRow.labourCost) || 0) : 0
   const rowTotal = unitCost * qty
 
   const [matSearch,  setMatSearch]  = useState('')
@@ -823,8 +823,8 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
           </div>
         </div>
 
-        {/* Row 2: Material | Labour — only when Priced */}
-        {costType === 'priced' && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        {/* Row 2: Material | Labour — priced, and on actuals as a ballpark */}
+        {costType !== 'nil' && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
 
           {/* Material column */}
           <div>
@@ -881,10 +881,10 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
           </div>
         </div>}
 
-        {/* As Actuals note */}
+        {/* As Actuals: the figure is a ballpark, and it can't be blank */}
         {costType === 'actuals' && (
-          <div style={{ padding: '10px 12px', background: 'rgba(200,150,62,0.06)', border: '1px dashed rgba(200,150,62,0.4)', borderRadius: 6, fontSize: 11, color: 'var(--accent, #c8963e)' }}>
-            This item will be charged based on actuals — no fixed cost shown in estimate.
+          <div style={{ fontSize: 11, color: 'var(--accent, #c8963e)' }}>
+            {unitCost > 0 ? 'Ballpark — the landlord sees it as an assumed cost, settled after the work.' : 'Add a ballpark figure — the landlord sees it as an assumed cost.'}
           </div>
         )}
 
@@ -909,8 +909,14 @@ function CardCostPanel({ card, onUpdate, trade, labourRates }) {
   const sortedRates = [...(labourRates || [])].sort((a, b) => (a.trade === trade ? 0 : 1) - (b.trade === trade ? 0 : 1))
   const INP = { width: '100%', padding: '10px 12px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, color: 'var(--text, #e8e8f0)', fontSize: 16, boxSizing: 'border-box', fontFamily: 'inherit', minHeight: 44 }
   const LBL = { fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono, monospace)', display: 'block', marginBottom: 6 }
+  const actuals = card.costType === 'as_actuals'
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {actuals && (
+        <div style={{ fontSize: 12, lineHeight: 1.45, color: 'var(--accent, #c8963e)' }}>
+          Add a ballpark figure. The landlord sees it as an assumed cost; the final amount is charged after the work.
+        </div>
+      )}
       <CardMaterialPicker card={card} onUpdate={onUpdate} trade={trade} />
       <div>
         <span style={LBL}>Material ₹</span>
@@ -983,12 +989,15 @@ function CardStepper({ card, itemConfig, cardIdx, onUpdate, labourRates, pid, it
   const needsProofVideo = itemTotal >= HIGH_VALUE_VIDEO_THRESHOLD && nonFunctional.length > 0 && effectiveKind === 'fixture'
 
   const ALL_STAGES = ['issues', 'health', 'media', 'notes', 'action', 'action_type', 'cost_type', 'cost', 'qty']
-  function orderedStages(costType) { return ALL_STAGES.filter(s => s !== 'cost' || costType === 'priced') }
+  // Priced and on-actuals both take a cost; on actuals it is a ballpark and can't be left blank.
+  function orderedStages(costType) { return ALL_STAGES.filter(s => s !== 'cost' || costType === 'priced' || costType === 'as_actuals') }
+  const hasCost = (crd) => (parseFloat(crd.materialCost) || 0) + (parseFloat(crd.labourCost) || 0) > 0
 
   function firstIncomplete(crd) {
     if (!(crd.selectedIssues || []).length) return 'issues'
     if (!crd.actionType) return 'action_type'
     if (!crd.costType) return 'cost_type'
+    if (crd.costType === 'as_actuals' && !hasCost(crd)) return 'cost'
     return null
   }
 
@@ -1030,8 +1039,9 @@ function CardStepper({ card, itemConfig, cardIdx, onUpdate, labourRates, pid, it
   const actionText   = card.action ? (card.action.length > 40 ? card.action.slice(0, 40) + '…' : card.action) : null
   const atText       = card.actionType ? (card.actionType.charAt(0).toUpperCase() + card.actionType.slice(1)) : null
   const ctText       = card.costType === 'priced' ? 'Priced' : card.costType === 'as_actuals' ? 'As Actuals' : card.costType === 'no_cost' ? 'No Cost' : null
-  const costAmtsText = card.costType === 'priced'
-    ? [card.materialCost && `₹${parseFloat(card.materialCost).toLocaleString('en-IN')} mat`, card.labourCost && `₹${parseFloat(card.labourCost).toLocaleString('en-IN')} lab`].filter(Boolean).join(' + ') || null
+  const costAmtsText = card.costType === 'priced' || card.costType === 'as_actuals'
+    ? ([card.materialCost && `₹${parseFloat(card.materialCost).toLocaleString('en-IN')} mat`, card.labourCost && `₹${parseFloat(card.labourCost).toLocaleString('en-IN')} lab`].filter(Boolean).join(' + ') || (card.costType === 'as_actuals' ? 'ballpark needed' : null))
+      + (card.costType === 'as_actuals' && hasCost(card) ? ' · ballpark' : '')
     : null
   const qtyText = cardQty > 1 ? `× ${cardQty}` : null
 
@@ -1119,18 +1129,20 @@ function CardStepper({ card, itemConfig, cardIdx, onUpdate, labourRates, pid, it
           val={card.costType}
           onChange={v => {
             onUpdate('costType', v)
-            const nextS = v === 'priced' ? 'cost' : 'qty'
+            const nextS = v === 'priced' || v === 'as_actuals' ? 'cost' : 'qty'
             clearTimeout(advTimer.current)
             advTimer.current = setTimeout(() => setActiveStage(nextS), 350)
           }}
         />
       </StepperStageBox>
 
-      {/* 8 ── COST CARD (priced only) */}
-      <StepperChip visible={showChip('cost')} label="Cost ₹" value={costAmtsText} onOpen={() => openStage('cost')} />
+      {/* 8 ── COST CARD (priced, and on actuals as a ballpark) */}
+      <StepperChip visible={showChip('cost')} label={card.costType === 'as_actuals' ? 'Ballpark ₹' : 'Cost ₹'} value={costAmtsText} onOpen={() => openStage('cost')} />
       <StepperStageBox active={activeStage === 'cost'}>
         <CardCostPanel card={card} onUpdate={onUpdate} trade={trade} labourRates={labourRates} />
-        <StepperNextBtn onClick={() => advanceFrom('cost')} label="Done →" />
+        {card.costType === 'as_actuals' && !hasCost(card)
+          ? <StepperNextBtn disabled label="Add a ballpark to continue" />
+          : <StepperNextBtn onClick={() => advanceFrom('cost')} label="Done →" />}
       </StepperStageBox>
 
       {/* 9 ── QTY */}
@@ -1150,7 +1162,7 @@ function CardStepper({ card, itemConfig, cardIdx, onUpdate, labourRates, pid, it
       {itemTotal > 0 && activeStage === null && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', background: 'rgba(200,150,62,0.06)', border: '1px solid rgba(200,150,62,0.2)', borderRadius: 8, marginTop: 4 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>
-            {card.costType === 'priced' && cardQty > 1
+            {(card.costType === 'priced' || card.costType === 'as_actuals') && cardQty > 1
               ? `${cardQty} × ₹${((parseFloat(card.materialCost) || 0) + (parseFloat(card.labourCost) || 0)).toLocaleString('en-IN')}`
               : 'Total'}
           </span>
@@ -2123,6 +2135,14 @@ export default function InspectionIndoor() {
 
             if (selIssues.includes('Functional')) {
               lineItemRows.push({ ...base, issue_description: 'Functional', material_cost: 0, labour_cost: 0, item_score: card.health ?? 10, availability_status: null })
+              mediaArrays.push(mediaFiles); proofMediaArrays.push(cardProof)
+            } else if (card.costType) {
+              // Card-level cost model — one row per card, as InspectionMode saves it.
+              // Priced and on-actuals both keep their figure; no-cost is zero.
+              const qty = Math.max(1, parseFloat(card.qty) || 1)
+              const costed = card.costType !== 'no_cost' && card.costType !== 'nil'
+              const issueSummary = selIssues.map(i => i === 'Other' ? (card.otherIssue || 'Other') : i).join(', ') || 'Issues'
+              lineItemRows.push({ ...base, issue_description: issueSummary, action: [card.actionType, card.action].filter(Boolean).join(': ') || '', cost_type: card.costType, material_item_id: card.materialItemId || null, material_fxin: card.materialRateId || null, material_description: card.materialDescription || null, material_cost: costed ? (parseFloat(card.materialCost) || 0) * qty : 0, labour_cost: costed ? (parseFloat(card.labourCost) || 0) * qty : 0, item_score: card.health ?? null, availability_status: null })
               mediaArrays.push(mediaFiles); proofMediaArrays.push(cardProof)
             } else {
               selIssues.forEach((issue, ri) => {

@@ -2,7 +2,16 @@
 // Extracted so a component in components/estimate can use them without importing
 // from a 2,000-line page module.
 
-export function uiType(ct) { return ct === 'actuals' ? 'actual' : ct === 'nil' ? 'none' : 'priced' }
+// Older inspections wrote 'as_actuals' / 'no_cost'; the database now
+// normalises them (cost_type_canonical.sql), but sent snapshots still carry
+// them, so every reader goes through costKind.
+export function costKind(ct) { return ct === 'actuals' || ct === 'as_actuals' ? 'actuals' : ct === 'nil' || ct === 'no_cost' ? 'nil' : 'priced' }
+// Priced and on-actuals lines both carry a figure and both count in the total;
+// an actuals figure is an assumed cost, settled after the work.
+export function isCosted(it) { return costKind(it.cost_type) !== 'nil' }
+export function isActuals(it) { return costKind(it.cost_type) === 'actuals' }
+
+export function uiType(ct) { const k = costKind(ct); return k === 'actuals' ? 'actual' : k === 'nil' ? 'none' : 'priced' }
 export function dbType(t)  { return t === 'actual' ? 'actuals' : t === 'none' ? 'nil' : 'priced' }
 
 export const TRADE_COL = {
@@ -47,9 +56,9 @@ export function ago(iso) {
   return days < 31 ? `${days}d` : `${Math.floor(days / 30)}mo`
 }
 
-// A priced row that nobody has put a number against yet.
+// A priced or on-actuals row that nobody has put a number against yet.
 export function needsPricing(it) {
-  return it.cost_type === 'priced'
+  return isCosted(it)
     && !['removed', 'excluded'].includes(it.status)
     && (it.material_cost || 0) + (it.labour_cost || 0) === 0
 }
@@ -69,7 +78,7 @@ export function invPrice(r) {
 // order (their lowest sort_order), "Whole Home" last — numbered top to bottom.
 export function landlordNumbers(items) {
   const seen = (items || [])
-    .filter(i => i.status !== 'removed' && i.status !== 'excluded' && i.cost_type !== 'nil')
+    .filter(i => i.status !== 'removed' && i.status !== 'excluded' && costKind(i.cost_type) !== 'nil')
     .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
   const rooms = new Map()
   for (const it of seen) {

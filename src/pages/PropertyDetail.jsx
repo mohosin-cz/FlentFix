@@ -393,7 +393,7 @@ export default function PropertyDetail() {
         if (!alive || !data) return
         const sent = data.find(e => e.status !== 'draft' || e.sent_at)
         const items = (sent?.estimate_items || []).filter(i => i.status !== 'removed')
-        const approved = items.filter(i => i.status === 'approved' && i.cost_type === 'priced')
+        const approved = items.filter(i => i.status === 'approved' && i.cost_type !== 'nil' && i.cost_type !== 'no_cost')
           .reduce((t, i) => t + ((Number(i.material_cost) || 0) + (Number(i.labour_cost) || 0)) * (Number(i.qty) || 1), 0)
         setEst(sent ? { total: Number(sent.total) || 0, approved, all: items.length > 0 && items.every(i => i.status === 'approved' || i.status === 'excluded'), draft: false }
                     : data.length ? { draft: true, total: Number(data[0].total) || 0 } : null)

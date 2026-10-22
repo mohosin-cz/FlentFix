@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { fmt, itemTot, getScore, barCol, ago } from '../../utils/estimateHelpers'
+import { fmt, itemTot, getScore, barCol, ago, costKind, isCosted } from '../../utils/estimateHelpers'
 import { HIGH_VALUE_VIDEO_THRESHOLD } from '../../utils/proofVideo'
 
 // Four cards, one question each:
@@ -30,12 +30,13 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
         if (t >= HIGH_VALUE_VIDEO_THRESHOLD && !itMedia.some(m => m.is_proof_video)) np++
       }
       if (it.status === 'excluded' || it.status === 'removed') return
-      if (it.cost_type === 'actuals') { a++ }
-      else if (it.cost_type === 'nil') { n++ }
+      // an actuals line counts as costed once it has its assumed figure
+      if (costKind(it.cost_type) === 'nil') { n++ }
       else {
         const tot = itemTot(it)
         if (tot > 0) {
-          p++; firm += tot
+          if (costKind(it.cost_type) === 'actuals') a++; else p++
+          firm += tot
           mat += (it.material_cost||0) * (it.qty||1)
           lab += (it.labour_cost||0)  * (it.qty||1)
         } else { nd++ }
@@ -63,9 +64,9 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
     const pct = (x) => (n > 0 ? Math.round(x / n * 100) : 0)
 
     // The same arithmetic the Totals card uses, so the two cards cannot
-    // disagree: priced rows only, each one times its quantity.
+    // disagree: priced and on-actuals rows, each one times its quantity.
     const money = (rows) => rows
-      .filter(i => i.cost_type === 'priced')
+      .filter(isCosted)
       .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
     const onTable     = money(live)
     const approvedVal = money(live.filter(i => i.status === 'approved'))

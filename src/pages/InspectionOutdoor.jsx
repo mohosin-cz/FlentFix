@@ -427,7 +427,7 @@ function NotAvailableNote({ value, onChange }) {
 function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelectRate, onSelectMaterial }) {
   const costType = costRow.costType || 'priced'
   const qty      = Math.max(1, parseFloat(costRow.qty) || 1)
-  const unitCost = costType === 'priced' ? (parseFloat(costRow.materialCost) || 0) + (parseFloat(costRow.labourCost) || 0) : 0
+  const unitCost = costType !== 'nil' ? (parseFloat(costRow.materialCost) || 0) + (parseFloat(costRow.labourCost) || 0) : 0
   const rowTotal = unitCost * qty
 
   const [matSearch,  setMatSearch]  = useState('')
@@ -514,7 +514,7 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
         </div>
 
         {/* Row 2: Material | Labour — only when Priced */}
-        {costType === 'priced' && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        {costType !== 'nil' && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
 
           {/* Material column */}
           <div>
@@ -573,8 +573,8 @@ function IssueCostRow({ issueLabel, costRow = {}, tradeRates, onUpdate, onSelect
 
         {/* As Actuals note */}
         {costType === 'actuals' && (
-          <div style={{ padding: '10px 12px', background: 'rgba(200,150,62,0.06)', border: '1px dashed rgba(200,150,62,0.4)', borderRadius: 6, fontSize: 11, color: 'var(--accent, #c8963e)' }}>
-            This item will be charged based on actuals — no fixed cost shown in estimate.
+          <div style={{ fontSize: 11, color: 'var(--accent, #c8963e)' }}>
+            {unitCost > 0 ? 'Ballpark — the landlord sees it as an assumed cost, settled after the work.' : 'Add a ballpark figure — the landlord sees it as an assumed cost.'}
           </div>
         )}
 
@@ -900,7 +900,7 @@ export function flattenOutdoorDraftToRows(draft, inspectionId) {
           const qty        = Math.max(1, parseFloat(cr.qty) || 1)
           const issueLabel = issue === 'Other' ? (item.otherIssue || 'Other') : issue
           const crType = cr.costType || 'priced'
-          rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: cr.action || '', cost_type: crType, material_item_id: cr.materialItemId || null, material_fxin: cr.materialRateId || null, material_description: cr.materialDescription || null, material_cost: crType === 'priced' ? (parseFloat(cr.materialCost) || 0) * qty : 0, labour_cost: crType === 'priced' ? (parseFloat(cr.labourCost) || 0) * qty : 0, item_score: item.health ?? null, _media: ri === 0 ? (item.media || []) : [] })
+          rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: cr.action || '', cost_type: crType, material_item_id: cr.materialItemId || null, material_fxin: cr.materialRateId || null, material_description: cr.materialDescription || null, material_cost: crType !== 'nil' ? (parseFloat(cr.materialCost) || 0) * qty : 0, labour_cost: crType !== 'nil' ? (parseFloat(cr.labourCost) || 0) * qty : 0, item_score: item.health ?? null, _media: ri === 0 ? (item.media || []) : [] })
         })
       }
     })

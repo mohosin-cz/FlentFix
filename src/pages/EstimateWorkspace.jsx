@@ -233,7 +233,7 @@ export default function EstimateWorkspace() {
     const disputed  = nonRemoved.filter(i => i.status === 'disputed').length
     const pending   = nonRemoved.filter(i => !i.status || i.status === 'pending').length
     const approvedTotal = nonRemoved
-      .filter(i => i.status === 'approved' && i.cost_type === 'priced')
+      .filter(i => i.status === 'approved' && i.cost_type !== 'nil' && i.cost_type !== 'no_cost')
       .reduce((s, i) => s + ((i.material_cost || 0) + (i.labour_cost || 0)) * (i.qty || 1), 0)
     return { count: nonRemoved.length, total: est?.total ?? 0, actualsCount, approved, disputed, pending, approvedTotal }
   }

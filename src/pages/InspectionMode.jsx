@@ -187,8 +187,10 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
             // New card-level cost model — one consolidated row per card
             const qty = Math.max(1, parseFloat(card.qty) || 1)
             const issueSummary = sel.filter(i => i !== 'Functional').map(i => i === 'Other' ? (card.otherIssue || 'Other') : i).join(', ') || 'Issues'
-            const matCost = card.costType === 'priced' ? (parseFloat(card.materialCost) || 0) * qty : 0
-            const labCost = card.costType === 'priced' ? (parseFloat(card.labourCost) || 0) * qty : 0
+            // priced and on-actuals keep their figure (on actuals it is the ballpark); no-cost is zero
+            const costed  = card.costType !== 'no_cost' && card.costType !== 'nil'
+            const matCost = costed ? (parseFloat(card.materialCost) || 0) * qty : 0
+            const labCost = costed ? (parseFloat(card.labourCost) || 0) * qty : 0
             rows.push({ ...base, issue_description: issueSummary, action: [card.actionType, card.action].filter(Boolean).join(': ') || '', cost_type: card.costType, material_item_id: card.materialItemId || null, material_fxin: card.materialRateId || null, material_description: card.materialDescription || null, material_cost: matCost, labour_cost: labCost, item_score: card.health ?? null, _media: card.media || [] })
           } else {
             sel.forEach((issue, ri) => {
@@ -196,7 +198,7 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
               const qty        = Math.max(1, parseFloat(cr.qty) || 1)
               const issueLabel = issue === 'Other' ? (card.otherIssue || 'Other') : issue
               const crType = cr.costType || 'priced'
-              rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: card.action || cr.action || '', cost_type: crType, material_item_id: card.materialItemId || cr.materialItemId || null, material_fxin: card.materialRateId || cr.materialRateId || null, material_description: card.materialDescription || cr.materialDescription || null, material_cost: card.materialCost ? (parseFloat(card.materialCost) || 0) : crType === 'priced' ? (parseFloat(cr.materialCost) || 0) * qty : 0, labour_cost: crType === 'priced' ? (parseFloat(cr.labourCost) || 0) * qty : 0, item_score: card.health ?? null, _media: ri === 0 ? (card.media || []) : [] })
+              rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: card.action || cr.action || '', cost_type: crType, material_item_id: card.materialItemId || cr.materialItemId || null, material_fxin: card.materialRateId || cr.materialRateId || null, material_description: card.materialDescription || cr.materialDescription || null, material_cost: card.materialCost ? (parseFloat(card.materialCost) || 0) : crType !== 'nil' ? (parseFloat(cr.materialCost) || 0) * qty : 0, labour_cost: crType !== 'nil' ? (parseFloat(cr.labourCost) || 0) * qty : 0, item_score: card.health ?? null, _media: ri === 0 ? (card.media || []) : [] })
             })
           }
         })
