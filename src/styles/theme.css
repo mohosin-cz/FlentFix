@@ -152,7 +152,9 @@
      than a screen, and reads as one. */
   --font-sans:    'Urbanist', 'Poppins', sans-serif;
   --font-doc:     'Poppins', sans-serif;
-  --font-mono:    'JetBrains Mono', 'Fira Mono', monospace;
+  /* One typeface across Pulse: what used to be the mono slot (PIDs, labels,
+     amounts) is Urbanist too, with tabular figures so numbers still line up. */
+  --font-mono:    'Urbanist', 'Poppins', sans-serif;
   --font-nav:     'Urbanist', 'Poppins', sans-serif;
   --radius:       8px;
   --radius-sm:    4px;

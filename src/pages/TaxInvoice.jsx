@@ -188,7 +188,7 @@ export default function TaxInvoice() {
                 <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, color: '#c8963e', letterSpacing: '-0.01em', fontFamily: "'Source Sans 3', sans-serif" }}>
                   TAX INVOICE
                 </div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 2, fontFamily: 'monospace' }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 2, fontFamily: 'var(--font-sans)' }}>
                   {invoice.invoice_number}
                 </div>
               </div>
@@ -216,13 +216,13 @@ export default function TaxInvoice() {
                 {COMPANY.legal_name}<br />
                 {COMPANY.address_line}<br />
                 {COMPANY.city}, {COMPANY.state} {COMPANY.pincode}<br />
-                <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#888' }}>GSTIN: {COMPANY.gstin}</span>
+                <span style={{ fontSize: 11, fontFamily: 'var(--font-sans)', color: '#888' }}>GSTIN: {COMPANY.gstin}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontSize: 12 }}>
                 <span style={{ color: '#9b9080' }}>Date</span>
                 <span style={{ color: '#111', fontWeight: 500 }}>{fmtDate(invoice.created_at)}</span>
                 <span style={{ color: '#9b9080' }}>PID</span>
-                <span style={{ color: '#111', fontWeight: 500, fontFamily: 'monospace' }}>{invoice.pid}</span>
+                <span style={{ color: '#111', fontWeight: 500, fontFamily: 'var(--font-sans)' }}>{invoice.pid}</span>
               </div>
             </div>
           </div>
@@ -239,12 +239,12 @@ export default function TaxInvoice() {
                   <div key={item.id || i} className="ti-item-row-mobile" style={{ padding: '12px 0', borderBottom: '1px solid #e8e4de' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 11, color: '#9b9080', fontFamily: 'monospace', marginBottom: 3 }}>#{i + 1} · HSN {HSN}</div>
+                        <div style={{ fontSize: 11, color: '#9b9080', fontFamily: 'var(--font-sans)', marginBottom: 3 }}>#{i + 1} · HSN {HSN}</div>
                         <div style={{ fontSize: 13, color: '#111', lineHeight: 1.4 }}>{item.description}</div>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#111', fontFamily: 'monospace' }}>{fmtINR(item.amount)}</div>
-                        <div style={{ fontSize: 11, color: '#9b9080', marginTop: 2, fontFamily: 'monospace' }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#111', fontFamily: 'var(--font-sans)' }}>{fmtINR(item.amount)}</div>
+                        <div style={{ fontSize: 11, color: '#9b9080', marginTop: 2, fontFamily: 'var(--font-sans)' }}>
                           {item.qty} × {fmtINR(item.rate)}
                         </div>
                       </div>
@@ -271,12 +271,12 @@ export default function TaxInvoice() {
                 <tbody>
                   {items.map((item, i) => (
                     <tr key={item.id || i} style={{ borderBottom: '1px solid #e8e4de' }}>
-                      <td style={{ padding: '11px 8px', textAlign: 'center', fontSize: 12, color: '#9b9080', fontFamily: 'monospace' }}>{i + 1}</td>
+                      <td style={{ padding: '11px 8px', textAlign: 'center', fontSize: 12, color: '#9b9080', fontFamily: 'var(--font-sans)' }}>{i + 1}</td>
                       <td style={{ padding: '11px 8px', lineHeight: 1.4, color: '#111' }}>{item.description}</td>
-                      <td style={{ padding: '11px 8px', textAlign: 'center', fontSize: 12, fontFamily: 'monospace', color: '#666' }}>{HSN}</td>
-                      <td style={{ padding: '11px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#444' }}>{item.qty}</td>
-                      <td style={{ padding: '11px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#444' }}>{fmtINR(item.rate)}</td>
-                      <td style={{ padding: '11px 8px', textAlign: 'right', fontWeight: 600, fontFamily: 'monospace', color: '#111' }}>{fmtINR(item.amount)}</td>
+                      <td style={{ padding: '11px 8px', textAlign: 'center', fontSize: 12, fontFamily: 'var(--font-sans)', color: '#666' }}>{HSN}</td>
+                      <td style={{ padding: '11px 8px', textAlign: 'right', fontFamily: 'var(--font-sans)', color: '#444' }}>{item.qty}</td>
+                      <td style={{ padding: '11px 8px', textAlign: 'right', fontFamily: 'var(--font-sans)', color: '#444' }}>{fmtINR(item.rate)}</td>
+                      <td style={{ padding: '11px 8px', textAlign: 'right', fontWeight: 600, fontFamily: 'var(--font-sans)', color: '#111' }}>{fmtINR(item.amount)}</td>
                     </tr>
                   ))}
                   {items.length === 0 && (
@@ -299,12 +299,12 @@ export default function TaxInvoice() {
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 13, color: '#555', borderBottom: '1px solid #f0ede8' }}>
                   <span>{row.label}</span>
-                  <span style={{ fontFamily: 'monospace' }}>{fmtINR(row.value)}</span>
+                  <span style={{ fontFamily: 'var(--font-sans)' }}>{fmtINR(row.value)}</span>
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 6px', fontSize: 16, fontWeight: 700, color: '#111', borderTop: '2px solid #111', marginTop: 4 }}>
                 <span>Grand Total</span>
-                <span style={{ fontFamily: 'monospace', color: '#c8963e' }}>{fmtINR(invoice.total)}</span>
+                <span style={{ fontFamily: 'var(--font-sans)', color: '#c8963e' }}>{fmtINR(invoice.total)}</span>
               </div>
               <div style={{ fontSize: 11, color: '#888', marginTop: 8, fontStyle: 'italic', lineHeight: 1.4 }}>
                 {amountInWords(invoice.total)}

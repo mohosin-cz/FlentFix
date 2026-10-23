@@ -64,7 +64,7 @@ function groupByTrade(items) {
 
 // ─── CSS ───────────────────────────────────────────────────────────────────────
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;1,400;1,500&family=Urbanist:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -90,7 +90,7 @@ const CSS = `
     border: 1.5px solid #3b3fa0;
     border-radius: 100px;
     padding: 7px 20px;
-    font-family: 'Fraunces', Georgia, serif;
+    font-family: var(--font-sans);
     font-size: 15px; font-weight: 500;
     color: #3b3fa0;
     letter-spacing: -0.02em;
@@ -102,7 +102,7 @@ const CSS = `
     text-transform: uppercase;
     letter-spacing: 0.12em;
     color: #9ca3af;
-    font-family: monospace;
+    font-family: var(--font-sans);
   }
 
   /* ── Max-width wrapper ── */
@@ -125,7 +125,7 @@ const CSS = `
     margin-bottom: 6px;
   }
   .rc-hero-em {
-    font-family: 'Fraunces', Georgia, serif;
+    font-family: var(--font-sans);
     font-style: italic;
     font-weight: 400;
     color: #3b3fa0;
@@ -188,7 +188,7 @@ const CSS = `
     flex-shrink: 0;
   }
   .rc-trade-name {
-    font-family: 'Fraunces', Georgia, serif;
+    font-family: var(--font-sans);
     font-style: italic;
     font-size: 11px;
     font-weight: 500;
@@ -198,7 +198,7 @@ const CSS = `
   .rc-trade-count {
     margin-left: auto;
     font-size: 10px;
-    font-family: monospace;
+    font-family: var(--font-sans);
     color: #9ca3af;
     letter-spacing: 0.04em;
   }
@@ -251,7 +251,7 @@ const CSS = `
     font-size: 11px;
     color: #9ca3af;
     text-decoration: line-through;
-    font-family: monospace;
+    font-family: var(--font-sans);
     white-space: nowrap;
   }
   .rc-market-label {
@@ -259,7 +259,7 @@ const CSS = `
     color: #c4c9d4;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    font-family: monospace;
+    font-family: var(--font-sans);
     margin-top: -1px;
   }
   .rc-flent-price {
@@ -274,7 +274,7 @@ const CSS = `
     color: rgba(59,63,160,0.6);
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    font-family: monospace;
+    font-family: var(--font-sans);
   }
 
   /* ── Footer ── */
@@ -291,7 +291,7 @@ const CSS = `
     margin-bottom: 8px;
   }
   .rc-footer-brand {
-    font-family: 'Fraunces', Georgia, serif;
+    font-family: var(--font-sans);
     font-style: italic;
     font-size: 13px;
     color: #3b3fa0;

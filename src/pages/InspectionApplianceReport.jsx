@@ -253,7 +253,7 @@ export default function InspectionApplianceReport() {
               { label: 'Est. Repair Cost',     value: grandTotal > 0 ? `₹${fmt(grandTotal)}` : '—', color: grandTotal > 0 ? '#505058' : '#9898a4' },
             ].map(s => (
               <div key={s.label} style={{ background: '#fff', padding: '20px 24px' }}>
-                <div style={{ fontSize: 28, fontWeight: 700, color: s.color, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>{s.value}</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: s.color, fontFamily: 'var(--font-sans)', fontVariantNumeric: 'tabular-nums' }}>{s.value}</div>
                 <div style={{ fontSize: 11, color: '#9898a4', marginTop: 4 }}>{s.label}</div>
               </div>
             ))}
@@ -321,7 +321,7 @@ export default function InspectionApplianceReport() {
                           <td style={{ padding: '9px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
                             <span style={{ padding: '2px 10px', borderRadius: 100, fontSize: 10, fontWeight: 500, ...pillStyle }}>{statusLabel}</span>
                           </td>
-                          <td className="ar-comp-td" style={{ padding: '9px 20px', textAlign: 'right', color: compCost > 0 ? '#38383e' : '#bbb', fontFamily: 'monospace', fontSize: 12, verticalAlign: 'middle' }}>
+                          <td className="ar-comp-td" style={{ padding: '9px 20px', textAlign: 'right', color: compCost > 0 ? '#38383e' : '#bbb', fontFamily: 'var(--font-sans)', fontSize: 12, verticalAlign: 'middle' }}>
                             {compCost > 0 ? `₹${fmt(compCost)}` : '—'}
                           </td>
                         </tr>
@@ -352,15 +352,15 @@ export default function InspectionApplianceReport() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13 }}>
               <span style={{ color: '#9898a4' }}>Labour</span>
-              <span style={{ fontFamily: 'monospace', color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>₹{fmt(totalLabour)}</span>
+              <span style={{ fontFamily: 'var(--font-sans)', color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>₹{fmt(totalLabour)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13 }}>
               <span style={{ color: '#9898a4' }}>Material</span>
-              <span style={{ fontFamily: 'monospace', color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>₹{fmt(totalMaterial)}</span>
+              <span style={{ fontFamily: 'var(--font-sans)', color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>₹{fmt(totalMaterial)}</span>
             </div>
             <div style={{ borderTop: '1px solid #3a3a40', marginTop: 8, paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
               <span style={{ fontWeight: 700, fontSize: 13, color: '#fff' }}>Grand Total</span>
-              <span style={{ fontFamily: 'monospace', fontSize: 22, fontWeight: 700, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>₹{fmt(grandTotal)}</span>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 22, fontWeight: 700, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>₹{fmt(grandTotal)}</span>
             </div>
           </div>
         )}

@@ -255,7 +255,7 @@ export default function EstimateWorkspace() {
   const address   = property?.config?.address || ''
 
   return (
-    <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-doc, Poppins, sans-serif)' }}>
+    <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-sans)' }}>
 
       {/* ── Header ── */}
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 52, background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 10 }}>
