@@ -302,17 +302,33 @@ async function performInspectionSave(op) {
 
   // Media: anything parked offline is uploaded now under the base name it was
   // given when it was taken, so a re-upload overwrites rather than duplicates.
+  //
+  // One bad file must not hold the whole inspection hostage: a photo the phone
+  // stored as zero bytes (iOS Safari does this to IndexedDB blobs now and then)
+  // makes storage answer "No content provided" on every retry, and the save
+  // never finishes — none of the other photos get linked (PID 265, Oct 2026).
+  // An empty or unreadable file is skipped and named; a dropped connection
+  // still stops the save so it retries.
   const mediaRows = []
+  const skipped = []
   for (const m of p.media || []) {
     let url = m.url
     let type = m.type
     if (isOfflineMediaRef(url)) {
       const key = offlineMediaKey(url)
       const f = (op.files || []).find(x => x.key === key)
-      if (!f?.blob) { console.warn('[outbox] media blob missing, skipping', key); continue }
+      if (!f?.blob) { console.warn('[outbox] media blob missing, skipping', key); skipped.push(f?.name || key); continue }
+      if (!f.blob.size) { console.warn('[outbox] media blob is empty, skipping', key); skipped.push(f.name || key); continue }
       const mime = f.type || f.blob.type || ''
       if (mime) type = mime.startsWith('video/') ? 'video' : 'image'
-      url = await uploadMedia(client, asFile(f), f.baseName || `${p.pid}/${key}`)
+      try {
+        url = await uploadMedia(client, asFile(f), f.baseName || `${p.pid}/${key}`)
+      } catch (err) {
+        if (isNetworkError(err)) throw err
+        console.warn('[outbox] media upload refused, skipping', key, err?.message)
+        skipped.push(f.name || key)
+        continue
+      }
       if (!url) continue   // user declined a very large video
     }
     if (typeof url !== 'string' || !url.startsWith('http')) continue
@@ -340,7 +356,10 @@ async function performInspectionSave(op) {
   }
   if (p.stage) await advanceStage(client, p.pid, p.stage, p.userEmail)
 
-  return { ok: true }
+  if (skipped.length) {
+    flash(`PID ${p.pid} synced · ${skipped.length} photo${skipped.length === 1 ? '' : 's'} couldn’t be read on this phone and ${skipped.length === 1 ? 'was' : 'were'} skipped — add ${skipped.length === 1 ? 'it' : 'them'} again on the estimate`, 'amber', 9000)
+  }
+  return { ok: true, skipped }
 }
 
 // A newer inspection for this PID than the one we are holding means someone
