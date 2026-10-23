@@ -5,6 +5,7 @@ import LogoSpinner from '../components/LogoSpinner'
 import FlentWordmark from '../components/FlentWordmark'
 import { useHashScroll } from '../hooks/useHashScroll'
 import { landlordNumbers, costKind } from '../utils/estimateHelpers'
+import VideoFrame from '../components/VideoFrame'
 
 const HERO_TITLE    = 'Your home, cared for'
 const HERO_SUBTITLE = 'before anyone moves in.'
@@ -1035,6 +1036,7 @@ export default function LandlordEstimate() {
                               onClick={() => setLightbox({ urls: allUrls, idx: 0 })}
                               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setLightbox({ urls: allUrls, idx: 0 }) }}
                             >
+                              {mainIsVid ? <VideoFrame url={mainUrl} className="le-media-main" style={{ background: '#000' }} /> : <>
                               <img src={mainSrc} alt="" aria-hidden="true" className="le-media-bd"
                                 onError={e => e.currentTarget.style.display = 'none'} />
                               <img
@@ -1048,6 +1050,7 @@ export default function LandlordEstimate() {
                                   else e.currentTarget.style.display = 'none'
                                 }}
                               />
+                              </>}
                               {mainIsVid && <span className="le-media-chip">▶</span>}
                             </div>
                             {/* Secondary thumbs strip */}
@@ -1065,6 +1068,7 @@ export default function LandlordEstimate() {
                                       onClick={() => setLightbox({ urls: allUrls, idx: si + 1 })}
                                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setLightbox({ urls: allUrls, idx: si + 1 }) }}
                                     >
+                                      {isVid ? <VideoFrame url={mUrl} className="le-media-main" style={{ background: '#000' }} /> : <>
                                       <img src={src} alt="" aria-hidden="true" className="le-media-bd"
                                         onError={e => e.currentTarget.style.display = 'none'} />
                                       <img
@@ -1078,6 +1082,7 @@ export default function LandlordEstimate() {
                                           else e.currentTarget.style.display = 'none'
                                         }}
                                       />
+                                      </>}
                                       {isVid && <span className="le-media-chip">▶</span>}
                                     </div>
                                   )
@@ -1395,7 +1400,7 @@ export default function LandlordEstimate() {
       {lightbox && (() => {
         const curUrl   = lightbox.urls[lightbox.idx]
         const curIsVid = /\.(mp4|mov|webm|m4v)$/i.test(curUrl)
-        const curPost  = curIsVid ? curUrl.replace(/(\.[^.]+)$/, '_thumb.webp') : undefined
+        const curPost  = undefined   // saved posters are often blank — the video draws its own frame
         const closeLb  = () => { lbVideoRef.current?.pause(); setLightbox(null) }
         return (
           <div className="le-lightbox" onClick={closeLb}>

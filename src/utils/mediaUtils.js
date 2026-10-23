@@ -77,28 +77,45 @@ export async function compressImage(file) {
   }
 }
 
-// Grab the first frame of a video as a WebP blob (used as poster thumbnail).
+// Grab a frame of a video as a WebP blob (used as poster thumbnail).
+// Waits for the seek to land so there is a decoded frame to draw — grabbing on
+// loadeddata saved blank white posters on iPhones — and returns null rather
+// than a blank image, so no poster beats a wrong one.
 export async function videoFirstFrame(file) {
   return new Promise(resolve => {
     const u = URL.createObjectURL(file)
     const video = document.createElement('video')
-    video.preload = 'metadata'
+    let done = false
+    const finish = (blob) => { if (done) return; done = true; clearTimeout(timer); URL.revokeObjectURL(u); resolve(blob) }
+    const timer = setTimeout(() => finish(null), 8000)
+    video.preload = 'auto'
     video.muted = true
-    video.src = u
-    video.currentTime = 0.5
-    video.onloadeddata = () => {
+    video.playsInline = true
+    video.setAttribute('playsinline', '')
+    video.onloadedmetadata = () => { try { video.currentTime = Math.min(0.5, (video.duration || 1) / 2) } catch { finish(null) } }
+    video.onseeked = () => {
       try {
-        const w = Math.min(video.videoWidth || 640, 640)
-        const h = video.videoHeight
-          ? Math.round(w / video.videoWidth * video.videoHeight)
-          : Math.round(w * 9 / 16)
+        if (!video.videoWidth || !video.videoHeight) return finish(null)
+        const w = Math.min(video.videoWidth, 640)
+        const h = Math.round(w / video.videoWidth * video.videoHeight)
         const canvas = document.createElement('canvas')
         canvas.width = w; canvas.height = h
-        canvas.getContext('2d').drawImage(video, 0, 0, w, h)
-        canvas.toBlob(blob => { URL.revokeObjectURL(u); resolve(blob) }, 'image/webp', 0.80)
-      } catch { URL.revokeObjectURL(u); resolve(null) }
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(video, 0, 0, w, h)
+        // blank check: sample a grid; all one flat colour means no frame was drawn
+        const px = ctx.getImageData(0, 0, w, h).data
+        let min = 255, max = 0
+        for (let y = 0; y < h; y += Math.max(1, h >> 4)) for (let x = 0; x < w; x += Math.max(1, w >> 4)) {
+          const i = (y * w + x) * 4, v = (px[i] + px[i + 1] + px[i + 2]) / 3
+          if (v < min) min = v; if (v > max) max = v
+        }
+        if (max - min < 6) return finish(null)
+        canvas.toBlob(blob => finish(blob), 'image/webp', 0.80)
+      } catch { finish(null) }
     }
-    video.onerror = () => { URL.revokeObjectURL(u); resolve(null) }
+    video.onerror = () => finish(null)
+    video.src = u
+    video.load()
   })
 }
 

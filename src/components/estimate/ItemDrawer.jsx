@@ -198,7 +198,7 @@ export default function ItemDrawer({
                 <div style={{ display:'flex',alignItems:'center',gap:10 }}>
                   {/* playsInline: without it Android takes an 80×60 thumbnail
                       fullscreen the moment it is touched. */}
-                  <video src={proofVid.url} poster={proofVid.url.replace(/(\.[^.]+)$/, '_thumb.webp')} preload="none" muted playsInline style={{ width:80,height:60,objectFit:'cover',borderRadius:6 }} />
+                  <video src={`${proofVid.url}#t=0.1`} preload="metadata" muted playsInline style={{ width:80,height:60,objectFit:'cover',borderRadius:6 }} />
                   <span style={{ fontSize:11,color:'var(--good)',fontFamily:'var(--mono)',fontWeight:600 }}>✓ Proof video on file</span>
                 </div>
               ) : (

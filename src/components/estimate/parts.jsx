@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { fmt, scls, rrTxt } from '../../utils/estimateHelpers'
+import VideoFrame from '../VideoFrame'
 
 // ─── MediaLightbox ────────────────────────────────────────────────────────────
 
@@ -26,7 +27,8 @@ export function MediaLightbox({ urls, idx, onClose }) {
 
   const url    = urls[cur]
   const isVid  = /\.(mp4|mov|webm|m4v)$/i.test(url)
-  const poster = isVid ? url.replace(/(\.[^.]+)$/, '_thumb.webp') : undefined
+  // no saved poster: many are blank (see VideoFrame); the browser shows frame 0.1s
+  const poster = undefined
 
   // Reset the spinner when the displayed URL changes. Adjusting during render
   // rather than in an effect: an effect leaves one frame where the spinner is
@@ -136,8 +138,7 @@ export function DrawerGallery({ item, media, onAddMedia, onDeleteMedia, onReplac
             <div className="g" onClick={() => onOpenLightbox(i)}>
               {isVid(m) ? (
                 <>
-                  <img src={m.url.replace(/(\.[^.]+)$/, '_thumb.webp')} alt="" aria-hidden="true" className="bd" onError={e => e.target.style.display='none'} />
-                  <img src={m.url.replace(/(\.[^.]+)$/, '_thumb.webp')} alt="" style={{ position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',display:'block',zIndex:1 }} onError={e => e.target.style.display='none'} />
+                  <VideoFrame url={m.url} style={{ position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',display:'block',zIndex:1,background:'#000' }} />
                   <span style={{ position:'relative',zIndex:2,fontSize:18,color:'#fff',textShadow:'0 1px 6px rgba(0,0,0,.8)',lineHeight:1 }}>▶</span>
                 </>
               ) : (
