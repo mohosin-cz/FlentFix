@@ -7,7 +7,7 @@ import QuickNotes from '../components/QuickNotes'
 import { supabase } from '../lib/supabase'
 import { flattenOutdoorDraftToRows } from './InspectionOutdoor'
 import { flattenAppliancesDraftToRows } from './InspectionAppliances'
-import { saveInspectionOrQueue, currentUserEmail, uuid } from '../offline/outbox'
+import { saveInspectionOrQueue, currentUserEmail, uuid, isOfflineMediaRef } from '../offline/outbox'
 
 const MODES = [
   {
@@ -191,14 +191,14 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
             const costed  = card.costType !== 'no_cost' && card.costType !== 'nil'
             const matCost = costed ? (parseFloat(card.materialCost) || 0) * qty : 0
             const labCost = costed ? (parseFloat(card.labourCost) || 0) * qty : 0
-            rows.push({ ...base, issue_description: issueSummary, action: [card.actionType, card.action].filter(Boolean).join(': ') || '', cost_type: card.costType, material_item_id: card.materialItemId || null, material_fxin: card.materialRateId || null, material_description: card.materialDescription || null, material_cost: matCost, labour_cost: labCost, item_score: card.health ?? null, _media: card.media || [] })
+            rows.push({ ...base, issue_description: issueSummary, action: [card.actionType, card.action].filter(Boolean).join(': ') || '', cost_type: card.costType, material_item_id: card.materialItemId || null, material_fxin: card.materialRateId || null, material_description: card.materialDescription || null, material_cost: matCost, labour_cost: labCost, item_score: card.health ?? null, _media: card.media || [], _proof: card.proofMedia || [] })
           } else {
             sel.forEach((issue, ri) => {
               const cr         = (card.costRows || {})[issue] || {}
               const qty        = Math.max(1, parseFloat(cr.qty) || 1)
               const issueLabel = issue === 'Other' ? (card.otherIssue || 'Other') : issue
               const crType = cr.costType || 'priced'
-              rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: card.action || cr.action || '', cost_type: crType, material_item_id: card.materialItemId || cr.materialItemId || null, material_fxin: card.materialRateId || cr.materialRateId || null, material_description: card.materialDescription || cr.materialDescription || null, material_cost: card.materialCost ? (parseFloat(card.materialCost) || 0) : crType !== 'nil' ? (parseFloat(cr.materialCost) || 0) * qty : 0, labour_cost: crType !== 'nil' ? (parseFloat(cr.labourCost) || 0) * qty : 0, item_score: card.health ?? null, _media: ri === 0 ? (card.media || []) : [] })
+              rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: card.action || cr.action || '', cost_type: crType, material_item_id: card.materialItemId || cr.materialItemId || null, material_fxin: card.materialRateId || cr.materialRateId || null, material_description: card.materialDescription || cr.materialDescription || null, material_cost: card.materialCost ? (parseFloat(card.materialCost) || 0) : crType !== 'nil' ? (parseFloat(cr.materialCost) || 0) * qty : 0, labour_cost: crType !== 'nil' ? (parseFloat(cr.labourCost) || 0) * qty : 0, item_score: card.health ?? null, _media: ri === 0 ? (card.media || []) : [], _proof: ri === 0 ? (card.proofMedia || []) : [] })
             })
           }
         })
@@ -332,12 +332,21 @@ export default function InspectionMode() {
       console.log('[EndInspection] rows:', allRows.length, 'outdoor', outdoorRows.length, 'indoor', indoorRows.length, 'appliances', appliancesRows.length)
 
       // Media from the drafts, by line item (Fix 2). A URL taken while offline
-      // is a sentinel the outbox resolves to its parked file on replay.
+      // is a sentinel the outbox resolves to its parked file on replay — so it
+      // is kept, not filtered out (it used to be, and those photos were lost).
+      // Proof videos ride along flagged, so the workbench sees them; before
+      // Oct 2026 they were never saved at all.
       const media = []
+      const usable = (url) => typeof url === 'string' && (url.startsWith('http') || isOfflineMediaRef(url))
+      const kind = (url) => /\.(mp4|mov|webm|m4v|3gp)(\?|$)/i.test(url) ? 'video' : 'image'
       for (let i = 0; i < allRows.length; i++) {
         for (const url of (rawAllRows[i]?._media || [])) {
-          if (typeof url !== 'string' || !url.startsWith('http')) continue
-          media.push({ id: uuid(), lineItemId: allRows[i].id, url, type: (url.includes('.mp4') || url.includes('.mov')) ? 'video' : 'image' })
+          if (!usable(url)) continue
+          media.push({ id: uuid(), lineItemId: allRows[i].id, url, type: kind(url) })
+        }
+        for (const url of (rawAllRows[i]?._proof || [])) {
+          if (!usable(url)) continue
+          media.push({ id: uuid(), lineItemId: allRows[i].id, url, type: 'video', is_proof_video: true })
         }
       }
 

@@ -900,7 +900,7 @@ export function flattenOutdoorDraftToRows(draft, inspectionId) {
           const qty        = Math.max(1, parseFloat(cr.qty) || 1)
           const issueLabel = issue === 'Other' ? (item.otherIssue || 'Other') : issue
           const crType = cr.costType || 'priced'
-          rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: cr.action || '', cost_type: crType, material_item_id: cr.materialItemId || null, material_fxin: cr.materialRateId || null, material_description: cr.materialDescription || null, material_cost: crType !== 'nil' ? (parseFloat(cr.materialCost) || 0) * qty : 0, labour_cost: crType !== 'nil' ? (parseFloat(cr.labourCost) || 0) * qty : 0, item_score: item.health ?? null, _media: ri === 0 ? (item.media || []) : [] })
+          rows.push({ ...base, issue_description: cr.labourDescription || issueLabel, action: cr.action || '', cost_type: crType, material_item_id: cr.materialItemId || null, material_fxin: cr.materialRateId || null, material_description: cr.materialDescription || null, material_cost: crType !== 'nil' ? (parseFloat(cr.materialCost) || 0) * qty : 0, labour_cost: crType !== 'nil' ? (parseFloat(cr.labourCost) || 0) * qty : 0, item_score: item.health ?? null, _media: ri === 0 ? (item.media || []) : [], _proof: ri === 0 ? (item.proofMedia || []) : [] })
         })
       }
     })
