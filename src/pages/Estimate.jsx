@@ -93,6 +93,9 @@ function EstimateWorkbenchInner() {
   const [locking, setLocking]             = useState(false)
   const [sending, setSending]             = useState(false)
   const [sendError, setSendError]         = useState(null)
+  // A save that didn't land is said out loud — it used to revert silently,
+  // and a cost typed in looked like it "didn't reflect" (PID 265, Oct 2026).
+  const [saveError, setSaveError]         = useState(null)   // { text, retry }
   // Landlord access: the code that, with an email, opens the link. Shown to
   // staff here and posted to Slack on Send. { code, slack: 'posting'|'posted'|string(error) }
   const [access, setAccess]               = useState(null)
@@ -309,11 +312,23 @@ function EstimateWorkbenchInner() {
     const prev = items.find(i => i.id === itemId)
     const newItems = items.map(i => i.id === itemId ? { ...i, ...safe } : i)
     setItems(() => newItems)
-    const { error: err } = await supabase.from('estimate_items').update(safe).eq('id', itemId)
+    // .select() so a write that touched no row (signed out, no permission)
+    // counts as a failure instead of looking saved; an expired sign-in is
+    // refreshed and the write tried once more.
+    const write = () => supabase.from('estimate_items').update(safe).eq('id', itemId).select('id')
+    let { data: wrote, error: err } = await write()
+    if (err && /jwt|token|expired|401|not authenticated/i.test(err.message || '')) {
+      await supabase.auth.refreshSession().catch(() => {})
+      ;({ data: wrote, error: err } = await write())
+    }
+    if (!err && !(wrote || []).length) err = { message: 'nothing was saved — you may have been signed out. Refresh the page and sign in again.' }
     if (err) {
       console.error('[updateItem]', err.message)
       setItems(p => p.map(i => i.id === itemId ? prev : i))
+      const what = Object.keys(safe).map(k => k.replace(/_/g, ' ')).join(', ')
+      setSaveError({ text: `Couldn’t save ${what} for “${prev?.item_name || 'this line'}” — ${err.message}`, retry: () => { setSaveError(null); updateItem(itemId, updates) } })
     } else {
+      setSaveError(null)
       // estimates.total is maintained by a DB trigger — no client write needed
       if (estimate?.status !== 'draft') setHasUnsent(true)
       for (const [field, newVal] of Object.entries(safe)) {
@@ -1409,6 +1424,14 @@ function EstimateWorkbenchInner() {
           />
         )}
       </aside>
+
+      {saveError && (
+        <div role="alert" style={{ position:'fixed', left:'50%', bottom:'calc(20px + env(safe-area-inset-bottom, 0px))', transform:'translateX(-50%)', zIndex:300, maxWidth:'min(92vw, 640px)', display:'flex', gap:10, alignItems:'center', padding:'10px 12px', borderRadius:10, background:'#3a1f1c', border:'1px solid #b0645b', color:'#f3d6d1', fontFamily:'var(--sans)', fontSize:13, boxShadow:'0 8px 24px rgba(0,0,0,.4)' }}>
+          <span style={{ flex:1, lineHeight:1.45 }}>{saveError.text}</span>
+          <button type="button" onClick={saveError.retry} style={{ minHeight:32, padding:'0 12px', borderRadius:7, border:'1px solid #b0645b', background:'transparent', color:'#f3d6d1', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Try again</button>
+          <button type="button" onClick={() => setSaveError(null)} aria-label="Dismiss" style={{ minHeight:32, padding:'0 8px', border:0, background:'transparent', color:'#f3d6d1', cursor:'pointer' }}>✕</button>
+        </div>
+      )}
 
       {/* Context menu */}
       {ctxMenu && (
