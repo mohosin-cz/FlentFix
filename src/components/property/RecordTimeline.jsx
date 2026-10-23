@@ -33,7 +33,7 @@ const timeOf = (d) => {
   return t.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
 }
 
-export default function RecordTimeline({ pid }) {
+export default function RecordTimeline({ pid, stickyTop = 56 }) {
   const navigate = useNavigate()
   const [state, setState] = useState({ loading: true, error: null, rows: null })
   const [kind, setKind] = useState('all')
@@ -108,7 +108,7 @@ export default function RecordTimeline({ pid }) {
 
       {days.map(d => (
         <div key={d.k} style={{ marginTop: 6 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, padding: '8px 0 4px', position: 'sticky', top: 56, background: 'var(--bg-panel, #1e2028)', zIndex: 1 }}>{d.label}</div>
+          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, padding: '8px 0 4px', position: 'sticky', top: stickyTop, background: 'var(--bg-panel, #1e2028)', zIndex: 1 }}>{d.label}</div>
           <div style={{ borderLeft: '1px solid var(--border, #2e3040)', marginLeft: 3 }}>
             {d.items.map((r, i) => {
               const k = KINDS[r.kind] || KINDS.journey
