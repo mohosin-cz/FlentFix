@@ -150,7 +150,7 @@ const PCOLS = [
   { key: 'stage',     label: 'Stage',      val: (r, st) => st?.open_threads?.[0]?.stage_no ?? 99 },
   { key: 'age',       label: 'Waiting',    val: (r, st) => st ? st.age_days : -1 },
   { key: 'inspected', label: 'Inspected',  val: r => r.inspection_date || '' },
-  { key: 'inspector', label: 'Inspector',  val: r => r.inspector || '' },
+  { key: 'owner',     label: 'Owner',      val: r => r.owner || '' },
   { key: 'status',    label: 'Inspection', val: r => r.status || '' },
   { key: 'created',   label: 'Created',    val: r => r.property_created_at || '' },
 ]
@@ -200,7 +200,7 @@ function PropTable({ rows, stageByPid, sort, setSort, onOpen, onArchive, onBin }
                 </td>
                 <td style={{ ...td, fontFamily: MONO_T, fontSize: 11.5, color: st?.urgency === 'overdue' ? 'var(--red, #b0645b)' : 'var(--text-dim, #9394a8)' }}>{st ? `${ago(st.since, st.age_days)}${st.blocked_on && st.blocked_on !== 'setup_ops' ? ` · ${st.blocked_on}` : ''}` : '—'}</td>
                 <td style={{ ...td, fontFamily: MONO_T, fontSize: 11.5 }}>{fmtDate(r.inspection_date)}</td>
-                <td style={{ ...td, color: 'var(--text-dim, #9394a8)' }}>{r.inspector || '—'}</td>
+                <td style={{ ...td, color: 'var(--text-dim, #9394a8)' }} title={r.inspector && r.inspector !== r.owner ? `Inspected by ${r.inspector}` : undefined}>{r.owner || '—'}</td>
                 <td style={td}><StatusBadge status={r.status} /></td>
                 <td style={{ ...td, fontFamily: MONO_T, fontSize: 11.5, color: 'var(--text-muted, #6b6d82)' }}>{r.property_created_at ? fmtDate(r.property_created_at) : '—'}</td>
                 <td style={{ ...td, textAlign: 'right' }} onClick={e => e.stopPropagation()}>
@@ -252,7 +252,7 @@ export default function Properties() {
     Promise.all([
       supabase
         .from('properties')
-        .select('pid, name, type, address, created_at, no_invoice_reason, journey_paused_at')
+        .select('pid, name, type, address, created_at, no_invoice_reason, journey_paused_at, assigned_to, owner_email')
         .is('deleted_at', null)
         .order('created_at', { ascending: false }),
       supabase
@@ -316,12 +316,16 @@ export default function Properties() {
           no_invoice_reason: p.no_invoice_reason,
           invoice: invoiced.get(p.pid) || null,
           paused: !!p.journey_paused_at,
+          // who owns it now (set from the ⋯ menu): assigned_to, else the property's owner
+          prop_owner: (p.assigned_to || '').trim() || p.owner_email || null,
         })
       }
-      // Coalesce inspector: inspection.owner_email → estimate created_by → null
+      // Inspector: inspection.owner_email → estimate created_by → null.
+      // Owner: the property's owner, else the inspector (older PIDs have none).
       for (const [pid, data] of pidMap) {
         const inspector = parseName(data.owner_email) || estimateEmailMap.get(pid) || null
-        pidMap.set(pid, { ...data, inspector, invoice: data.invoice || invoiced.get(pid) || null })
+        const owner = parseName(data.prop_owner) || inspector
+        pidMap.set(pid, { ...data, inspector, owner, invoice: data.invoice || invoiced.get(pid) || null })
       }
 
       const allProperties = [...pidMap.values()]
@@ -386,7 +390,7 @@ export default function Properties() {
 
     return {
       months,
-      inspectors: alpha(tally(r => r.inspector, 'Unassigned')),
+      inspectors: alpha(tally(r => r.owner, 'Unassigned')),
       types:      alpha(tally(r => r.type, 'No type', titleCase)),
       statuses:   alpha(tally(r => r.status, 'No status', s => STATUS_LABEL[s] || s)),
     }
@@ -401,13 +405,13 @@ export default function Properties() {
   const needle = search.trim().toLowerCase()
   const filtered = grouped.filter(r => {
     if (!matchesFacet((r.inspection_date || '').slice(0, 7), monthF)) return false
-    if (!matchesFacet(r.inspector, inspectorF)) return false
+    if (!matchesFacet(r.owner, inspectorF)) return false
     if (!matchesFacet(r.type, typeF))           return false
     if (!matchesFacet(r.status, statusF))       return false
     if (!needle) return true
     // Widened from PID-only: with filters above it, searching by the name or
     // address you actually remember is the common case.
-    return [r.pid, r.name, r.address, r.type, r.inspector]
+    return [r.pid, r.name, r.address, r.type, r.owner, r.inspector]
       .some(f => (f || '').toLowerCase().includes(needle))
   })
 
@@ -502,7 +506,7 @@ export default function Properties() {
           </span>
           <input
             type="text"
-            placeholder="search pid, name, address, inspector…"
+            placeholder="search pid, name, address, owner…"
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ width: '100%', padding: '9px 32px 9px 34px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 100, color: 'var(--text, #e8e8f0)', fontSize: 13, fontFamily: 'var(--font-mono, monospace)', outline: 'none', boxSizing: 'border-box' }}
@@ -579,7 +583,7 @@ export default function Properties() {
         {!loading && grouped.length > 0 && (
           <div style={s.fbar}>
             <PropFilter label="Month"     value={monthF}     onChange={setMonthF}     options={facets.months} mobile={isMobile}     allLabel="All months" />
-            <PropFilter label="Inspector" value={inspectorF} onChange={setInspectorF} options={facets.inspectors} mobile={isMobile} allLabel="All inspectors" />
+            <PropFilter label="Owner" value={inspectorF} onChange={setInspectorF} options={facets.inspectors} mobile={isMobile} allLabel="All owners" />
             <PropFilter label="Type"      value={typeF}      onChange={setTypeF}      options={facets.types} mobile={isMobile}      allLabel="All types" />
             <PropFilter label="Status"    value={statusF}    onChange={setStatusF}    options={facets.statuses} mobile={isMobile}   allLabel="Any status" />
             {(activeFilters > 0 || search) && (
@@ -678,7 +682,7 @@ export default function Properties() {
                     {row.type && <span style={s.houseTypeBadge}>{titleCase(row.type)}</span>}
                     <div style={s.dateLine}>inspected: {fmtDate(row.inspection_date)}</div>
                     {row.property_created_at && <div style={s.dateLine}>created: {fmtDate(row.property_created_at)}</div>}
-                    <div style={s.inspectorLine}>by {row.inspector || '—'}</div>
+                    <div style={s.inspectorLine}>owner: {row.owner || '—'}{row.inspector && row.inspector !== row.owner ? ` · inspected by ${row.inspector}` : ''}</div>
                   </div>
                   <div style={s.cardBottom}>
                     <StatusBadge status={row.status} />
