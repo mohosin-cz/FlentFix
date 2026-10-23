@@ -23,7 +23,9 @@ const I = {
   walls:          ['Functional','Peeling paint','Damp patch','Crack','Scuff marks','Other'],
   ceilingFan:     ['Functional','Not working','Wobbling','Noise','Speed issue','Needs replacement','Other'],
   exhaustFan:     ['Functional','Not working','Noise','Needs replacement','Other'],
-  acPoint:        ['Functional','Socket dead','Not earthed','Other'],
+  // the AC unit itself — whether one can be fitted is Basics' AC feasibility
+  acPoint:        ['Functional','Not cooling','Water leaking','Noise','Remote missing','Service due','Gas refill needed','Needs replacement','Other'],
+  wc:             ['Functional','Loose / wobbly','Cracked','Leaking at base','Seat cover broken','Stained','Needs replacement','Other'],
   ceiling:        ['Functional','Crack','Seepage stain','Peeling','Other'],
   balconyDoor:    ['Functional','Misaligned','Lock not working','Glass damaged','Other'],
   tvUnit:         ['Functional','Hinge loose','Shutter damaged','Handle missing','Other'],
@@ -76,7 +78,7 @@ const LIVING_ROOM_SECTIONS = [
     { key: 'ceilingLight', label: 'Ceiling Light', trade: 'electrical', issues: I.ceilingLight },
     { key: 'ceilingFan',   label: 'Ceiling Fan',   trade: 'electrical', issues: I.ceilingFan   },
     { key: 'exhaustFan',   label: 'Exhaust Fan',   trade: 'electrical', issues: I.exhaustFan   },
-    { key: 'acPoint',      label: 'AC Point',      trade: 'electrical', issues: I.acPoint      },
+    { key: 'acPoint',      label: 'AC Inspection', trade: 'electrical', issues: I.acPoint      },
   ]},
   { id: 'woodwork', label: 'Woodwork', items: [
     { key: 'mainDoor',    label: 'Main Door',    trade: 'woodwork', issues: I.mainDoor    },
@@ -103,7 +105,7 @@ function bedroomSections(idx, total) {
       { key: 'switchboard',  label: 'Switchboard',  trade: 'electrical', issues: I.switchboard  },
       { key: 'ceilingLight', label: 'Ceiling Light', trade: 'electrical', issues: I.ceilingLight },
       { key: 'ceilingFan',   label: 'Ceiling Fan',   trade: 'electrical', issues: I.ceilingFan   },
-      { key: 'acPoint',      label: 'AC Point',      trade: 'electrical', issues: I.acPoint      },
+      { key: 'acPoint',      label: 'AC Inspection', trade: 'electrical', issues: I.acPoint      },
     ]},
     { id: 'woodwork', label: 'Woodwork', items: [
       { key: 'mainDoor',   label: 'Main Door',   trade: 'woodwork', issues: I.mainDoor   },
@@ -124,6 +126,7 @@ function bedroomSections(idx, total) {
       { key: 'tap',          label: 'Tap / Basin Mixer',trade: 'plumbing',   issues: I.tap          },
       { key: 'shower',       label: 'Shower',           trade: 'plumbing',   issues: I.shower       },
       { key: 'flush',        label: 'Flush Mechanism',  trade: 'plumbing',   issues: I.flush        },
+      { key: 'wc',           label: 'WC / Commode',     trade: 'plumbing',   issues: I.wc           },
       { key: 'jetSpray',     label: 'Jet Spray',        trade: 'plumbing',   issues: I.jetSpray     },
       { key: 'hotCold',      label: 'Hot/Cold Mixer',   trade: 'plumbing',   issues: I.hotCold      },
       { key: 'bDoor',        label: 'Door',             trade: 'woodwork',   issues: I.mainDoor     },
@@ -143,6 +146,7 @@ function bedroomSections(idx, total) {
       { key: 'cbTap',   label: 'Tap / Basin Mixer',trade: 'plumbing',   issues: I.tap          },
       { key: 'cbSh',    label: 'Shower',           trade: 'plumbing',   issues: I.shower       },
       { key: 'cbFl',    label: 'Flush Mechanism',  trade: 'plumbing',   issues: I.flush        },
+      { key: 'cbWc',    label: 'WC / Commode',     trade: 'plumbing',   issues: I.wc           },
       { key: 'cbJs',    label: 'Jet Spray',        trade: 'plumbing',   issues: I.jetSpray     },
       { key: 'cbHc',    label: 'Hot/Cold Mixer',   trade: 'plumbing',   issues: I.hotCold      },
       { key: 'cbDr',    label: 'Door',             trade: 'woodwork',   issues: I.mainDoor     },
@@ -1184,7 +1188,7 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
   const isAcPoint      = itemConfig.key === 'acPoint'
   const acProvision    = card.acProvision || 'present'
   const tradeRates     = (labourRates || []).filter(r => r.trade === trade)
-  const baseLabel      = isAcPoint ? 'AC Point · Provision check' : label
+  const baseLabel      = label
   const cardLabel      = totalCards > 1 ? `${baseLabel} (${cardIdx + 1})` : baseLabel
   const selectedIssues = card.selectedIssues || []
   const costRows       = card.costRows || {}
@@ -1288,9 +1292,9 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
         {/* AC Point — provision toggle at the top */}
         {isAcPoint && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', flex: 1 }}>AC Provision</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', flex: 1 }}>AC in this room?</span>
             <div style={{ display: 'flex', gap: 4 }}>
-              {[['present', 'Present'], ['not_present', 'Not Present']].map(([val, lbl]) => {
+              {[['present', 'Yes'], ['not_present', 'No · N/A']].map(([val, lbl]) => {
                 const active = acProvision === val
                 return (
                   <button key={val} type="button" onClick={() => onUpdate('acProvision', val)} style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, borderRadius: 5, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', border: `1px solid ${active ? (val === 'present' ? 'rgba(111,154,126,0.4)' : 'rgba(176,100,91,0.4)') : 'var(--border, #2e3040)'}`, background: active ? (val === 'present' ? 'rgba(111,154,126,0.1)' : 'rgba(176,100,91,0.1)') : 'transparent', color: active ? (val === 'present' ? 'var(--green, #6f9a7e)' : 'var(--red, #b0645b)') : 'var(--text-muted, #6b6d82)' }}>
@@ -1305,7 +1309,7 @@ function ItemCard({ itemConfig, card, cardIdx, totalCards, isOpen, onToggle, onU
         {/* AC Point not present — no further fields */}
         {isAcPoint && acProvision === 'not_present' ? (
           <div style={{ padding: '12px 16px', background: 'var(--bg-input, #252731)', borderRadius: 8, border: '1px dashed rgba(176,100,91,0.3)' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>Saved as no provision</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>No AC in this room — saved as N/A, kept off the estimate</div>
           </div>
         ) : effFS === 'not_available' ? (
           <NotAvailableNote value={card.notAvailableNote} onChange={v => onUpdate('notAvailableNote', v)} />
@@ -2113,7 +2117,7 @@ export default function InspectionIndoor() {
             const base       = { inspection_id: inspectionId, section_name: tab.label, area, item_name: itemConfig.label + suffix, trade: itemConfig.trade }
 
             if (itemConfig.key === 'acPoint' && (card.acProvision || 'present') === 'not_present') {
-              lineItemRows.push({ ...base, issue_description: 'No provision', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'no_provision' })
+              lineItemRows.push({ ...base, issue_description: 'No AC in this room', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available', fixture_status: 'not_available', excluded_from_estimate: true })
               mediaArrays.push(mediaFiles); proofMediaArrays.push([])
               return
             }
@@ -2177,7 +2181,7 @@ export default function InspectionIndoor() {
       })
     })
 
-    const VALID_COLS = new Set(['inspection_id','section_name','area','item_name','item_score','issue_description','trade','action','material_cost','labour_cost','notes','excluded_from_estimate','availability_status','fixture_status','qty','material_item_id','material_fxin','material_description','cost_type'])
+    const VALID_COLS = new Set(['inspection_id','section_name','area','item_name','item_score','issue_description','trade','action','material_cost','labour_cost','notes','excluded_from_estimate','availability_status','qty','material_item_id','material_fxin','material_description','cost_type'])
     const sanitized = lineItemRows.map(r => ({ id: uuid(), ...Object.fromEntries(Object.entries(r).filter(([k]) => VALID_COLS.has(k))) }))
     const media = []
     for (let i = 0; i < sanitized.length; i++) {

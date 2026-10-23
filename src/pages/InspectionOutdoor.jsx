@@ -1099,7 +1099,7 @@ export default function InspectionOutdoor() {
       })
     })
 
-    const VALID_COLS = new Set(['inspection_id','section_name','area','item_name','item_score','issue_description','trade','action','material_cost','labour_cost','notes','excluded_from_estimate','availability_status','fixture_status','qty','material_item_id','material_fxin','material_description','cost_type'])
+    const VALID_COLS = new Set(['inspection_id','section_name','area','item_name','item_score','issue_description','trade','action','material_cost','labour_cost','notes','excluded_from_estimate','availability_status','qty','material_item_id','material_fxin','material_description','cost_type'])
     const sanitized = lineItemRows.map(r => ({ id: uuid(), ...Object.fromEntries(Object.entries(r).filter(([k]) => VALID_COLS.has(k))) }))
     const media = []
     for (let i = 0; i < sanitized.length; i++) {

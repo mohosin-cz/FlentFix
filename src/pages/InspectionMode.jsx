@@ -98,7 +98,7 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
     // Attached Bathroom (b* prefix — toTitle gives "B Switchboard", "B Door")
     bSwitchboard: 'Switchboard', bDoor: 'Door',
     // Labels toTitle gets wrong
-    acPoint: 'AC Point', tvUnit: 'TV Unit',
+    acPoint: 'AC Inspection', tvUnit: 'TV Unit', wc: 'WC / Commode', cbWc: 'WC / Commode',
     tap: 'Tap / Basin Mixer', flush: 'Flush Mechanism', hotCold: 'Hot/Cold Mixer',
     ro: 'RO / Water Purifier', chimney: 'Chimney / Exhaust',
     grille: 'Grille / Railing', counter: 'Counter Surface',
@@ -111,7 +111,7 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
     mirrorLight: 'electrical', wmPoint: 'electrical', utilityLight: 'electrical',
     balconyLight: 'electrical',
     cbTap: 'plumbing', cbSh: 'plumbing', cbFl: 'plumbing', cbJs: 'plumbing',
-    cbHc: 'plumbing', tap: 'plumbing', shower: 'plumbing', flush: 'plumbing',
+    cbHc: 'plumbing', tap: 'plumbing', shower: 'plumbing', flush: 'plumbing', wc: 'plumbing', cbWc: 'plumbing',
     jetSpray: 'plumbing', hotCold: 'plumbing', wmInlet: 'plumbing', drain: 'plumbing',
     ro: 'plumbing', waterproofing: 'plumbing', sinkTap: 'plumbing',
     cbDr: 'woodwork', bDoor: 'woodwork', grille: 'woodwork',
@@ -176,6 +176,11 @@ function flattenIndoorDraftToRows(draft, inspectionId, rateMap = {}) {
           const suffix    = cards.length > 1 ? ` (${ci + 1})` : ''
           const itemTrade = secTrade || FIXTURE_TRADE[itemKey] || 'misc'
           const base      = { inspection_id: inspectionId, section_name: tabLabel, area, item_name: (KEY_LABELS[itemKey] || toTitle(itemKey)) + suffix, trade: itemTrade }
+          // no AC in the room: N/A, kept off the estimate (AC feasibility lives in Basics)
+          if (itemKey === 'acPoint' && card.acProvision === 'not_present') {
+            rows.push({ ...base, issue_description: 'No AC in this room', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available', excluded_from_estimate: true, _media: card.media || [] })
+            return
+          }
           if (!card.notAvailable && sel.length === 0) return
           if (card.notAvailable) {
             rows.push({ ...base, issue_description: card.notAvailableNote || 'Not available', material_cost: 0, labour_cost: 0, item_score: null, availability_status: 'not_available', _media: card.media || [] })
