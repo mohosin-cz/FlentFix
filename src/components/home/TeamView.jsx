@@ -212,19 +212,7 @@ export default function TeamView({ home, team, onViewDesk, onPickView, queue }) 
         </div>
 
         <div className="tv-col">
-          <Panel title="Money at risk">
-            <div className="tv-money">
-              {[['With landlords', t.money.with_landlords, 'undecided estimates, sent in 60 days'],
-                ['Approved, not invoiced', t.money.not_invoiced, 'final estimates with no invoice yet'],
-                ['Closed, no invoice', t.money.closed_no_invoice, 'approved value, last 30 days']].map(([k, m, h]) => (
-                <div key={k} style={{ border: `1px solid ${C.border}`, borderRadius: 9, padding: '11px 12px', background: C.bg, display: 'grid', gap: 4 }}>
-                  <span style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>{k}</span>
-                  <span style={{ fontSize: 21, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{inr(m?.value)}</span>
-                  <span style={{ fontSize: 12, color: C.dim }}>{m?.n || 0} propert{m?.n === 1 ? 'y' : 'ies'} · {h}</span>
-                </div>
-              ))}
-            </div>
-          </Panel>
+          <MoneyAtRisk money={t.money} navigate={navigate} />
 
           <ExploreFunnel f={t.funnel} calls={t.calls || []} people={people.map(p => p.email)} />
 
@@ -316,6 +304,80 @@ function ExploreFunnel({ f: f90, calls: calls90, people }) {
         ))}
         <div style={{ fontFamily: MONO, fontSize: 12, color: C.muted }}>A verdict is the visitor’s Accept / Reject in Pulse, or the outcome they recorded in Stage. Counts visits raised in the window.</div>
       </div>
+    </Panel>
+  )
+}
+
+// Money at risk: three buckets, each opening into its properties — the split,
+// whose they are, how long, and a straight link to the estimate or invoice.
+const MONEY = [
+  ['with_landlords', 'With landlords', 'undecided estimates, sent in 60 days'],
+  ['not_invoiced', 'Approved, not invoiced', 'final estimates with no invoice yet'],
+  ['closed_no_invoice', 'Closed, no invoice', 'approved value, last 30 days'],
+]
+const NO_INV = { no_billable_work: 'No billable work', landlord_paid_direct: 'Landlord paid directly', goodwill: 'Goodwill', other: 'Other' }
+const daysSince = (at) => at ? Math.max(0, Math.round((Date.now() - new Date(at).getTime()) / 86400000)) : null
+function MoneyAtRisk({ money, navigate }) {
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem('pulse.team.money') || '' } catch { return '' } })
+  useEffect(() => { try { localStorage.setItem('pulse.team.money', open) } catch { /* private window */ } }, [open])
+  const m = open ? money?.[open] : null
+  const items = m?.items || []
+  const max = Math.max(1, ...items.map(i => Number(i.value) || 0))
+  const link = { background: 'none', border: `1px solid ${C.border}`, borderRadius: 7, padding: '4px 9px', fontFamily: MONO, fontSize: 11.5, fontWeight: 700, color: C.dim, cursor: 'pointer', whiteSpace: 'nowrap' }
+  return (
+    <Panel title="Money at risk" meta={open ? 'tap the tile again to close' : 'tap a tile to see the properties in it'}>
+      <div className="tv-money">
+        {MONEY.map(([k, label, h]) => {
+          const b = money?.[k]
+          const on = open === k
+          return (
+            <button key={k} type="button" aria-expanded={on} onClick={() => setOpen(on ? '' : k)} disabled={!b?.n}
+              style={{ textAlign: 'left', border: `1px solid ${on ? C.accent : C.border}`, borderRadius: 9, padding: '11px 12px', background: on ? 'rgba(200,150,62,0.08)' : C.bg, display: 'grid', gap: 4, color: C.text, cursor: b?.n ? 'pointer' : 'default', fontFamily: MONO }}>
+              <span style={{ fontSize: 12, color: C.muted }}>{label}{b?.n ? (on ? ' ▾' : ' ▸') : ''}</span>
+              <span style={{ fontSize: 21, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{inr(b?.value)}</span>
+              <span style={{ fontSize: 12, color: C.dim }}>{b?.n || 0} propert{b?.n === 1 ? 'y' : 'ies'} · {h}</span>
+            </button>
+          )
+        })}
+      </div>
+      {open && (
+        <div className="tv-rows" style={{ borderTop: `1px solid ${C.border}` }}>
+          {items.length === 0 && <Empty>Nothing in this bucket.</Empty>}
+          {items.map(it => {
+            const v = Number(it.value) || 0
+            const share = m.value ? Math.round(100 * v / m.value) : 0
+            const d = daysSince(open === 'with_landlords' ? it.sent_at : open === 'not_invoiced' ? it.final_at : it.closed_at)
+            const facts = open === 'with_landlords'
+              ? [it.status === 'viewed' ? 'opened by the landlord' : it.status === 'partially_approved' ? 'partly approved' : 'not opened yet',
+                 d != null && `sent ${d === 0 ? 'today' : `${d}d ago`}`,
+                 it.approved ? `${inr(it.approved)} approved` : null,
+                 it.undecided ? `${it.undecided} item${it.undecided === 1 ? '' : 's'} undecided` : 'all decided']
+              : open === 'not_invoiced'
+                ? [d != null && `final ${d === 0 ? 'today' : `${d}d ago`}`, it.setup_closed_at ? 'setup closed' : 'setup not closed', it.draft_invoice ? 'draft invoice started' : 'no invoice yet']
+                : [NO_INV[it.reason] || it.reason, d != null && `closed ${d === 0 ? 'today' : `${d}d ago`}`, it.note]
+            return (
+              <div key={it.pid} style={{ padding: '10px 14px', display: 'grid', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => navigate(`/properties/${encodeURIComponent(it.pid)}`)}
+                    style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', color: C.text, fontFamily: MONO, fontSize: 13.5, fontWeight: 600, textAlign: 'left' }}>
+                    <span style={{ color: C.accent }}>{it.pid}</span>{clean(it.name, it.pid) && clean(it.name, it.pid) !== it.pid ? ` · ${clean(it.name, it.pid)}` : ''}
+                  </button>
+                  <span style={{ fontFamily: MONO, fontSize: 11.5, color: it.who ? C.muted : M.amber }}>{it.who ? first(it.who) : 'no owner'}</span>
+                  <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 14, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{inr(v)}</span>
+                  <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted, minWidth: 34, textAlign: 'right' }}>{share}%</span>
+                </div>
+                <span style={{ height: 5, borderRadius: 3, background: C.input, overflow: 'hidden' }}><i style={{ display: 'block', height: '100%', width: `${Math.round(100 * v / max)}%`, background: open === 'closed_no_invoice' ? M.red : M.amber }} /></span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ flex: '1 1 200px', fontFamily: MONO, fontSize: 11.5, color: C.dim }}>{facts.filter(Boolean).join(' · ')}</span>
+                  {it.estimate_id && <button type="button" style={link} onClick={() => navigate(`/estimate/${it.estimate_id}`)}>Estimate ›</button>}
+                  {open !== 'with_landlords' && it.inspection_id && <button type="button" style={link} onClick={() => navigate(`/invoice/${it.inspection_id}`)}>Invoice ›</button>}
+                  <button type="button" style={link} onClick={() => navigate(`/team/load?pid=${encodeURIComponent(it.pid)}`)}>Case ›</button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </Panel>
   )
 }
