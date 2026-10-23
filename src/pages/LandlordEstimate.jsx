@@ -1039,16 +1039,15 @@ export default function LandlordEstimate() {
                               {mainIsVid ? <VideoFrame url={mainUrl} className="le-media-main" style={{ background: '#000' }} /> : <>
                               <img src={mainSrc} alt="" aria-hidden="true" className="le-media-bd"
                                 onError={e => e.currentTarget.style.display = 'none'} />
+                              {/* the hero is the full photo: the _thumb is ~360px and went soft at
+                                  this size; the blurred backdrop keeps using the thumb */}
                               <img
-                                src={mainSrc}
+                                src={mainUrl}
                                 alt=""
                                 loading="lazy"
                                 decoding="async"
                                 className="le-media-main"
-                                onError={e => {
-                                  if (!mainIsVid) { e.currentTarget.src = mainUrl; e.currentTarget.onerror = null }
-                                  else e.currentTarget.style.display = 'none'
-                                }}
+                                onError={e => { e.currentTarget.src = mainSrc; e.currentTarget.onerror = null }}
                               />
                               </>}
                               {mainIsVid && <span className="le-media-chip">▶</span>}
