@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { NavBar, StepBar, Field, Input, CardToggle, PillGroup, StickyFooter, BtnPrimary } from '../components/ui'
 import { pidStatus, pidStatusMessage, purgeBinnedPid } from '../utils/pidStatus'
+import { useExploreLedger, typeFrom, layoutFrom } from '../components/explore/useExploreLedger'
 
 const INSPECTION_TYPES = [
   { value: 'exploratory', label: 'Exploratory',
@@ -22,6 +23,8 @@ const PROPERTY_TYPES = [
 
 const LAYOUTS = ['1 BHK', '2 BHK', '3 BHK', '4 BHK', '5 BHK']
 
+const sinceIso = () => { const d = new Date(); d.setDate(d.getDate() - 180); return d.toISOString().slice(0, 10) }
+
 function roomsForLayout(layout) {
   const n = parseInt(layout)
   const beds  = Array.from({ length: n }, (_, i) => n > 1 ? `Bedroom ${i + 1}` : 'Bedroom')
@@ -39,8 +42,26 @@ export default function NewInspection() {
   const [pid,            setPid]            = useState(() => searchParams.get('pid') || '')
   const exploreId = searchParams.get('explore')
   const [inspectionType, setInspectionType] = useState('')
-  const [propertyType,   setPropertyType]   = useState('')
-  const [layout,         setLayout]         = useState('')
+  // an accepted visit opened from the calendar arrives with Stage's type and layout
+  const [propertyType,   setPropertyType]   = useState(() => searchParams.get('type') || '')
+  const [layout,         setLayout]         = useState(() => searchParams.get('layout') || '')
+
+  // Accepted in Stage and not inspected yet: pick one and its PID, type and
+  // layout fill in, and the inspection carries on from that visit.
+  const [since] = useState(sinceIso)
+  const ledger = useExploreLedger(since, null)
+  const ready = useMemo(() => ledger.rows.filter(r => r.outcome === 'accepted' && !r.inspected), [ledger.rows])
+  const picked = ready.find(r => r.id === exploreId) || ledger.rows.find(r => r.id === exploreId) || null
+  const [allReady, setAllReady] = useState(false)
+  function pick(r) {
+    if (!r) { setSearchParams({}); return }
+    setSearchParams(r.pid ? { explore: r.id, pid: r.pid } : { explore: r.id })
+    setPid(r.pid || ''); setErrors({}); setHeld(null)
+    const t = typeFrom(r.property_type)
+    if (t) setPropertyType(t)
+    const l = layoutFrom(r.configuration)
+    if (l) setLayout(l)
+  }
   const [errors,         setErrors]         = useState({})
   // What is holding the PID, when something is. Kept apart from `errors`
   // because a PID in the bin is not a mistake to correct — it is a decision to
@@ -118,6 +139,40 @@ export default function NewInspection() {
 
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 100 }}>
         <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 28 }} className="animate-fadeUp">
+
+          {/* Accepted exploratory visits waiting for their first inspection */}
+          {(ready.length > 0 || picked) && (
+            <Field label={picked ? 'Inspecting an accepted property' : 'Accepted, ready to inspect'} hint={picked ? undefined : 'Pick one to fill in its details — or enter a PID below for anything else'}>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {(picked ? [picked] : allReady ? ready : ready.slice(0, 4)).map(r => {
+                  const on = picked?.id === r.id
+                  return (
+                    <button key={r.id} type="button" onClick={() => pick(on ? null : r)}
+                      style={{ textAlign: 'left', display: 'grid', gap: 3, padding: '12px 14px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
+                               border: `1px solid ${on ? 'var(--accent, #c8963e)' : 'var(--border, #2e3040)'}`, background: on ? 'rgba(200,150,62,0.10)' : 'var(--bg-panel, #1e2028)', color: 'var(--text, #e8e8f0)' }}>
+                      <span style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                        <b style={{ fontSize: 14 }}>{r.name || 'Unnamed'}</b>
+                        {r.configuration && <span style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)' }}>{r.configuration}</span>}
+                        <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 700, color: on ? 'var(--accent, #c8963e)' : '#6f9a7e' }}>{on ? '✓ Selected · tap to clear' : 'Accepted'}</span>
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>
+                        {r.pid ? `PID ${r.pid}` : 'No PID yet — enter it below'}
+                        {r.visitor ? ` · visited by ${r.visitor.split('@')[0]}` : ''}
+                        {r.decided_at ? ` · accepted ${new Date(r.decided_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}
+                      </span>
+                      {r.address && <span style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.address}</span>}
+                    </button>
+                  )
+                })}
+                {!picked && ready.length > 4 && (
+                  <button type="button" onClick={() => setAllReady(v => !v)}
+                    style={{ justifySelf: 'start', background: 'none', border: 0, padding: '2px 0', color: 'var(--accent, #c8963e)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {allReady ? 'Show fewer' : `Show all ${ready.length}`}
+                  </button>
+                )}
+              </div>
+            </Field>
+          )}
 
           {/* PID */}
           <Field label="Property ID (PID)" error={errors.pid} hint="Unique identifier for this property">

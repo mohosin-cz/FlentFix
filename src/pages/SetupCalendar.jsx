@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { first, copyText } from '../utils/explore'
 import HomeMark from '../components/HomeMark'
+import ExploreLedger from '../components/explore/ExploreLedger'
 
 // Calendar — dates first, and everything on it can be acted on where it sits.
 //
@@ -76,6 +77,7 @@ export default function SetupCalendar() {
   const [team, setTeam] = useState([])
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState(null)
+  const [allTime, setAllTime] = useState(false)   // Exploratory view: this month or everything
   useEffect(() => { try { localStorage.setItem('pulse.cal.groups', JSON.stringify(show)) } catch { /* private window */ } }, [show])
   useEffect(() => { if (!toast) return; const x = setTimeout(() => setToast(null), 3400); return () => clearTimeout(x) }, [toast])
   useEffect(() => { supabase.rpc('team_members').then(({ data }) => setTeam((data || []).filter(m => m.email.endsWith('@flent.in') && m.properties > 0))) }, [])
@@ -127,7 +129,7 @@ export default function SetupCalendar() {
   }
   function move(n) {
     setOpen(null)
-    if (view === 'month') { const a = parse(anchor); a.setMonth(a.getMonth() + n); setAnchor(toIso(a)); return }
+    if (view === 'month' || view === 'explore') { const a = parse(anchor); a.setMonth(a.getMonth() + n); setAnchor(toIso(a)); setAllTime(false); return }
     const s = add(sel, view === 'week' ? 7 * n : view === 'agenda' ? 21 * n : n); setSel(s); setAnchor(s.slice(0, 8) + '01')
   }
   const goToday = () => { setSel(t); setAnchor(t.slice(0, 8) + '01'); setOpen(null) }
@@ -151,7 +153,8 @@ export default function SetupCalendar() {
     )
   }
 
-  const title = view === 'month' ? parse(anchor).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  const title = view === 'explore' ? (allTime ? 'All time' : `Exploratory · ${parse(anchor).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}`)
+    : view === 'month' ? parse(anchor).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
     : view === 'week' ? `Week of ${nice(monday(sel))}` : view === 'agenda' ? `From ${nice(sel)}` : nice(sel, { weekday: 'long', day: 'numeric', month: 'long' })
   const seg = (items, value, set) => (
     <span style={{ display: 'inline-flex', border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
@@ -293,7 +296,7 @@ export default function SetupCalendar() {
           <div style={{ display: 'grid', gridTemplateColumns: phone ? 'minmax(0,1fr)' : 'minmax(0,1fr) minmax(280px, 330px)', gap: 12, alignItems: 'start', minWidth: 0 }}>
             <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', minWidth: 0, opacity: state.loading ? 0.7 : 1 }}>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '10px 12px', borderBottom: `1px solid ${C.border}` }}>
-                {seg(phone ? [['agenda', 'List'], ['month', 'Month'], ['day', 'Day']] : [['month', 'Month'], ['week', 'Week'], ['day', 'Day'], ['agenda', 'List']], view, (v) => { setView(v); setOpen(null) })}
+                {seg(phone ? [['agenda', 'List'], ['month', 'Month'], ['day', 'Day'], ['explore', 'Explore']] : [['month', 'Month'], ['week', 'Week'], ['day', 'Day'], ['agenda', 'List'], ['explore', 'Exploratory']], view, (v) => { setView(v); setOpen(null) })}
                 <span style={{ display: 'inline-flex', gap: 4 }}>
                   <button type="button" onClick={() => move(-1)} aria-label="Previous" style={btn()}>‹</button>
                   <button type="button" onClick={goToday} style={btn()}>Today</button>
@@ -306,14 +309,15 @@ export default function SetupCalendar() {
                   <option value="none">Unassigned</option>
                 </select>
               </div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', padding: '7px 12px', borderBottom: `1px solid ${C.border}` }}>
+              {view !== 'explore' && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', padding: '7px 12px', borderBottom: `1px solid ${C.border}` }}>
                 {GROUPS.map(([g, l, col]) => (
                   <button key={g} type="button" aria-pressed={on(g)} onClick={() => setShow(s => ({ ...s, [g]: !on(g) }))}
                     style={{ minHeight: 28, padding: '0 9px', borderRadius: 7, border: `1px solid ${on(g) ? col : C.border}`, background: 'transparent', color: on(g) ? col : C.muted, fontFamily: MONO, fontSize: 11, fontWeight: 700, cursor: 'pointer', opacity: on(g) ? 1 : 0.6 }}>{l}</button>
                 ))}
                 {!phone && <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10.5, color: C.muted }}>dashed = Stage plan or nobody yet · red edge = needs attention · ✓ = done</span>}
-              </div>
+              </div>}
               {state.error ? <div style={{ padding: 16, fontFamily: MONO, fontSize: 12.5, color: C.red }}>{/setup_calendar|does not exist|schema cache/i.test(state.error) ? 'The calendar appears once its migration is applied.' : state.error}</div>
+                : view === 'explore' ? <ExploreLedger from={anchor} to={toIso(new Date(parse(anchor).getFullYear(), parse(anchor).getMonth() + 1, 0))} who={who} allTime={allTime} setAllTime={setAllTime} />
                 : view === 'month' ? monthGrid : view === 'week' ? weekGrid : dayList(view === 'day' ? [sel] : days)}
             </section>
             <div style={{ position: phone ? 'static' : 'sticky', top: 'calc(env(safe-area-inset-top, 0px) + 70px)' }}>{side}</div>
