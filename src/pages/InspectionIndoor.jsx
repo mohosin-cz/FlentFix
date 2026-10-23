@@ -201,6 +201,7 @@ const APPLIANCE_FEASIBILITY = [
   { name: 'Washing Machine', scope: 'single'   },
   { name: 'Refrigerator',    scope: 'single'   },
   { name: 'Dryer',           scope: 'single'   },
+  { name: 'Gas Cylinder',    scope: 'single'   },
   { name: 'Exhaust Fan',     scope: 'bathroom' },
   { name: 'Geyser',          scope: 'bathroom' },
   { name: 'Air Conditioner', scope: 'livable'  },

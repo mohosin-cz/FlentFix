@@ -635,7 +635,7 @@ export default function PropertyDetail() {
 
                 {/* Appliance feasibility compact card */}
                 {feasibility.length > 0 && (() => {
-                  const SINGLETON_SHORT = { 'Washing Machine': 'WM', 'Refrigerator': 'Fridge', 'Dryer': 'Dryer', 'Air Conditioner': 'AC', 'Geyser': 'Geyser' }
+                  const SINGLETON_SHORT = { 'Washing Machine': 'WM', 'Refrigerator': 'Fridge', 'Dryer': 'Dryer', 'Air Conditioner': 'AC', 'Geyser': 'Geyser', 'Gas Cylinder': 'Gas' }
                   const feasIcon  = d => d === 'feasible' ? '✓' : d === 'not_feasible' ? '✗' : d === 'na' ? '—' : '?'
                   const feasColor = d => d === 'feasible' ? '#4dd9c0' : d === 'not_feasible' ? '#f87171' : '#6b6d82'
 
