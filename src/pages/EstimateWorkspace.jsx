@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { generateEstimate, reconcileEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
+import { generateEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
 import { generateInvoice } from '../utils/generateInvoice'
 import { sentAmount } from '../utils/estimateHelpers'
 import DisputeThread from '../components/DisputeThread'
@@ -187,16 +187,6 @@ export default function EstimateWorkspace() {
     navigate(`/estimate/${result.id}`)
   }
 
-  async function handleRegenerate(est) {
-    setGenerating(true); setGenError(null)
-    const inspId = await resolveInspectionWithData(pid)
-    if (!inspId) { setGenerating(false); setGenError('No inspection with data found.'); return }
-    const result = await reconcileEstimate(inspId, est.id)
-    setGenerating(false)
-    if (result.error) { setGenError(result.error); return }
-    await fetchAll()
-  }
-
   async function handleCreateInvoice() {
     if (!current?.id) return
     setCreating(true)
@@ -261,7 +251,7 @@ export default function EstimateWorkspace() {
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-sans)' }}>
 
       {/* ── Header ── */}
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 52, background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 10 }}>
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 52, background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 0, paddingTop: 'env(safe-area-inset-top, 0px)', boxSizing: 'content-box', zIndex: 10 }}>
         <HomeMark />
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
           <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em' }}>Estimate Workspace</span>
@@ -270,26 +260,10 @@ export default function EstimateWorkspace() {
           </span>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          {/* A final estimate is closed: no regen, no new version. */}
+          {/* Regen and + New live on the workbench, not here; this only marks a final estimate. */}
           {current?.locked && (
             <span style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 12px', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 6, fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>FINAL</span>
           )}
-          {current && !current.locked && (
-            <button
-              onClick={() => handleRegenerate(current)}
-              disabled={generating}
-              style={{ height: 34, padding: '0 12px', background: 'none', border: '1px solid var(--border, #2e3040)', borderRadius: 6, fontSize: 11, color: 'var(--text-muted, #6b6d82)', cursor: generating ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}
-            >
-              ↻ Regen
-            </button>
-          )}
-          {!current?.locked && <button
-            onClick={handleNewVersion}
-            disabled={generating}
-            style={{ height: 34, padding: '0 12px', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#000', cursor: generating ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', opacity: generating ? 0.7 : 1 }}
-          >
-            {generating ? '…' : '+ New'}
-          </button>}
         </div>
       </header>
 

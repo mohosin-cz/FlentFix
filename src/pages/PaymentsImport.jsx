@@ -210,7 +210,7 @@ export default function PaymentsImport() {
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg, #16171f)', color: 'var(--text, #e8e8f0)', fontFamily: SANS }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', minHeight: 52, background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 10 }}>
+      <header style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', minHeight: 52, background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 0, paddingTop: 'env(safe-area-inset-top, 0px)', boxSizing: 'content-box', zIndex: 10 }}>
         <HomeMark />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="pulse-title" style={{ fontSize: 15.5 }}>Import payments</div>

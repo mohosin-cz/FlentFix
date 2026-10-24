@@ -239,7 +239,7 @@ const s = {
     padding: '0 20px', height: 52,
     background: 'var(--bg-panel, #1e2028)',
     borderBottom: '1px solid var(--border, #2e3040)',
-    position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 10,
+    position: 'sticky', top: 0, paddingTop: 'env(safe-area-inset-top, 0px)', boxSizing: 'content-box', zIndex: 10,
   },
   backBtn: {
     width: 36, height: 36,
