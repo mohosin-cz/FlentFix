@@ -6,6 +6,7 @@ import App from './App.jsx'
 import { ThemeProvider } from './contexts/ThemeContext.jsx'
 import { registerAppSW } from './offline/sw-register'
 import OutboxBadge from './offline/OutboxBadge'
+import ViewOnlyBadge from './components/ViewOnlyBadge'
 
 // The app shell works offline from here on (public/sw.js); what the capture
 // flows write while dark waits in the outbox. The badge is mounted outside the
@@ -18,6 +19,7 @@ createRoot(document.getElementById('root')).render(
     <ThemeProvider>
       <App />
       <OutboxBadge />
+      <ViewOnlyBadge />
     </ThemeProvider>
   </StrictMode>,
 )
