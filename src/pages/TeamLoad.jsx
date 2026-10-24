@@ -10,7 +10,7 @@ import RecordTimeline from '../components/property/RecordTimeline'
 import MilestoneStrip from '../components/property/MilestoneStrip'
 import LandlordPanel from '../components/property/LandlordPanel'
 import ChangeOwnerModal from '../components/property/ChangeOwnerModal'
-import { isCosted } from '../utils/estimateHelpers'
+import { isCosted, sentAmount } from '../utils/estimateHelpers'
 import { liveRows, ownerOf, isCarried, bucketOf, teamLoad, firstName, WAITING } from '../utils/teamLoad'
 
 // Team load, worked from. Home's card says who is carrying how much; this
@@ -324,7 +324,7 @@ function useCaseFacts(pid, enabled) {
     if (!enabled) return undefined
     let alive = true
     Promise.all([
-      supabase.from('estimates').select('id, status, total, sent_at, locked, estimate_items(status, cost_type, material_cost, labour_cost, qty)')
+      supabase.from('estimates').select('id, status, total, sent_at, sent_total, locked, estimate_items(status, cost_type, material_cost, labour_cost, qty)')
         .eq('pid', pid).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('work_orders').select('id, work_order_items(status)').eq('pid', pid),
       supabase.from('landlord_invoices').select('status, total, landlord_invoice_items(id)').eq('pid', pid).order('created_at', { ascending: false }).limit(1).maybeSingle(),
@@ -336,7 +336,10 @@ function useCaseFacts(pid, enabled) {
       const woItems = (w.data || []).flatMap(o => o.work_order_items || [])
       setState({ loading: false, data: {
         estimate: e.data ? {
-          id: e.data.id, status: e.data.status, locked: e.data.locked, total: Number(e.data.total) || 0,
+          id: e.data.id, status: e.data.status, locked: e.data.locked,
+          // A sent estimate is shown at what went out; a draft at its running total.
+          total: e.data.status === 'draft' && !e.data.sent_at ? Number(e.data.total) || 0 : sentAmount(e.data, items),
+          sent: e.data.status !== 'draft' || !!e.data.sent_at,
           approved: items.filter(x => x.status === 'approved' && isCosted(x)).reduce((s, x) => s + val(x), 0),
           nApproved: items.filter(x => x.status === 'approved').length,
           nRejected: items.filter(x => x.status === 'rejected').length,
@@ -402,7 +405,7 @@ function CaseFile({ row, owner, isAdmin, onClose, onOwner, onChanged }) {
             <div className="tl-facts">
               <Fact to={est ? `/estimate/${est.id}` : `/properties/${encodeURIComponent(row.pid)}/estimates`} k="Estimate"
                 v={est ? (est.locked ? 'Final' : est.status === 'draft' ? 'Draft' : 'Sent') : 'None'}
-                sub={est ? `${inr(est.total)} · ${est.nApproved}/${est.n} approved` : 'not created yet'}
+                sub={est ? `${inr(est.total)}${est.sent ? ' sent' : ''} · ${est.nApproved}/${est.n} approved` : 'not created yet'}
                 note={est && !est.locked && est.status !== 'draft' ? (est.undecided ? `${est.undecided} awaiting a decision` : 'all decided — mark final') : est?.nRejected ? `${est.nRejected} dropped` : ''}
                 warn={!!est && !est.locked && est.undecided > 0} />
               <Fact to={`/properties/${encodeURIComponent(row.pid)}/work-orders`} k="Work orders"

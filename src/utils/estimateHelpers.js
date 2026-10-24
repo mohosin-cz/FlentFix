@@ -92,3 +92,14 @@ export function landlordNumbers(items) {
   for (const [, r] of order) for (const it of r.items) out.set(it.id, String(++n).padStart(2, '0'))
   return out
 }
+
+// What the landlord was sent, as opposed to estimates.total, which drops
+// rejected lines as decisions come in. sent_total is stamped by the database
+// on every send; without it (a read that didn't select it) every live costed
+// line counts, rejected ones included, because they were on what went out.
+export function sentAmount(estimate, items) {
+  if (estimate?.sent_total != null) return Number(estimate.sent_total) || 0
+  return (items || [])
+    .filter(i => !['removed', 'excluded'].includes(i.status) && isCosted(i))
+    .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (Number(i.qty) || 1), 0)
+}

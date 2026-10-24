@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { fmt, itemTot, getScore, barCol, ago, costKind, isCosted } from '../../utils/estimateHelpers'
+import { fmt, itemTot, getScore, barCol, ago, costKind, isCosted, sentAmount } from '../../utils/estimateHelpers'
 import { HIGH_VALUE_VIDEO_THRESHOLD } from '../../utils/proofVideo'
 
 // Four cards, one question each:
@@ -68,9 +68,13 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
     const money = (rows) => rows
       .filter(isCosted)
       .reduce((s, i) => s + ((parseFloat(i.material_cost) || 0) + (parseFloat(i.labour_cost) || 0)) * (i.qty || 1), 0)
-    const onTable     = money(live.filter(i => i.status !== 'rejected'))
+    // Measured against what was sent, not estimates.total: that one shrinks
+    // as lines are rejected, which made every estimate read "100% approved".
+    const sentVal     = sentAmount(estimate, items)
     const approvedVal = money(live.filter(i => i.status === 'approved'))
     const disputedVal = money(live.filter(i => i.status === 'disputed'))
+    const rejectedVal = money(live.filter(i => i.status === 'rejected'))
+    const pendingVal  = money(live.filter(i => !['approved', 'disputed', 'rejected'].includes(i.status)))
 
     return {
       live: n, approved, disputed, pending: n - approved - disputed,
@@ -79,9 +83,8 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
       // was only telling the first. Nine of twenty-one items approved reads as
       // 43%; if those nine are the cheap ones it is 17% of the bill, and the
       // number somebody needs before they order materials is the second one.
-      onTable, approvedVal, disputedVal,
-      pendingVal: Math.max(0, onTable - approvedVal - disputedVal),
-      valPct: onTable > 0 ? Math.round(approvedVal / onTable * 100) : 0,
+      sentVal, approvedVal, disputedVal, rejectedVal, pendingVal,
+      valPct: sentVal > 0 ? Math.round(approvedVal / sentVal * 100) : 0,
       firstViewed: estimate?.first_viewed_at || null,
       sinceFirst: ago(estimate?.first_viewed_at),
       lastViewed: views[0]?.created_at || null,
@@ -171,15 +174,19 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
               {v.disputed > 0 && <span style={{ color:'#b0645b' }}><b>{v.disputed}</b> disputed</span>}
               <span style={{ color:'var(--muted)' }}><b>{v.pending}</b> awaiting</span>
             </div>
-            {v.onTable > 0 && (
-              <div className="valrow" title={`₹${fmt(v.approvedVal)} approved · ₹${fmt(v.disputedVal)} disputed · ₹${fmt(v.pendingVal)} awaiting`}>
+            {v.sentVal > 0 && (
+              <div className="valrow" title={`₹${fmt(v.sentVal)} sent · ₹${fmt(v.approvedVal)} approved · ₹${fmt(v.rejectedVal)} rejected · ₹${fmt(v.disputedVal)} disputed · ₹${fmt(v.pendingVal)} awaiting`}>
                 <span className="valmain">
                   <b style={{ color:'#6fc47f' }}>₹{fmt(v.approvedVal)}</b>
-                  <span style={{ color:'var(--muted)' }}> of ₹{fmt(v.onTable)} approved</span>
+                  <span style={{ color:'var(--muted)' }}> approved of ₹{fmt(v.sentVal)} sent</span>
                 </span>
                 <span className="valpct" style={{ color: v.valPct === 100 ? 'var(--good)' : 'var(--ink2)' }}>{v.valPct}%</span>
-                {v.pendingVal > 0 && (
-                  <span className="valrest">₹{fmt(v.pendingVal)} still out{v.disputedVal > 0 ? ` · ₹${fmt(v.disputedVal)} disputed` : ''}</span>
+                {(v.rejectedVal > 0 || v.pendingVal > 0 || v.disputedVal > 0) && (
+                  <span className="valrest">{[
+                    v.rejectedVal > 0 && `₹${fmt(v.rejectedVal)} rejected`,
+                    v.pendingVal  > 0 && `₹${fmt(v.pendingVal)} still out`,
+                    v.disputedVal > 0 && `₹${fmt(v.disputedVal)} disputed`,
+                  ].filter(Boolean).join(' · ')}</span>
                 )}
               </div>
             )}

@@ -170,7 +170,7 @@ function EstimateWorkbenchInner() {
     setLoading(true)
     const [{ data: { user } }, { data: est }] = await Promise.all([
       supabase.auth.getUser(),
-      supabase.from('estimates').select('id,pid,inspection_id,status,notes,share_token,created_at,created_by,total,current_version,locked,locked_at,locked_by,first_viewed_at,approved_by_name,approved_at,sent_at').eq('id', id).maybeSingle(),
+      supabase.from('estimates').select('id,pid,inspection_id,status,notes,share_token,created_at,created_by,total,current_version,locked,locked_at,locked_by,first_viewed_at,approved_by_name,approved_at,sent_at,sent_total').eq('id', id).maybeSingle(),
     ])
     setUserEmail(user?.email || null)
     if (!est) { setError('Estimate not found'); setLoading(false); return }

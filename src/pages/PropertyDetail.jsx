@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import { logActivity } from '../utils/activityUtils'
+import { sentAmount } from '../utils/estimateHelpers'
 import { pidStatus, pidStatusMessage, purgeBinnedPid } from '../utils/pidStatus'
 import { realName } from '../utils/propertyName'
 import LogoSpinner from '../components/LogoSpinner'
@@ -390,7 +391,7 @@ export default function PropertyDetail() {
     if (!pid) return undefined
     let alive = true
     supabase.from('estimates')
-      .select('id, status, total, sent_at, estimate_items(status, cost_type, material_cost, labour_cost, qty)')
+      .select('id, status, total, sent_at, sent_total, estimate_items(status, cost_type, material_cost, labour_cost, qty)')
       .eq('pid', pid).order('created_at', { ascending: false }).limit(5)
       .then(({ data }) => {
         if (!alive || !data) return
@@ -398,7 +399,9 @@ export default function PropertyDetail() {
         const items = (sent?.estimate_items || []).filter(i => i.status !== 'removed')
         const approved = items.filter(i => i.status === 'approved' && i.cost_type !== 'nil' && i.cost_type !== 'no_cost')
           .reduce((t, i) => t + ((Number(i.material_cost) || 0) + (Number(i.labour_cost) || 0)) * (Number(i.qty) || 1), 0)
-        setEst(sent ? { total: Number(sent.total) || 0, approved, all: items.length > 0 && items.every(i => i.status === 'approved' || i.status === 'excluded'), draft: false }
+        // total is what was sent: estimates.total drops rejected lines, so
+        // "₹X of ₹Y sent" would otherwise always read as fully approved.
+        setEst(sent ? { total: sentAmount(sent, items), approved, all: items.length > 0 && items.every(i => i.status === 'approved' || i.status === 'excluded'), draft: false }
                     : data.length ? { draft: true, total: Number(data[0].total) || 0 } : null)
       })
     return () => { alive = false }

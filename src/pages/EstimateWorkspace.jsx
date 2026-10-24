@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { generateEstimate, reconcileEstimate, resolveInspectionWithData } from '../utils/generateEstimate'
 import { generateInvoice } from '../utils/generateInvoice'
+import { sentAmount } from '../utils/estimateHelpers'
 import DisputeThread from '../components/DisputeThread'
 import QueryThread from '../components/QueryThread'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -235,7 +236,9 @@ export default function EstimateWorkspace() {
     const approvedTotal = nonRemoved
       .filter(i => i.status === 'approved' && i.cost_type !== 'nil' && i.cost_type !== 'no_cost')
       .reduce((s, i) => s + ((i.material_cost || 0) + (i.labour_cost || 0)) * (i.qty || 1), 0)
-    return { count: nonRemoved.length, total: est?.total ?? 0, actualsCount, approved, disputed, pending, approvedTotal }
+    // What went out, so "approved of" doesn't shrink as lines are rejected.
+    const sentTotal = est && (est.sent_at || est.status !== 'draft') ? sentAmount(est, nonRemoved) : null
+    return { count: nonRemoved.length, total: est?.total ?? 0, sentTotal, actualsCount, approved, disputed, pending, approvedTotal }
   }
 
   // All events across all estimates, newest first
@@ -345,7 +348,7 @@ export default function EstimateWorkspace() {
                       {(stats.total || 0) > 0 ? `₹${stats.total.toLocaleString('en-IN')}` : '—'}
                     </div>
                     <div style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', marginTop: 2 }}>
-                      total estimate{stats.actualsCount > 0 ? ` · +${stats.actualsCount} on actuals` : ''}
+                      total estimate{stats.sentTotal != null && stats.sentTotal !== stats.total ? ` · ₹${stats.sentTotal.toLocaleString('en-IN')} sent` : ''}{stats.actualsCount > 0 ? ` · +${stats.actualsCount} on actuals` : ''}
                     </div>
                   </div>
                 </div>
@@ -372,7 +375,7 @@ export default function EstimateWorkspace() {
                   <div style={{ padding: '8px 20px', borderBottom: '1px solid var(--border, #2e3040)', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 10, color: '#4dd9c0', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700 }}>✓</span>
                     <span style={{ fontSize: 11, color: '#4dd9c0', fontFamily: 'var(--font-mono, monospace)' }}>
-                      Approved ₹{stats.approvedTotal.toLocaleString('en-IN')} of ₹{(stats.total || 0).toLocaleString('en-IN')}
+                      Approved ₹{stats.approvedTotal.toLocaleString('en-IN')} of ₹{(stats.sentTotal ?? stats.total ?? 0).toLocaleString('en-IN')} sent
                     </span>
                     <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
                       ({stats.approved}/{stats.count} items)
