@@ -170,13 +170,13 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
             </div>
             <div className="sbar" title={`${v.approved} approved · ${v.rejected} rejected · ${v.disputed} disputed · ${v.pending} awaiting`}>
               {v.approved > 0 && <i style={{ width:`${v.appPct}%`, background:'#5fae6e' }} />}
-              {v.rejected > 0 && <i style={{ width:`${v.rejPct}%`, background:'var(--faint)' }} />}
+              {v.rejected > 0 && <i style={{ width:`${v.rejPct}%`, background:'#e5534b' }} />}
               {v.disputed > 0 && <i style={{ width:`${v.disPct}%`, background:'var(--clay,#b0645b)' }} />}
               {v.pending  > 0 && <i style={{ width:`${v.penPct}%`, background:'var(--line2)' }} />}
             </div>
             <div className="slegend">
               <span style={{ color:'#6fc47f' }}><b>{v.approved}</b> approved</span>
-              {v.rejected > 0 && <span style={{ color:'var(--muted)' }}><b>{v.rejected}</b> rejected</span>}
+              {v.rejected > 0 && <span style={{ color:'#e5534b' }}><b>{v.rejected}</b> rejected</span>}
               {v.disputed > 0 && <span style={{ color:'#b0645b' }}><b>{v.disputed}</b> disputed</span>}
               {(v.pending > 0 || v.rejected === 0) && <span style={{ color:'var(--muted)' }}><b>{v.pending}</b> awaiting</span>}
             </div>
@@ -189,10 +189,10 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
                 <span className="valpct" style={{ color: v.valPct === 100 ? 'var(--good)' : 'var(--ink2)' }}>{v.valPct}%</span>
                 {(v.rejectedVal > 0 || v.pendingVal > 0 || v.disputedVal > 0) && (
                   <span className="valrest">{[
-                    v.rejectedVal > 0 && `₹${fmt(v.rejectedVal)} rejected`,
-                    v.pendingVal  > 0 && `₹${fmt(v.pendingVal)} still out`,
-                    v.disputedVal > 0 && `₹${fmt(v.disputedVal)} disputed`,
-                  ].filter(Boolean).join(' · ')}</span>
+                    v.rejectedVal > 0 && <span key="r" style={{ color:'#e5534b' }}>₹{fmt(v.rejectedVal)} rejected</span>,
+                    v.pendingVal  > 0 && <span key="p">₹{fmt(v.pendingVal)} still out</span>,
+                    v.disputedVal > 0 && <span key="d">₹{fmt(v.disputedVal)} disputed</span>,
+                  ].filter(Boolean).flatMap((x, i) => i ? [' · ', x] : [x])}</span>
                 )}
               </div>
             )}
