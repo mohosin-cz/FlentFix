@@ -161,6 +161,14 @@ function EstimateWorkbenchInner() {
   // and reading it after the fact meant locking an estimate left the shortcuts
   // still able to edit until something else re-ran the effect.
   const isLocked = !!estimate?.locked
+  // A final estimate is closed for everyone; the database refuses the write
+  // anyway (estimate_final_lock.sql), this just says so before trying.
+  const FINAL_MSG = 'This estimate is marked final — it can no longer be changed.'
+  function blockedFinal() {
+    if (!isLocked) return false
+    setSaveError({ text: FINAL_MSG, retry: null })
+    return true
+  }
 
   // ── Load ─────────────────────────────────────────────────────────────────────
 
@@ -224,6 +232,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function handleAddMedia(lineItemId, files) {
+    if (blockedFinal()) return
     for (const file of files) {
       const baseName = `workbench/${lineItemId}/${Date.now()}`
       let publicUrl
@@ -236,6 +245,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function handleDeleteMedia(m) {
+    if (blockedFinal()) return
     if (!window.confirm('Delete this file?')) return
     await supabase.from('line_item_media').delete().eq('id', m.id)
     const sp = m.url.split('/object/public/inspection-media/')[1]
@@ -244,6 +254,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function handleReplaceMedia(m, file) {
+    if (blockedFinal()) return
     const baseName = `workbench/${m.line_item_id}/${Date.now()}`
     let publicUrl
     try { publicUrl = await uploadMedia(supabase, file, baseName); if (!publicUrl) return }
@@ -256,6 +267,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function handleSetPrimary(lineItemId, target) {
+    if (blockedFinal()) return
     const list = mediaMap[lineItemId] || []
     if (list.length < 2) return
     const primary = list[0]
@@ -272,6 +284,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function handleAddProofVideo(lineItemId, file) {
+    if (blockedFinal()) return
     try {
       await validateProofVideo(file)
     } catch (err) {
@@ -304,6 +317,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function updateItem(itemId, updates) {
+    if (blockedFinal()) return
     const safe = {}
     for (const [k, v] of Object.entries(updates)) {
       if (VALID_COLUMNS.has(k)) safe[k] = v
@@ -340,6 +354,7 @@ function EstimateWorkbenchInner() {
   // ── Reorder / move-across-trade ───────────────────────────────────────────────
 
   async function saveSortBatch(changes) {
+    if (blockedFinal()) return
     // Only writes sort_order and optionally trade — never total_cost (GENERATED)
     await Promise.all(changes.map(({ id, sort_order, trade }) => {
       const upd = { sort_order }
@@ -355,6 +370,7 @@ function EstimateWorkbenchInner() {
   }
 
   function reorderWithinGroup(trade, fromId, toId) {
+    if (blockedFinal()) return
     if (fromId === toId) return
     const group = getGroupSorted(trade)
     const fromIdx = group.findIndex(i => i.id === fromId)
@@ -369,6 +385,7 @@ function EstimateWorkbenchInner() {
   }
 
   function moveItemInGroup(trade, itemId, direction) {
+    if (blockedFinal()) return
     const group = getGroupSorted(trade)
     const idx = group.findIndex(i => i.id === itemId)
     if (idx === -1) return
@@ -383,6 +400,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function moveAcrossTrade(itemId, newTrade) {
+    if (blockedFinal()) return
     const srcItem = items.find(i => i.id === itemId)
     if (!srcItem) return
     const oldTrade = srcItem.trade || ''
@@ -406,6 +424,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function duplicateItem(itemId) {
+    if (blockedFinal()) return
     const orig = items.find(i => i.id === itemId)
     if (!orig) return
     const { id: _, created_at: __, inspection_line_items: ___, ...rest } = orig
@@ -417,6 +436,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function removeItem(itemId) {
+    if (blockedFinal()) return
     const prevItem = items.find(i => i.id === itemId)
     setItems(p => p.map(i => i.id===itemId ? { ...i, status:'removed' } : i))
     const { error: err } = await supabase.from('estimate_items').update({ status:'removed' }).eq('id', itemId)
@@ -425,6 +445,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function restoreItem(itemId) {
+    if (blockedFinal()) return
     const prevItem = items.find(i => i.id === itemId)
     setItems(p => p.map(i => i.id===itemId ? { ...i, status:'pending' } : i))
     const { error: err } = await supabase.from('estimate_items').update({ status:'pending' }).eq('id', itemId)
@@ -433,6 +454,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function handleSelectMaterial(r) {
+    if (blockedFinal()) return
     const price = r ? invPrice(r) : 0
     const { data: newItem } = await supabase.from('estimate_items').insert({
       estimate_id: id, sort_order: maxSort(items)+1,
@@ -447,6 +469,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function handleSelectLabour(r) {
+    if (blockedFinal()) return
     if (!r) return
     const { data: newItem } = await supabase.from('estimate_items').insert({
       estimate_id: id, sort_order: maxSort(items)+1,
@@ -460,6 +483,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function saveNotes() {
+    if (blockedFinal()) return
     setSavingNotes(true)
     await supabase.from('estimates').update({ notes: notesDraft }).eq('id', id)
     setEstimate(p => ({ ...p, notes: notesDraft }))
@@ -468,6 +492,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function handleRegenerate() {
+    if (blockedFinal()) return
     if (!window.confirm('Regen: inserts missing items and marks removed ones. Your edits are preserved. Continue?')) return
     setGenerating(true)
     const inspId = estimate?.inspection_id || await resolveInspectionWithData(estimate?.pid)
@@ -584,6 +609,7 @@ function EstimateWorkbenchInner() {
   }
 
   async function handleSend() {
+    if (blockedFinal()) return
     if (sending) return
     setSending(true)
     setSendError(null)
@@ -700,6 +726,7 @@ function EstimateWorkbenchInner() {
   // Record the landlord's decision on a line (approved / rejected / back to
   // pending). Returns an error message, or null.
   async function decideItem(itemId, decision, note) {
+    if (isLocked) return FINAL_MSG
     const { error } = await supabase.rpc('estimate_staff_decide', { p_item_id: itemId, p_decision: decision, p_note: note || null })
     if (error) return error.message
     const now = new Date().toISOString()
@@ -1291,7 +1318,7 @@ function EstimateWorkbenchInner() {
                               else moveAcrossTrade(fId, dT)
                               dragRef.current = null; setDragOverId(null); setDragOverTrade(null)
                             }}>
-                            <div className="hnd" draggable={!needle}
+                            <div className="hnd" draggable={!needle && !isLocked} style={isLocked ? { visibility:'hidden' } : undefined}
                               onDragStart={e => { e.stopPropagation(); dragRef.current = { itemId: item.id, trade: item.trade || '' }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', item.id) }}
                               onDragEnd={() => { dragRef.current = null; setDragOverId(null); setDragOverTrade(null) }}>⠿</div>
                             <div className="sl">{slNo.get(item.id)}</div>
@@ -1358,18 +1385,18 @@ function EstimateWorkbenchInner() {
                             <div>{lcell(item)}</div>
                             <div><span className="num">{item.qty || 1}</span></div>
                             <div>{tcell(item)}</div>
-                            <TypeSeg type={type} onSet={t => updateItem(item.id, { cost_type: dbType(t) })} />
+                            <TypeSeg type={type} disabled={isLocked} onSet={t => updateItem(item.id, { cost_type: dbType(t) })} />
                             <MediaCell
                               media={media}
                               onOpen={() => setPinnedId(p => p===item.id ? null : item.id)}
                             />
                             <div>
-                              <button className="kb"
+                              {!isLocked && <button className="kb"
                                 onClick={e => {
                                   e.stopPropagation()
                                   const rect = e.currentTarget.getBoundingClientRect()
                                   setCtxMenu({ itemId:item.id, status:item.status, trade:item.trade||'', x:rect.right-148, y:rect.bottom+4 })
-                                }}>⋯</button>
+                                }}>⋯</button>}
                             </div>
                           </div>
                         )
@@ -1428,7 +1455,7 @@ function EstimateWorkbenchInner() {
       {saveError && (
         <div role="alert" style={{ position:'fixed', left:'50%', bottom:'calc(20px + env(safe-area-inset-bottom, 0px))', transform:'translateX(-50%)', zIndex:300, maxWidth:'min(92vw, 640px)', display:'flex', gap:10, alignItems:'center', padding:'10px 12px', borderRadius:10, background:'#3a1f1c', border:'1px solid #b0645b', color:'#f3d6d1', fontFamily:'var(--sans)', fontSize:13, boxShadow:'0 8px 24px rgba(0,0,0,.4)' }}>
           <span style={{ flex:1, lineHeight:1.45 }}>{saveError.text}</span>
-          <button type="button" onClick={saveError.retry} style={{ minHeight:32, padding:'0 12px', borderRadius:7, border:'1px solid #b0645b', background:'transparent', color:'#f3d6d1', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Try again</button>
+          {saveError.retry && <button type="button" onClick={saveError.retry} style={{ minHeight:32, padding:'0 12px', borderRadius:7, border:'1px solid #b0645b', background:'transparent', color:'#f3d6d1', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>Try again</button>}
           <button type="button" onClick={() => setSaveError(null)} aria-label="Dismiss" style={{ minHeight:32, padding:'0 8px', border:0, background:'transparent', color:'#f3d6d1', cursor:'pointer' }}>✕</button>
         </div>
       )}

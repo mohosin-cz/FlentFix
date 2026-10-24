@@ -282,7 +282,7 @@ export default function ItemDrawer({
         {/* Type */}
         <div className="sec">
           <span className="ey">Type · <span style={{ color:'var(--faint)' }}>P / A / N</span></span>
-          <TypeSeg type={type} onSet={readOnly ? () => {} : t => onUpdate(item.id, { cost_type: dbType(t) })} stopProp={false} />
+          <TypeSeg type={type} disabled={readOnly} onSet={readOnly ? () => {} : t => onUpdate(item.id, { cost_type: dbType(t) })} stopProp={false} />
         </div>
 
         {/* Exclude toggle */}
@@ -313,7 +313,8 @@ export default function ItemDrawer({
             <span className="ey">Dispute</span>
             <div className="disp-box">
               <div className="who">Landlord dispute · open</div>
-              <DisputeThread itemId={item.id} estimateId={estimateId} item={item} userEmail={userEmail} onResolve={() => {}} />
+              {/* No user → read-only thread: a final estimate takes no replies. */}
+              <DisputeThread itemId={item.id} estimateId={estimateId} item={item} userEmail={readOnly ? null : userEmail} onResolve={() => {}} />
             </div>
           </div>
         )}
@@ -327,7 +328,7 @@ export default function ItemDrawer({
               itemId={item.id}
               estimateId={estimateId}
               item={item}
-              userEmail={userEmail}
+              userEmail={readOnly ? null : userEmail}
             />
           </div>
         </div>

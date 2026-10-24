@@ -77,9 +77,11 @@ export function MediaLightbox({ urls, idx, onClose }) {
 
 // ─── TypeSeg ─────────────────────────────────────────────────────────────────
 
-export function TypeSeg({ type, onSet, stopProp = true }) {
+export function TypeSeg({ type, onSet, stopProp = true, disabled = false }) {
+  if (disabled) onSet = () => {}
   return (
-    <div className="seg" onClick={stopProp ? e => e.stopPropagation() : undefined}>
+    <div className="seg" onClick={stopProp ? e => e.stopPropagation() : undefined}
+      style={disabled ? { opacity:.55, pointerEvents:'none' } : undefined} aria-disabled={disabled || undefined}>
       <b className={type === 'priced' ? 'on' : ''} onClick={() => onSet('priced')}>Priced</b>
       <b className={type === 'actual' ? 'on t' : ''} onClick={() => onSet('actual')}>Actual</b>
       <b className={type === 'none' ? 'on n' : ''} onClick={() => onSet('none')}>None</b>

@@ -270,7 +270,11 @@ export default function EstimateWorkspace() {
           </span>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          {current && (
+          {/* A final estimate is closed: no regen, no new version. */}
+          {current?.locked && (
+            <span style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 12px', border: '1px solid rgba(200,150,62,0.35)', borderRadius: 6, fontSize: 11, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}>FINAL</span>
+          )}
+          {current && !current.locked && (
             <button
               onClick={() => handleRegenerate(current)}
               disabled={generating}
@@ -279,13 +283,13 @@ export default function EstimateWorkspace() {
               ↻ Regen
             </button>
           )}
-          <button
+          {!current?.locked && <button
             onClick={handleNewVersion}
             disabled={generating}
             style={{ height: 34, padding: '0 12px', background: 'var(--accent, #c8963e)', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#000', cursor: generating ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', opacity: generating ? 0.7 : 1 }}
           >
             {generating ? '…' : '+ New'}
-          </button>
+          </button>}
         </div>
       </header>
 
