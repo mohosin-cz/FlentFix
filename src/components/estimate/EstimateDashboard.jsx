@@ -61,6 +61,10 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
     const n = live.length
     const approved = live.filter(i => i.status === 'approved').length
     const disputed = live.filter(i => i.status === 'disputed').length
+    // Rejected is a decision, not a wait — counting it as awaiting made a
+    // closed estimate look half-open.
+    const rejected = live.filter(i => i.status === 'rejected').length
+    const pending  = n - approved - disputed - rejected
     const pct = (x) => (n > 0 ? Math.round(x / n * 100) : 0)
 
     // The same arithmetic the Totals card uses, so the two cards cannot
@@ -77,8 +81,8 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
     const pendingVal  = money(live.filter(i => !['approved', 'disputed', 'rejected'].includes(i.status)))
 
     return {
-      live: n, approved, disputed, pending: n - approved - disputed,
-      appPct: pct(approved), disPct: pct(disputed), penPct: pct(n - approved - disputed),
+      live: n, approved, disputed, rejected, pending,
+      appPct: pct(approved), disPct: pct(disputed), rejPct: pct(rejected), penPct: pct(pending),
       // Counted decisions and agreed money are not the same story and the card
       // was only telling the first. Nine of twenty-one items approved reads as
       // 43%; if those nine are the cheap ones it is 17% of the bill, and the
@@ -164,15 +168,17 @@ export default function EstimateDashboard({ items, mediaMap, openQueryCount = 0,
               <span className="condnum" style={{ color: v.appPct === 100 ? 'var(--good)' : v.disputed > 0 ? 'var(--clay,#b0645b)' : 'var(--ink)', fontSize:18 }}>{v.appPct}%</span>
               <span className="dist">{v.approved}/{v.live} approved</span>
             </div>
-            <div className="sbar" title={`${v.approved} approved · ${v.disputed} disputed · ${v.pending} awaiting`}>
+            <div className="sbar" title={`${v.approved} approved · ${v.rejected} rejected · ${v.disputed} disputed · ${v.pending} awaiting`}>
               {v.approved > 0 && <i style={{ width:`${v.appPct}%`, background:'#5fae6e' }} />}
+              {v.rejected > 0 && <i style={{ width:`${v.rejPct}%`, background:'var(--faint)' }} />}
               {v.disputed > 0 && <i style={{ width:`${v.disPct}%`, background:'var(--clay,#b0645b)' }} />}
               {v.pending  > 0 && <i style={{ width:`${v.penPct}%`, background:'var(--line2)' }} />}
             </div>
             <div className="slegend">
               <span style={{ color:'#6fc47f' }}><b>{v.approved}</b> approved</span>
+              {v.rejected > 0 && <span style={{ color:'var(--muted)' }}><b>{v.rejected}</b> rejected</span>}
               {v.disputed > 0 && <span style={{ color:'#b0645b' }}><b>{v.disputed}</b> disputed</span>}
-              <span style={{ color:'var(--muted)' }}><b>{v.pending}</b> awaiting</span>
+              {(v.pending > 0 || v.rejected === 0) && <span style={{ color:'var(--muted)' }}><b>{v.pending}</b> awaiting</span>}
             </div>
             {v.sentVal > 0 && (
               <div className="valrow" title={`₹${fmt(v.sentVal)} sent · ₹${fmt(v.approvedVal)} approved · ₹${fmt(v.rejectedVal)} rejected · ₹${fmt(v.disputedVal)} disputed · ₹${fmt(v.pendingVal)} awaiting`}>

@@ -293,10 +293,11 @@ export const CSS = `
 .sbar i{display:block;height:100%}
 .sbar i+i{box-shadow:inset 1px 0 0 var(--panel)}
 .slegend{display:flex;gap:5px 13px;flex-wrap:wrap;font-family:var(--mono);font-size:10px;margin-top:8px}
-.valrow{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
-.valmain{font-family:var(--mono);font-size:12.5px;letter-spacing:-.01em}
-.valpct{font-family:var(--mono);font-size:11px;font-weight:700;margin-left:auto}
-.valrest{font-family:var(--mono);font-size:10px;color:var(--faint);flex-basis:100%}
+.valrow{display:flex;align-items:baseline;gap:6px 10px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.valmain{font-family:var(--mono);font-size:13px;letter-spacing:-.01em;line-height:1.35}
+.valmain b{font-size:17px;font-weight:700}
+.valpct{font-family:var(--mono);font-size:15px;font-weight:700;margin-left:auto}
+.valrest{font-family:var(--mono);font-size:12px;color:var(--muted);flex-basis:100%;line-height:1.5}
 .ownerfoot{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:8px;line-height:1.55}
 .slegend b{font-weight:700}
 .sfilter{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
