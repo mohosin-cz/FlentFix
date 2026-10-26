@@ -157,11 +157,13 @@ export default function ExploreRecord() {
       case 'explore_stale':
         return <span style={{ fontSize: 14, color: C.dim }}><b>{thread.label}</b> — supply should close or update it in Stage.</span>
       case 'explore_create_pid': {
-        const pid = (thread.next_action_route.match(/pid=([^&]+)/) || [])[1]
+        // Stage's PID is only a hint; the PID box starts empty and a person
+        // types the PID in, since buildings share names.
+        const route = thread.next_action_route.replace(/([?&])pid=[^&]*(&|$)/, (_, a, b) => (b ? a : '')).replace(/[?&]$/, '')
         return (
           <>
             <span style={{ flex: '1 1 260px', fontSize: 14 }}><b>{thread.label}</b></span>
-            <button style={btn('primary')} onClick={() => navigate(thread.next_action_route)}>{pid ? `Create PID ${decodeURIComponent(pid)} ›` : 'Create the PID ›'}</button>
+            <button style={btn('primary')} onClick={() => navigate(route)}>Create the PID ›</button>
           </>)
       }
       case 'explore_link':

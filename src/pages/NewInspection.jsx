@@ -156,7 +156,7 @@ export default function NewInspection() {
                         <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 700, color: on ? 'var(--accent, #c8963e)' : '#6f9a7e' }}>{on ? '✓ Selected · tap to clear' : 'Accepted'}</span>
                       </span>
                       <span style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>
-                        {r.pid ? `PID ${r.pid}` : 'No PID yet — enter it below'}
+                        {r.pid ? `PID ${r.pid}` : `No PID yet — enter it below${r.suggested_pid ? ` (maybe PID ${r.suggested_pid} — check)` : ''}`}
                         {r.visitor ? ` · visited by ${r.visitor.split('@')[0]}` : ''}
                         {r.decided_at ? ` · accepted ${new Date(r.decided_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}
                       </span>

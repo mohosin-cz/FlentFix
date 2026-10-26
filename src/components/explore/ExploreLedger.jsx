@@ -146,8 +146,14 @@ export default function ExploreLedger({ from, to, who = 'all', allTime, setAllTi
                   {o.label}{r.decided_at ? ` · ${nice(r.decided_at)}` : ''}
                 </span>
                 <span style={{ fontFamily: MONO, fontSize: 11.5, color: r.pid ? C.dim : C.muted }}>
-                  {r.pid ? <>PID <b style={{ color: C.accent }}>{r.pid}</b> · {SOURCE[r.pid_source] || ''}{r.inspected ? ' · inspected' : ''}</> : r.outcome === 'accepted' ? 'no PID yet' : ''}
+                  {r.pid ? <>PID <b style={{ color: C.accent }}>{r.pid}</b> · {SOURCE[r.pid_source] || ''}{r.inspected ? ' · inspected' : ''}</> : r.outcome === 'accepted' ? 'no PID yet — assign it on the request' : ''}
                 </span>
+                {/* A name match is only a hint: Pulse never sets the PID itself. */}
+                {!r.pid && r.suggested_pid && (
+                  <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }} title="Matched by building name only — check it is the same property before linking">
+                    maybe PID {r.suggested_pid}{r.suggested_name ? ` · ${r.suggested_name}` : ''} — check
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <button type="button" style={act} onClick={() => navigate(`/explore/${r.id}`)}>Request ›</button>
