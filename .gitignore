@@ -36,3 +36,6 @@ Flent Holy Grail*.xlsx
 
 # Holy Grail import address cache (property coordinates)
 scripts/.holy-grail-geo.json
+
+# Holy Grail exports carry landlord PANs — never commit
+HG - *.csv
