@@ -17,6 +17,11 @@ import PdfButton from './PdfButton'
 // Older months stay for reference with a receipt once the money has gone.
 
 const MONO = 'var(--font-mono, monospace)'
+// The portal page (Attend) is itself a fixed layer at z-index 10000. These
+// sheets are mounted on <body> (so printing works), which puts them beside it,
+// not inside it — they must sit above it or they open invisibly behind.
+// data-theme keeps the portal's dark look outside its FixedTheme wrapper.
+const OVER_PORTAL = 10000
 
 function Row({ label, value, strong, tone }) {
   return (
@@ -80,7 +85,7 @@ function Receipt({ m, name, onClose }) {
   // Mounted on <body> itself: the print rule hides every other child of the
   // body, and inside the app's root it hid the receipt too (a blank page).
   return createPortal(
-    <div className="rcpt-root" style={{ position: 'fixed', inset: 0, zIndex: 1400, background: 'rgba(8,9,13,0.9)', overflowY: 'auto', padding: '16px 12px' }}
+    <div className="rcpt-root" data-theme="dark" style={{ position: 'fixed', inset: 0, zIndex: OVER_PORTAL + 20, background: 'rgba(8,9,13,0.9)', overflowY: 'auto', padding: '16px 12px' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <style>{`@media print { body > *:not(.rcpt-root) { display:none !important } .rcpt-root { position:static !important; background:#fff !important; overflow:visible !important; padding:0 !important } .rcpt-bar { display:none !important } }`}</style>
       <div style={{ maxWidth: 460, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -256,7 +261,7 @@ function SignSheet({ month, token, vendorName, onClose, onSigned }) {
   // Mounted on <body> so the print rule (hide every other child of the body)
   // leaves the invoice showing — inside the app's root it printed blank.
   return createPortal(
-    <div className="pinv-root" style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'var(--bg, #16171f)', overflowY: 'auto' }}>
+    <div className="pinv-root" data-theme="dark" style={{ position: 'fixed', inset: 0, zIndex: OVER_PORTAL + 10, background: 'var(--bg, #16171f)', overflowY: 'auto' }}>
       <div className="pinv-bar" style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', paddingTop: 'max(10px, env(safe-area-inset-top))', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
         <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>
           {signed ? 'Your signed invoice' : 'Review & sign'}
