@@ -752,10 +752,16 @@ export default function LandlordInvoice() {
     if (final && lineItems.filter(l => (l.description || '').trim() || Number(l.unit_price || 0)).length === 0) {
       setNotice({ tone: 'err', text: 'Add at least one line before finalising.' }); return
     }
-    // a ₹0 line is almost always an actuals cost nobody filled in
+    // A ₹0 invoice (or ₹0 line) is allowed — sometimes the landlord owes
+    // nothing. It's often an actuals cost nobody filled in, though, so say
+    // which lines and ask once rather than refuse.
     const zero = lineItems.map((l, i) => [i + 1, (Number(l.qty) || 1) * (Number(l.unit_price) || 0)]).filter(([, a]) => !a).map(([n]) => String(n).padStart(2, '0'))
     if (final && zero.length) {
-      setNotice({ tone: 'err', text: `Line${zero.length > 1 ? 's' : ''} ${zero.join(', ')} ${zero.length > 1 ? 'have' : 'has'} no amount — enter the cost or remove ${zero.length > 1 ? 'them' : 'it'}, then finalise.` }); return
+      const all = zero.length === lineItems.length
+      const msg = all
+        ? 'This invoice totals ₹0. Finalise it at ₹0?'
+        : `Line${zero.length > 1 ? 's' : ''} ${zero.join(', ')} ${zero.length > 1 ? 'are' : 'is'} at ₹0. Finalise anyway?`
+      if (!window.confirm(msg)) return
     }
     setFinalising(true)
     const next = final ? 'sent' : 'draft'
