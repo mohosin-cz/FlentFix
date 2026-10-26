@@ -60,16 +60,11 @@ export async function pidStatus(pid) {
 export async function purgeBinnedPid(pid) {
   const v = String(pid ?? '').trim()
   if (!v) return { error: 'No PID given' }
-  for (const q of [
-    supabase.from('inspections').delete().eq('pid', v),
-    supabase.from('properties').delete().eq('pid', v),
-    supabase.from('properties_bin').delete().eq('pid', v),
-    supabase.from('quick_notes').delete().eq('pid', v),
-  ]) {
-    const { error } = await q
-    if (error) return { error: error.message }
-  }
-  return { error: null }
+  // One database call clears the whole tree — invoices, work orders, estimates,
+  // inspections, the property — in an order the foreign keys accept. Deleting
+  // inspections alone failed for any property with an estimate. Payments stay.
+  const { data, error } = await supabase.rpc('purge_binned_pid', { p_pid: v })
+  return { error: error ? error.message : null, removed: data || null }
 }
 
 // Bring a binned property back into the list, exactly as the bin does.

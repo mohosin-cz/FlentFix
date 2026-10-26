@@ -168,7 +168,7 @@ export default function PropertyBin() {
       {modal?.type === 'delete' && (
         <ConfirmModal
           title={`Permanently delete PID${modal.pid}?`}
-          body={<>All data for <strong style={{ color: 'var(--text, #e8e8f0)' }}>PID{modal.pid}</strong> will be erased forever. This cannot be undone.</>}
+          body={<>Everything for <strong style={{ color: 'var(--text, #e8e8f0)' }}>PID {modal.pid}</strong> — inspections, estimates, work orders and invoices — will be erased forever, and the PID freed. Payment records stay in the books. This cannot be undone.</>}
           confirmLabel="Delete forever"
           confirmStyle={{ background: 'rgba(176,100,91,0.15)', border: '1px solid rgba(176,100,91,0.4)', color: '#b0645b' }}
           onConfirm={handlePermanentDelete}
