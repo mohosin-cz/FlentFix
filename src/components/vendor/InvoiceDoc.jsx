@@ -50,13 +50,15 @@ function Total({ label, value, strong, negative }) {
   )
 }
 
-export default function InvoiceDoc({ data, signature, signedName, signedAt, compact }) {
+export default function InvoiceDoc({ data, signature, signedName, signedAt, compact, forceDesktop = false }) {
   // A4 proportions are a desktop habit. This is opened on a phone, from a
   // WhatsApp message, by someone standing outside a flat — so on a narrow
   // screen the document reflows rather than shrinking: the two parties stack,
   // the row number column goes (it numbers three lines nobody refers to), and
   // the PID moves under its description instead of fighting for a column.
-  const phone = useIsMobile(560)
+  // forceDesktop: the PDF copy is always the full A4 layout, whatever the screen.
+  const narrow = useIsMobile(560)
+  const phone = narrow && !forceDesktop
   if (!data) return null
   const from = data.from || {}
   const to = data.bill_to || {}
@@ -64,8 +66,9 @@ export default function InvoiceDoc({ data, signature, signedName, signedAt, comp
   const pad = phone ? 16 : compact ? 20 : 34
 
   return (
-    <div style={{ background: PAPER, color: INK, fontFamily: SANS, borderRadius: 10, padding: pad,
-      boxShadow: '0 10px 40px rgba(0,0,0,0.28)', maxWidth: 760, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+    <div style={{ background: PAPER, color: INK, fontFamily: SANS, borderRadius: forceDesktop ? 0 : 10, padding: pad,
+      // no shadow in the PDF copy: html2canvas paints it as a grey wash over the page
+      boxShadow: forceDesktop ? 'none' : '0 10px 40px rgba(0,0,0,0.28)', maxWidth: 760, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
       {/* masthead */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap', paddingBottom: 18, borderBottom: `2px solid ${INK}` }}>

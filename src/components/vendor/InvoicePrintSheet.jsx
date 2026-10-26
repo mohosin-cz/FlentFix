@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import InvoiceDoc from './InvoiceDoc'
 import { monthLabel } from '../../utils/vendorInvoice'
 
@@ -22,14 +23,16 @@ export default function InvoicePrintSheet({ period, rows, onClose }) {
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('afterprint', after) }
   }, [onClose])
 
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1500, background: '#3a3d52', overflowY: 'auto' }}>
+  // Mounted on <body>: the print rule hides every other child of the body, and
+  // from inside the app's root it hid this sheet too — the PDF came out blank.
+  return createPortal(
+    <div className="inv-print-root" style={{ position: 'fixed', inset: 0, zIndex: 1500, background: '#3a3d52', overflowY: 'auto' }}>
       <style>{`
         @media print {
           /* Only the sheet prints. The app's own chrome, nav and any open
              overlay are hidden by the same rule the other print views use. */
           body > *:not(.inv-print-root) { display: none !important; }
-          .inv-print-root { position: static !important; background: #fff !important; overflow: visible !important; }
+          .inv-print-root { position: static !important; background: #fff !important; overflow: visible !important; inset: auto !important; }
           .inv-print-bar { display: none !important; }
           .inv-print-page { break-after: page; page-break-after: always; padding: 0 !important; }
           .inv-print-page:last-child { break-after: auto; page-break-after: auto; }
@@ -38,7 +41,7 @@ export default function InvoicePrintSheet({ period, rows, onClose }) {
         @page { size: A4; margin: 14mm; }
       `}</style>
 
-      <div className="inv-print-root" style={{ minHeight: '100%' }}>
+      <div style={{ minHeight: '100%' }}>
         <div className="inv-print-bar" style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
           <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>
             {rows.length === 1
@@ -73,6 +76,7 @@ export default function InvoicePrintSheet({ period, rows, onClose }) {
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

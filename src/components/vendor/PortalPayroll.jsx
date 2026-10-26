@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../../lib/supabase'
 import InvoiceDoc from './InvoiceDoc'
 import SignaturePad from './SignaturePad'
 import { inr, monthLabel, dateLabel } from '../../utils/vendorInvoice'
 import PortalAdvances from './PortalAdvances'
+import PdfButton from './PdfButton'
 
 // The vendor's own payroll, inside the portal they already sign into daily.
 //
@@ -35,6 +37,39 @@ function Badge({ children, tone }) {
 // ── receipt: proof the money actually went out ───────────────────────────────
 // Only for a closed month with a reference recorded. A "receipt" for something
 // still being reviewed would be a promise dressed up as a record.
+// The receipt itself — on screen and in the PDF.
+function ReceiptCard({ m, name }) {
+  return (
+  <div style={{ background: '#fff', color: '#1a1c23', borderRadius: 10, padding: 24, fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}>
+    <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: '0.14em' }}>PAYMENT RECEIPT</div>
+    <div style={{ fontSize: 11.5, color: '#6b7280', fontFamily: MONO, marginTop: 3 }}>{monthLabel(m.period_month)}</div>
+    <div style={{ height: 2, background: '#1a1c23', margin: '14px 0 16px' }} />
+
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: 12.5, fontFamily: MONO }}>
+      {[['Paid to', name], ['For', monthLabel(m.period_month)],
+        ['Days worked', m.days_worked == null ? '—' : String(m.days_worked)],
+        ...(Number(m.ot_days) ? [['Overtime days', String(m.ot_days)]] : []),
+        ...(Number(m.advance_recovered) ? [['Less: advance', '− ' + inr(m.advance_recovered)]] : []),
+        ...(m.utr ? [['Reference', m.utr]] : []),
+        ...(m.invoice?.invoice_no ? [['Against invoice', m.invoice.invoice_no]] : [])].map(([k, val]) => (
+        <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}>
+          <span style={{ color: '#6b7280' }}>{k}</span>
+          <span style={{ fontWeight: 600, textAlign: 'right' }}>{val}</span>
+        </div>
+      ))}
+    </div>
+
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 14, borderTop: '1.5px solid #1a1c23', marginTop: 14, paddingTop: 11 }}>
+      <span style={{ fontSize: 13, fontWeight: 700 }}>Amount paid</span>
+      <span style={{ fontSize: 19, fontWeight: 800, fontFamily: MONO }}>{inr(m.total_payout)}</span>
+    </div>
+    <div style={{ fontSize: 10.5, color: '#6b7280', marginTop: 14, lineHeight: 1.6 }}>
+      Computer-generated receipt from Flent. Keep it for your records.
+    </div>
+  </div>
+  )
+}
+
 function Receipt({ m, name, onClose }) {
   useEffect(() => {
     const onKey = e => { if (e.key === 'Escape') onClose() }
@@ -42,44 +77,26 @@ function Receipt({ m, name, onClose }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1400, background: 'rgba(8,9,13,0.9)', overflowY: 'auto', padding: '16px 12px' }}
+  // Mounted on <body> itself: the print rule hides every other child of the
+  // body, and inside the app's root it hid the receipt too (a blank page).
+  return createPortal(
+    <div className="rcpt-root" style={{ position: 'fixed', inset: 0, zIndex: 1400, background: 'rgba(8,9,13,0.9)', overflowY: 'auto', padding: '16px 12px' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <style>{`@media print { body > *:not(.rcpt-root) { display:none !important } .rcpt-root { position:static !important; background:#fff !important } .rcpt-bar { display:none !important } }`}</style>
-      <div className="rcpt-root" style={{ maxWidth: 460, margin: '0 auto' }}>
-        <div className="rcpt-bar" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginBottom: 10 }}>
-          <button type="button" onClick={() => window.print()} style={{ minHeight: 40, padding: '0 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 12, fontFamily: MONO, cursor: 'pointer' }}>⤓ Save</button>
-          <button type="button" onClick={onClose} style={{ width: 40, height: 40, borderRadius: 8, border: '1px solid rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 15, cursor: 'pointer' }}>✕</button>
+      <style>{`@media print { body > *:not(.rcpt-root) { display:none !important } .rcpt-root { position:static !important; background:#fff !important; overflow:visible !important; padding:0 !important } .rcpt-bar { display:none !important } }`}</style>
+      <div style={{ maxWidth: 460, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="rcpt-bar" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={() => window.print()} style={{ minHeight: 40, padding: '0 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 12, fontFamily: MONO, cursor: 'pointer' }}>Print</button>
+          <button type="button" onClick={onClose} aria-label="Close" style={{ width: 40, height: 40, borderRadius: 8, border: '1px solid rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 15, cursor: 'pointer' }}>✕</button>
         </div>
-        <div style={{ background: '#fff', color: '#1a1c23', borderRadius: 10, padding: 24, fontFamily: 'var(--font-sans, Poppins, sans-serif)' }}>
-          <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: '0.14em' }}>PAYMENT RECEIPT</div>
-          <div style={{ fontSize: 11.5, color: '#6b7280', fontFamily: MONO, marginTop: 3 }}>{monthLabel(m.period_month)}</div>
-          <div style={{ height: 2, background: '#1a1c23', margin: '14px 0 16px' }} />
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: 12.5, fontFamily: MONO }}>
-            {[['Paid to', name], ['For', monthLabel(m.period_month)],
-              ['Days worked', m.days_worked == null ? '—' : String(m.days_worked)],
-              ...(Number(m.ot_days) ? [['Overtime days', String(m.ot_days)]] : []),
-              ...(Number(m.advance_recovered) ? [['Less: advance', '− ' + inr(m.advance_recovered)]] : []),
-              ...(m.utr ? [['Reference', m.utr]] : []),
-              ...(m.invoice?.invoice_no ? [['Against invoice', m.invoice.invoice_no]] : [])].map(([k, val]) => (
-              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}>
-                <span style={{ color: '#6b7280' }}>{k}</span>
-                <span style={{ fontWeight: 600, textAlign: 'right' }}>{val}</span>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 14, borderTop: '1.5px solid #1a1c23', marginTop: 14, paddingTop: 11 }}>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>Amount paid</span>
-            <span style={{ fontSize: 19, fontWeight: 800, fontFamily: MONO }}>{inr(m.total_payout)}</span>
-          </div>
-          <div style={{ fontSize: 10.5, color: '#6b7280', marginTop: 14, lineHeight: 1.6 }}>
-            Computer-generated receipt from Flent. Keep it for your records.
-          </div>
+        <ReceiptCard m={m} name={name} />
+        <div className="rcpt-bar" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <PdfButton filename={`Flent receipt ${monthLabel(m.period_month)}.pdf`}>
+            <div style={{ padding: 40 }}><div style={{ maxWidth: 520, margin: '0 auto' }}><ReceiptCard m={m} name={name} /></div></div>
+          </PdfButton>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -236,9 +253,11 @@ function SignSheet({ month, token, vendorName, onClose, onSigned }) {
     onSigned()
   }
 
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'var(--bg, #16171f)', overflowY: 'auto' }}>
-      <div style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', paddingTop: 'max(10px, env(safe-area-inset-top))', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
+  // Mounted on <body> so the print rule (hide every other child of the body)
+  // leaves the invoice showing — inside the app's root it printed blank.
+  return createPortal(
+    <div className="pinv-root" style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'var(--bg, #16171f)', overflowY: 'auto' }}>
+      <div className="pinv-bar" style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', paddingTop: 'max(10px, env(safe-area-inset-top))', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)' }}>
         <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>
           {signed ? 'Your signed invoice' : 'Review & sign'}
           <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{monthLabel(month.period_month)}</div>
@@ -247,16 +266,23 @@ function SignSheet({ month, token, vendorName, onClose, onSigned }) {
           style={{ width: 40, height: 40, borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 15, cursor: 'pointer' }}>✕</button>
       </div>
 
-      {/* Their own copy, saveable. The same browser print dialogue the receipt
-          uses — a vendor asked for "my invoice" means a file they can keep. */}
-      <style>{`@media print { body > *:not(.pinv-root) { display:none !important } .pinv-root { position:static !important; background:#fff !important } .pinv-bar, .pinv-sign { display:none !important } }`}</style>
-      <div className="pinv-root" style={{ padding: '14px 12px calc(30px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 760, margin: '0 auto' }}>
+      {/* Their own copy: a real PDF file (works in WhatsApp's browser and
+          home-screen apps, where printing doesn't), with print kept for desktops. */}
+      <style>{`@media print { body > *:not(.pinv-root) { display:none !important } .pinv-root { position:static !important; background:#fff !important; overflow:visible !important } .pinv-bar, .pinv-sign { display:none !important } }`}</style>
+      <div style={{ padding: '14px 12px calc(30px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 760, margin: '0 auto' }}>
         <InvoiceDoc data={inv.snapshot} signature={inv.signature_png} signedName={inv.signed_name} signedAt={inv.signed_at} />
         {signed && (
-          <button type="button" onClick={() => window.print()} className="pinv-bar"
-            style={{ minHeight: 46, borderRadius: 10, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 13, fontFamily: MONO, cursor: 'pointer' }}>
-            ⤓ Save a copy
-          </button>
+          <div className="pinv-bar" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <PdfButton filename={`${(inv.invoice_no || 'Flent invoice').replace(/[\\/]/g, '-')}.pdf`}>
+              <div style={{ padding: 24 }}>
+                <InvoiceDoc data={inv.snapshot} signature={inv.signature_png} signedName={inv.signed_name} signedAt={inv.signed_at} forceDesktop compact />
+              </div>
+            </PdfButton>
+            <button type="button" onClick={() => window.print()}
+              style={{ minHeight: 40, borderRadius: 10, border: '1px solid var(--border, #2e3040)', background: 'transparent', color: 'var(--text-dim, #9394a8)', fontSize: 12.5, fontFamily: MONO, cursor: 'pointer' }}>
+              Print
+            </button>
+          </div>
         )}
 
         {!signed && (
@@ -292,6 +318,7 @@ function SignSheet({ month, token, vendorName, onClose, onSigned }) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
