@@ -6,8 +6,10 @@
 -- protected on purpose (guard_estimate_delete, estimate_final_lock). This
 -- removes the whole tree in order, for a property that is in the bin only.
 --
--- Kept: property_payments (the money ledger, imported from the books). A
--- payment that pointed at a work order keeps its row; work_order_id goes null.
+-- Kept: ledgers — property_payments (imported from the books; a payment that
+-- pointed at a work order keeps its row, work_order_id goes null), vendor
+-- attendance / invoice lines, inventory usage, utilities — and the mirrors of
+-- outside sources (sheet_properties, stage_dates), which re-sync anyway.
 
 create or replace function public.purge_binned_pid(p_pid text)
 returns jsonb language plpgsql security definer set search_path = public as $$
@@ -38,6 +40,7 @@ begin
   delete from invoices where estimate_id = any(ests);
 
   -- work orders; items and actuals cascade, payments keep their row
+  delete from work_order_reports where pid = v;
   with d as (delete from work_orders where pid = v or inspection_id = any(insp) returning 1) select count(*) into n_wo from d;
 
   -- estimates: lines first (their audit trigger writes activity), then the rest
@@ -50,6 +53,20 @@ begin
 
   -- inspections; line items and media cascade
   delete from inspections where id = any(insp);
+
+  -- Pulse's own per-property records. Ledgers (property_payments,
+  -- vendor_attendance, vendor_invoice_lines, inventory_usage, utilities) and
+  -- mirrors of outside sources (sheet_properties, stage_dates) stay.
+  delete from property_journey where pid = v;
+  delete from designer_brief where pid = v;
+  delete from home_pins where pid = v;
+  delete from property_access where pid = v;
+  delete from setup_clash_acks where pid = v;
+  delete from exploratory_links where pid = v;
+  delete from notifications where pid = v;
+  delete from activity_feed where pid = v;
+  delete from user_notes where pid = v;
+  delete from properties_archive where pid = v;
 
   delete from properties where pid = v;
   delete from properties_bin where pid = v;
