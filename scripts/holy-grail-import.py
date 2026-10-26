@@ -177,6 +177,11 @@ def main(src, dst, geo=True):
         pid = r[idx['pid']].strip() if len(r) > idx['pid'] else ''
         if not pid:
             continue
+        # Summary rows at the foot of the tab ("Overall", "FF", "UF", "F4B")
+        # sit in the PID column too; only a number is a PID.
+        if not re.fullmatch(r'\d+', pid):
+            skipped.append((n, pid, 'not a PID'))
+            continue
         if pid in seen:
             skipped.append((n, pid, 'duplicate PID — first one kept'))
             continue
