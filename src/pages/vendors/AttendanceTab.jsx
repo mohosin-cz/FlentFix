@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import ShareSheet from '../../components/vendor/ShareSheet'
 import { attendUrl, fmtTime, fmtDate, fmtDuration, fmtElapsed, fmtBreakLeft, todayStr, initials, avatarColor } from '../../utils/vendorHub'
-import { summarize, openBreakOf, breakTotals, fmtMs, BREAK_MINUTES, BREAK_LABEL, localDay, localTime } from '../../utils/attendance'
+import { summarize, openBreakOf, breakTotals, fmtMs, BREAK_MINUTES, BREAK_LABEL, localDay, localTime, siteLegs, shiftsFromLegs } from '../../utils/attendance'
 import { BreaksPanel, EndBreakControl } from './BreakControls'
 
 const avatarUrl = (path) => {
@@ -57,22 +57,54 @@ function PunchTag({ p, big }) {
 }
 
 // ── one live-feed event ─────────────────────────────────────────────────────
-// pair punches into in→out sessions (per vendor, per kind), newest first
-function buildSessions(punches) {
-  const byVK = {}
-  for (const p of punches) { const key = `${p.vendor_id}|${p.kind || 'regular'}`; (byVK[key] = byVK[key] || []).push(p) }
+// One card per shift, newest first. A shift runs from a real check-in to a
+// real check-out; moving to another site mid-shift (an OUT + IN pair marked
+// via 'switch') adds a leg to the same shift instead of starting a new card.
+//   { vendor, kind, inP: first check-in, outP: final check-out | null, legs }
+function buildSessions(punches, now = Date.now()) {
+  const byV = {}
+  for (const p of punches) (byV[p.vendor_id] = byV[p.vendor_id] || []).push(p)
   const out = []
-  for (const key of Object.keys(byVK)) {
-    const list = [...byVK[key]].sort((a, b) => new Date(a.punched_at) - new Date(b.punched_at))
-    let openIn = null
-    for (const p of list) {
-      if (p.punch_type === 'in') { if (openIn) out.push({ vendor: openIn.vendor, kind: openIn.kind || 'regular', inP: openIn, outP: null }); openIn = p }
-      else if (openIn) { out.push({ vendor: openIn.vendor, kind: openIn.kind || 'regular', inP: openIn, outP: p }); openIn = null }
-      else out.push({ vendor: p.vendor, kind: p.kind || 'regular', inP: null, outP: p })
+  for (const list of Object.values(byV)) {
+    const asc = [...list].sort((a, b) => new Date(a.punched_at) - new Date(b.punched_at))
+    const legs = siteLegs(asc, now)
+    const used = new Set()
+    for (const l of legs) { used.add(l.inP); if (l.outP) used.add(l.outP) }
+    for (const sh of shiftsFromLegs(legs)) {
+      const first = sh.legs[0], last = sh.legs[sh.legs.length - 1]
+      out.push({ vendor: first.inP.vendor, kind: sh.kind, inP: first.inP, outP: sh.open ? null : last.outP, legs: sh.legs })
     }
-    if (openIn) out.push({ vendor: openIn.vendor, kind: openIn.kind || 'regular', inP: openIn, outP: null })
+    // a check-out with no check-in before it on this day (a shift begun yesterday)
+    for (const p of asc) if (p.punch_type === 'out' && !used.has(p)) out.push({ vendor: p.vendor, kind: p.kind || 'regular', inP: null, outP: p, legs: [] })
   }
   return out.sort((a, b) => new Date((b.outP || b.inP).punched_at) - new Date((a.outP || a.inP).punched_at))
+}
+
+// The route of a multi-site shift: each site, its times, and the time spent
+// there. Shown only when there was more than one site.
+function RouteList({ legs, siteMap, now, ot }) {
+  if (!legs || legs.length < 2) return null
+  const tone = ot ? '#7f93b8' : 'var(--green, #6f9a7e)'
+  return (
+    <div style={{ marginTop: 10, padding: '9px 11px', background: 'var(--bg, #16171f)', border: '1px solid var(--border, #2e3040)', borderRadius: 9 }}>
+      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 6 }}>
+        {legs.length} SITES · MOVED {legs.length - 1}×
+      </div>
+      {legs.map((l, i) => (
+        <div key={i} style={{ display: 'grid', gridTemplateColumns: '12px minmax(0, 1fr) auto', columnGap: 8, alignItems: 'center', padding: '3px 0' }}>
+          <span style={{ width: 7, height: 7, borderRadius: 4, background: l.open ? tone : 'var(--text-muted, #6b6d82)', justifySelf: 'center' }} />
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: l.open ? 'var(--text, #e8e8f0)' : 'var(--text-dim, #9394a8)' }}>
+            <b style={{ fontWeight: 700 }}>{l.pid || '—'}</b>
+            {siteMap && siteMap[l.pid] && siteMap[l.pid] !== l.pid ? <span style={{ color: 'var(--text-muted, #6b6d82)' }}> · {siteMap[l.pid]}</span> : null}
+            <span style={{ color: 'var(--text-muted, #6b6d82)' }}> · {fmtTime(new Date(l.from).toISOString())}–{l.open ? 'now' : fmtTime(new Date(l.to).toISOString())}</span>
+          </span>
+          <span style={{ fontSize: 11.5, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', color: l.open ? tone : 'var(--text-dim, #9394a8)' }}>
+            {fmtDuration(l.open ? Math.max(0, now - l.from) : l.ms)}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function PunchLine({ label, p, ot }) {
@@ -235,7 +267,8 @@ function SessionTile({ ses, siteMap, brk, now, onClosed, onBreakEnded }) {
   const ot = ses.kind === 'overtime'
   const open = !ses.outP
   const v = ses.vendor
-  const pid = (ses.inP && ses.inP.pid) || (ses.outP && ses.outP.pid) || null
+  const lastLeg = ses.legs && ses.legs.length ? ses.legs[ses.legs.length - 1] : null
+  const pid = (lastLeg && lastLeg.pid) || (ses.inP && ses.inP.pid) || (ses.outP && ses.outP.pid) || null
   const dur = (ses.inP && ses.outP) ? new Date(ses.outP.punched_at).getTime() - new Date(ses.inP.punched_at).getTime() : null
   const statusC = ot ? '#7f93b8' : 'var(--green, #6f9a7e)'
   const onBreak = open && !!brk
@@ -261,7 +294,12 @@ function SessionTile({ ses, siteMap, brk, now, onClosed, onBreakEnded }) {
         </>
       )}
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        <PidBadge pid={pid} flag={(ses.inP && ses.inP.pid_flag) || null} siteMap={siteMap} />
+        <PidBadge pid={pid} flag={((lastLeg && lastLeg.inP) || ses.inP || {}).pid_flag || null} siteMap={siteMap} />
+        {ses.legs && ses.legs.length > 1 && (
+          <span title="Moved between sites this shift" style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', color: 'var(--accent, #c8963e)', border: '1px solid rgba(200,150,62,0.4)', borderRadius: 6, padding: '3px 8px', fontFamily: 'var(--font-mono, monospace)' }}>
+            ⇄ {ses.legs.length} SITES
+          </span>
+        )}
         <KindChip ot={ot} />
         {open && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginInlineStart: 'auto', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', color: kt.ink, fontFamily: 'var(--font-mono, monospace)' }}>
@@ -296,6 +334,7 @@ function SessionTile({ ses, siteMap, brk, now, onClosed, onBreakEnded }) {
         </div>
       </div>
       <div style={{ position: 'relative' }}>
+      <RouteList legs={ses.legs} siteMap={siteMap} now={now} ot={ot} />
       {ses.inP && <PunchLine label="IN" p={ses.inP} ot={ot} />}
       {ses.outP
         ? <PunchLine label="OUT" p={ses.outP} ot={ot} />
@@ -420,8 +459,48 @@ function VendorDayDetail({ s, dateLabel, siteMap, date, now, onChanged, onClose 
         <div style={{ overflowY: 'auto', padding: '0 18px 18px', flex: 1, minHeight: 0 }}>
           <BreaksPanel s={s} date={date} now={now} onChanged={onChanged} />
 
+          {s.sites && s.sites.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '4px 0 6px' }}>
+                Sites · {new Set(s.sites.map(l => l.pid)).size}
+              </div>
+              {s.sites.map((l, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '12px minmax(0, 1fr) auto', columnGap: 10, alignItems: 'center', padding: '7px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 4, background: l.open ? (l.kind === 'overtime' ? '#7f93b8' : 'var(--green, #6f9a7e)') : 'var(--text-muted, #6b6d82)' }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      PID {l.pid || '—'}{siteMap[l.pid] && siteMap[l.pid] !== l.pid ? <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b6d82)' }}> · {siteMap[l.pid]}</span> : null}
+                      {l.kind === 'overtime' && <span style={{ marginLeft: 6, fontSize: 9, color: '#7f93b8', border: '1px solid #7f93b855', borderRadius: 4, padding: '0 4px' }}>OT</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                      {l.moved ? 'moved in' : 'checked in'} {fmtTime(new Date(l.from).toISOString())} · {l.open ? 'still here' : `${l.left === 'moved' ? 'moved on' : 'checked out'} ${fmtTime(new Date(l.to).toISOString())}`}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: l.open ? 'var(--green, #6f9a7e)' : 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmtDuration(l.open ? Math.max(0, now - l.from) : l.ms)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '4px 0 2px' }}>Punch log</div>
-          {[...s.punches].reverse().map((p, i) => (
+          {[...s.punches].reverse().filter(p => !(p.via === 'switch' && p.punch_type === 'out')).map((p, i) => p.via === 'switch' ? (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, marginTop: 4, flexShrink: 0, background: 'var(--accent, #c8963e)' }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)' }}>⇄ MOVED</span>
+                  <span style={{ fontSize: 12, color: 'var(--text, #e8e8f0)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtTime(p.punched_at)}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>
+                    · {(() => { const prev = s.punches.find(q => q.via === 'switch' && q.punch_type === 'out' && Math.abs(new Date(q.punched_at) - new Date(p.punched_at)) < 1000); return prev ? `${prev.pid || '—'} → ` : '→ ' })()}{siteMap[p.pid] || p.pid}
+                  </span>
+                  {p.pid_flag === 'unknown_pid' && <span title="This PID is not a known Flent property — check where they were" style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--red, #b0645b)', border: '1px solid rgba(176,100,91,0.45)', borderRadius: 6, padding: '1px 6px', fontFamily: 'var(--font-mono, monospace)' }}>check PID</span>}
+                </div>
+                <div style={{ marginTop: 3 }}><Loc p={p} /></div>
+              </div>
+            </div>
+          ) : (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderTop: '1px solid var(--border, #2e3040)' }}>
               <span style={{ width: 8, height: 8, borderRadius: 4, marginTop: 4, flexShrink: 0, background: p.punch_type === 'in' ? ((p.kind || 'regular') === 'overtime' ? '#7f93b8' : 'var(--green, #6f9a7e)') : 'var(--text-muted, #6b6d82)' }} />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -534,7 +613,7 @@ export default function AttendanceTab() {
     return () => clearInterval(iv)
   }, [isTodayLive, anyOnSite])
 
-  const sessions = buildSessions(punches || [])   // in→out pairs, newest first
+  const sessions = buildSessions(punches || [], now)   // shifts (with their site legs), newest first
   const onSite = summaries.filter(s => s.status === 'on_site').length
   const onBreakNow = summaries.filter(s => s.status === 'on_site' && s.brk).length
   // Anyone over their allowance today — running long now, or finished long and
@@ -660,7 +739,7 @@ export default function AttendanceTab() {
                   <div style={{ fontSize: 14, color: 'var(--text, #e8e8f0)', fontWeight: 600 }}>No attendance {isToday ? 'yet today' : 'on this day'}</div>
                 </div>
               : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {summaries.map(s => <RosterRow key={s.vid} s={s} now={now} siteLabel={s.site ? (siteMap[s.site] || s.site) : ''} onOpen={() => setSelectedVid(s.vid)} />)}
+                  {summaries.map(s => <RosterRow key={s.vid} s={s} now={now} siteLabel={s.sites && s.sites.length > 1 ? `PID ${s.sites.map(l => l.pid || '—').join(' → ')}` : s.site ? (siteMap[s.site] || s.site) : ''} onOpen={() => setSelectedVid(s.vid)} />)}
                 </div>
           )}
         </>

@@ -6,11 +6,12 @@ import { rangeLabel, payLine, unseenDecisions } from '../utils/leave'
 import { Field, Input } from '../components/ui'
 import { getPosition, fmtTime, fmtDate, fmtDuration, fmtElapsed, fmtBreakLeft, maskAccount, initials, avatarColor } from '../utils/vendorHub'
 import { compressForUpload, newSubmissionId } from '../utils/vendorOnboard'
-import { breakTotals, fmtMs } from '../utils/attendance'
+import { breakTotals, fmtMs, siteLegs, shiftsFromLegs } from '../utils/attendance'
 import FlentWordmark from '../components/FlentWordmark'
 import VendorWorkOrder from './VendorWorkOrder'
 import { InstallBanner, InstallRow } from '../components/vendor/InstallApp'
 import SitePicker from '../components/attend/SitePicker'
+import SiteMove from '../components/attend/SiteMove'
 
 const TOKEN_KEY = 'flent_attend_token'
 const avatarUrl = (path) => {
@@ -498,6 +499,17 @@ export default function Attend() {
   const openOt = (() => { const l = lastOf('overtime'); return l && l.punch_type === 'in' ? l : null })()
   const activeOpen = kind === 'regular' ? openReg : openOt
   const onClock = !!activeOpen
+  // The running shift as a route of sites. After a move the newest check-in
+  // is the move, so the timer and "since" read from the shift's first leg.
+  const shiftNow = (() => {
+    if (!activeOpen) return null
+    const asc = [...(history || [])].filter(h => (h.kind || 'regular') === kind).sort((a, b) => new Date(a.punched_at) - new Date(b.punched_at))
+    const shifts = shiftsFromLegs(siteLegs(asc, tick))
+    const last = shifts[shifts.length - 1]
+    return last && last.open ? last : null
+  })()
+  const shiftStart = shiftNow ? shiftNow.start : (activeOpen ? new Date(activeOpen.punched_at).getTime() : null)
+  const [moveBusy, setMoveBusy] = useState(false)
 
   // 1s clock for the shift timer and the break countdown. Only runs while the
   // vendor is on the clock — no point spinning a per-second render otherwise.
@@ -579,6 +591,24 @@ export default function Attend() {
     setPendingType(null)
     if (!file || !type) return
     await punch(type, file)
+  }
+
+  // Moving to the next site mid-shift: one call, recorded as an OUT here and
+  // an IN there at the same moment (attend_switch_site). Location is taken
+  // the same way a punch takes it, and a missing fix doesn't block the move.
+  async function moveSite(toPid) {
+    setErr(''); setConfirm(null); setMoveBusy(true)
+    let g = geo
+    if (!g) { try { g = await getPosition({ maximumAge: 120000, timeout: 8000 }); setGeo(g) } catch (e) { setGeoErr(e.message) } }
+    const { data, error } = await supabase.rpc('attend_switch_site', {
+      p_token: tokenRef.current, p_pid: toPid,
+      p_lat: g ? g.lat : null, p_lng: g ? g.lng : null, p_accuracy: g ? g.accuracy : null,
+    })
+    setMoveBusy(false)
+    if (error) { setErr(error.message); return false }
+    setConfirm({ moved: true, from_pid: data?.from_pid, to_pid: data?.to_pid, punched_at: data?.moved_at, kind })
+    loadHistory()
+    return true
   }
 
   async function punch(type, selfieFile) {
@@ -749,10 +779,10 @@ export default function Attend() {
                 {onClock && (
                   <div style={{ marginTop: 10 }}>
                     <span style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, letterSpacing: '0.02em', fontFamily: 'var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums', color: openBreak ? (bt.open && bt.open.overMs > 0 ? 'var(--red, #b0645b)' : 'var(--accent, #c8963e)') : 'var(--text, #e8e8f0)' }}>
-                      {openBreak ? fmtBreakLeft(openBreak, tick) : fmtElapsed(tick - new Date(activeOpen.punched_at).getTime())}
+                      {openBreak ? fmtBreakLeft(openBreak, tick) : fmtElapsed(tick - shiftStart)}
                     </span>
                     <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)', marginTop: 5 }}>
-                      since {fmtTime(activeOpen.punched_at)}
+                      since {fmtTime(new Date(shiftStart).toISOString())}{shiftNow && shiftNow.legs.length > 1 ? ` · ${shiftNow.legs.length} sites` : ''}
                     </div>
                   </div>
                 )}
@@ -786,10 +816,17 @@ export default function Attend() {
             {confirm && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(111,154,126,0.10)', border: '1px solid rgba(111,154,126,0.35)', borderRadius: 10 }}>
                 <span style={{ fontSize: 18 }}>✓</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green, #6f9a7e)', fontFamily: 'var(--font-mono, monospace)' }}>{(confirm.kind === 'overtime' ? 'Overtime ' : '')}{confirm.punch_type === 'in' ? 'started' : 'ended'} at {fmtTime(confirm.punched_at)}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green, #6f9a7e)', fontFamily: 'var(--font-mono, monospace)' }}>{confirm.moved
+                  ? `Moved to PID ${confirm.to_pid} at ${fmtTime(confirm.punched_at)} — left PID ${confirm.from_pid || '—'}`
+                  : `${confirm.kind === 'overtime' ? 'Overtime ' : ''}${confirm.punch_type === 'in' ? 'started' : 'ended'} at ${fmtTime(confirm.punched_at)}`}</span>
               </div>
             )}
             {err && <RedStrip title="Couldn’t record">{err}</RedStrip>}
+            {/* Sites today + moving to the next one. */}
+            {onClock && shiftNow && (
+              <SiteMove token={tokenRef.current} shift={shiftNow} tick={tick} ot={isOt}
+                onBreak={!!openBreak} busy={moveBusy} onMove={moveSite} />
+            )}
             {/* Shift timer + breaks. Only while actually on the clock. */}
             {onClock && (
               <>
@@ -892,6 +929,16 @@ export default function Attend() {
                   {d.punches.map((h, j) => {
                     const ot = (h.kind || 'regular') === 'overtime'
                     const inn = h.punch_type === 'in'
+                    // a move is an OUT + IN pair; show it once, as the arrival
+                    if (h.via === 'switch' && !inn) return null
+                    if (h.via === 'switch') return (
+                      <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--accent, #c8963e)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent, #c8963e)', fontFamily: 'var(--font-mono, monospace)', minWidth: 30 }}>⇄</span>
+                        {ot && <span style={{ fontSize: 9, color: '#7f93b8', border: '1px solid #7f93b855', borderRadius: 4, padding: '0 4px', fontFamily: 'var(--font-mono, monospace)' }}>OT</span>}
+                        <span style={{ flex: 1, fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: 'var(--font-mono, monospace)' }}>{fmtTime(h.punched_at)} · moved to {h.pid || '—'}</span>
+                      </div>
+                    )
                     return (
                       <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
                         <span style={{ width: 6, height: 6, borderRadius: 3, background: inn ? (ot ? '#7f93b8' : 'var(--green, #6f9a7e)') : 'var(--text-muted, #6b6d82)', flexShrink: 0 }} />

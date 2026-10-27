@@ -12,11 +12,15 @@
 export function summarize(list, now = Date.now()) {
   const ms = { regular: 0, overtime: 0 }
   const open = { regular: null, overtime: null }
-  let firstIn = null, lastOut = null
+  let firstIn = null, lastOut = null, lastIn = null
   for (const p of list) {
     const k = p.kind || 'regular'
-    if (p.punch_type === 'in') { if (!firstIn) firstIn = p; if (open[k] == null) open[k] = new Date(p.punched_at).getTime() }
-    else { lastOut = p; if (open[k] != null) { ms[k] += new Date(p.punched_at).getTime() - open[k]; open[k] = null } }
+    if (p.punch_type === 'in') { if (!firstIn) firstIn = p; lastIn = p; if (open[k] == null) open[k] = new Date(p.punched_at).getTime() }
+    else {
+      // a move to another site is an OUT too, but not the end of the day
+      if (p.via !== 'switch') lastOut = p
+      if (open[k] != null) { ms[k] += new Date(p.punched_at).getTime() - open[k]; open[k] = null }
+    }
   }
   const regMs = ms.regular + (open.regular != null ? now - open.regular : 0)
   const otMs  = ms.overtime + (open.overtime != null ? now - open.overtime : 0)
@@ -29,8 +33,49 @@ export function summarize(list, now = Date.now()) {
     openKind: open.overtime != null ? 'overtime' : open.regular != null ? 'regular' : null,
     openSince: open.overtime != null ? open.overtime : open.regular,
     regMs, otMs,
-    site: (firstIn && firstIn.pid) || (last && last.pid) || null,
+    // where they are now (or ended up), not where they started — after a move
+    // the first check-in is the wrong site
+    site: (lastIn && lastIn.pid) || (last && last.pid) || null,
+    sites: siteLegs(list, now),
   }
+}
+
+// The sites a vendor worked at, in order, from one vendor's punches (oldest
+// first). A move is an OUT and an IN at the same moment, both via 'switch';
+// each check-in starts a leg and the next punch of that kind ends it.
+//   [{ pid, kind, from, to, ms, open, moved }]  — moved: arrived by a move
+export function siteLegs(list, now = Date.now()) {
+  const legs = []
+  const open = {}
+  for (const p of list || []) {
+    const k = p.kind || 'regular'
+    const at = new Date(p.punched_at).getTime()
+    if (p.punch_type === 'in') {
+      open[k] = { pid: p.pid || null, kind: k, from: at, to: null, ms: 0, open: true, moved: p.via === 'switch', inP: p }
+      legs.push(open[k])
+    } else if (open[k]) {
+      Object.assign(open[k], { to: at, ms: at - open[k].from, open: false, outP: p, left: p.via === 'switch' ? 'moved' : 'out' })
+      open[k] = null
+    }
+  }
+  for (const l of legs) if (l.open) l.ms = Math.max(0, now - l.from)
+  return legs
+}
+
+// Legs grouped into shifts: a shift starts at a real check-in and carries on
+// through every move until a real check-out (or is still running).
+//   [{ kind, legs, start, end, open }]
+export function shiftsFromLegs(legs) {
+  const shifts = []
+  const cur = {}
+  for (const l of legs) {
+    if (!l.moved || !cur[l.kind]) { cur[l.kind] = { kind: l.kind, legs: [], start: l.from, end: null, open: true }; shifts.push(cur[l.kind]) }
+    const sh = cur[l.kind]
+    sh.legs.push(l)
+    sh.end = l.to; sh.open = l.open
+    if (!l.open && l.left !== 'moved') cur[l.kind] = null
+  }
+  return shifts
 }
 
 // Group a vendor's punches into calendar days, newest day first, each day's
