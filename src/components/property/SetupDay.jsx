@@ -75,7 +75,10 @@ export function SetupPanel({ pid, panel }) {
   const d = data.days_to_setup
   const isDay = d === 0
   const vendors = data.vendors || []
+  const others = data.others || []          // at the property, on no work order here
   const arrived = vendors.filter(v => v.first_in_today).length
+  const othersToday = others.filter(v => v.first_in_today).length
+  const sub = { fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', margin: '14px 0 2px' }
   const dateTxt = new Date(data.setup_date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })
 
   return (
@@ -84,7 +87,7 @@ export function SetupPanel({ pid, panel }) {
         <span style={{ ...title, color: isDay ? 'var(--accent, #c8963e)' : title.color }}>{isDay ? 'setup day' : 'setup'}</span>
         <span style={{ fontSize: 15, fontWeight: 600 }}>{dateTxt}</span>
         <span style={{ fontFamily: MONO, fontSize: 12, color: d < 0 ? 'var(--text-muted, #6b6d82)' : 'var(--accent, #c8963e)' }}>
-          {isDay ? `${arrived} of ${vendors.length} vendors in` : d > 0 ? `in ${d} day${d === 1 ? '' : 's'}` : `started ${-d} day${d === -1 ? '' : 's'} ago`}
+          {isDay ? `${arrived} of ${vendors.length} assigned in${othersToday ? ` · ${arrived + othersToday} on site` : ''}` : d > 0 ? `in ${d} day${d === 1 ? '' : 's'}` : `started ${-d} day${d === -1 ? '' : 's'} ago`}
         </span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {['wifi', 'ro', 'pest'].map(k => {
@@ -101,12 +104,18 @@ export function SetupPanel({ pid, panel }) {
         </span>
       </div>
 
-      {vendors.length === 0 ? (
+      {vendors.length === 0 && others.length === 0 ? (
         <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 12, color: 'var(--text-muted, #6b6d82)' }}>
           No vendors assigned yet. <button type="button" onClick={() => navigate(`/properties/${pid}/work-orders`)} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: MONO, fontSize: 12 }}>Assign on work orders ›</button>
         </div>
       ) : (
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column' }}>
+          {others.length > 0 && <div style={{ ...sub, marginTop: 0 }}>With a work order · {vendors.length}</div>}
+          {vendors.length === 0 && (
+            <div style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-muted, #6b6d82)', padding: '6px 0' }}>
+              No vendors assigned yet. <button type="button" onClick={() => navigate(`/properties/${pid}/work-orders`)} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--accent, #c8963e)', cursor: 'pointer', fontFamily: MONO, fontSize: 12 }}>Assign on work orders ›</button>
+            </div>
+          )}
           {vendors.map(v => {
             const pct = v.items_total ? Math.round((v.items_closed / v.items_total) * 100) : 0
             const status = v.on_site_now ? `on site since ${hhmm(v.first_in_today)}`
@@ -119,9 +128,36 @@ export function SetupPanel({ pid, panel }) {
               <VendorRow key={v.vendor_id} pid={pid} v={v} status={status} tone={tone} pct={pct} />
             )
           })}
+          {others.length > 0 && (
+            <>
+              <div style={sub}>On site, no work order · {others.length}</div>
+              {others.map(v => <OtherVendorRow key={v.vendor_id} v={v} />)}
+            </>
+          )}
         </div>
       )}
     </section>
+  )
+}
+
+// Someone who punched in here but has no work order at this property — a
+// helper, an extra cleaner, someone moved over mid-shift. Shown so the panel
+// counts everyone in the home; there is nothing of theirs to tick off.
+function OtherVendorRow({ v }) {
+  const status = v.on_site_now ? `on site since ${hhmm(v.first_in_today)}`
+    : v.first_in_today ? `came ${hhmm(v.first_in_today)}${v.last_out_today ? `, left ${hhmm(v.last_out_today)}` : ''}`
+    : `last here ${new Date(v.last_in).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}${v.days_on_site_since_setup > 1 ? ` · ${v.days_on_site_since_setup} days since setup` : ''}`
+  return (
+    <div style={{ borderTop: '1px solid var(--border, #2e3040)', display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', flexWrap: 'wrap' }}>
+      <div style={{ flex: '1 1 160px', minWidth: 0, paddingLeft: 16 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{v.name}</div>
+        <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{(v.trades || []).join(', ') || '—'}</div>
+      </div>
+      <span style={{ fontFamily: MONO, fontSize: 11.5, color: v.on_site_now ? 'var(--green, #6f9a7e)' : 'var(--text-dim, #9394a8)', display: 'flex', alignItems: 'center', gap: 6 }}>
+        {v.on_site_now && <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--green, #6f9a7e)' }} />}{status}
+      </span>
+      {v.phone && <a href={`tel:${v.phone}`} style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--accent, #c8963e)', textDecoration: 'none', minWidth: 54 }}>Call</a>}
+    </div>
   )
 }
 
