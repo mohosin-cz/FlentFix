@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useIsMobile } from '../../hooks/useIsMobile'
-import { initials, avatarColor } from '../../utils/vendorHub'
+import { initials, avatarColor, signedDocUrl } from '../../utils/vendorHub'
+import DocViewer from '../../components/vendor/DocViewer'
 import SearchField from '../../components/vendor/SearchField'
 import { KIND, STATUS, M, PAY_MODE, parseDay, addDays, todayIST, diffDays, istDay, dayLabel, rangeLabel, fmtDays, num, payLine } from '../../utils/leave'
 
@@ -165,6 +166,7 @@ function RequestCard({ r, vendor, today, canDecide, onDone, onOpenVendor }) {
         {r.kind !== 'sick' && <span style={{ color: C.muted }}> · {num(Math.max(Number(bal.left || 0), 0))} of {num(bal.allowance)} paid days left</span>}
       </div>
       {r.reason && <div style={{ fontSize: 12.5, color: C.dim }}>“{r.reason}”</div>}
+      {r.kind === 'sick' && <SickNote path={r.doc} days={r.days} />}
       {(q.skipped || []).length > 0 && <div style={{ fontSize: 12, color: C.muted }}>Not counted: {q.skipped.map(s => `${dayLabel(s.day)} (${s.why})`).join(', ')}</div>}
       {(q.clashes || []).length > 0 && (
         <Warn>
@@ -473,6 +475,7 @@ function LeaveSheet({ leave, vendor, canDecide, onClose, onDone, phone }) {
       <div style={{ fontSize: 16, fontWeight: 600 }}>{rangeLabel(leave.start_date, leave.end_date, leave.half)} <span style={{ color: C.dim, fontWeight: 500 }}>· {fmtDays(leave.days)}</span></div>
       {leave.status === 'approved' && <div style={{ fontSize: 13, color: C.dim }}>{payLine(leave) || 'nothing to pay'}</div>}
       {leave.reason && <div style={{ fontSize: 13, color: C.dim }}>“{leave.reason}”</div>}
+      {leave.kind === 'sick' && <SickNote path={leave.doc_path} days={leave.days} />}
       <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
         Asked {new Date(leave.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}
         {leave.decided_by && <> · {leave.status === 'declined' ? 'declined' : 'approved'} by {leave.decided_by.split('@')[0]}</>}
@@ -700,3 +703,28 @@ export default function LeaveTab() {
   )
 }
 
+// The doctor's note on a sick leave: required past one day, optional for one.
+// Private bucket, so it is signed when opened rather than on load.
+function SickNote({ path, days }) {
+  const [url, setUrl] = useState(null)
+  const [err, setErr] = useState('')
+  if (!path) {
+    return Number(days) > 1
+      ? <div style={{ fontSize: 12, color: M.amber }}>No doctor’s note attached</div>
+      : null
+  }
+  async function open() {
+    setErr('')
+    try { setUrl(await signedDocUrl(supabase, path)) } catch (e) { setErr(e.message || 'Could not open it') }
+  }
+  return (
+    <div>
+      <button type="button" onClick={open}
+        style={{ minHeight: 34, padding: '0 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.input, color: C.text, fontSize: 12.5, cursor: 'pointer', fontFamily: F }}>
+        📎 Doctor’s note
+      </button>
+      {err && <span style={{ marginLeft: 8, fontSize: 12, color: M.red }}>{err}</span>}
+      {url && <DocViewer url={url} name={path} onClose={() => setUrl(null)} />}
+    </div>
+  )
+}

@@ -46,7 +46,11 @@ export default function CaptureUpload({
   const [cam, setCam] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const [preview, setPreview] = useState(null)
+  const [signed, setPreview] = useState(null)
+  // what was just picked, shown from the phone itself — the vendor portal
+  // can upload to the private bucket but not read it back to sign a URL
+  const [local, setLocal] = useState(null)
+  const preview = signed || local
   const [viewing, setViewing] = useState(false)
   const fileRef = useRef(null)
 
@@ -69,6 +73,7 @@ export default function CaptureUpload({
     setBusy(true); setErr('')
     try {
       const path = await uploadAssetFile(supabase, folder, file, name)
+      setLocal(URL.createObjectURL(file))
       onChange(path)
     } catch (e) {
       const msg = /row-level security/i.test(e.message || '')
@@ -98,7 +103,7 @@ export default function CaptureUpload({
               style={{ background: 'none', border: 'none', padding: '6px 6px 6px 0', margin: '-6px 0', minHeight: 40, display: 'inline-flex', alignItems: 'center', fontSize: 11.5, color: 'var(--accent, #c8963e)', fontFamily: MONO, cursor: 'pointer' }}>View</button>
           </div>
           {!disabled && (
-            <button type="button" onClick={() => { onChange(null); setPreview(null) }}
+            <button type="button" onClick={() => { onChange(null); setPreview(null); setLocal(null) }}
               style={{ background: 'none', border: 'none', color: 'var(--red, #b0645b)', cursor: 'pointer', fontSize: 12, fontFamily: MONO, padding: '10px 6px', minHeight: 44 }}>Remove</button>
           )}
         </div>

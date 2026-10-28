@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
+import CaptureUpload from './CaptureUpload'
+import { newSubmissionId } from '../../utils/vendorOnboard'
 import { KIND, STATUS, M, parseDay, addDays, todayIST, dayLabel, rangeLabel, fmtDays, num, payLine, monthGrid, unseenDecisions, markDecisionsSeen } from '../../utils/leave'
 
 // The vendor's leave, in the portal they already open every morning.
@@ -107,6 +109,8 @@ function ApplyForm({ token, status, onDone, onClose }) {
   const [end, setEnd] = useState('')
   const [half, setHalf] = useState('')
   const [reason, setReason] = useState('')
+  const [doc, setDoc] = useState(null)
+  const [docFolder] = useState(() => `leave/${newSubmissionId()}`)
   const [quoteRaw, setQuote] = useState(null)
   const [quoteErr, setQuoteErr] = useState('')
   const [busy, setBusy] = useState(false)
@@ -153,11 +157,13 @@ function ApplyForm({ token, status, onDone, onClose }) {
 
   const single = start && (!end || end === start)
   const counted = quote ? Number(quote.days) : null
-  const blocked = !start || counted === 0 || (quote?.overlaps || []).length > 0 || (kind === 'emergency' && !reason.trim())
+  // sick leave: a doctor's note is optional for a day, required beyond that
+  const needsDoc = kind === 'sick' && counted != null && counted > 1
+  const blocked = !start || counted === 0 || (quote?.overlaps || []).length > 0 || (kind === 'emergency' && !reason.trim()) || (needsDoc && !doc)
 
   async function send() {
     setBusy(true); setErr('')
-    const { error } = await supabase.rpc('attend_leave_apply', { p_token: token, p_kind: kind, p_start: start, p_end: end || start, p_half: single && half ? half : null, p_reason: reason.trim() || null })
+    const { error } = await supabase.rpc('attend_leave_apply', { p_token: token, p_kind: kind, p_start: start, p_end: end || start, p_half: single && half ? half : null, p_reason: reason.trim() || null, p_doc: kind === 'sick' ? doc : null })
     setBusy(false)
     if (error) { setErr(error.message); return }
     onDone()
@@ -236,7 +242,16 @@ function ApplyForm({ token, status, onDone, onClose }) {
             style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: 14, color: C.text, background: C.input, border: `1px solid ${C.border}`, borderRadius: 10, outline: 'none', fontFamily: 'inherit', resize: 'none' }} />
         </div>
 
+        {kind === 'sick' && (
+          <div>
+            <Label>Doctor’s note or prescription {needsDoc ? <b style={{ color: M.red }}>· needed for more than 1 day</b> : '(optional for 1 day)'}</Label>
+            <CaptureUpload supabase={supabase} folder={docFolder} name="sick-note" value={doc} onChange={setDoc}
+              hint="A clear photo, or a PDF" camTitle="Photo of the note" doneLabel="Note attached" />
+          </div>
+        )}
+
         {err && <Note tone="warn">{err}</Note>}
+        {needsDoc && !doc && start && <div style={{ fontSize: 12, color: M.red, textAlign: 'center' }}>Attach the doctor’s note to send this.</div>}
         <button type="button" onClick={send} disabled={busy || blocked}
           style={{ width: '100%', minHeight: 52, borderRadius: 12, border: 'none', background: busy || blocked ? C.input : C.accent, color: busy || blocked ? C.muted : '#16171f', fontSize: 15.5, fontWeight: 700, cursor: busy || blocked ? 'not-allowed' : 'pointer', fontFamily: MONO }}>
           {busy ? 'Sending…' : 'Send to the office'}
@@ -277,6 +292,7 @@ function LeaveRow({ l, today, token, onChanged }) {
         {l.source === 'staff' && <> · recorded by the office</>}
       </div>
       {l.reason && <div style={{ fontSize: 12.5, color: C.dim }}>“{l.reason}”</div>}
+      {l.kind === 'sick' && <SickDoc l={l} token={token} onChanged={onChanged} />}
       {l.note && <Note tone={l.status === 'declined' ? 'warn' : 'info'}>{l.decided_by ? `${l.decided_by}: ` : ''}{l.note}</Note>}
       {l.status === 'cancelled' && l.cancelled_by && <div style={{ fontSize: 11.5, color: C.muted }}>Cancelled by {l.cancelled_by}</div>}
       {err && <Note tone="warn">{err}</Note>}
@@ -292,6 +308,32 @@ function LeaveRow({ l, today, token, onChanged }) {
     </div>
   )
 }
+// The note often comes after the doctor's visit, so it can be added later.
+function SickDoc({ l, token, onChanged }) {
+  const [adding, setAdding] = useState(false)
+  const [folder] = useState(() => `leave/${newSubmissionId()}`)
+  const [err, setErr] = useState('')
+  if (l.has_doc) return <div style={{ fontSize: 12, color: M.green, fontFamily: MONO }}>📎 Doctor’s note sent</div>
+  if (l.status === 'declined' || l.status === 'cancelled') return null
+  const missing = Number(l.days) > 1
+  async function attach(path) {
+    if (!path) return
+    setErr('')
+    const { error } = await supabase.rpc('attend_leave_attach', { p_token: token, p_id: l.id, p_doc: path })
+    if (error) { setErr(error.message); return }
+    onChanged()
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {!adding
+        ? <div><button type="button" onClick={() => setAdding(true)} style={smallBtn(false)}>{missing ? '📎 Add the doctor’s note' : '📎 Add a document'}</button></div>
+        : <CaptureUpload supabase={supabase} folder={folder} name="sick-note" value={null} onChange={attach}
+            hint="A clear photo, or a PDF" camTitle="Photo of the note" />}
+      {err && <Note tone="warn">{err}</Note>}
+    </div>
+  )
+}
+
 const smallBtn = (danger) => ({ minHeight: 36, padding: '0 13px', borderRadius: 9, border: `1px solid ${danger ? M.red : C.border}`, background: danger ? M.redSoft : 'transparent', color: danger ? M.red : C.dim, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: MONO })
 
 // ── what the Time tab shows about today ────────────────────────────────────
