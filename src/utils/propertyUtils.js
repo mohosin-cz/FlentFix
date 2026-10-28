@@ -3,6 +3,7 @@
 export const UTILITY_TYPES = [
   { key: 'wifi',           label: 'WiFi / Broadband',    color: '#7f93b8' },
   { key: 'water_purifier', label: 'Water Purifier (RO)', color: '#38bdf8' },
+  { key: 'pest_control',   label: 'Pest control',        color: '#b5895a' },
   { key: 'other',          label: 'Other',               color: '#8b8d98' },
 ]
 export const TYPE_MAP = Object.fromEntries(UTILITY_TYPES.map(t => [t.key, t]))
@@ -174,16 +175,17 @@ export function dueInfo(u) {
   const days = Math.round((d.getTime() - today.getTime()) / 86400000)
   const lapsed = periodsLapsed(d, u.billing_cycle, today)
 
+  const verb = u.utility_type === 'pest_control' ? 'Treatment' : 'Recharge'
   let color, label, tone
   if (days < 0) {
     color = 'var(--red, #b0645b)'; tone = 'overdue'
     label = lapsed > 1
-      ? `${lapsed} periods with no recharge logged`
-      : `Recharge overdue by ${-days} ${-days === 1 ? 'day' : 'days'}`
-  } else if (days === 0) { color = 'var(--red, #b0645b)'; label = 'Recharge due today'; tone = 'due' }
-  else if (days === 1) { color = 'var(--red, #b0645b)'; label = 'Recharge tomorrow'; tone = 'due' }
-  else if (days <= 5) { color = 'var(--accent, #c8963e)'; label = `Recharge in ${days} days`; tone = 'soon' }
-  else { color = 'var(--green, #6f9a7e)'; label = `Recharge in ${days} days`; tone = 'ok' }
+      ? `${lapsed} periods with no ${verb.toLowerCase()} logged`
+      : `${verb} overdue by ${-days} ${-days === 1 ? 'day' : 'days'}`
+  } else if (days === 0) { color = 'var(--red, #b0645b)'; label = `${verb} due today`; tone = 'due' }
+  else if (days === 1) { color = 'var(--red, #b0645b)'; label = `${verb} tomorrow`; tone = 'due' }
+  else if (days <= 5) { color = 'var(--accent, #c8963e)'; label = `${verb} in ${days} days`; tone = 'soon' }
+  else { color = 'var(--green, #6f9a7e)'; label = `${verb} in ${days} days`; tone = 'ok' }
 
   const note = basis === 'install'
     ? 'Counted from the install date — no recharge has ever been logged against this connection.'
@@ -201,8 +203,13 @@ export function dueInfo(u) {
 export const PROVIDERS = {
   wifi: ['ACT', 'Airtel', 'Tata Play Fiber', 'Jio', 'BSNL'],
   water_purifier: ['DrinkPrime', 'AquaGuard-LL', 'Livpure', 'Kent', 'Pureit'],
+  pest_control: [],
   other: [],
 }
+
+// What a pest control visit treats. Planning books one or more of these, and
+// the Utilities record keeps them as its "plan".
+export const PEST_TREATMENTS = ['General', 'Bed bugs', 'Termite', 'Rodents']
 
 // "Plan" is the thing you bought, and it means different things per utility:
 // a line speed for broadband, a litre allowance for an RO. It is NOT the
@@ -211,6 +218,7 @@ export const PROVIDERS = {
 export const PLANS = {
   wifi: ['100 Mbps', '200 Mbps', '200 Mbps mesh', '300 Mbps', '400 Mbps'],
   water_purifier: ['250L/M', '500L/M', 'Unlimited'],
+  pest_control: PEST_TREATMENTS,
   other: [],
 }
 

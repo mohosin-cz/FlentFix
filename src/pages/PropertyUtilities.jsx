@@ -1,6 +1,6 @@
 import HomeMark from '../components/HomeMark'
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -183,6 +183,11 @@ function UtilityForm({ record, pid, userEmail, existing = [], onClose, onSaved }
   const [error, setError] = useState(null)
   const isEdit = !!record?.id
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  // a pest control record is a treatment on a day, not a connection: no
+  // account or password, and it repeats every few months rather than monthly
+  const pest = form.utility_type === 'pest_control'
+  const pickType = (k) => setForm(f => ({ ...f, utility_type: k,
+    billing_cycle: !isEdit && k === 'pest_control' && f.billing_cycle === 'Monthly' ? 'Quarterly' : f.billing_cycle }))
   // show the current type even if it's a legacy one no longer offered (e.g. gas)
   const picker = record && !ADD_TYPES.some(t => t.key === record.utility_type) && TYPE_MAP[record.utility_type]
     ? [TYPE_MAP[record.utility_type], ...ADD_TYPES] : ADD_TYPES
@@ -241,7 +246,7 @@ function UtilityForm({ record, pid, userEmail, existing = [], onClose, onSaved }
         {picker.map(t => {
           const on = form.utility_type === t.key
           return (
-            <button key={t.key} onClick={() => set('utility_type', t.key)} aria-pressed={on}
+            <button key={t.key} onClick={() => pickType(t.key)} aria-pressed={on}
               className={`tct tct-bare${on ? ' is-on' : ''}`}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 14px', fontSize: 12.5, lineHeight: 1 }}>
               <UtilityIcon type={t.key} size={15} />{t.label}
@@ -259,16 +264,16 @@ function UtilityForm({ record, pid, userEmail, existing = [], onClose, onSaved }
           <ChipPick value={form.provider} onChange={v => set('provider', v)}
             options={PROVIDERS[form.utility_type] || []} placeholder="Provider name" />
         </Row>
-        <Row label="Plan" phone={phone}>
+        <Row label={pest ? 'Treated for' : 'Plan'} phone={phone}>
           <ChipPick value={form.plan_type} onChange={v => set('plan_type', v)}
             options={PLANS[form.utility_type] || []}
-            placeholder={form.utility_type === 'wifi' ? 'e.g. 150 Mbps' : 'What was bought'} />
+            placeholder={form.utility_type === 'wifi' ? 'e.g. 150 Mbps' : pest ? 'e.g. General, Bed bugs' : 'What was bought'} />
         </Row>
       </Section>
 
       {/* Mirrors the grey Account / Network / Password block on the card, so
           what you fill in here sits where you will later go looking for it. */}
-      <Section title="Access">
+      {!pest && <Section title="Access">
         <Row label="Account no." phone={phone}>
           <input style={{ ...inputStyle, maxWidth: 260 }} value={form.account_number} onChange={e => set('account_number', e.target.value)} placeholder="Account / consumer number" />
           {dupAccount && (
@@ -290,7 +295,7 @@ function UtilityForm({ record, pid, userEmail, existing = [], onClose, onSaved }
           <ChipPick value={form.password} onChange={v => set('password', v)}
             options={[DEFAULT_PASSWORD]} placeholder="Set a different password" />
         </Row>
-      </Section>
+      </Section>}
 
       <Section title="Billing">
         <Row label="Amount" phone={phone}>
@@ -309,7 +314,7 @@ function UtilityForm({ record, pid, userEmail, existing = [], onClose, onSaved }
             restates it. Six short chips also fit on one line, and a wrapped
             chip group reads as two fields. The stored value is unchanged — the
             title attribute carries the cycle name for anyone who wants it. */}
-        <Row label="Recharge every" phone={phone}>
+        <Row label={pest ? 'Treat again every' : 'Recharge every'} phone={phone}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {CYCLE_PRESETS.map(c => {
               const on = form.billing_cycle === c.cycle
@@ -327,10 +332,10 @@ function UtilityForm({ record, pid, userEmail, existing = [], onClose, onSaved }
         {/* Offered, not defaulted. Most entries are made on the day of install,
             but a silently pre-filled date that happens to be wrong gets saved
             without anyone looking at it. */}
-        <Row label="Installed" phone={phone}>
+        <Row label={pest ? 'Treated on' : 'Installed'} phone={phone}>
           <input style={{ ...inputStyle, maxWidth: 200 }} type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
           {!form.start_date && (
-            <div><button type="button" onClick={() => set('start_date', todayISO())} style={hintBtn}>installed today</button></div>
+            <div><button type="button" onClick={() => set('start_date', todayISO())} style={hintBtn}>{pest ? 'treated today' : 'installed today'}</button></div>
           )}
         </Row>
       </Section>
@@ -372,6 +377,7 @@ function UtilityForm({ record, pid, userEmail, existing = [], onClose, onSaved }
 // ── log a recharge (+ history) ────────────────────────────────────────────────
 function RechargeSheet({ utility, userEmail, onClose, onSaved }) {
   const phone = useIsMobile(640)
+  const pest = utility.utility_type === 'pest_control'
   const [history, setHistory] = useState(null)
   const [date, setDate] = useState(todayISO)
   const [amount, setAmount] = useState(utility.billing_amount ?? '')
@@ -392,23 +398,23 @@ function RechargeSheet({ utility, userEmail, onClose, onSaved }) {
     if (rErr) { setError(rErr.message); setSaving(false); return }
     const latest = (!utility.last_recharged_on || date > utility.last_recharged_on) ? date : utility.last_recharged_on
     await supabase.from('property_utilities').update({ last_recharged_on: latest, updated_at: new Date().toISOString() }).eq('id', utility.id)
-    onSaved('Recharge logged')
+    onSaved(pest ? 'Treatment logged' : 'Recharge logged')
   }
 
   return (
-    <Sheet title="Log a recharge" subtitle={`${typeLabel(utility)}${utility.provider ? ' · ' + utility.provider : ''}`} onClose={onClose}>
+    <Sheet title={pest ? 'Log a treatment' : 'Log a recharge'} subtitle={`${typeLabel(utility)}${utility.provider ? ' · ' + utility.provider : ''}`} onClose={onClose}>
       <div style={{ display: 'grid', gridTemplateColumns: phone ? '1fr' : '1fr 1fr', gap: 12 }}>
-        <Labeled label="Recharged on"><input style={inputStyle} type="date" max={todayISO()} value={date} onChange={e => setDate(e.target.value)} /></Labeled>
+        <Labeled label={pest ? 'Treated on' : 'Recharged on'}><input style={inputStyle} type="date" max={todayISO()} value={date} onChange={e => setDate(e.target.value)} /></Labeled>
         <Labeled label="Amount (₹)"><input style={inputStyle} type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" /></Labeled>
         <Labeled label="Note" span><input style={inputStyle} value={note} onChange={e => setNote(e.target.value)} placeholder="Optional — reference, next-due tweak…" /></Labeled>
       </div>
       {error && <div style={{ fontSize: 12, color: '#f87171', fontFamily: MONO, padding: '9px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: 8 }}>{error}</div>}
-      <button onClick={save} disabled={saving} style={{ padding: '12px 0', background: 'var(--green, #6f9a7e)', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, color: '#062012', cursor: 'pointer', fontFamily: SANS, opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving…' : 'Log recharge'}</button>
+      <button onClick={save} disabled={saving} style={{ padding: '12px 0', background: 'var(--green, #6f9a7e)', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, color: '#062012', cursor: 'pointer', fontFamily: SANS, opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving…' : pest ? 'Log treatment' : 'Log recharge'}</button>
 
       <div>
         <label style={labelStyle}>History</label>
         {history === null ? <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, padding: '4px 0' }}>Loading…</div>
-          : history.length === 0 ? <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, padding: '4px 0' }}>No recharges logged yet.</div>
+          : history.length === 0 ? <div style={{ fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, padding: '4px 0' }}>{pest ? 'No repeat treatments logged yet.' : 'No recharges logged yet.'}</div>
           : <div style={{ display: 'flex', flexDirection: 'column', gap: 1, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border, #2e3040)' }}>
               {history.map(h => (
                 <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg-input, #252731)' }}>
@@ -453,10 +459,11 @@ function UtilityCard({ u, onRecharge, onEdit, onDelete }) {
     (u.password || u.wifi_password) && { k: 'Password', v: u.password || u.wifi_password },
   ].filter(Boolean)
   const credText = creds.map(c => `${c.k}: ${c.v}`).join('\n')
+  const pest = u.utility_type === 'pest_control'
   const details = [
     u.billing_amount != null && { k: 'Amount', v: `${money(u.billing_amount)}${u.billing_cycle ? ' · ' + u.billing_cycle : ''}` },
-    { k: 'Installed', v: u.start_date ? fmtDate(u.start_date) : '—' },
-    u.last_recharged_on && { k: 'Last recharged', v: fmtDate(u.last_recharged_on) },
+    { k: pest ? 'Treated on' : 'Installed', v: u.start_date ? fmtDate(u.start_date) : '—' },
+    u.last_recharged_on && { k: pest ? 'Last treated' : 'Last recharged', v: fmtDate(u.last_recharged_on) },
   ].filter(Boolean)
 
   return (
@@ -513,7 +520,7 @@ function UtilityCard({ u, onRecharge, onEdit, onDelete }) {
       )}
       {u.notes && <div style={{ fontSize: 12.5, color: 'var(--text-muted, #6b6d82)', lineHeight: 1.5, whiteSpace: 'pre-wrap', fontFamily: SANS }}>{u.notes}</div>}
 
-      <button onClick={() => onRecharge(u)} style={{ padding: '10px 0', background: 'rgba(111,154,126,0.1)', border: '1px solid rgba(111,154,126,0.35)', borderRadius: 9, fontSize: 13, fontWeight: 700, color: 'var(--green, #6f9a7e)', cursor: 'pointer', fontFamily: SANS }}>Log recharge</button>
+      <button onClick={() => onRecharge(u)} style={{ padding: '10px 0', background: 'rgba(111,154,126,0.1)', border: '1px solid rgba(111,154,126,0.35)', borderRadius: 9, fontSize: 13, fontWeight: 700, color: 'var(--green, #6f9a7e)', cursor: 'pointer', fontFamily: SANS }}>{pest ? 'Log treatment' : 'Log recharge'}</button>
     </div>
   )
 }
@@ -528,10 +535,21 @@ export default function PropertyUtilities() {
   const [userEmail, setUserEmail] = useState(null)
   const [toast, setToast] = useState('')
 
-  const [formRecord, setFormRecord] = useState(undefined) // undefined closed, null new, obj edit
+  // "Record it" on the planning card lands here with what was booked
+  // (?add=pest_control&plan=…&date=…) and opens the form filled in
+  const [params, setParams] = useSearchParams()
+  const [formRecord, setFormRecord] = useState(() => {   // undefined closed, null new, obj edit
+    const add = params.get('add')
+    if (!add || !TYPE_MAP[add]) return undefined
+    return { utility_type: add, plan_type: params.get('plan') || '', start_date: params.get('date') || '',
+             billing_cycle: add === 'pest_control' ? 'Quarterly' : 'Monthly' }
+  })
   const [rechargeTarget, setRechargeTarget] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
+
+  // the link is read once, then dropped so a refresh doesn't reopen the form
+  useEffect(() => { if (params.get('add')) setParams({}, { replace: true }) }, [params, setParams])
 
   const fetchData = useCallback(async () => {
     setError(null)
@@ -592,7 +610,7 @@ export default function PropertyUtilities() {
 
               {sorted.length === 0 ? (
                 <div style={{ padding: '34px 18px', border: '1px dashed rgba(200,150,62,0.25)', borderRadius: 12, fontSize: 13, color: 'var(--text-muted, #6b6d82)', fontFamily: SANS, textAlign: 'center', lineHeight: 1.7 }}>
-                  No utilities yet.<br />Add WiFi, water purifier or another service — the next recharge is tracked for you.
+                  No utilities yet.<br />Add WiFi, water purifier, pest control or another service — the next recharge or treatment is tracked for you.
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))', gap: 12, alignItems: 'start' }}>

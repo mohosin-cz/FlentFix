@@ -64,7 +64,7 @@ export const STEP_NAME = {
   explore_stale: 'Explore · stale in Stage', explore_paste: 'Explore · paste findings into Stage', explore_paste_main: 'Explore · logged, not in Stage yet', items_to_verify: 'Vendor work to verify', disputed: 'Items sent back to vendor',
   setup_day: 'Setup day', setup_in_progress: 'Work under way', vendors_on_site: 'Vendors on site', wo_awaiting_day: 'Waiting for setup day',
   wo_overdue: 'Items open past closure date', wo_unassigned: 'Work orders with no vendor', wo_undated: 'Work orders with no closure date',
-  utilities_unplanned: 'WiFi / RO not requested', utility_details_pending: 'Utility details not registered',
+  utilities_unplanned: 'WiFi / RO / pest control not booked', utility_details_pending: 'Utility details not registered',
 }
 export const stepName = (code, label) => STEP_NAME[code] || label || code
 
@@ -95,7 +95,7 @@ export const STEPS = [
   { code: 'landlord_queried', name: 'Landlord query waiting for a reply', wait: 'setup_ops', limit: 'query_reply_days', phase: 'Estimate' },
   { code: 'estimate_final_pending', name: 'All approved, estimate not final', wait: 'setup_ops', limit: 'estimate_final_days', phase: 'Estimate' },
   { code: 'setup_date_pending', name: 'Estimate final, no setup date', wait: 'setup_ops', limit: 'setup_date_days', phase: 'Plan' },
-  { code: 'utilities_unplanned', name: 'WiFi / RO not requested', wait: 'setup_ops', lead: 'utilities_lead_days', phase: 'Plan' },
+  { code: 'utilities_unplanned', name: 'WiFi / RO / pest control not booked', wait: 'setup_ops', lead: 'utilities_lead_days', phase: 'Plan' },
   { code: 'work_orders_unplanned', name: 'No work orders raised', wait: 'setup_ops', lead: 'wo_lead_days', phase: 'Plan' },
   { code: 'wo_unassigned', name: 'Work orders with no vendor', wait: 'setup_ops', lead: 'assign_lead_days', limit: 'wo_unassigned_days', phase: 'Plan' },
   { code: 'wo_undated', name: 'Work orders with no closure date', wait: 'setup_ops', lead: 'assign_lead_days', limit: 'wo_unscheduled_days', phase: 'Plan' },

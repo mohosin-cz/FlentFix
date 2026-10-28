@@ -5,7 +5,7 @@ import UtilityIcon from './UtilityIcon'
 const SANS = 'var(--font-sans, Poppins, sans-serif)'
 const MONO = 'var(--font-mono, monospace)'
 const money = (n) => '₹' + Math.round(Number(n || 0)).toLocaleString('en-IN')
-const shortType = (k, label) => ({ water_purifier: 'Water', wifi: 'WiFi', maintenance: 'Maintenance' }[k] || label)
+const shortType = (k, label) => ({ water_purifier: 'Water', wifi: 'WiFi', pest_control: 'Pest', maintenance: 'Maintenance' }[k] || label)
 
 function analyze(rows) {
   const monthly = rows.reduce((a, r) => a + monthlyCost(r), 0)

@@ -23,8 +23,9 @@ const dayLabel = (k) => {
   return new Date(k + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
-// WiFi / RO run in two steps (see UtilityRequest): asked the partner during
-// planning, then the details registered on the Utilities page at closure.
+// WiFi / RO / pest control run in two steps (see UtilityRequest): asked the
+// partner (pest control: booked for a day) during planning, then recorded on
+// the Utilities page at closure.
 // The badge says which step it is at — "not booked" alone read as if the
 // request had never been made.
 const TONE = {
@@ -34,11 +35,18 @@ const TONE = {
   muted: ['var(--text-muted, #6b6d82)', 'var(--border, #2e3040)'],
 }
 function utilityState(k, data) {
-  const name = k === 'wifi' ? 'WiFi' : 'RO'
+  const name = k === 'wifi' ? 'WiFi' : k === 'ro' ? 'RO' : 'Pest'
   const active = !!data.utilities?.[k]
   const r = data.requests || {}
   const at = r[`${k}_requested_at`], months = r[`${k}_plan_months`]
   const pick = (tone, label, step, hint) => ({ label, step, hint, color: TONE[tone][0], border: TONE[tone][1] })
+  if (k === 'pest') {
+    const on = r.pest_date && new Date(r.pest_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    if (active) return pick('green', 'Pest control done', 'registered', 'The treatment is recorded on the Utilities page')
+    if (at && r.pest_treatment === 'none') return pick('muted', 'Pest not needed', 'registered', 'Marked as not needed for this property')
+    if (at) return pick('amber', `Pest booked · ${on}`, 'register', `${r.pest_treatment} on ${on} — record it on the Utilities page once it's done`)
+    return pick('red', 'Pest not booked', 'request', 'No pest control treatment booked yet')
+  }
   if (active) return pick('green', `${name} active`, 'registered', `${name} details are registered on the Utilities page`)
   if (at && months === 0) return pick('muted', `${name} not needed`, 'registered', `Marked as not needed for this property`)
   if (at) return pick('amber', `${name} requested${months ? ` · ${months} mo` : ''}`, 'register',
@@ -52,7 +60,7 @@ export function useSetupPanel(pid) {
     const [{ data, error }, { data: req }] = await Promise.all([
       supabase.rpc('property_setup_panel', { p_pid: pid }),
       // the planning step — asked the partner, which plan — lives on the property
-      supabase.from('properties').select('wifi_requested_at, wifi_plan_months, ro_requested_at, ro_plan_months').eq('pid', pid).maybeSingle(),
+      supabase.from('properties').select('wifi_requested_at, wifi_plan_months, ro_requested_at, ro_plan_months, pest_requested_at, pest_treatment, pest_date').eq('pid', pid).maybeSingle(),
     ])
     setState({ loading: false, error: error ? error.message : null, data: data ? { ...data, requests: req || {} } : data })
   }, [pid])
@@ -78,8 +86,8 @@ export function SetupPanel({ pid, panel }) {
         <span style={{ fontFamily: MONO, fontSize: 12, color: d < 0 ? 'var(--text-muted, #6b6d82)' : 'var(--accent, #c8963e)' }}>
           {isDay ? `${arrived} of ${vendors.length} vendors in` : d > 0 ? `in ${d} day${d === 1 ? '' : 's'}` : `started ${-d} day${d === -1 ? '' : 's'} ago`}
         </span>
-        <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-          {['wifi', 'ro'].map(k => {
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {['wifi', 'ro', 'pest'].map(k => {
             const u = utilityState(k, data)
             return (
               <button key={k} type="button" title={u.hint}

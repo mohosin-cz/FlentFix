@@ -47,15 +47,17 @@ function daysTo(d) {
 }
 const todayIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 
-// Setup can't close until every payment is confirmed logged and the WiFi and
-// RO details are registered on the Utilities page (unless marked not needed
-// when they were requested). The database enforces the same rule.
+// Setup can't close until every payment is confirmed logged, the WiFi and RO
+// details are registered on the Utilities page and the pest control treatment
+// is recorded there (each unless marked not needed during planning). The
+// database enforces the same rule.
 function SetupCloseChecklist({ pid, checks, busy, btn, onPayments, onClose }) {
   const navigate = useNavigate()
   const pay = !!checks.payments_logged?.at
   const wifiOk = checks.wifi?.not_needed || checks.wifi?.registered
   const roOk = checks.ro?.not_needed || checks.ro?.registered
-  const ready = pay && wifiOk && roOk
+  const pestOk = checks.pest?.not_needed || checks.pest?.registered
+  const ready = pay && wifiOk && roOk && pestOk
   const item = (ok, label, action) => (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 10px', borderRadius: 8, border: `1px solid ${ok ? 'rgba(111,154,126,0.4)' : 'var(--border, #2e3040)'}`, fontFamily: MONO, fontSize: 12 }}>
       <span style={{ color: ok ? 'var(--green, #6f9a7e)' : 'var(--amber, #c8963e)' }}>{ok ? '✓' : '○'}</span>
@@ -69,6 +71,10 @@ function SetupCloseChecklist({ pid, checks, busy, btn, onPayments, onClose }) {
       {item(pay, pay ? 'All payments logged' : 'All payments logged?', pay ? link('undo', () => onPayments(false)) : <>{link('Payments ›', () => navigate(`/properties/${pid}/payments`))}{link('Confirm', () => onPayments(true))}</>)}
       {item(wifiOk, checks.wifi?.not_needed ? 'WiFi not needed' : 'WiFi details registered', !wifiOk && link('Utilities ›', () => navigate(`/properties/${pid}/utilities`)))}
       {item(roOk, checks.ro?.not_needed ? 'RO not needed' : 'RO details registered', !roOk && link('Utilities ›', () => navigate(`/properties/${pid}/utilities`)))}
+      {item(pestOk, checks.pest?.not_needed ? 'Pest control not needed' : 'Pest control treatment recorded',
+        !pestOk && (checks.pest?.requested_at
+          ? link('Record ›', () => navigate(`/properties/${pid}/utilities?add=pest_control&plan=${encodeURIComponent(checks.pest.treatment || '')}&date=${checks.pest.date || ''}`))
+          : link('Book ›', () => navigate(`/properties/${pid}#utilities-request`))))}
       <button type="button" disabled={!ready || busy} onClick={onClose} title={ready ? '' : 'Finish the checks first'}
         style={{ ...btn(ready), opacity: ready ? 1 : 0.5, cursor: ready ? 'pointer' : 'not-allowed' }}>Mark setup closed</button>
     </>

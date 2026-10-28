@@ -347,7 +347,13 @@ function WeekAhead({ week, navigate }) {
 // step needs: arrivals on the day, utilities and vendors before it, QC and the
 // landlord message before a handover.
 function utilLine(k, u, active) {
-  const n = k === 'wifi' ? 'WiFi' : 'RO'
+  const n = k === 'wifi' ? 'WiFi' : k === 'ro' ? 'RO' : 'Pest'
+  if (k === 'pest') {
+    if (active) return ['Pest done', C.green]
+    if (u?.requested_at && u.treatment === 'none') return ['Pest not needed', C.muted]
+    if (u?.requested_at) return [`Pest booked ${new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`, C.accent]
+    return ['Pest not booked', C.red]
+  }
   if (active) return [`${n} active`, C.green]
   if (u?.requested_at && u.months === 0) return [`${n} not needed`, C.muted]
   if (u?.requested_at) return [`${n} requested`, C.accent]
@@ -368,8 +374,8 @@ function Today({ today, navigate }) {
           if (x.kind === 'setup' && live) {
             lines.push([vendors.length ? `${arrived.length} of ${vendors.length} vendors in${missing.length ? ` · ${missing.slice(0, 2).map(v => v.name.split(' ')[0]).join(', ')} not arrived` : ''}` : 'no vendors assigned', vendors.length && !missing.length ? C.green : missing.length ? C.red : C.red])
           } else if (x.kind === 'setup') {
-            const w = utilLine('wifi', x.wifi, p?.utilities?.wifi), r = utilLine('ro', x.ro, p?.utilities?.ro)
-            lines.push([<><span style={{ color: w[1] }}>{w[0]}</span> · <span style={{ color: r[1] }}>{r[0]}</span></>, C.muted])
+            const w = utilLine('wifi', x.wifi, p?.utilities?.wifi), r = utilLine('ro', x.ro, p?.utilities?.ro), pc = utilLine('pest', x.pest, p?.utilities?.pest)
+            lines.push([<><span style={{ color: w[1] }}>{w[0]}</span> · <span style={{ color: r[1] }}>{r[0]}</span> · <span style={{ color: pc[1] }}>{pc[0]}</span></>, C.muted])
             lines.push([vendors.length ? `${vendors.length} vendor${vendors.length === 1 ? '' : 's'} assigned` : 'no vendors assigned yet', vendors.length ? C.muted : C.red])
           } else {
             lines.push([x.qc_done ? 'QC done' : 'QC not marked yet', x.qc_done ? C.green : C.accent])
