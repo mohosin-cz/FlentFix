@@ -156,6 +156,7 @@ function BillCell({ r, compact, onChanged }) {
         const { error } = await supabase.from('property_payment_bills').insert({ payment_id: r.id, ...meta, uploaded_by: user?.email || null })
         if (error) throw error
       }
+      if (r.no_bill) await supabase.from('property_payments').update({ no_bill: false }).eq('id', r.id)
       onChanged && onChanged()
     } catch (x) { setErr(x.message || 'Upload failed') }
     setBusy(false)
@@ -164,7 +165,9 @@ function BillCell({ r, compact, onChanged }) {
   const look = { minHeight: compact ? 28 : 30, padding: '0 8px', borderRadius: 7, fontFamily: MONO, fontSize: 11, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }
   return (
     <span onClick={stop} style={{ position: 'relative', display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', flexShrink: 0 }}>
-      {bills.length > 0 ? (
+      {bills.length === 0 && r.no_bill ? (
+        <span title="Marked as no bill when it was logged" style={{ ...look, cursor: 'default', border: '1px solid var(--border, #2e3040)', color: 'var(--text-muted, #6b6d82)' }}>No bill</span>
+      ) : bills.length > 0 ? (
         <button type="button" title={bills.length === 1 ? `Open ${bills[0].filename || 'the bill'}` : `${bills.length} bills`}
           onClick={() => bills.length === 1 ? open(bills[0]) : setMenu(m => !m)}
           style={{ ...look, border: '1px solid rgba(200,150,62,0.35)', background: 'rgba(200,150,62,0.08)', color: 'var(--accent, #c8963e)' }}>
@@ -368,11 +371,12 @@ export default function PropertyPayments() {
       return m
     }, {})).sort((a, b) => a.key.localeCompare(b.key))
     const withBill = rows.filter(r => r.property_payment_bills?.length).length
+    const noBill = rows.filter(r => !r.property_payment_bills?.length && r.no_bill).length
     return {
       total, material, labour, unsplit, items, itemised, byTrade, byPayee, byMonth,
       count: rows.length,
       avg: rows.length ? total / rows.length : 0,
-      withBill,
+      withBill, noBill,
       largest: [...rows].sort((a, b) => Number(b.amount) - Number(a.amount))[0] || null,
     }
   }, [rows])
@@ -492,8 +496,8 @@ export default function PropertyPayments() {
                 tone={totals.itemised < totals.count ? 'var(--accent, #c8963e)' : undefined}
                 sub={totals.items ? `${totals.items} line${totals.items === 1 ? '' : 's'} recorded` : 'no quantities recorded yet'} />
               <Kpi label="With a bill" value={`${totals.withBill}/${totals.count}`}
-                tone={totals.withBill < totals.count ? 'var(--accent, #c8963e)' : undefined}
-                sub={totals.withBill < totals.count ? `${totals.count - totals.withBill} unreceipted` : 'all receipted'} />
+                tone={totals.withBill + totals.noBill < totals.count ? 'var(--accent, #c8963e)' : undefined}
+                sub={[totals.withBill + totals.noBill < totals.count && `${totals.count - totals.withBill - totals.noBill} missing`, totals.noBill > 0 && `${totals.noBill} no bill`].filter(Boolean).join(' · ') || 'all receipted'} />
             </div>
 
             <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, padding: 14, display: 'grid', gridTemplateColumns: phone ? '1fr' : '1fr 1fr', gap: 20 }}>

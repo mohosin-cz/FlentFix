@@ -210,6 +210,7 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
   const [method, setMethod] = useState(editing?.method || '')
   const [reference, setReference] = useState(editing?.reference || '')
   const [note, setNote] = useState(editing?.note || '')
+  const [noBill, setNoBill] = useState(!!editing?.no_bill)
   const [files, setFiles] = useState([])
   const [existing, setExisting] = useState(editing?.property_payment_bills || [])
   const [extras, setExtras] = useState(!!(editing?.method || editing?.reference || editing?.note))
@@ -265,7 +266,7 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
 
   function reset() {
     setDescription(''); setAmount(''); setMaterial(''); setLabour('')
-    setReference(''); setNote(''); setFiles([]); setErr('')
+    setReference(''); setNote(''); setFiles([]); setNoBill(false); setErr('')
     setItems(itemised ? [blankItem()] : []); setOverrideTotal(null)
     descRef.current?.focus()
     // kind, trade, vendor, date and method persist — logging a day of one
@@ -313,6 +314,8 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
         method: method || null,
         reference: reference.trim() || null,
         note: note.trim() || null,
+        // a bill being attached now outweighs an earlier "no bill"
+        no_bill: noBill && !files.length,
         updated_at: new Date().toISOString(),
       }
       let paymentId = editing?.id
@@ -646,6 +649,13 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
               opens Android's document browser, which hides the camera and the
               gallery — so a photographed bill looked impossible to attach.
               "Photo" opens camera + gallery; "PDF" opens files. Picks add up. */}
+          {noBill ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 9, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)' }}>
+              <span style={{ flex: 1, fontSize: 12.5, color: 'var(--text-dim, #9394a8)' }}>🚫 No bill for this payment</span>
+              <button type="button" onClick={() => setNoBill(false)}
+                style={{ minHeight: 32, padding: '0 10px', borderRadius: 7, border: '1px solid var(--border, #2e3040)', background: 'none', color: 'var(--accent, #c8963e)', fontSize: 11.5, fontFamily: MONO, cursor: 'pointer' }}>Attach one instead</button>
+            </div>
+          ) : (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <label style={{ ...field, flex: '1 1 140px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 44, padding: '0 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: 'var(--accent, #c8963e)' }}>
               📷 Photo of the bill
@@ -658,6 +668,13 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
                 onChange={e => { const add = [...e.target.files]; e.target.value = ''; setFiles(fs => [...fs, ...add]) }} />
             </label>
           </div>
+          )}
+          {!noBill && !files.length && !existing.length && (
+            <button type="button" onClick={() => setNoBill(true)}
+              style={{ marginTop: 8, minHeight: 36, padding: '0 12px', borderRadius: 8, border: '1px dashed var(--border-dash, #3a3d52)', background: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 12, fontFamily: MONO, cursor: 'pointer' }}>
+              🚫 No bill for this payment
+            </button>
+          )}
           {files.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
               {files.map((f, i) => (
