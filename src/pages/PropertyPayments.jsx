@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -139,10 +140,18 @@ function BillCell({ r, compact, onChanged }) {
   const [err, setErr] = useState('')
   const stop = (e) => e.stopPropagation()
 
+  // Phones can't show a PDF inside the page — Android Chrome flashes a blank
+  // frame and tries to download it — so there a PDF opens in its own tab,
+  // in the phone's viewer. The tab is opened inside the tap, before the signed
+  // URL arrives, or the popup blocker eats it.
   async function open(b) {
     setMenu(false); setErr('')
+    const pdf = /\.pdf$/i.test(b.filename || b.path) || b.mime === 'application/pdf'
+    const touch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
+    const tab = pdf && touch ? window.open('', '_blank') : null
     const url = await billUrl(b.path)
-    if (!url) { setErr('Couldn’t open it'); return }
+    if (!url) { tab?.close(); setErr('Couldn’t open it'); return }
+    if (tab) { tab.location.href = url; return }
     setView({ url, name: b.filename || b.path })
   }
   async function attach(e) {
@@ -191,7 +200,9 @@ function BillCell({ r, compact, onChanged }) {
         </span>
       )}
       {err && <span style={{ fontSize: 10.5, color: 'var(--red, #b0645b)', fontFamily: MONO, maxWidth: 140 }}>{err}</span>}
-      {view && <DocViewer url={view.url} name={view.name} onClose={() => setView(null)} />}
+      {/* On the page itself, not inside the row: a full-screen layer nested in
+          a clipped, rounded list repaints badly on phones (the flicker). */}
+      {view && createPortal(<DocViewer url={view.url} name={view.name} onClose={() => setView(null)} />, document.body)}
     </span>
   )
 }
