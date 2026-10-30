@@ -5,7 +5,8 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import PaymentSheet from '../components/property/PaymentSheet'
 import { LineageToggle } from '../components/LineageStrip'
 import { useHashScroll } from '../hooks/useHashScroll'
-import { TRADES, KINDS, inr, fmtDayShort, fmtQty, billUrl, splitOf, itemSummary } from '../utils/payments'
+import { TRADES, KINDS, inr, fmtDayShort, fmtQty, billUrl, uploadBill, splitOf, itemSummary } from '../utils/payments'
+import DocViewer from '../components/vendor/DocViewer'
 import HomeMark from '../components/HomeMark'
 
 // Everything spent on a property during setup, and what it adds up to.
@@ -123,13 +124,77 @@ function BillLinks({ bills }) {
 }
 
 // ── the ledger ────────────────────────────────────────────────────────────────
-const LEDGER_COLS = { display: 'grid', gridTemplateColumns: '78px minmax(0, 2.4fr) minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1.1fr) 52px 104px', columnGap: 12, alignItems: 'center' }
+const LEDGER_COLS = { display: 'grid', gridTemplateColumns: '78px minmax(0, 2.4fr) minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1.1fr) 76px 104px', columnGap: 12, alignItems: 'center' }
 const dim = { color: 'var(--text-muted, #6b6d82)' }
 const ell = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }
 
-function LedgerRow({ r, phone, open, onToggle, confirming, onEdit, onAskDelete, onCancelDelete, onDelete }) {
+// The Bill column, as a control. With a bill: one click opens it (a short
+// list first when there are several). Without one: one click picks a photo or
+// PDF and attaches it to this payment.
+function BillCell({ r, compact, onChanged }) {
+  const bills = r.property_payment_bills || []
+  const [view, setView] = useState(null)       // { url, name }
+  const [menu, setMenu] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const stop = (e) => e.stopPropagation()
+
+  async function open(b) {
+    setMenu(false); setErr('')
+    const url = await billUrl(b.path)
+    if (!url) { setErr('Couldn’t open it'); return }
+    setView({ url, name: b.filename || b.path })
+  }
+  async function attach(e) {
+    const files = [...(e.target.files || [])]; e.target.value = ''
+    if (!files.length) return
+    setBusy(true); setErr('')
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      for (const f of files) {
+        const meta = await uploadBill(f, r.pid)
+        const { error } = await supabase.from('property_payment_bills').insert({ payment_id: r.id, ...meta, uploaded_by: user?.email || null })
+        if (error) throw error
+      }
+      onChanged && onChanged()
+    } catch (x) { setErr(x.message || 'Upload failed') }
+    setBusy(false)
+  }
+
+  const look = { minHeight: compact ? 28 : 30, padding: '0 8px', borderRadius: 7, fontFamily: MONO, fontSize: 11, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }
+  return (
+    <span onClick={stop} style={{ position: 'relative', display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', flexShrink: 0 }}>
+      {bills.length > 0 ? (
+        <button type="button" title={bills.length === 1 ? `Open ${bills[0].filename || 'the bill'}` : `${bills.length} bills`}
+          onClick={() => bills.length === 1 ? open(bills[0]) : setMenu(m => !m)}
+          style={{ ...look, border: '1px solid rgba(200,150,62,0.35)', background: 'rgba(200,150,62,0.08)', color: 'var(--accent, #c8963e)' }}>
+          📎 {bills.length > 1 ? bills.length : 'View'}
+        </button>
+      ) : (
+        <label title="Attach a photo or PDF of the bill"
+          style={{ ...look, border: '1px dashed var(--border-dash, #3a3d52)', color: 'var(--text-muted, #6b6d82)', opacity: busy ? 0.6 : 1 }}>
+          {busy ? 'Uploading…' : '+ Bill'}
+          <input type="file" accept="image/*,application/pdf" multiple disabled={busy} onChange={attach} style={{ display: 'none' }} />
+        </label>
+      )}
+      {menu && (
+        <span style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 20, minWidth: 180, maxWidth: 260, display: 'flex', flexDirection: 'column', padding: 4, borderRadius: 9, background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', boxShadow: '0 12px 30px rgba(0,0,0,0.45)' }}>
+          {bills.map((b, i) => (
+            <button key={b.id || i} type="button" onClick={() => open(b)}
+              style={{ minHeight: 34, padding: '0 9px', border: 'none', background: 'none', textAlign: 'left', color: 'var(--text, #e8e8f0)', fontFamily: MONO, fontSize: 11.5, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              📎 {b.filename || `bill ${i + 1}`}
+            </button>
+          ))}
+        </span>
+      )}
+      {err && <span style={{ fontSize: 10.5, color: 'var(--red, #b0645b)', fontFamily: MONO, maxWidth: 140 }}>{err}</span>}
+      {view && <DocViewer url={view.url} name={view.name} onClose={() => setView(null)} />}
+    </span>
+  )
+}
+
+function LedgerRow({ r, phone, open, onToggle, confirming, onEdit, onAskDelete, onCancelDelete, onDelete, onChanged }) {
   const items = itemSummary(r.property_payment_items)
-  const bills = r.property_payment_bills?.length || 0
   const what = r.description || <span style={dim}>no description</span>
   const kind = r.kind === 'Both' ? `mat ${inr(r.material_cost || 0)} + lab ${inr(r.labour_cost || 0)}` : (r.kind || '').toLowerCase()
   const methodRef = [r.method, r.reference && `ref ${r.reference}`].filter(Boolean).join(' · ')
@@ -138,13 +203,15 @@ function LedgerRow({ r, phone, open, onToggle, confirming, onEdit, onAskDelete, 
 
   return (
     <div id={`pay-${r.id}`} style={{ borderTop: '1px solid var(--border, #2e3040)', scrollMarginTop: 96, background: open ? 'var(--bg-input, #252731)' : 'transparent' }}>
-      <button type="button" onClick={onToggle} aria-expanded={open}
-        style={{ ...(phone ? { display: 'flex', flexDirection: 'column', gap: 4 } : LEDGER_COLS), width: '100%', textAlign: 'left', padding: phone ? '11px 14px' : '10px 14px', border: 'none', background: 'none', color: 'var(--text, #e8e8f0)', cursor: 'pointer', font: 'inherit', fontSize: 13 }}>
+      {/* A div acting as the button, so the bill control can sit inside it */}
+      <div role="button" tabIndex={0} onClick={onToggle} aria-expanded={open}
+        onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); onToggle() } }}
+        style={{ ...(phone ? { display: 'flex', flexDirection: 'column', gap: 4 } : LEDGER_COLS), width: '100%', boxSizing: 'border-box', textAlign: 'left', padding: phone ? '11px 14px' : '10px 14px', color: 'var(--text, #e8e8f0)', cursor: 'pointer', fontSize: 13 }}>
         {phone ? (
           <>
             <span style={{ display: 'flex', gap: 10, alignItems: 'baseline', width: '100%' }}>
               <span style={{ ...ell, flex: 1 }}>{what}</span>
-              {bills > 0 && <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--accent, #c8963e)', flexShrink: 0 }}>📎{bills}</span>}
+              <BillCell r={r} compact onChanged={onChanged} />
               <b style={{ fontFamily: MONO, fontSize: 14, flexShrink: 0 }}>{inr(r.amount)}</b>
             </span>
             <span style={{ ...ell, width: '100%', fontSize: 11, fontFamily: MONO, ...dim }}>
@@ -161,11 +228,11 @@ function LedgerRow({ r, phone, open, onToggle, confirming, onEdit, onAskDelete, 
             <span style={{ ...ell, fontFamily: MONO, fontSize: 11 }}>{tag(r.trade || 'untagged')} <span style={dim}>· {kind}</span></span>
             <span style={{ ...ell, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>{r.payee_name || <span style={dim}>—</span>}</span>
             <span style={{ ...ell, fontFamily: MONO, fontSize: 11, ...dim }}>{methodRef || '—'}</span>
-            <span style={{ fontFamily: MONO, fontSize: 11, color: bills ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)' }}>{bills ? `📎 ${bills}` : '—'}</span>
+            <BillCell r={r} onChanged={onChanged} />
             <b style={{ fontFamily: MONO, fontSize: 13.5, textAlign: 'right' }}>{inr(r.amount)}</b>
           </>
         )}
-      </button>
+      </div>
 
       {open && (
         <div style={{ padding: '0 14px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -474,7 +541,7 @@ export default function PropertyPayments() {
                   confirming={confirming === r.id}
                   onEdit={() => setSheet({ editing: r })}
                   onAskDelete={() => setConfirming(r.id)} onCancelDelete={() => setConfirming(null)}
-                  onDelete={() => remove(r)} />
+                  onDelete={() => remove(r)} onChanged={() => load({ silent: true })} />
               ))}
               {shown.length === 0 && (
                 <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
