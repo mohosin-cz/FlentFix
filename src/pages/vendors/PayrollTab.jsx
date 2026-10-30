@@ -264,6 +264,24 @@ export default function PayrollTab() {
             <div><div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent, #c8963e)' }}>{money(total)}</div><div style={lbl}>total payout</div></div>
             <div><div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text, #e8e8f0)' }}>{(payouts || []).length}</div><div style={lbl}>vendors</div></div>
           </div>
+          {/* Vendors see a line in their portal only once its invoice has been
+              sent for signing (the database holds this — see
+              payroll_vendor_visibility.sql). Said here so nobody has to wonder
+              whether an edit is happening in front of them. */}
+          {(() => {
+            const n = (payouts || []).length, seen = (payouts || []).filter(r => r.released_at).length
+            const hidden = seen === 0
+            return (
+              <div style={{ marginTop: 10, fontSize: 11.5, fontFamily: 'var(--font-mono, monospace)', lineHeight: 1.5, color: hidden ? 'var(--text-muted, #6b6d82)' : seen < n ? 'var(--accent, #c8963e)' : 'var(--green, #6f9a7e)' }}>
+                {hidden
+                  ? (period.status === 'draft'
+                      ? '🔒 Hidden from vendors — they see it once you mark it final and send their invoices for signing.'
+                      : '🔒 Hidden from vendors until their invoices are sent for signing.')
+                  : seen < n ? `👁 ${seen} of ${n} vendors can see this month — the rest appear as their invoices are sent.`
+                  : `👁 All ${n} vendors can see this month.`}
+              </div>
+            )
+          })()}
           {period.status === 'draft'
             ? <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', alignItems: 'center' }}>
                 <button type="button" onClick={() => downloadCsv(period, payouts || [])} style={actBtn}>⤓ CSV</button>

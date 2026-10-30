@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { initials, avatarColor } from '../../utils/vendorHub'
 import LoggedPids from '../../components/vendor/LoggedPids'
-import { inr, sumLines, sendBlockers, monthLabel, allocateByDays } from '../../utils/vendorInvoice'
+import { inr, sumLines, sendBlockers, monthLabel, allocateByDays, allocateEvenly } from '../../utils/vendorInvoice'
 
 // Setting PIDs, one vendor at a time.
 //
@@ -27,7 +27,7 @@ function Ava({ name, size = 44 }) {
 
 const isReady = (card) => card.invoice && sendBlockers(card.invoice, card.lines).length === 0
 
-export default function InvoiceFlow({ period, rows, properties, propName, onSend, onClose }) {
+export default function InvoiceFlow({ period, rows, properties, propName, monthPids = [], onSend, onClose }) {
   // Unallocated first: the flow should open on work, not on things already done.
   const [cards, setCards] = useState(() =>
     [...rows]
@@ -68,6 +68,13 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
   function fillFromLogged() {
     if (!cur?.logged?.length) return
     updLines(ls => allocateByDays(gross, cur.logged, ls[0]?.description || ''))
+  }
+
+  // The month's PIDs (new or set up this month), split evenly — for a vendor
+  // whose punches don't say where they were.
+  function fillFromMonth() {
+    if (!monthPids.length) return
+    updLines(ls => allocateEvenly(gross, monthPids.map(p => p.pid), ls[0]?.description || ''))
   }
 
   // One property added on its own, for the month that was nearly right. It
@@ -119,6 +126,7 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
   async function sendAll() {
     const ids = cards.filter(c => c.invoice.status === 'draft' && isReady(c)).map(c => c.invoice.id)
     if (!ids.length) { setErr('Nothing ready to issue.'); return }
+    if (period.status === 'draft') { setErr(`Mark ${monthLabel(period.period_month)} final first — vendors see their invoice only once it is sent, and it can't be sent from a draft month.`); return }
     setBusy(true); setErr('')
     const issued = await onSend(ids)
     setBusy(false)
@@ -193,11 +201,18 @@ export default function InvoiceFlow({ period, rows, properties, propName, onSend
             {!locked && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', background: 'rgba(200,150,62,0.06)', border: '1px solid var(--border, #2e3040)', borderRadius: 10 }}>
                 <LoggedPids logged={cur.logged} propName={propName} onPick={pickLogged} note={cur.logged?.length ? 'tap one to add it' : ''} />
-                {cur.logged?.length > 0 && (
-                  <button type="button" onClick={fillFromLogged} style={{ ...smallBtn, alignSelf: 'flex-start' }}>
-                    ⚡ Use all {cur.logged.length}, split by days
-                  </button>
-                )}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {cur.logged?.length > 0 && (
+                    <button type="button" onClick={fillFromLogged} style={smallBtn}>
+                      ⚡ Use all {cur.logged.length}, split by days
+                    </button>
+                  )}
+                  {monthPids.length > 0 && (
+                    <button type="button" onClick={fillFromMonth} style={smallBtn} title={monthPids.map(p => p.pid).join(', ')}>
+                      ⚡ This month’s {monthPids.length} PIDs, split evenly
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 

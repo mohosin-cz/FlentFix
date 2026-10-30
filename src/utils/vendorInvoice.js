@@ -108,6 +108,33 @@ export function allocateByDays(gross, entries, description) {
   return out
 }
 
+// The same PIDs on every invoice, split evenly — the month's properties, for
+// vendors whose attendance doesn't say where they were. Remainder on the first
+// line so the split reconciles to the rupee.
+export function allocateEvenly(subtotal, pids, description = '') {
+  const list = [...new Set((pids || []).map(p => String(p).trim()).filter(Boolean))]
+  const total = Math.round(Number(subtotal) || 0)
+  if (!list.length) return []
+  const each = Math.floor(total / list.length)
+  return list.map((pid, i) => ({ pid, description, amount: i === 0 ? total - each * (list.length - 1) : each, sort: i }))
+}
+
+// The properties that belong to a payroll month: new in Pulse that month, or
+// set up that month. What the team typed onto August and September invoices
+// by hand was this list.
+export function monthPidsOf(properties, periodMonth) {
+  const from = String(periodMonth).slice(0, 7)
+  const inMonth = (d) => !!d && String(d).slice(0, 7) === from
+  return (properties || [])
+    .filter(p => /^\d+$/.test(String(p.pid)) && !p.deleted_at)
+    .map(p => ({
+      pid: String(p.pid), name: p.name || '',
+      why: inMonth(p.setup_date) ? 'setup' : (inMonth(p.created_at) && p.source !== 'payments_backfill') ? 'new' : null,
+    }))
+    .filter(p => p.why)
+    .sort((a, b) => Number(a.pid) - Number(b.pid))
+}
+
 // ── amount in words, Indian system ──────────────────────────────────────────
 // Present on every invoice that means anything, and the one field nobody can
 // fudge later: figures can be misread, words can't.
