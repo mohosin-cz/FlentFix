@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { NO_INVOICE_REASONS } from '../components/property/MilestoneStrip'
 import { realName } from '../utils/propertyName'
@@ -10,6 +10,8 @@ import { PullToRefreshIndicator } from '../components/PullToRefreshIndicator'
 import LogoSpinner from '../components/LogoSpinner'
 import { ago } from '../components/home/JourneyPanels'
 import HomeMark from '../components/HomeMark'
+import ExploreLedger from '../components/explore/ExploreLedger'
+import { useExploreLedger } from '../components/explore/useExploreLedger'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -224,6 +226,14 @@ export default function Properties() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const isMobile = useIsMobile()
+
+  // Onboarded (has a PID) or Exploratory (a visited home with a name, no PID
+  // yet). Kept in the URL so a link or a back press lands on the same side.
+  const [params, setParams] = useSearchParams()
+  const view = params.get('view') === 'explore' ? 'explore' : 'onboarded'
+  const setView = (v) => setParams(p => { const n = new URLSearchParams(p); if (v === 'explore') n.set('view', 'explore'); else n.delete('view'); return n }, { replace: true })
+  const explore = useExploreLedger(null, null)
+  const exploreCount = explore.rows.filter(r => !r.pid).length
 
   // Where each property stands, from the journey engine — one read, keyed by PID.
   const [stageByPid, setStageByPid] = useState(() => new Map())
@@ -493,11 +503,21 @@ export default function Properties() {
       {/* Page bar — what this is, how many, search, and the places a property goes when it leaves the list */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '10px 24px', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)', background: 'var(--bg-panel, #1e2028)', borderBottom: '1px solid var(--border, #2e3040)', position: 'sticky', top: 0, zIndex: 100 }}>
         <HomeMark />
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 15, fontWeight: 600 }}>Properties</span>
-          <span style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', fontFamily: 'var(--font-mono, monospace)' }}>{loading ? '…' : `${grouped.length} unit${grouped.length !== 1 ? 's' : ''}`}</span>
+          <div role="tablist" aria-label="Which properties" style={s.seg}>
+            {[['onboarded', 'Onboarded', loading ? '…' : grouped.length, 'Has a PID'], ['explore', 'Exploratory', explore.loading ? '…' : exploreCount, 'Visited, no PID yet']].map(([k, l, n, hint]) => {
+              const on = view === k
+              return (
+                <button key={k} type="button" role="tab" aria-selected={on} title={hint} onClick={() => setView(k)}
+                  style={{ ...s.segBtn, ...(on ? s.segOn : null) }}>
+                  {l}<span style={{ ...s.segCount, ...(on ? s.segCountOn : null) }}>{n}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
-        <div style={{ position: 'relative', width: '100%', maxWidth: 360, flex: '1 1 220px' }}>
+        {view === 'onboarded' && <div style={{ position: 'relative', width: '100%', maxWidth: 360, flex: '1 1 220px' }}>
           <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #6b6d82)', pointerEvents: 'none', display: 'flex' }}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.4"/>
@@ -514,7 +534,7 @@ export default function Properties() {
           {search && (
             <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted, #6b6d82)', fontSize: 16, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
           )}
-        </div>
+        </div>}
         <div style={{ marginLeft: 'auto' }}>
           <div style={s.headerBtns}>
           <button
@@ -578,6 +598,9 @@ export default function Properties() {
 
       {/* Grid */}
       <main style={s.main}>
+        {view === 'explore' ? (
+          <ExploreLedger listOnly unlinkedOnly allTime ledger={explore} setAllTime={() => {}} />
+        ) : (<>
         {/* Filters. Options and counts come from the properties actually on the
             list, so a month nobody inspected is never offered. */}
         {!loading && grouped.length > 0 && (
@@ -695,6 +718,7 @@ export default function Properties() {
             ))}
           </div>
         )}
+        </>)}
       </main>
 
       {archivePid && (
@@ -720,6 +744,11 @@ export default function Properties() {
 }
 
 const s = {
+  seg: { display: 'inline-flex', padding: 3, gap: 2, borderRadius: 10, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)' },
+  segBtn: { display: 'inline-flex', alignItems: 'center', gap: 7, minHeight: 32, padding: '0 12px', borderRadius: 8, border: 'none', background: 'transparent', color: 'var(--text-dim, #9394a8)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  segOn: { background: 'var(--bg-panel, #1e2028)', color: 'var(--text, #e8e8f0)', boxShadow: '0 1px 3px rgba(0,0,0,0.35)' },
+  segCount: { fontSize: 11, fontFamily: 'var(--font-mono, monospace)', color: 'var(--text-muted, #6b6d82)' },
+  segCountOn: { color: 'var(--accent, #c8963e)' },
   page: {
     minHeight: '100svh', background: 'var(--bg, #16171f)',
     display: 'flex', flexDirection: 'column',

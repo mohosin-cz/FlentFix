@@ -2,15 +2,17 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 
 // explore_ledger(): every exploratory request from Stage with its outcome and PID.
-export function useExploreLedger(from, to) {
-  const [state, setState] = useState({ loading: true, error: null, rows: [] })
+// skip: the caller already has the rows (it passes them in), so don't fetch twice.
+export function useExploreLedger(from, to, skip = false) {
+  const [state, setState] = useState({ loading: !skip, error: null, rows: [] })
   useEffect(() => {
+    if (skip) return
     let alive = true
     supabase.rpc('explore_ledger', { p_from: from || null, p_to: to || null }).then(({ data, error }) => {
       if (alive) setState({ loading: false, error: error ? error.message : null, rows: data || [] })
     })
     return () => { alive = false }
-  }, [from, to])
+  }, [from, to, skip])
   return state
 }
 

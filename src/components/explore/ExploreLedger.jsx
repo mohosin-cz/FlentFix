@@ -26,13 +26,18 @@ const first = (e) => { const s = (e || '').split('@')[0]; return s ? s[0].toUppe
 const nice = (d) => d ? new Date(d.length === 10 ? d + 'T00:00:00' : d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'
 const pct = (a, b) => b ? `${Math.round(100 * a / b)}%` : '—'
 
-export default function ExploreLedger({ from, to, who = 'all', allTime, setAllTime }) {
+// listOnly: just the requests, as a list with outcome filters — the Properties
+// page's "Exploratory" side, which is about the homes, not the funnel.
+// unlinkedOnly: only requests not yet tied to a PID (a name, no property yet).
+// ledger: rows the caller already loaded.
+export default function ExploreLedger({ from, to, who = 'all', allTime, setAllTime, listOnly = false, unlinkedOnly = false, ledger: given }) {
   const navigate = useNavigate()
-  const ledger = useExploreLedger(allTime ? null : from, allTime ? null : to)
+  const own = useExploreLedger(allTime ? null : from, allTime ? null : to, !!given)
+  const ledger = given || own
   const [outcome, setOutcome] = useState('')
   const [q, setQ] = useState('')
 
-  const rows = useMemo(() => ledger.rows.filter(r => who === 'all' || (who === 'none' ? !r.visitor : r.visitor === who)), [ledger.rows, who])
+  const rows = useMemo(() => ledger.rows.filter(r => (who === 'all' || (who === 'none' ? !r.visitor : r.visitor === who)) && (!unlinkedOnly || !r.pid)), [ledger.rows, who, unlinkedOnly])
   const shown = useMemo(() => {
     const n = q.trim().toLowerCase()
     return rows.filter(r => (!outcome || r.outcome === outcome || (outcome === 'to_inspect' && r.outcome === 'accepted' && !r.inspected)) &&
@@ -76,11 +81,12 @@ export default function ExploreLedger({ from, to, who = 'all', allTime, setAllTi
   if (ledger.error) return <div style={{ padding: 16, fontFamily: MONO, fontSize: 12.5, color: T.red }}>{/explore_ledger|does not exist|schema cache/i.test(ledger.error) ? 'The exploratory view appears once its migration is applied.' : ledger.error}</div>
 
   return (
-    <div style={{ display: 'grid', gap: 12, padding: 12, opacity: ledger.loading ? 0.6 : 1 }}>
+    <div style={{ display: 'grid', gap: 12, padding: listOnly ? 0 : 12, opacity: ledger.loading ? 0.6 : 1 }}>
       <style>{`.xl-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}@media (max-width:720px){.xl-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
         .xl-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:10px 12px;border-top:1px solid ${C.border}}
         @media (max-width:720px){.xl-row{grid-template-columns:minmax(0,1fr)}}`}</style>
 
+      {!listOnly && <>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ display: 'inline-flex', border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
           {[[false, 'This month'], [true, 'All time']].map(([v, l]) => (
@@ -119,12 +125,20 @@ export default function ExploreLedger({ from, to, who = 'all', allTime, setAllTi
           </table>
         </div>
       )}
+      </>}
 
       <div style={{ border: `1px solid ${C.border}`, borderRadius: 9, overflow: 'hidden' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', padding: 10 }}>
           <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, config, PID, visitor…" aria-label="Search exploratory"
             style={{ flex: '1 1 200px', minHeight: 34, padding: '0 10px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.input, color: C.text, fontFamily: MONO, fontSize: 12.5 }} />
-          {outcome && <button type="button" style={act} onClick={() => setOutcome('')}>Showing: {outcome === 'to_inspect' ? 'Ready to inspect' : OUTCOME[outcome]?.label} ✕</button>}
+          {listOnly
+            ? [['', 'All', rows.length], ...['deciding', 'accepted', 'not_visited', 'rejected'].map(k => [k, OUTCOME[k].label, rows.filter(r => r.outcome === k).length])].map(([k, l, n]) => (
+                <button key={k || 'all'} type="button" aria-pressed={outcome === k} onClick={() => setOutcome(k)}
+                  style={{ ...act, background: outcome === k ? 'rgba(200,150,62,0.12)' : C.input, borderColor: outcome === k ? C.accent : C.border, color: outcome === k ? C.accent : C.dim }}>
+                  {l} <span style={{ opacity: 0.7, fontWeight: 500 }}>{n}</span>
+                </button>
+              ))
+            : outcome && <button type="button" style={act} onClick={() => setOutcome('')}>Showing: {outcome === 'to_inspect' ? 'Ready to inspect' : OUTCOME[outcome]?.label} ✕</button>}
           <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.muted }}>{shown.length} of {rows.length}</span>
         </div>
         {shown.length === 0 && <div style={{ padding: '20px 12px', textAlign: 'center', fontFamily: MONO, fontSize: 12.5, color: C.muted, borderTop: `1px solid ${C.border}` }}>{ledger.loading ? 'Loading…' : rows.length ? 'Nothing matches.' : 'No exploratory visits in this window.'}</div>}
