@@ -395,19 +395,53 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
     onUpdated && onUpdated()
   }
 
-  // Hard delete, admin only, and only from the rejected state — so nothing is
-  // erased without first being rejected and looked at a second time. The
-  // uploaded documents are left in storage deliberately: this table is the
-  // only index of them, so removing the row first would orphan them silently.
+  // Hard delete, admin only, and only for someone already off the roster
+  // (rejected, removed or archived) with no payroll, work-order or payment
+  // records — vendor_purge holds those rules. It used to be a plain table
+  // delete, which RLS turned into a silent no-op. The row goes first, then the
+  // files: the RPC hands back their paths, and everything under the vendor's
+  // own folder goes too (some documents are only stored as URLs).
   async function deleteVendor() {
     setBusy('remove'); setErr('')
-    const { error } = await supabase.from('vendors').delete().eq('id', row.id)
+    const { data, error } = await supabase.rpc('vendor_purge', { p_id: row.id })
+    if (error) { setBusy(''); setErr(error.message); return }
+    try {
+      const { data: inFolder } = await supabase.storage.from('vendor-docs').list(row.id, { limit: 100 })
+      const docs = [...new Set([...(data?.docs || []), ...(inFolder || []).map(o => `${row.id}/${o.name}`)])]
+      if (docs.length) await supabase.storage.from('vendor-docs').remove(docs)
+      if (data?.avatars?.length) await supabase.storage.from('vendor-avatars').remove(data.avatars)
+    } catch { /* the record is gone; a stray file is not worth failing over */ }
     setBusy('')
-    if (error) { setErr('Could not delete: ' + error.message); return }
     setPending('')
     onUpdated && onUpdated()
     onClose && onClose()
   }
+
+  const deleteConfirm = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: '12px 13px', borderRadius: 10, background: 'rgba(176,100,91,0.07)', border: '1px solid rgba(176,100,91,0.30)' }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red, #b0645b)' }}>Delete {(row.full_name || 'this vendor').split(' ')[0]} permanently?</div>
+      <div style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5, fontFamily: 'var(--font-mono, monospace)' }}>
+        Their profile, documents, photo, attendance, leave and history are erased for good. This cannot be undone.
+        Anyone with payroll, work orders or payments can’t be deleted — those records stay.
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" onClick={deleteVendor} disabled={busy === 'remove'}
+          style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', background: 'var(--red, #b0645b)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+          {busy === 'remove' ? 'Deleting…' : 'Delete forever'}
+        </button>
+        <button type="button" onClick={() => { setPending(''); setErr('') }}
+          style={{ flex: 1, minHeight: 42, borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+  const deleteLink = admin && (
+    <button type="button" onClick={() => { setPending('delete'); setErr('') }}
+      style={{ alignSelf: 'center', minHeight: 40, padding: '0 12px', border: 'none', background: 'none', color: 'var(--red, #b0645b)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+      Delete permanently
+    </button>
+  )
 
   async function removeVendor() {
     setBusy('remove'); setErr('')
@@ -696,6 +730,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
                 style={{ width: '100%', minHeight: 46, borderRadius: 10, border: '1px solid var(--green, #6f9a7e)', background: 'rgba(111,154,126,0.10)', color: 'var(--green, #6f9a7e)', fontSize: 14, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
                 {busy === 'remove' ? 'Returning…' : 'Return to roster'}
               </button>
+              {pending === 'delete' ? deleteConfirm : deleteLink}
             </>
           ) : removed ? (
             <>
@@ -717,6 +752,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
                   {busy === 'remove' ? 'Restoring…' : 'Put back on roll'}
                 </button>
               )}
+              {pending === 'delete' ? deleteConfirm : deleteLink}
             </>
           ) : onboardedCode ? (
             <>
@@ -791,24 +827,7 @@ export default function VendorDetailSheet({ vendor, onClose, onOnboarded, onUpda
                 Off the pending list. Nothing is deleted — the submission and its documents are kept, and you can put it back.
               </div>
 
-              {pending === 'delete' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: '12px 13px', borderRadius: 10, background: 'rgba(176,100,91,0.07)', border: '1px solid rgba(176,100,91,0.30)' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red, #b0645b)' }}>Delete {row.full_name.split(' ')[0]} permanently?</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5, fontFamily: 'var(--font-mono, monospace)' }}>
-                    The submission is erased for good. This cannot be undone. Uploaded documents stay in storage — this row is the only index of them, so clear those from the bucket too if the record must go entirely.
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="button" onClick={deleteVendor} disabled={busy === 'remove'}
-                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: 'none', background: 'var(--red, #b0645b)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
-                      {busy === 'remove' ? 'Deleting…' : 'Delete forever'}
-                    </button>
-                    <button type="button" onClick={() => { setPending(''); setErr('') }}
-                      style={{ flex: 1, minHeight: 42, borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
+              {pending === 'delete' ? deleteConfirm : (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button type="button" onClick={unrejectVendor} disabled={busy === 'remove'}
                     style={{ flex: 1, minHeight: 46, borderRadius: 10, border: '1px solid var(--green, #6f9a7e)', background: 'rgba(111,154,126,0.10)', color: 'var(--green, #6f9a7e)', fontSize: 14, fontWeight: 700, cursor: busy === 'remove' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono, monospace)' }}>
