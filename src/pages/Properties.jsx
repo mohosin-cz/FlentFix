@@ -222,16 +222,22 @@ function PropTable({ rows, stageByPid, sort, setSort, onOpen, onArchive, onBin }
   )
 }
 
+// A PID is a number. A property kept under a name ("Canterbury Apartment")
+// was set up from an exploratory visit before it had one.
+const hasPid = (pid) => /^\d+$/.test(String(pid ?? '').trim())
+
 export default function Properties() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const isMobile = useIsMobile()
 
-  // Onboarded (has a PID) or Exploratory (a visited home with a name, no PID
-  // yet). Kept in the URL so a link or a back press lands on the same side.
+  // Three ways in. "With PID" and "No PID" filter the one property list — a
+  // property kept under a name rather than a number is the second — and every
+  // row still opens its property. "Exploratory" is Stage's visits that have no
+  // property yet. Kept in the URL so a link or a back press lands on the same side.
   const [params, setParams] = useSearchParams()
-  const view = params.get('view') === 'explore' ? 'explore' : 'onboarded'
-  const setView = (v) => setParams(p => { const n = new URLSearchParams(p); if (v === 'explore') n.set('view', 'explore'); else n.delete('view'); return n }, { replace: true })
+  const view = ['none', 'explore'].includes(params.get('view')) ? params.get('view') : 'pid'
+  const setView = (v) => setParams(p => { const n = new URLSearchParams(p); if (v === 'pid') n.delete('view'); else n.set('view', v); return n }, { replace: true })
   const explore = useExploreLedger(null, null)
   const exploreCount = explore.rows.filter(r => !r.pid).length
 
@@ -354,7 +360,7 @@ export default function Properties() {
 
   // Memoised so the facet tally below actually memoises — a fresh array on
   // every render made its useMemo recompute unconditionally.
-  const grouped = useMemo(() => {
+  const allProps = useMemo(() => {
     const out = []
     const seen = new Set()
     for (const row of rows) {
@@ -364,6 +370,10 @@ export default function Properties() {
     }
     return out
   }, [rows])
+  // The side of the toggle being looked at. Facets, counts and the empty state
+  // all follow it, so "No PID" reads as a list of its own.
+  const pidCount = useMemo(() => allProps.filter(r => hasPid(r.pid)).length, [allProps])
+  const grouped = useMemo(() => allProps.filter(r => hasPid(r.pid) === (view !== 'none')), [allProps, view])
 
   // Facet options are built from the properties actually on the list, with
   // counts, so the dropdowns can never offer a month nobody inspected or omit
@@ -506,7 +516,9 @@ export default function Properties() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 15, fontWeight: 600 }}>Properties</span>
           <div role="tablist" aria-label="Which properties" style={s.seg}>
-            {[['onboarded', 'Onboarded', loading ? '…' : grouped.length, 'Has a PID'], ['explore', 'Exploratory', explore.loading ? '…' : exploreCount, 'Visited, no PID yet']].map(([k, l, n, hint]) => {
+            {[['pid', 'With PID', loading ? '…' : pidCount, 'Onboarded — has a PID number'],
+              ['none', 'No PID', loading ? '…' : allProps.length - pidCount, 'In Pulse under a name, no PID number yet'],
+              ['explore', 'Exploratory', explore.loading ? '…' : exploreCount, 'Visits from Stage with no property yet']].map(([k, l, n, hint]) => {
               const on = view === k
               return (
                 <button key={k} type="button" role="tab" aria-selected={on} title={hint} onClick={() => setView(k)}
@@ -517,7 +529,7 @@ export default function Properties() {
             })}
           </div>
         </div>
-        {view === 'onboarded' && <div style={{ position: 'relative', width: '100%', maxWidth: 360, flex: '1 1 220px' }}>
+        {view !== 'explore' && <div style={{ position: 'relative', width: '100%', maxWidth: 360, flex: '1 1 220px' }}>
           <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #6b6d82)', pointerEvents: 'none', display: 'flex' }}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.4"/>
@@ -621,7 +633,7 @@ export default function Properties() {
           <LogoSpinner />
         ) : filtered.length === 0 ? (
           <div style={s.emptyState}>
-            <div style={s.emptyTitle}>{grouped.length === 0 ? 'No properties yet' : 'Nothing matches'}</div>
+            <div style={s.emptyTitle}>{grouped.length === 0 ? (view === 'none' ? 'Every property has a PID' : 'No properties yet') : 'Nothing matches'}</div>
             {grouped.length > 0 && (
               <>
                 <div style={s.emptySub}>
