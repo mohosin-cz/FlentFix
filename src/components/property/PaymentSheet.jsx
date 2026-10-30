@@ -642,12 +642,34 @@ export default function PaymentSheet({ pid, payees, editing, recentTrades = [], 
               ))}
             </div>
           )}
-          <input type="file" accept="image/*,application/pdf" multiple
-            onChange={e => setFiles([...e.target.files])}
-            style={{ ...field, padding: '9px 11px', fontSize: 12, cursor: 'pointer' }} />
+          {/* Two pickers, not one. A single input that takes images and PDFs
+              opens Android's document browser, which hides the camera and the
+              gallery — so a photographed bill looked impossible to attach.
+              "Photo" opens camera + gallery; "PDF" opens files. Picks add up. */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <label style={{ ...field, flex: '1 1 140px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 44, padding: '0 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: 'var(--accent, #c8963e)' }}>
+              📷 Photo of the bill
+              <input type="file" accept="image/*" multiple style={{ display: 'none' }}
+                onChange={e => { const add = [...e.target.files]; e.target.value = ''; setFiles(fs => [...fs, ...add]) }} />
+            </label>
+            <label style={{ ...field, flex: '1 1 140px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 44, padding: '0 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: 'var(--accent, #c8963e)' }}>
+              📄 PDF
+              <input type="file" accept="application/pdf,image/*" multiple style={{ display: 'none' }}
+                onChange={e => { const add = [...e.target.files]; e.target.value = ''; setFiles(fs => [...fs, ...add]) }} />
+            </label>
+          </div>
           {files.length > 0 && (
-            <div style={{ fontSize: 11, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, marginTop: 6 }}>
-              {files.length} file{files.length === 1 ? '' : 's'} ready — photos are compressed on upload
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+              {files.map((f, i) => (
+                <div key={i + f.name} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 10px', background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 8 }}>
+                  <span aria-hidden style={{ fontSize: 14 }}>{f.type === 'application/pdf' || /\.pdf$/i.test(f.name) ? '📄' : '🖼'}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                  <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{(f.size / 1e6).toFixed(1)} MB</span>
+                  <button type="button" onClick={() => setFiles(fs => fs.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}
+                    style={{ minWidth: 30, minHeight: 30, border: 'none', background: 'none', color: 'var(--red, #b0645b)', cursor: 'pointer', fontSize: 13 }}>✕</button>
+                </div>
+              ))}
+              <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>Photos are compressed on upload.</div>
             </div>
           )}
         </div>

@@ -122,6 +122,76 @@ function BillLinks({ bills }) {
   )
 }
 
+// ── the ledger ────────────────────────────────────────────────────────────────
+const LEDGER_COLS = { display: 'grid', gridTemplateColumns: '78px minmax(0, 2.4fr) minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1.1fr) 52px 104px', columnGap: 12, alignItems: 'center' }
+const dim = { color: 'var(--text-muted, #6b6d82)' }
+const ell = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }
+
+function LedgerRow({ r, phone, open, onToggle, confirming, onEdit, onAskDelete, onCancelDelete, onDelete }) {
+  const items = itemSummary(r.property_payment_items)
+  const bills = r.property_payment_bills?.length || 0
+  const what = r.description || <span style={dim}>no description</span>
+  const kind = r.kind === 'Both' ? `mat ${inr(r.material_cost || 0)} + lab ${inr(r.labour_cost || 0)}` : (r.kind || '').toLowerCase()
+  const methodRef = [r.method, r.reference && `ref ${r.reference}`].filter(Boolean).join(' · ')
+  const tag = (t) => <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--accent, #c8963e)' }}>{t}</span>
+  const btn = (danger) => ({ minHeight: 34, padding: '0 14px', borderRadius: 8, border: danger === 'solid' ? 'none' : '1px solid var(--border, #2e3040)', background: danger === 'solid' ? 'var(--red, #b0645b)' : 'var(--bg-input, #252731)', color: danger === 'solid' ? '#fff' : danger ? 'var(--red, #b0645b)' : 'var(--text-dim, #9394a8)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: MONO })
+
+  return (
+    <div id={`pay-${r.id}`} style={{ borderTop: '1px solid var(--border, #2e3040)', scrollMarginTop: 96, background: open ? 'var(--bg-input, #252731)' : 'transparent' }}>
+      <button type="button" onClick={onToggle} aria-expanded={open}
+        style={{ ...(phone ? { display: 'flex', flexDirection: 'column', gap: 4 } : LEDGER_COLS), width: '100%', textAlign: 'left', padding: phone ? '11px 14px' : '10px 14px', border: 'none', background: 'none', color: 'var(--text, #e8e8f0)', cursor: 'pointer', font: 'inherit', fontSize: 13 }}>
+        {phone ? (
+          <>
+            <span style={{ display: 'flex', gap: 10, alignItems: 'baseline', width: '100%' }}>
+              <span style={{ ...ell, flex: 1 }}>{what}</span>
+              {bills > 0 && <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--accent, #c8963e)', flexShrink: 0 }}>📎{bills}</span>}
+              <b style={{ fontFamily: MONO, fontSize: 14, flexShrink: 0 }}>{inr(r.amount)}</b>
+            </span>
+            <span style={{ ...ell, width: '100%', fontSize: 11, fontFamily: MONO, ...dim }}>
+              {fmtDayShort(r.paid_on)} · {tag(r.trade || 'untagged')} · {kind}{r.payee_name ? ` · ${r.payee_name}` : ''}{methodRef ? ` · ${methodRef}` : ''}{items ? ` · ${items}` : ''}
+            </span>
+          </>
+        ) : (
+          <>
+            <span style={{ fontFamily: MONO, fontSize: 11.5, ...dim }}>{fmtDayShort(r.paid_on)}</span>
+            <span style={ell} title={typeof r.description === 'string' ? r.description : ''}>
+              {what}{items && <span style={{ fontFamily: MONO, fontSize: 11, ...dim }}> · {items}</span>}
+              {r.source === 'import' && <span style={{ fontFamily: MONO, fontSize: 10, ...dim }}> · imported</span>}
+            </span>
+            <span style={{ ...ell, fontFamily: MONO, fontSize: 11 }}>{tag(r.trade || 'untagged')} <span style={dim}>· {kind}</span></span>
+            <span style={{ ...ell, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>{r.payee_name || <span style={dim}>—</span>}</span>
+            <span style={{ ...ell, fontFamily: MONO, fontSize: 11, ...dim }}>{methodRef || '—'}</span>
+            <span style={{ fontFamily: MONO, fontSize: 11, color: bills ? 'var(--accent, #c8963e)' : 'var(--text-muted, #6b6d82)' }}>{bills ? `📎 ${bills}` : '—'}</span>
+            <b style={{ fontFamily: MONO, fontSize: 13.5, textAlign: 'right' }}>{inr(r.amount)}</b>
+          </>
+        )}
+      </button>
+
+      {open && (
+        <div style={{ padding: '0 14px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {phone && r.description && <div style={{ fontSize: 13, wordBreak: 'break-word' }}>{r.description}</div>}
+          <ItemLines items={r.property_payment_items} amount={r.amount} />
+          {r.note && <div style={{ fontSize: 12, color: 'var(--text-dim, #9394a8)', lineHeight: 1.5, wordBreak: 'break-word' }}>{r.note}</div>}
+          <BillLinks bills={r.property_payment_bills} />
+          <LineageToggle kind="payment" id={r.id} style={{ marginTop: 4 }} />
+          {confirming ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', marginTop: 6 }}>
+              <span style={{ flex: 1, minWidth: 160, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: MONO }}>Delete this payment?</span>
+              <button type="button" onClick={onDelete} style={btn('solid')}>Delete</button>
+              <button type="button" onClick={onCancelDelete} style={btn(false)}>Cancel</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+              <button type="button" onClick={onEdit} style={btn(false)}>Edit</button>
+              <button type="button" onClick={onAskDelete} style={btn(true)}>Delete</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PropertyPayments() {
   const navigate = useNavigate()
   const { pid } = useParams()
@@ -140,6 +210,7 @@ export default function PropertyPayments() {
   const [q, setQ] = useState('')
   const [toast, setToast] = useState(null)
   const [confirming, setConfirming] = useState(null)
+  const [openRow, setOpenRow] = useState(null)
   // False only until the lines migration has run somewhere. It gates the
   // itemiser rather than the page, so nobody can type lines that cannot save.
   const [itemsReady, setItemsReady] = useState(true)
@@ -389,81 +460,31 @@ export default function PropertyPayments() {
               </div>
             )}
 
-            <style>{`.pay-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-items: start; } @media (min-width: 1000px) { .pay-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } } @media (min-width: 1500px) { .pay-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } } .pay-grid > .pay-empty { grid-column: 1 / -1; }`}</style>
-            <div className="pay-grid">
-              {shown.map(r => (
-                <div key={r.id} id={`pay-${r.id}`} style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 11, padding: '12px 14px', scrollMarginTop: 96 }}>
-                  {/* What it was, then how much. The description is what a
-                      person scans for; the number only means something once
-                      they have found the line. */}
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13.5, color: 'var(--text, #e8e8f0)', flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
-                      {r.description || <span style={{ color: 'var(--text-muted, #6b6d82)' }}>no description</span>}
-                    </span>
-                    <span style={{ fontSize: 15, fontWeight: 700, fontFamily: MONO, flexShrink: 0 }}>{inr(r.amount)}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 7 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent, #c8963e)', border: '1px solid rgba(200,150,62,0.35)', background: 'rgba(200,150,62,0.08)', borderRadius: 6, padding: '2px 7px', fontFamily: MONO }}>{r.trade || 'untagged'}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-dim, #9394a8)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, padding: '2px 7px', fontFamily: MONO }}>{r.kind}</span>
-                    {r.payee_name && <span style={{ fontSize: 11.5, color: 'var(--text-dim, #9394a8)' }}>{r.payee_name}</span>}
-                    <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{fmtDayShort(r.paid_on)}</span>
-                    {r.kind === 'Both' && (
-                      <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
-                        {inr(r.material_cost || 0)} mat + {inr(r.labour_cost || 0)} lab
-                      </span>
-                    )}
-                    {r.method && <span style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>{r.method}</span>}
-                    {itemSummary(r.property_payment_items) && (
-                      <span style={{ fontSize: 10.5, color: 'var(--text-dim, #9394a8)', fontFamily: MONO, background: 'var(--bg-input, #252731)', border: '1px solid var(--border, #2e3040)', borderRadius: 6, padding: '2px 7px' }}>
-                        {itemSummary(r.property_payment_items)}
-                      </span>
-                    )}
-                    {r.source === 'import' && <span style={{ fontSize: 10, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>imported</span>}
-                  </div>
-                  <ItemLines items={r.property_payment_items} amount={r.amount} />
-                  {r.note && <div style={{ fontSize: 11.5, color: 'var(--text-muted, #6b6d82)', marginTop: 6, lineHeight: 1.5, wordBreak: 'break-word' }}>{r.note}</div>}
-                  {r.reference && <div style={{ fontSize: 10.5, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO, marginTop: 4 }}>ref {r.reference}</div>}
-                  <BillLinks bills={r.property_payment_bills} />
-
-                  {/* What this money was for — or, for every row on file today,
-                      the honest answer that nothing links it to a work order. */}
-                  <LineageToggle kind="payment" id={r.id} style={{ marginTop: 10 }} />
-
-                  {/* On their own line, at button size, with delete in red.
-                      These were 10.5px muted text tucked into the metadata row
-                      and read as labels rather than controls — which is the
-                      same as not having built them. */}
-                  {confirming === r.id ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', marginTop: 11, paddingTop: 11, borderTop: '1px solid var(--border, #2e3040)' }}>
-                      <span style={{ flex: 1, minWidth: 160, fontSize: 12, color: 'var(--red, #b0645b)', fontFamily: MONO }}>
-                        Delete this payment?
-                      </span>
-                      <button onClick={() => remove(r)}
-                        style={{ minHeight: 34, padding: '0 14px', borderRadius: 8, border: 'none', background: 'var(--red, #b0645b)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: MONO }}>
-                        Delete
-                      </button>
-                      <button onClick={() => setConfirming(null)}
-                        style={{ minHeight: 34, padding: '0 12px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 12, cursor: 'pointer', fontFamily: MONO }}>
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', gap: 8, marginTop: 11, paddingTop: 11, borderTop: '1px solid var(--border, #2e3040)' }}>
-                      <button onClick={() => setSheet({ editing: r })}
-                        style={{ minHeight: 34, padding: '0 14px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--text-dim, #9394a8)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>
-                        Edit
-                      </button>
-                      <button onClick={() => setConfirming(r.id)}
-                        style={{ minHeight: 34, padding: '0 14px', borderRadius: 8, border: '1px solid var(--border, #2e3040)', background: 'var(--bg-input, #252731)', color: 'var(--red, #b0645b)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: MONO }}>
-                        Delete
-                      </button>
-                    </div>
-                  )}
+            {/* A ledger: one line per payment, every detail on that line, newest
+                first. Tap a line for its item lines, note, bills and actions. */}
+            <div style={{ background: 'var(--bg-panel, #1e2028)', border: '1px solid var(--border, #2e3040)', borderRadius: 12, overflow: 'hidden' }}>
+              {!phone && (
+                <div style={{ ...LEDGER_COLS, padding: '9px 14px', borderBottom: '1px solid var(--border, #2e3040)', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
+                  <span>Date</span><span>What</span><span>Trade · type</span><span>Paid to</span><span>Method · ref</span><span>Bill</span><span style={{ textAlign: 'right' }}>Amount</span>
                 </div>
+              )}
+              {shown.map(r => (
+                <LedgerRow key={r.id} r={r} phone={phone} open={openRow === r.id}
+                  onToggle={() => { setOpenRow(o => o === r.id ? null : r.id); setConfirming(null) }}
+                  confirming={confirming === r.id}
+                  onEdit={() => setSheet({ editing: r })}
+                  onAskDelete={() => setConfirming(r.id)} onCancelDelete={() => setConfirming(null)}
+                  onDelete={() => remove(r)} />
               ))}
               {shown.length === 0 && (
-                <div className="pay-empty" style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
+                <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #6b6d82)', fontFamily: MONO }}>
                   Nothing matches that.
+                </div>
+              )}
+              {shown.length > 0 && (
+                <div style={{ ...(phone ? { display: 'flex', justifyContent: 'space-between' } : LEDGER_COLS), padding: '10px 14px', borderTop: '1px solid var(--border, #2e3040)', fontFamily: MONO, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>
+                  {phone ? <><span>{shown.length} payment{shown.length === 1 ? '' : 's'}</span><b style={{ color: 'var(--text, #e8e8f0)' }}>{inr(shownTotal)}</b></>
+                    : <><span /><span>{shown.length} payment{shown.length === 1 ? '' : 's'}</span><span /><span /><span /><span /><b style={{ textAlign: 'right', color: 'var(--text, #e8e8f0)' }}>{inr(shownTotal)}</b></>}
                 </div>
               )}
             </div>
