@@ -765,10 +765,12 @@ export default function LandlordInvoice() {
     }
     setFinalising(true)
     const next = final ? 'sent' : 'draft'
-    const { error: fErr } = await supabase.from('landlord_invoices').update({ status: next, updated_at: new Date().toISOString() }).eq('id', invoice.id)
+    // the database stamps finalised_at / finalised_by; read them back
+    const { data: row, error: fErr } = await supabase.from('landlord_invoices').update({ status: next, updated_at: new Date().toISOString() }).eq('id', invoice.id)
+      .select('finalised_at, finalised_by, finalised_estimated').maybeSingle()
     setFinalising(false)
     if (fErr) { setNotice({ tone: 'err', text: `Couldn’t ${final ? 'finalise' : 'reopen'} — ${fErr.message}` }); return }
-    setStatus(next); setInvoice(i => ({ ...i, status: next }))
+    setStatus(next); setInvoice(i => ({ ...i, status: next, ...(row || {}) }))
     setNotice({ tone: 'ok', text: final ? 'Finalised — this counts as invoiced, and the property can now be closed.' : 'Back to draft — the property can’t close until it’s final again.' })
   }
 
@@ -943,6 +945,18 @@ export default function LandlordInvoice() {
           )}
         </div>
       </div>
+
+      {/* ── FINALISED ── when, and by whom; an estimate is said to be one */}
+      {!loading && invoice && status !== 'draft' && invoice.finalised_at && (
+        <div className="inv-noprint" style={{ maxWidth: 860, margin: '10px auto 0', padding: isMobile ? '0 14px' : '0 24px' }}>
+          <div style={{ fontSize: 12, lineHeight: 1.5, color: '#5e8a6e', fontFamily: 'var(--font-mono, monospace)' }}
+            title={invoice.finalised_estimated ? 'Finalised before Pulse recorded the moment — this date is a best estimate (last change, or the issue date for imported invoices).' : ''}>
+            ✓ Finalised {invoice.finalised_estimated ? '~ ' : ''}{new Date(invoice.finalised_at).toLocaleString('en-IN', invoice.finalised_estimated ? { day: 'numeric', month: 'short', year: 'numeric' } : { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+            {invoice.finalised_by && invoice.finalised_by !== 'system' ? ` · by ${invoice.finalised_by.split('@')[0]}` : ''}
+            {invoice.finalised_estimated ? <span style={{ color: '#999' }}> · estimated</span> : null}
+          </div>
+        </div>
+      )}
 
       {/* ── DRAFT ── a draft isn't invoicing yet; say so where it can be fixed */}
       {!loading && invoice && status === 'draft' && (
