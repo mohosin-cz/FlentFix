@@ -8,6 +8,8 @@ Pulse's stage_dates table through stage_dates_ingest():
                        Stage has one, else the planned date)
   inspections          properties.inspection_date_actual / _planned
   handovers            properties.actual_handover_date / scheduled_handover_date
+  move-in ready        properties.move_in_ready_notified_at (IST day) — Pulse's
+                       handover date
   key handover, move-in, go-live
   exploratory          every exploratory request with its visits (findings,
                        outcome, capex) → stage_exploratory_ingest(), which also
@@ -49,6 +51,11 @@ dates as (
   select p.id::text || ':handover', p.pid, p.name, 'handover', coalesce(p.actual_handover_date, p.scheduled_handover_date),
          case when p.actual_handover_date is not null then 'actual' else 'planned' end, '{}'::jsonb from p
    where coalesce(p.actual_handover_date, p.scheduled_handover_date) is not null
+  union all
+  -- "Move-in Ready" in Stage: the day the home was ready for the tenant. This
+  -- is Pulse's handover date (the handover above is the landlord's, to Flent).
+  select p.id::text || ':move_in_ready', p.pid, p.name, 'move_in_ready', (p.move_in_ready_notified_at at time zone 'Asia/Kolkata')::date,
+         'actual', '{}'::jsonb from p where p.move_in_ready_notified_at is not null
   union all
   select p.id::text || ':key_handover', p.pid, p.name, 'key_handover', p.key_handover_date, 'actual',
          jsonb_build_object('remarks', p.key_handover_remarks) from p where p.key_handover_date is not null

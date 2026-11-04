@@ -246,7 +246,7 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
           <>
             <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>{handover?.date ? 'Move handover date to' : 'Handover date'}</span>
             <input type="date" value={hoDate} onChange={e => setHoDate(e.target.value)} style={input} aria-label="Handover date" />
-            {stage?.handover && stage.handover !== handover?.date && <button type="button" disabled={busy} onClick={() => takeStageDate('handover')} style={btn(false)} title="Take Stage's handover date and follow Stage from now on">Use Stage’s · {fmtDay(stage.handover)}</button>}
+            {stage?.handover && stage.handover !== handover?.date && <button type="button" disabled={busy} onClick={() => takeStageDate('handover')} style={btn(false)} title="Take Stage's Move-in Ready date and follow Stage from now on">Use Stage’s Move-in Ready · {fmtDay(stage.handover)}</button>}
             <button type="button" disabled={!hoDate || busy} onClick={setHandoverDate} style={{ ...btn(true), opacity: hoDate ? 1 : 0.5 }}>{handover?.date ? 'Move' : 'Set handover date'}</button>
             {hoMoving && <button type="button" onClick={() => { setHoMoving(false); setHoDate('') }} style={btn(false)}>Cancel</button>}
           </>
@@ -320,7 +320,7 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
         {setup?.done && !setupClosed && !moving && due !== 'setup_date' && (
           <button type="button" onClick={() => { setMoving(true); setDate(setup.date || '') }} style={btn(false)}>Move setup date</button>
         )}
-        {setup?.done && handover && !handover.done && !hoMoving && !moving && due !== 'setup_date' && (due !== 'handover_done' || handover.date) && (
+        {setup?.done && handover && !handover.done && !hoMoving && !moving && due !== 'setup_date' && (due !== 'handover_done' || handover.date) && !(stage?.handover && handover.date_by === 'stage') && (
           <button type="button" onClick={() => { setHoMoving(true); setHoDate(handover.date || '') }} style={btn(false)}
             title={handover.date ? `Handover planned for ${fmtDay(handover.date)}` : 'Plan the handover day ahead'}>
             {handover.date ? `Move handover date` : 'Set handover date'}
@@ -348,9 +348,12 @@ function DateSources({ setup, handover, stage, busy, onUse, btn }) {
   for (const [kind, label, cur, by] of [['setup', 'Setup', setup?.date, setup?.by], ['handover', 'Handover', handover?.date, handover?.date_by]]) {
     const sd = stage[kind]
     if (!sd && !cur) continue
-    if (by === 'stage' || (!by && cur && cur === sd)) rows.push({ kind, text: `${label} ${fmtDay(cur)} · from Stage`, tone: 'var(--text-muted, #6b6d82)' })
-    else if (sd && cur && cur !== sd) rows.push({ kind, text: `${label} ${fmtDay(cur)} · changed in Pulse${by && by !== 'none' ? ` by ${who(by)}` : ''} · Stage says ${fmtDay(sd)}`, tone: 'var(--amber, #c8963e)', use: true })
-    else if (sd && !cur) rows.push({ kind, text: `${label}: cleared in Pulse · Stage says ${fmtDay(sd)}`, tone: 'var(--amber, #c8963e)', use: true })
+    const src = kind === 'handover' ? 'Stage Move-in Ready' : 'Stage'
+    if (kind === 'handover' && !sd && by === 'stage') continue
+    if (by === 'stage' || (!by && cur && cur === sd)) rows.push({ kind, text: `${label} ${fmtDay(cur)} · from ${src}`, tone: 'var(--text-muted, #6b6d82)' })
+    else if (sd && cur && cur !== sd) rows.push({ kind, text: `${label} ${fmtDay(cur)} · changed in Pulse${by && by !== 'none' ? ` by ${who(by)}` : ''} · ${src} says ${fmtDay(sd)}`, tone: 'var(--amber, #c8963e)', use: true })
+    else if (sd && !cur) rows.push({ kind, text: `${label}: cleared in Pulse · ${src} says ${fmtDay(sd)}`, tone: 'var(--amber, #c8963e)', use: true })
+    else if (kind === 'handover' && cur && !sd) rows.push({ kind, text: `${label} ${fmtDay(cur)} · entered in Pulse${by && by !== 'none' ? ` by ${who(by)}` : ''} · no Move-in Ready in Stage yet`, tone: 'var(--text-muted, #6b6d82)' })
   }
   if (!rows.length) return null
   return (
