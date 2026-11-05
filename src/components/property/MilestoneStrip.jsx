@@ -308,6 +308,13 @@ export default function MilestoneStrip({ pid, controlsOnly = false, onData, onCh
             <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-dim, #9394a8)' }}>Handover {fmtDay(handover.date)} · {rel(hdt)}</span>
             <button type="button" disabled={busy} onClick={() => act('mark', 'handover_done')} style={btn(true)}>Mark handed over</button>
           </>
+        ) : due === 'wo_shared' ? (
+          <>
+            {/* Sending the report from its page ticks this step; marking by hand
+                stays for a report shared some other way. */}
+            <button type="button" disabled={busy} onClick={() => navigate(`/properties/${pid}/work-orders/report`)} style={btn(true)}>Open report &amp; send to Slack ›</button>
+            <button type="button" disabled={busy} onClick={() => act('mark', due)} style={btn(false)}>Mark shared</button>
+          </>
         ) : due ? (
           <button type="button" disabled={busy} onClick={() => act('mark', due)} style={btn(true)}>{STEPS[due].action}</button>
         ) : (
