@@ -513,6 +513,16 @@ export default function PropertyDetail() {
   const houseType = latest?.house_type || ''
   const address   = latest?.config?.address || ''
   const latestId  = latest?.id
+  // The landlord invoice the tile opens (the latest inspection's): final value
+  // once finalised, the running draft total before that.
+  const [inv, setInv] = useState(null)
+  useEffect(() => {
+    if (!latestId) return undefined
+    let alive = true
+    supabase.from('landlord_invoices').select('status, total').eq('inspection_id', latestId).maybeSingle()
+      .then(({ data }) => { if (alive) setInv(data ? { total: Number(data.total) || 0, draft: (data.status || 'draft') === 'draft' } : null) })
+    return () => { alive = false }
+  }, [latestId])
 
   async function handleTile(key) {
     if (key === 'estimate') {
@@ -761,8 +771,15 @@ export default function PropertyDetail() {
                                 </span>
                                 <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{est.all ? '✓ all approved' : `of ₹${est.total.toLocaleString('en-IN')} sent`}</span>
                               </div>
+                            ) : tile.key === 'invoice' && inv && !inv.draft ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                <span style={{ fontSize: 15, fontWeight: 700, color: inv.total > 0 ? 'var(--green, #6f9a7e)' : 'var(--text, #e8e8f0)', fontVariantNumeric: 'tabular-nums' }}>
+                                  ₹{inv.total.toLocaleString('en-IN')} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted, #6b6d82)' }}>final</span>
+                                </span>
+                                <span style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>✓ invoice finalised</span>
+                              </div>
                             ) : (
-                              <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{tile.key === 'estimate' && est?.draft ? 'Draft · not sent yet' : tile.sub}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted, #6b6d82)' }}>{tile.key === 'estimate' && est?.draft ? 'Draft · not sent yet' : tile.key === 'invoice' && inv?.draft ? `Draft · ₹${inv.total.toLocaleString('en-IN')} · not final` : tile.sub}</div>
                             )}
                           </div>
                         </button>
