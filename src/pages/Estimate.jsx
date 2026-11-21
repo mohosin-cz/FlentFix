@@ -89,7 +89,6 @@ function EstimateWorkbenchInner() {
   const [savingNotes, setSavingNotes]     = useState(false)
   const [generating, setGenerating]       = useState(false)
   const [copied, setCopied]               = useState(false)
-  const [hasUnsent, setHasUnsent]         = useState(false)
   const [locking, setLocking]             = useState(false)
   const [sending, setSending]             = useState(false)
   const [sendError, setSendError]         = useState(null)
@@ -329,7 +328,7 @@ function EstimateWorkbenchInner() {
     // .select() so a write that touched no row (signed out, no permission)
     // counts as a failure instead of looking saved; an expired sign-in is
     // refreshed and the write tried once more.
-    const write = () => supabase.from('estimate_items').update(safe).eq('id', itemId).select('id')
+    const write = () => supabase.from('estimate_items').update(safe).eq('id', itemId).select('id, status, approved_at, approved_by_email')
     let { data: wrote, error: err } = await write()
     if (err && /jwt|token|expired|401|not authenticated/i.test(err.message || '')) {
       await supabase.auth.refreshSession().catch(() => {})
@@ -343,8 +342,15 @@ function EstimateWorkbenchInner() {
       setSaveError({ text: `Couldn’t save ${what} for “${prev?.item_name || 'this line'}” — ${err.message}`, retry: () => { setSaveError(null); updateItem(itemId, updates) } })
     } else {
       setSaveError(null)
-      // estimates.total is maintained by a DB trigger — no client write needed
-      if (estimate?.status !== 'draft') setHasUnsent(true)
+      // Repricing a line the landlord approved puts it back to pending (a DB
+      // trigger) — take the row's status from the write, not from before it.
+      const row = wrote[0]
+      if (row.status !== prev?.status) setItems(p => p.map(i => i.id === itemId ? { ...i, status: row.status, approved_at: row.approved_at, approved_by_email: row.approved_by_email } : i))
+      // estimates.total / sent_total / status are kept by DB triggers — read them back
+      if (['material_cost', 'labour_cost', 'qty', 'cost_type'].some(k => k in safe)) {
+        supabase.from('estimates').select('status, total, sent_total').eq('id', id).maybeSingle()
+          .then(({ data }) => { if (data) setEstimate(e => ({ ...e, ...data })) })
+      }
       for (const [field, newVal] of Object.entries(safe)) {
         scheduleLog(itemId, prev?.item_name, field, prev?.[field], newVal)
       }
@@ -691,9 +697,12 @@ function EstimateWorkbenchInner() {
 
     // ── Step 5: update estimate — ONLY after both inserts verified ──────────────
     const now = new Date().toISOString()
+    // A resend only saves a version now (edits are already live), so an
+    // estimate the landlord has viewed or started approving keeps its status.
+    const keepStatus = !['draft', 'sent'].includes(estimate?.status || 'draft')
     const { error: estErr } = await supabase
       .from('estimates')
-      .update({ current_version: nextVersion, status: 'sent', sent_at: now })
+      .update({ current_version: nextVersion, sent_at: now, ...(keepStatus ? {} : { status: 'sent' }) })
       .eq('id', id)
 
     if (estErr) {
@@ -706,8 +715,7 @@ function EstimateWorkbenchInner() {
 
     // ── Step 6: success ─────────────────────────────────────────────────────────
     await supabase.from('estimate_events').insert({ estimate_id: id, event_type: 'sent', actor: userEmail })
-    setEstimate(p => ({ ...p, current_version: nextVersion, status: 'sent', sent_at: now }))
-    setHasUnsent(false)
+    setEstimate(p => ({ ...p, current_version: nextVersion, status: keepStatus ? p.status : 'sent', sent_at: now }))
     logActivity(supabase, id, { action: 'send', old_value: String(snapTotal), new_value: String(nextVersion), changed_by: userEmail })
     setSending(false)
 
@@ -1052,7 +1060,7 @@ function EstimateWorkbenchInner() {
               {inspection?.house_type && <span className="sub"> · {inspection.house_type}</span>}
               <span className="sub"> · v{estimate?.current_version || versionCount}</span>
               {isViewed && <span className="pill viewed" style={{ marginLeft:8 }}>VIEWED</span>}
-              {hasUnsent && !isLocked && <span className="pill" style={{ marginLeft:8,background:'rgba(248,113,113,0.15)',color:'#f87171',border:'1px solid rgba(248,113,113,0.3)' }}>● unsent changes</span>}
+              {status !== 'draft' && !isLocked && <span className="pill" title="The landlord sees your edits as you make them, until the estimate is marked final" style={{ marginLeft:8,background:'rgba(74,222,128,0.12)',color:'var(--good)',border:'1px solid rgba(74,222,128,0.3)' }}>● live</span>}
               {isLocked && <span className="pill" style={{ marginLeft:8,background:'rgba(200,150,62,0.15)',color:'var(--gold)',border:'1px solid rgba(200,150,62,0.3)' }}>FINAL</span>}
             </div>
             {exGuess && (

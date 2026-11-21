@@ -1109,7 +1109,13 @@ export default function LandlordEstimate() {
                         <div className="le-plate-title-row">
                           <span className="le-plate-title">{item.item_name || '—'}</span>
                           {total != null && total > 0 ? (
-                            <span className="le-plate-cost" style={item.status === 'rejected' ? { textDecoration: 'line-through', color: 'var(--le-ink-soft)', fontWeight: 400 } : undefined}>{costKind(item.cost_type) === 'actuals' && <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--le-clay)', marginRight: 4 }}>approx.</span>}₹{fmt(total)}</span>
+                            <span className="le-plate-cost" style={item.status === 'rejected' ? { textDecoration: 'line-through', color: 'var(--le-ink-soft)', fontWeight: 400 } : undefined}>
+                              {/* revised since it was sent: the sent price, struck through */}
+                              {item.status !== 'rejected' && item.was_total != null && Number(item.was_total) !== total && (
+                                <span title="Revised since the estimate was sent" style={{ textDecoration: 'line-through', color: 'var(--le-ink-soft)', fontWeight: 400, marginRight: 6 }}>₹{fmt(Number(item.was_total))}</span>
+                              )}
+                              {costKind(item.cost_type) === 'actuals' && <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--le-clay)', marginRight: 4 }}>approx.</span>}₹{fmt(total)}
+                            </span>
                           ) : costKind(item.cost_type) === 'actuals' ? (
                             <span className="le-plate-actuals">At actual cost</span>
                           ) : null}
